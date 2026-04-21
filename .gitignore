@@ -1,0 +1,5 @@
+.DS_Store
+.obsidian/workspace*.json
+.obsidian/cache
+state/
+context/
