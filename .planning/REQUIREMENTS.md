@@ -92,33 +92,33 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VAULT-01 | — | Pending |
-| VAULT-02 | — | Pending |
-| VAULT-03 | — | Pending |
-| VAULT-04 | — | Pending |
-| INPUT-01 | — | Pending |
-| INPUT-02 | — | Pending |
-| INPUT-03 | — | Pending |
-| INPUT-04 | — | Pending |
-| MEM-01 | — | Pending |
-| MEM-02 | — | Pending |
-| MEM-03 | — | Pending |
-| INTG-01 | — | Pending |
-| INTG-02 | — | Pending |
-| INTG-03 | — | Pending |
-| TODAY-01 | — | Pending |
-| TODAY-02 | — | Pending |
-| TODAY-03 | — | Pending |
-| TODAY-04 | — | Pending |
-| SCHED-01 | — | Pending |
-| SCHED-02 | — | Pending |
-| XREF-01 | — | Pending |
+| VAULT-01 | Phase 1 | Pending |
+| VAULT-02 | Phase 1 | Pending |
+| VAULT-03 | Phase 1 | Pending |
+| VAULT-04 | Phase 1 | Pending |
+| XREF-01 | Phase 1 | Pending |
+| INPUT-01 | Phase 2 | Pending |
+| INPUT-02 | Phase 2 | Pending |
+| INPUT-03 | Phase 2 | Pending |
+| INPUT-04 | Phase 2 | Pending |
+| MEM-01 | Phase 2 | Pending |
+| MEM-02 | Phase 2 | Pending |
+| MEM-03 | Phase 2 | Pending |
+| INTG-01 | Phase 3 | Pending |
+| INTG-02 | Phase 3 | Pending |
+| INTG-03 | Phase 3 | Pending |
+| TODAY-01 | Phase 4 | Pending |
+| TODAY-02 | Phase 4 | Pending |
+| TODAY-03 | Phase 4 | Pending |
+| TODAY-04 | Phase 4 | Pending |
+| SCHED-01 | Phase 4 | Pending |
+| SCHED-02 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21 ⚠️
+- Mapped to phases: 21
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-21*
-*Last updated: 2026-04-21 after initial definition*
+*Last updated: 2026-04-21 after roadmap phase mapping*
