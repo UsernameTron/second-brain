@@ -4,3 +4,4 @@
 state/
 context/
 .env
+.claude/hooks/*.log
