@@ -82,6 +82,7 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
+| Write-permission split (not content-type) | Voice preservation is the governing principle — keeps human authenticity intact. Left = human-only writes; right = agent-writable. Rule: "any file whose words should sound like ME lives on the LEFT." | **Resolved: write-permission boundary.** Enforced at /new ingress and via MCP write-scope configuration. |
 | Vault-as-project vs project-alongside-vault | Separation of concerns: code changes weekly, vault changes daily; they have different lifecycles, audiences, and failure modes. Cole's reference implementation is project-alongside-vault by design. | Resolved: project-alongside-vault. Project at ~/projects/second-brain/, vault at ~/Claude Cowork/, coupled through Obsidian MCP. |
 | Ingress filtering over post-hoc removal | Cheaper to strip excluded content at /new than chase it across files after the fact | — Pending |
 | memory-proposals.md staging area | Human-in-the-loop for memory promotion prevents agent hallucinations from entering long-term memory | — Pending |
