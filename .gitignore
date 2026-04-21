@@ -5,3 +5,4 @@ state/
 context/
 .env
 .claude/
+node_modules/
