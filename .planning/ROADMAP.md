@@ -32,8 +32,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Project skeleton, config files, write-gateway with path guard, quarantine, hot-reload, bootstrap, wikilinks
-- [ ] 01-02-PLAN.md — Content filter (two-stage with Haiku), style lint (banned word extraction), keyword expansion
+- [ ] 01-01-PLAN.md — Project skeleton, config files, write-gateway with canonical path security, redacted quarantine, config-driven bootstrap, wikilinks
+- [ ] 01-02-PLAN.md — Content filter (two-stage with Haiku, sanitization, minimal context), style lint (banned words, createVaultWriter enforcement), keyword expansion
 
 ### Phase 2: Content Pipeline
 **Goal**: Users can capture any input through /new with automatic domain classification and left/right routing, and memory compounds daily through a human-reviewed proposal/promotion workflow
