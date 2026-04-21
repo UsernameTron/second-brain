@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 
 Phase: 1 of 4 (Vault Foundation)
 Plan: 0 of 2 in current phase
-Status: Ready to plan
-Last activity: 2026-04-21 -- Roadmap created
+Status: Context gathered, ready to plan
+Last activity: 2026-04-21 -- Phase 1 context gathered (16 decisions)
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -76,5 +76,6 @@ None yet.
 
 Last session: 2026-04-21T20:23:57.370Z
 Stopped at: Phase 1 context gathered
-Resume with: `/gsd:discuss-phase 1` or `/gsd:plan-phase 1`
+Resume with: `/gsd:plan-phase 1`
 Note: Phases 2 and 3 can execute in parallel after Phase 1.
+Context file: `.planning/phases/01-vault-foundation/01-CONTEXT.md` (16 decisions captured)
