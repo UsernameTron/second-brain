@@ -74,8 +74,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-21
-Stopped at: Phase 1 planned, ready to execute
+Last session: 2026-04-21 (Session 3)
+Stopped at: Phase 1 planned and review-hardened
 Resume with: `/gsd:execute-phase 1`
 Note: Phases 2 and 3 can execute in parallel after Phase 1.
 Plans: `.planning/phases/01-vault-foundation/01-01-PLAN.md` (wave 1), `.planning/phases/01-vault-foundation/01-02-PLAN.md` (wave 2)
