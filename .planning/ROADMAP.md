@@ -29,11 +29,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Content containing ISPN, Genesys, or Asana references is stripped before any write completes
   4. Agent-generated vault content reflects the anti-AI writing style guide (no banned words/patterns)
   5. Wikilinks resolve correctly between LEFT and RIGHT vault sides
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md — Project skeleton, config files, write-gateway with path guard, quarantine, hot-reload, bootstrap, wikilinks
+- [ ] 01-02-PLAN.md — Content filter (two-stage with Haiku), style lint (banned word extraction), keyword expansion
 
 ### Phase 2: Content Pipeline
 **Goal**: Users can capture any input through /new with automatic domain classification and left/right routing, and memory compounds daily through a human-reviewed proposal/promotion workflow
