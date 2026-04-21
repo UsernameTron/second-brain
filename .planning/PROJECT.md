@@ -2,7 +2,7 @@
 
 ## What This Is
 
-An Obsidian vault that serves as Pete Connor's personal operating system — compounding memory, proactive daily briefing, and intelligent input routing. Built on a left/right write-permission architecture where human voice is preserved on one side and agent-generated content lives on the other. Integrates Gmail, Google Calendar, GitHub, and cross-project GSD state into a single morning prep workflow.
+A project that orchestrates an Obsidian vault into Pete Connor's personal operating system — compounding memory, proactive daily briefing, and intelligent input routing. The project code and GSD state live at ~/projects/second-brain/; the vault lives at ~/Claude Cowork/; they couple through the Obsidian MCP gateway. Built on a left/right write-permission architecture where human voice is preserved on one side and agent-generated content lives on the other. Integrates Gmail, Google Calendar, GitHub, and cross-project GSD state into a single morning prep workflow.
 
 ## Core Value
 
@@ -82,8 +82,7 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Write-permission split (not content-type) | Voice preservation is the governing principle — keeps human authenticity intact | — Pending |
-| Vault-as-project vs project-alongside-vault | Fundamental architecture question: is the vault the repo, or does a code project manage the vault? | — Pending (resolve in Phase 1) |
+| Vault-as-project vs project-alongside-vault | Separation of concerns: code changes weekly, vault changes daily; they have different lifecycles, audiences, and failure modes. Cole's reference implementation is project-alongside-vault by design. | Resolved: project-alongside-vault. Project at ~/projects/second-brain/, vault at ~/Claude Cowork/, coupled through Obsidian MCP. |
 | Ingress filtering over post-hoc removal | Cheaper to strip excluded content at /new than chase it across files after the fact | — Pending |
 | memory-proposals.md staging area | Human-in-the-loop for memory promotion prevents agent hallucinations from entering long-term memory | — Pending |
 | Cowork native connectors over Docker MCP for Gmail/Calendar | Simpler auth flow, better permission scoping, avoids Docker networking for latency-sensitive morning prep | — Pending |

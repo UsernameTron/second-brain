@@ -3,3 +3,4 @@
 .obsidian/cache
 state/
 context/
+.env
