@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Project skeleton, config files, write-gateway with canonical path security, redacted quarantine, config-driven bootstrap, wikilinks
+- [x] 01-01-PLAN.md — Project skeleton, config files, write-gateway with canonical path security, redacted quarantine, config-driven bootstrap, wikilinks
 - [ ] 01-02-PLAN.md — Content filter (two-stage with Haiku, sanitization, minimal context), style lint (banned words, createVaultWriter enforcement), keyword expansion
 
 ### Phase 2: Content Pipeline
