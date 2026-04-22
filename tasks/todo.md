@@ -9,19 +9,20 @@
 - [x] gmail-mcp-pete repo scaffolded (UsernameTron/gmail-mcp-pete) — 3 stub tools, pushed
 - [x] Deploy agent ecosystem (4 agents: vault-guardian, code-writer, test-writer, codebase-scout) — skipped, executed without agents
 - [x] `/gsd:execute-phase 3` — External Integrations (4/4 plans, 478 tests, verification 9/9 PASSED)
-- [ ] Ship Phase 3 — push chore/phase3-complete, create PR, merge to master
-- [ ] `/gsd:discuss-phase 4` — Daily Briefing & Scheduling
+- [x] Ship Phase 3 — PR #10 merged (50f438f), chore/phase3-complete branch deleted
+- [x] `/gsd:discuss-phase 4` — 22 decisions locked, scheduling verified via RemoteTrigger probe
+- [ ] `/gsd:plan-phase 4` — Daily Briefing & Scheduling
+- [ ] Delete test trigger trig_01NHx3Uz8ni8eZSfsMph4miY at https://claude.ai/code/scheduled
 
-## Session Handoff (Session 19 — 2026-04-22)
-- Phase 3 executed: 4 plans across 2 waves, all via parallel subagents (no custom agent ecosystem needed)
-- Wave 1: shared connector infra (types.js, connectors.json, schema, test helpers) — 27 tests
-- Wave 2: 3 parallel connectors (calendar 32 tests, gmail 27 tests, github 27 tests) — 113 connector tests total
-- Full regression: 478 tests, 23 suites, 0 regressions
-- Verification: 9/9 must-haves PASSED, architecture 88.8/100
-- PROJECT.md evolved: connector requirements moved to Validated, integrations section updated
-- Branch: chore/phase3-complete (not yet pushed/PR'd)
-- Ship log: PR #1 (Phase 1), PR #2 (Phase 2), PR #5-#8 (Phase 3 planning). Phase 3 execution needs PR.
-- Next session: ship Phase 3 PR → `/gsd:discuss-phase 4` or `/gsd:plan-phase 4`
+## Session Handoff (Session 20 — 2026-04-22)
+- Phase 3 shipped: PR #10 merged (50f438f), chore/phase3-complete branch deleted, local master rebased to origin
+- Phase 4 discuss-phase complete: 22 decisions (D-01..D-22) locked in 04-CONTEXT.md
+- Scheduling verified: RemoteTrigger API probed — standard 5-field cron in UTC, `environment_id` required, `mcp_connections` for Google Calendar available. Test trigger created (disabled) and needs manual deletion.
+- Gmail scope resolved: out-of-scope for Phase 4, parallel workstream. Phase 4 uses interface contract; works with stubs.
+- Two previously-flagged blockers dissolved: scheduled task syntax verified, gmail-mcp-pete scoped out
+- Key decisions: dual-surface output (vault note + terminal), decay-rate section ordering, 2 Haiku calls max, inline slippage scanner (7-day threshold), always-run synthesis with diagnostic fallback, grep-friendly error format
+- Branch: master (clean)
+- Next session: `/gsd:plan-phase 4` — then execute. Delete test trigger first.
 
 ## Followup
 - [ ] **DEFECT (LOW): in-batch dedup gap in src/promote-memories.js:330-338** — two proposals with identical contentHash in the same promotion batch can both promote. Fix: track Set of promoted hashes inside batch loop + add test. Surfaced by Gemini + host-session review of Phase 2.
