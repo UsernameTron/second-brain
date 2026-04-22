@@ -1,81 +1,38 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-22T18:16:29.747Z",
-  "phase": "3",
-  "phase_name": "External Integrations",
+  "timestamp": "2026-04-22T20:00:31.565Z",
+  "phase": "03",
+  "phase_name": "external-integrations",
   "phase_dir": ".planning/phases/03-external-integrations",
-  "plan": null,
-  "task": null,
-  "total_tasks": null,
+  "plan": 0,
+  "task": 0,
+  "total_tasks": 0,
   "status": "paused",
-  "workflow_step": "discuss-phase",
-  "discuss_progress": {
-    "areas_total": 4,
-    "areas_completed": 1,
-    "areas_in_progress": 1,
-    "areas_remaining": 2,
-    "order": ["connector-approach", "composition-model", "data-shaping-filtering", "error-handling-degradation"],
-    "completed": ["connector-approach"],
-    "in_progress": ["composition-model"],
-    "remaining": ["data-shaping-filtering", "error-handling-degradation"]
-  },
-  "completed_tasks": [],
+  "stage": "pre-execution-patching",
+  "completed_tasks": [
+    {"id": 1, "name": "Cross-AI review (Gemini + Codex)", "status": "done", "commit": "afac6e0"},
+    {"id": 2, "name": "Patch 03-04: GitHub tool surface rewrite", "status": "done", "commit": "6328b38"},
+    {"id": 3, "name": "Patch 03-01: GitHub config schema (owner + repos)", "status": "done", "commit": "62afa1c"},
+    {"id": 4, "name": "Patch 03-03: Gmail VIP allowlist + guards", "status": "done", "commit": "4aa59ba"},
+    {"id": 5, "name": "Patch 03-01: Schema validation + lazy config loader", "status": "in_progress", "progress": "loadConnectorsConfig patched for full schema validation, getConnectorsConfig memoized wrapper added. Behavior specs updated. Not yet committed."}
+  ],
   "remaining_tasks": [
-    {"id": 1, "name": "Finish discuss-phase Area 4 (composition model)", "status": "in_progress", "progress": "Option A2 (src/connectors/ module) recommended, awaiting Pete's pick"},
-    {"id": 2, "name": "Discuss Areas 2+3 (data shaping + error handling) in same pass", "status": "not_started"},
-    {"id": 3, "name": "Write 03-CONTEXT.md and 03-DISCUSSION-LOG.md", "status": "not_started"},
-    {"id": 4, "name": "Cross-AI review with Gemini before planning", "status": "not_started"}
+    {"id": 6, "name": "Patch 03-02: Calendar edge-case specs (all-day, timezone, attendee)", "status": "not_started"},
+    {"id": 7, "name": "Patch all plans: Defensive input validation specs (mcpClient guards)", "status": "not_started"},
+    {"id": 8, "name": "Commit all patches, update REVIEWS.md gate to PASS, squash-merge to master", "status": "not_started"}
   ],
   "blockers": [],
-  "human_actions_pending": [],
-  "decisions": [
-    {
-      "decision": "Calendar: Cowork native connector (mcp__claude_ai_Google_Calendar__*)",
-      "rationale": "Live and reachable from Claude Code terminal (probe 1c confirmed). Read-only enforcement at application layer required — connector exposes write tools.",
-      "phase": "3"
-    },
-    {
-      "decision": "Gmail: Custom Node.js MCP server with OAuth (gmail.readonly + gmail.compose)",
-      "rationale": "No Cowork native Gmail available. Docker gmail-mcp uses IMAP/SMTP with app password — exposes send capability, violates zero-trust. OAuth scopes make send structurally impossible.",
-      "phase": "3"
-    },
-    {
-      "decision": "Gmail server: standalone repo (gmail-mcp-pete or pete-gmail-mcp), not inside second-brain",
-      "rationale": "Decouples lifecycle. Server can be swapped for Anthropic native Gmail when/if it ships.",
-      "phase": "3"
-    },
-    {
-      "decision": "Gmail tool surface: exactly 3 tools — list_recent_messages, get_message_body, create_draft",
-      "rationale": "Minimal surface. VIP filter baked into server logic. No labels/modify/threads/attachments/search.",
-      "phase": "3"
-    },
-    {
-      "decision": "OAuth credential storage: plaintext refresh token at ~/.config/gmail-mcp/credentials.json, chmod 600",
-      "rationale": "Simple v1 approach. Risk documented in server README. No Keychain in v1.",
-      "phase": "3"
-    },
-    {
-      "decision": "OAuth client: Pete's personal Google account, consent screen in Testing mode",
-      "rationale": "Sole user. Avoids Connor Advisors workspace approval friction.",
-      "phase": "3"
-    },
-    {
-      "decision": "GitHub: Docker MCP (already wired, no Phase 3 connector work needed)",
-      "rationale": "mcp__MCP_DOCKER__* tools are live. Phase 3 work is data shaping for /today, not wiring.",
-      "phase": "3"
-    },
-    {
-      "decision": "Scheduling: Hybrid (Option 3) — manual/session-start primary, no headless cron in v1",
-      "rationale": "Cowork native Calendar won't work headless. Headless cron deferred to Phase 4 enhancement.",
-      "phase": "3"
-    },
-    {
-      "decision": "Gmail failure mode: single attempt, log on failure, degraded briefing with warning. No retry storms, no dead-letter queue.",
-      "rationale": "SCHED-02 contract. Same for Calendar failures.",
-      "phase": "3"
-    }
+  "human_actions_pending": [
+    {"action": "Create gmail-mcp-pete repo skeleton on GitHub (UsernameTron/gmail-mcp-pete)", "context": "03-03 integration tests need this repo to exist. Not blocking plan patches but needed before execute-phase.", "blocking": false}
   ],
-  "uncommitted_files": [],
-  "next_action": "Resume discuss-phase Area 4: Pete picks between A1 (extend briefing-helpers.js) or A2 (new src/connectors/ module). Then discuss Areas 2+3 together. Then write 03-CONTEXT.md + 03-DISCUSSION-LOG.md.",
-  "context_notes": "Discuss-phase is mid-flight. Area 1 (connector approach) fully resolved with 5 probes (1a-1d + scheduling). Area 4 (composition model) presented two sub-options — A1 extend briefing-helpers vs A2 new connectors/ module. Recommendation is A2. Areas 2 (data shaping) and 3 (error handling) not yet started — Pete wants them in one pass. Pete also requested cross-AI review with Gemini before planning. Gemini CLI needs re-auth (gemini auth login) — flagged in prior sessions."
+  "decisions": [
+    {"decision": "GitHub connector uses list_commits + list_issues + list_pull_requests per repo (not list_user_events)", "rationale": "MCP_DOCKER does not expose list_user_events tool. Verified via ToolSearch.", "phase": "03"},
+    {"decision": "Config uses owner + repos (not eventTypes)", "rationale": "Activity types are implicit in tool selection. eventTypes was for a fictional unified events API.", "phase": "03"},
+    {"decision": "Gmail connector passes allowedSenders to server-side MCP call", "rationale": "D-09 specifies server-side VIP filtering. Plan omitted wiring the parameter.", "phase": "03"},
+    {"decision": "All connectors use memoized lazy config loader", "rationale": "Module-level config load is brittle for Phase 4 graceful degradation.", "phase": "03"},
+    {"decision": "loadConnectorsConfig validates full JSON schema (not just top-level keys)", "rationale": "D-23 specifies schema validation. Top-level-only check misses type errors.", "phase": "03"}
+  ],
+  "uncommitted_files": [".planning/phases/03-external-integrations/03-01-PLAN.md"],
+  "next_action": "Finish remaining patches (03-02 calendar edge cases, defensive input validation), commit all, update REVIEWS.md gate to PASS, squash-merge branch to master, then /gsd:execute-phase 3",
+  "context_notes": "Cross-AI review returned PATCH-THEN-PROCEED from both Gemini and Codex. 2 HIGH (GitHub tool surface, Gmail VIP wiring) and several MEDIUM. 3 of 5 patches applied on branch docs/phase3-cross-ai-review (5 commits). Remaining patches are smaller. After patches, update REVIEWS.md gate to PASS, merge, execute."
 }
