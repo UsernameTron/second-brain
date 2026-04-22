@@ -213,8 +213,8 @@ Requirements: INPUT-01, INPUT-02, INPUT-03, INPUT-04, MEM-01, MEM-02, MEM-03
 
 ### New Config Files
 - `config/pipeline.json` — all Phase 2 thresholds
-- `config/templates.json` — per-domain template field definitions
-- `config/schema/*.schema.json` — JSON schemas for all config files (includes `memory-categories.schema.json` per D-23)
+- `config/templates.json` — per-domain template field definitions AND memory-category definitions (inclusion shape, example, exclusion rules, owned by the `memory-categories` key per D-23)
+- `config/schema/*.schema.json` — JSON schemas for all config files, including `memory-categories.schema.json` per D-23
 
 ### Modified Config Files
 - `config/excluded-terms.json` — expanded 3 → 15-20 entries (Pete-owned list)
