@@ -12,10 +12,10 @@ Transform an Obsidian vault into a personal operating system by establishing wri
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Vault Foundation** - Write-permission boundary, ingress filtering, style enforcement, and cross-reference wiring
-- [ ] **Phase 2: Content Pipeline** - Input routing via /new and memory compounding via proposals/promotion workflow
-- [ ] **Phase 3: External Integrations** - Gmail, Google Calendar, and GitHub MCP connectors with zero-trust permissions
-- [ ] **Phase 4: Daily Briefing and Scheduling** - /today command with 6-section briefing, cron automation, and graceful degradation
+- [x] **Phase 1: Vault Foundation** - Write-permission boundary, ingress filtering, style enforcement, and cross-reference wiring
+- [x] **Phase 2: Content Pipeline** - Input routing via /new and memory compounding via proposals/promotion workflow
+- [x] **Phase 3: External Integrations** - Gmail, Google Calendar, and GitHub MCP connectors with zero-trust permissions
+- [x] **Phase 4: Daily Briefing and Scheduling** - /today command with 6-section briefing, cron automation, and graceful degradation
 
 ## Phase Details
 
@@ -67,10 +67,10 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Shared connector infrastructure: SOURCE enum, uniform result shape, config/schema, test helpers
-- [ ] 03-02-PLAN.md — Calendar connector: Cowork native MCP, working-hours + declined filtering, read-only API surface
-- [ ] 03-03-PLAN.md — Gmail connector: gmail-mcp-pete MCP, two-layer VIP filtering, draft-only write
-- [ ] 03-04-PLAN.md — GitHub connector: Docker MCP, UsernameTron repo scoping, event-type filtering
+- [x] 03-01-PLAN.md — Shared connector infrastructure: SOURCE enum, uniform result shape, config/schema, test helpers
+- [x] 03-02-PLAN.md — Calendar connector: Cowork native MCP, working-hours + declined filtering, read-only API surface
+- [x] 03-03-PLAN.md — Gmail connector: gmail-mcp-pete MCP, two-layer VIP filtering, draft-only write
+- [x] 03-04-PLAN.md — GitHub connector: Docker MCP, UsernameTron repo scoping, event-type filtering
 
 ### Phase 4: Daily Briefing and Scheduling
 **Goal**: A single /today command produces a comprehensive morning prep list from all data sources, runs unattended on a cron schedule, and degrades gracefully when sources fail
@@ -86,9 +86,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Core /today command: fan-out, slippage scanner, frog ID, 6-section briefing, degradation
-- [ ] 04-02-PLAN.md — Contract tests: degradation format, section ordering, slippage, frog, source health
-- [ ] 04-03-PLAN.md — RemoteTrigger scheduling config and setup script, human verification
+- [x] 04-01-PLAN.md — Core /today command: fan-out, slippage scanner, frog ID, 6-section briefing, degradation
+- [x] 04-02-PLAN.md — Contract tests: degradation format, section ordering, slippage, frog, source health
+- [x] 04-03-PLAN.md — RemoteTrigger scheduling config and setup script, human verification
 
 ## Progress
 
@@ -98,7 +98,7 @@ Note: Phases 2 and 3 can execute in parallel (both depend only on Phase 1).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Vault Foundation | 0/2 | Not started | - |
-| 2. Content Pipeline | 0/3 | Not started | - |
-| 3. External Integrations | 0/1 | Not started | - |
-| 4. Daily Briefing and Scheduling | 0/3 | Not started | - |
+| 1. Vault Foundation | 2/2 | Complete | 2026-04-21 |
+| 2. Content Pipeline | 6/6 | Complete | 2026-04-21 |
+| 3. External Integrations | 4/4 | Complete | 2026-04-22 |
+| 4. Daily Briefing and Scheduling | 3/3 | Complete | 2026-04-22 |

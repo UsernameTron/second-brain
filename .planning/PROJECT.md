@@ -19,14 +19,14 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 ### Active
 - [ ] `memory.md` — agent-maintained, promoted from `memory-proposals.md` with user approval
 - [ ] `memory-proposals.md` — auto-extracted candidates from sessions, awaiting approval
-- [ ] `/today` command — morning prep list with 6 sections (meetings, emails, frogs, job hunt, airealitycheck, slippage)
-- [ ] `/today` data sources: Gmail (VIP-filtered, draft-only), Google Calendar (read-only), memory.md, cross-project .planning/ state, GitHub activity (UsernameTron)
+- [x] `/today` command — morning prep list with 6 sections (meetings, VIP emails, slippage, frog, GitHub, pipeline) — Validated in Phase 4: Daily Briefing and Scheduling
+- [x] `/today` data sources: Gmail (VIP-filtered, draft-only), Google Calendar (read-only), cross-project .planning/ state, GitHub activity (UsernameTron) — Validated in Phase 4: Daily Briefing and Scheduling
 - [ ] `/new` command — multi-domain input router classifying by domain and left/right write permission
 - [ ] `/new` routing rules: voice/reflections/drafts → LEFT, agent-derived/summaries → RIGHT
 - [x] Gmail MCP connector (draft-only permission, no send) — Validated in Phase 3: External Integrations
 - [x] Google Calendar MCP connector (read-only permission) — Validated in Phase 3: External Integrations
 - [x] GitHub activity connector (UsernameTron repo scoping) — Validated in Phase 3: External Integrations
-- [ ] Scheduled `/today` execution via cron (pre-morning review)
+- [x] Scheduled `/today` execution via cron (pre-morning review) — Validated in Phase 4: RemoteTrigger config created, trigger disabled pending activation
 
 ### Out of Scope
 
