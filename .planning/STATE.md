@@ -81,7 +81,7 @@ None yet.
 
 Last session: 2026-04-22 (Session 15)
 Stopped at: Phase 3 discuss-phase complete. 22 decisions locked. Linter refinements committed on chore/phase3-context-refinements. Ready for cross-AI review then plan-phase.
-Resume with: Merge chore/phase3-context-refinements, then Gemini re-auth (`gemini auth login`), cross-AI review of 03-CONTEXT.md, then `/gsd:plan-phase 3`.
+Resume with: Merge chore/phase3-context-refinements, then `/gsd:plan-phase 3`. Consolidated cross-AI review (Gemini + Codex) covers context + plans together, run before execute-phase.
 Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss, b4e6a77).
-Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions). Gemini CLI needs re-auth.
+Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions).
 Branch: chore/phase3-context-refinements (1 commit ahead of master)
