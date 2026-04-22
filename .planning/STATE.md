@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-21)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Phase 02 — content-pipeline
+**Current focus:** Phase 03 — external-integrations
 
 ## Current Position
 
 Phase: 3
 Plan: Not started
-Status: Ready to execute
+Status: Phase 2 complete, Phase 3 not yet discussed/planned
 Last activity: 2026-04-22
 
-Progress: [██░░░░░░░░] 25%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -62,6 +62,11 @@ Recent decisions affecting current work:
 
 - Write-permission split resolved: LEFT = human voice, RIGHT = agent output
 - Project-alongside-vault resolved: code at ~/projects/second-brain/, vault at ~/Claude Cowork/
+- chokidar v3 (not v5) for CJS compatibility — v5 is ESM-only
+- LLM client classify() never throws — returns {success, data/error, failureMode}
+- Wikilink enrichment is non-blocking (D-39) — failures logged, never block pipeline
+- Dead-letter auto-retry: 15-min interval, 3-attempt cap, freeze after cap (D-37)
+- jest.doMock preferred over jest.mock when mock factories need dynamic configuration
 
 ### Pending Todos
 
@@ -74,9 +79,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22 (Session 12)
-Stopped at: Phase 2 planned — 6 plans in 3 waves, verified by checker (PASSED).
-Resume with: `/gsd:execute-phase 2` to build the Content Pipeline.
-Followup items: config hot-reload defect (D-48) addressed in Plan 01. Excluded terms expansion (D-49) deferred. Gemini CLI needs re-auth (`gemini auth login`).
+Last session: 2026-04-22 (Session 13)
+Stopped at: Phase 2 complete — 6/6 plans executed, verified (PASSED), phase marked complete. 461 tests, 24 suites.
+Resume with: `/gsd:discuss-phase 3` to gather context for External Integrations, or `/gsd:plan-phase 3` if skipping discuss.
+Followup items: Excluded terms expansion (D-49) deferred. Gemini CLI needs re-auth (`gemini auth login`). 3 human UAT items pending for Phase 2 (LLM accuracy, wikilink relevance, Obsidian UX).
 PR #1: Merged.
-Plans: 02-01 through 02-06 in `.planning/phases/02-content-pipeline/`.
+Branch: `chore/session-cleanup` — needs PR for Phase 2 work.
