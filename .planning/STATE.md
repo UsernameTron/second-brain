@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 4 context gathered — 22 decisions locked, scheduling verified via RemoteTrigger probe
-last_updated: "2026-04-22T21:35:38.811Z"
-last_activity: 2026-04-22
+status: complete
+stopped_at: All 4 phases complete — 21/21 requirements validated, 502 tests passing
+last_updated: "2026-04-22T22:40:00.000Z"
+last_activity: 2026-04-22 -- Phase 04 shipped — PR #12
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 12
-  completed_plans: 12
-  percent: 75
+  completed_phases: 4
+  total_plans: 15
+  completed_plans: 15
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 
 ## Current Position
 
-Phase: 4 (Daily Briefing & Scheduling)
-Plan: Not started
-Status: Phase 4 context gathered (22 decisions, scheduling verified via RemoteTrigger probe). Ready for planning.
-Last activity: 2026-04-22
+Phase: 04 (daily-briefing-and-scheduling) — COMPLETE
+Plan: 3 of 3 — All plans complete
+Status: Milestone v1.0 complete
+Last activity: 2026-04-22 -- Phase 04 verified and completed
 
-Progress: [███████░░░] 75% (3/4 phases complete)
+Progress: [██████████] 100% (4/4 phases complete)
 
 ## Performance Metrics
 
@@ -72,6 +72,7 @@ Recent decisions affecting current work:
 - [Phase 03-external-integrations]: Gmail connector: two-layer VIP filtering (D-09 server-side allowedSenders + D-10 connector-side case-insensitive) with no-throw contract and no send-verb exports
 - [Phase 03-external-integrations]: PR time-window filtering done client-side (list_pull_requests lacks since param) — filter by updated_at after fetch
 - [Phase 03-external-integrations]: Partial GitHub MCP failure returns makeResult with warnings[] in data — preserves partial data for /today degraded mode (D-20)
+- [Phase 04-daily-briefing-and-scheduling]: Pipeline failure simulated by making briefing-helpers mock reject — matches _getPipelineState() try/catch behavior
 
 ### Pending Todos
 
@@ -84,9 +85,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22T21:35:38.809Z
-Stopped at: Phase 4 context gathered — 22 decisions locked, scheduling verified via RemoteTrigger probe
-Resume with: `/gsd:plan-phase 4` for Daily Briefing & Scheduling.
-Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss). PR #6 merged (context refinements). PR #8 merged (review patches). PR #10 merged (Phase 3 execution).
-Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions). gmail-mcp-pete OAuth flow (parallel workstream, stubs only). Delete test trigger trig_01NHx3Uz8ni8eZSfsMph4miY.
-Branch: master (clean)
+Last session: 2026-04-22
+Stopped at: Milestone v1.0 complete — all 4 phases verified, 502 tests passing, 21/21 requirements validated
+Resume with: `/gsd:ship` to create final PR, or `/gsd:complete-milestone` for milestone lifecycle
+Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss). PR #6 merged (context refinements). PR #8 merged (review patches). PR #10 merged (Phase 3 execution). PR #11 merged (Phase 4 context). PR #12 (Phase 4 execution — pending merge).
+Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions). gmail-mcp-pete OAuth flow (parallel workstream, stubs only). Delete test trigger trig_01NHx3Uz8ni8eZSfsMph4miY. Enable RemoteTrigger after activating scheduling config.
+Branch: chore/phase4-planning

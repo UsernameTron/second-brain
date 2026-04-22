@@ -233,7 +233,7 @@ function loadPipelineConfig() {
   const config = JSON.parse(raw);
 
   // Validate required top-level sections
-  const required = ['classifier', 'extraction', 'wikilink', 'promotion', 'retry', 'leftProposal', 'filename'];
+  const required = ['classifier', 'extraction', 'wikilink', 'promotion', 'retry', 'leftProposal', 'filename', 'slippage'];
   for (const key of required) {
     if (!(key in config)) {
       throw new Error(`pipeline.json missing required section: "${key}"`);

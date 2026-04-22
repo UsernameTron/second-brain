@@ -35,15 +35,15 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Daily Briefing
 
-- [ ] **TODAY-01**: `/today` command produces morning prep list with 6 sections (meetings, emails, frogs, job hunt, AI reality check, slippage)
-- [ ] **TODAY-02**: `/today` reports data-source health at top of every briefing (which sources succeeded/failed)
-- [ ] **TODAY-03**: `/today` scans cross-project `.planning/STATE.md` files for slippage detection
-- [ ] **TODAY-04**: `/today` identifies the hardest/most-avoided task (frog identification)
+- [x] **TODAY-01**: `/today` command produces morning prep list with 6 sections (meetings, VIP emails, slippage, frog, GitHub, pipeline) — Validated 2026-04-22
+- [x] **TODAY-02**: `/today` reports data-source health at top of every briefing (which sources succeeded/failed) — Validated 2026-04-22
+- [x] **TODAY-03**: `/today` scans cross-project `.planning/STATE.md` files for slippage detection — Validated 2026-04-22
+- [x] **TODAY-04**: `/today` identifies the hardest/most-avoided task (frog identification) — Validated 2026-04-22
 
 ### Scheduling
 
-- [ ] **SCHED-01**: `/today` executes on cron schedule pre-morning via Claude Desktop scheduled tasks
-- [ ] **SCHED-02**: When MCP sources fail, `/today` produces degraded briefing with warnings rather than nothing
+- [x] **SCHED-01**: `/today` executes on cron schedule pre-morning via RemoteTrigger (config created, trigger disabled pending activation) — Validated 2026-04-22
+- [x] **SCHED-02**: When MCP sources fail, `/today` produces degraded briefing with warnings rather than nothing — Validated 2026-04-22
 
 ### Cross-References
 
@@ -92,27 +92,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VAULT-01 | Phase 1 | Pending |
-| VAULT-02 | Phase 1 | Pending |
-| VAULT-03 | Phase 1 | Pending |
-| VAULT-04 | Phase 1 | Pending |
-| XREF-01 | Phase 1 | Pending |
-| INPUT-01 | Phase 2 | Pending |
-| INPUT-02 | Phase 2 | Pending |
-| INPUT-03 | Phase 2 | Pending |
-| INPUT-04 | Phase 2 | Pending |
-| MEM-01 | Phase 2 | Pending |
-| MEM-02 | Phase 2 | Pending |
-| MEM-03 | Phase 2 | Pending |
-| INTG-01 | Phase 3 | Pending |
-| INTG-02 | Phase 3 | Pending |
-| INTG-03 | Phase 3 | Pending |
-| TODAY-01 | Phase 4 | Pending |
-| TODAY-02 | Phase 4 | Pending |
-| TODAY-03 | Phase 4 | Pending |
-| TODAY-04 | Phase 4 | Pending |
-| SCHED-01 | Phase 4 | Pending |
-| SCHED-02 | Phase 4 | Pending |
+| VAULT-01 | Phase 1 | Complete |
+| VAULT-02 | Phase 1 | Complete |
+| VAULT-03 | Phase 1 | Complete |
+| VAULT-04 | Phase 1 | Complete |
+| XREF-01 | Phase 1 | Complete |
+| INPUT-01 | Phase 2 | Complete |
+| INPUT-02 | Phase 2 | Complete |
+| INPUT-03 | Phase 2 | Complete |
+| INPUT-04 | Phase 2 | Complete |
+| MEM-01 | Phase 2 | Complete |
+| MEM-02 | Phase 2 | Complete |
+| MEM-03 | Phase 2 | Complete |
+| INTG-01 | Phase 3 | Complete |
+| INTG-02 | Phase 3 | Complete |
+| INTG-03 | Phase 3 | Complete |
+| TODAY-01 | Phase 4 | Complete |
+| TODAY-02 | Phase 4 | Complete |
+| TODAY-03 | Phase 4 | Complete |
+| TODAY-04 | Phase 4 | Complete |
+| SCHED-01 | Phase 4 | Complete |
+| SCHED-02 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 21 total
