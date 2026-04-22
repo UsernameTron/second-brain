@@ -83,11 +83,12 @@ Plans:
   4. /today identifies the hardest or most-avoided task as the daily frog
   5. /today runs pre-morning via Claude Desktop scheduled task without manual intervention
   6. When MCP sources fail, /today produces a degraded briefing with warnings rather than producing nothing
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
+- [ ] 04-01-PLAN.md — Core /today command: fan-out, slippage scanner, frog ID, 6-section briefing, degradation
+- [ ] 04-02-PLAN.md — Contract tests: degradation format, section ordering, slippage, frog, source health
+- [ ] 04-03-PLAN.md — RemoteTrigger scheduling config and setup script, human verification
 
 ## Progress
 
@@ -100,4 +101,4 @@ Note: Phases 2 and 3 can execute in parallel (both depend only on Phase 1).
 | 1. Vault Foundation | 0/2 | Not started | - |
 | 2. Content Pipeline | 0/3 | Not started | - |
 | 3. External Integrations | 0/1 | Not started | - |
-| 4. Daily Briefing and Scheduling | 0/2 | Not started | - |
+| 4. Daily Briefing and Scheduling | 0/3 | Not started | - |
