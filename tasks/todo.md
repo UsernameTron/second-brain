@@ -3,15 +3,19 @@
 ## Current
 - [x] Execute Phase 2: Content Pipeline (461 tests passing, cross-AI reviewed PASS)
 - [x] Phase 3 discuss-phase (22 decisions, D-01..D-22, PR #5 merged)
-- [ ] Phase 3 context refinements (linter upgrades on chore/phase3-context-refinements — merge pending)
-- [ ] Phase 3 cross-AI review (Gemini CLI needs re-auth first)
-- [ ] Phase 3 plan-phase (`/gsd:plan-phase 3`)
+- [x] Phase 3 context refinements — PR #6 squash-merged (c6736ea), branch deleted
+- [ ] Consolidated cross-AI review (Gemini + Codex) of 03-CONTEXT.md + 4 plan files
+- [x] Phase 3 plan-phase — 4 plans, 2 waves, verification 8/8 PASSED
 
-## Session Handoff (Session 15 → Next)
-- Merge `chore/phase3-context-refinements` (1 commit: D-02 API-omission rewrite, D-06 Keychain, D-09/D-10 VIP filter clarification, D-15 SOURCE enum, D-23 connectors.json config)
-- Re-auth Gemini CLI: `gemini auth login` (flagged since session 4)
-- Cross-AI review of 03-CONTEXT.md with Gemini
-- Then `/gsd:plan-phase 3` to create execution plans for External Integrations
+## Session Wrap (Session 16 — 2026-04-22)
+- PR #6 squash-merged to master (c6736ea), branch chore/phase3-context-refinements deleted, local master clean
+- Plan files created:
+  - `.planning/phases/03-external-integrations/03-01-PLAN.md` — 297 lines (shared foundation: SOURCE enum, makeResult/makeError, config + schema, test helpers)
+  - `.planning/phases/03-external-integrations/03-02-PLAN.md` — 198 lines (Calendar connector, Cowork MCP wrapper)
+  - `.planning/phases/03-external-integrations/03-03-PLAN.md` — 214 lines (Gmail connector, gmail-mcp-pete MCP)
+  - `.planning/phases/03-external-integrations/03-04-PLAN.md` — 188 lines (GitHub connector, Docker MCP wrapper)
+- Ship log: PR #1 (Phase 1), PR #2 (Phase 2), PR #5 (Phase 3 discuss), PR #6 (Phase 3 context refinements)
+- Ready for consolidated cross-AI review. Next session picks up with /prime → review prompt.
 
 ## Followup
 - [ ] **DEFECT (LOW): in-batch dedup gap in src/promote-memories.js:330-338** — two proposals with identical contentHash in the same promotion batch can both promote. Fix: track Set of promoted hashes inside batch loop + add test. Surfaced by Gemini + host-session review of Phase 2.
@@ -42,3 +46,5 @@
 - [x] Phase 2 verification (gsd-verifier 6/6 must-haves PASSED)
 - [x] Phase 2 post-execution code review (Gemini + host session, PASS)
 - [x] Phase 3 discuss-phase complete (22 decisions, 4 areas, PR #5)
+- [x] Phase 3 context refinements merged (PR #6, 6 patches from Gemini round 1)
+- [x] Phase 3 plan-phase complete (4 plans, 2 waves, 897 total lines)
