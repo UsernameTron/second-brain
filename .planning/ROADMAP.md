@@ -46,14 +46,15 @@ Plans:
   4. After routing, /new suggests wikilinks to related existing notes
   5. Session activity produces memory candidates in memory-proposals.md with source attribution (session ID, date, source file)
   6. Approved proposals promote to memory.md after human review, with batches capped at 5-10 items
-**Plans:** 5 plans
+**Plans:** 6 plans
 
 Plans:
 - [ ] 02-01-PLAN.md — Config bootstrap: vault-paths expansion, pipeline.json, templates.json, schemas, hot-reload fix, shared infrastructure (Haiku client, correlation IDs, dead-letter writer)
 - [ ] 02-02-PLAN.md — Two-stage classifier, note formatter, /new command orchestration (Stages 0-3, 5)
 - [ ] 02-03-PLAN.md — Wikilink suggestion engine: vault index cache, hybrid search+LLM pipeline (Stage 4)
-- [ ] 02-04-PLAN.md — Memory extraction: /wrap transcript extraction, /extract-memories, memory-proposals.md management with locking and dedup
+- [ ] 02-04-PLAN.md — Memory extraction: /wrap transcript extraction, /extract-memories, memory-proposals.md management with locking and dedup, /wrap Stop hook script
 - [ ] 02-05-PLAN.md — Memory promotion (/promote-memories), dead-letter lifecycle (/promote-unrouted, /reroute), wikilink integration into /new
+- [ ] 02-06-PLAN.md — Background lifecycle: dead-letter auto-retry, left-proposal auto-archive, /today briefing helpers, daily sweep scheduling
 
 ### Phase 3: External Integrations
 **Goal**: Gmail, Google Calendar, and GitHub data are accessible to Claude Code through MCP connectors operating at minimum viable permissions
