@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-22T22:47:40Z",
+  "phase": "milestone",
+  "phase_name": "v1.0-completion",
+  "phase_dir": ".planning",
+  "plan": 0,
+  "task": 2,
+  "total_tasks": 5,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "Verify milestone readiness — all 15 SUMMARYs, 502 tests, 21/21 reqs", "status": "done"},
+    {"id": 2, "name": "Create milestones/ directory", "status": "done"}
+  ],
+  "remaining_tasks": [
+    {"id": 3, "name": "Archive milestone — create v1.0-ROADMAP.md, v1.0-REQUIREMENTS.md, MILESTONES.md entry", "status": "not_started"},
+    {"id": 4, "name": "Evolve PROJECT.md — move all reqs to Validated, update What This Is, current state", "status": "not_started"},
+    {"id": 5, "name": "Reorganize ROADMAP.md — collapse v1.0 into details tag, write RETROSPECTIVE.md", "status": "not_started"},
+    {"id": 6, "name": "Git tag v1.0, commit archives, delete original REQUIREMENTS.md, final report", "status": "not_started"}
+  ],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "PR #12 merged, master rebased (skipped orphaned local commit 66a2a82)", "rationale": "Squash merge from GitHub diverged from local; local commit was superseded", "phase": "milestone"},
+    {"decision": "All state files (STATE.md, ROADMAP.md, REQUIREMENTS.md) preserved correctly after merge", "rationale": "Squash merge included branch changes", "phase": "milestone"}
+  ],
+  "uncommitted_files": [],
+  "worktree_branches": [],
+  "next_action": "Resume /gsd:complete-milestone v1.0. Start at archive step: create .planning/milestones/v1.0-ROADMAP.md (copy current ROADMAP.md), create .planning/milestones/v1.0-REQUIREMENTS.md (copy current REQUIREMENTS.md with archive header), create MILESTONES.md entry. Then evolve PROJECT.md, reorganize ROADMAP.md with <details> collapse, write RETROSPECTIVE.md, git tag v1.0, commit, report.",
+  "context_notes": "Milestone v1.0 is fully complete — all 4 phases shipped, PR #12 merged, master clean. We are mid-way through the /gsd:complete-milestone ceremony. The milestones/ directory exists but is empty. The workflow template has been read. Branch chore/phase4-planning can be deleted (merged). On master, clean."
+}

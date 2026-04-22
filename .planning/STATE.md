@@ -86,8 +86,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-22
-Stopped at: Milestone v1.0 complete — all 4 phases verified, 502 tests passing, 21/21 requirements validated
-Resume with: `/gsd:ship` to create final PR, or `/gsd:complete-milestone` for milestone lifecycle
+Stopped at: Milestone v1.0 shipped (PR #12 merged). Mid-ceremony for /gsd:complete-milestone — archives not yet written.
+Resume with: `/gsd:complete-milestone` to finish archiving, retrospective, and git tag
 Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss). PR #6 merged (context refinements). PR #8 merged (review patches). PR #10 merged (Phase 3 execution). PR #11 merged (Phase 4 context). PR #12 (Phase 4 execution — pending merge).
 Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions). gmail-mcp-pete OAuth flow (parallel workstream, stubs only). Delete test trigger trig_01NHx3Uz8ni8eZSfsMph4miY. Enable RemoteTrigger after activating scheduling config.
 Branch: chore/phase4-planning
