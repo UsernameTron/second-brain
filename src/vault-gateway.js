@@ -27,6 +27,10 @@
 const fs = require('fs');
 const path = require('path');
 
+// Policy modules — integrated in Plan 02
+const { checkContent, sanitizeContent } = require('./content-policy');
+const { checkStyle, getBannedWords, loadStyleGuide } = require('./style-policy');
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 /**
@@ -155,6 +159,8 @@ function loadConfig() {
     left: vaultPaths.left,
     right: vaultPaths.right,
     excludedTerms,
+    // Plan 02: configurable Haiku context window size (default 100 if absent)
+    haikuContextChars: vaultPaths.haikuContextChars || 100,
   };
 
   validateConfig(config);
@@ -198,7 +204,8 @@ function watchConfig(configPath) {
 }
 
 /**
- * Initialize the gateway: load config and start config file watchers.
+ * Initialize the gateway: load config, start config file watchers, and
+ * initialize style guide cache and watcher.
  * Called once at module load (via lazy-loading in getConfig) or explicitly.
  *
  * @returns {{ left: string[], right: string[], excludedTerms: string[] }}
@@ -207,6 +214,8 @@ function initGateway() {
   _config = loadConfig();
   watchConfig(path.join(CONFIG_DIR, 'vault-paths.json'));
   watchConfig(path.join(CONFIG_DIR, 'excluded-terms.json'));
+  // Initialize style guide cache and watcher (Plan 02 addition)
+  loadStyleGuide();
   return _config;
 }
 
@@ -357,16 +366,22 @@ async function quarantine(originalPath, reason) {
 // ── Core write function ──────────────────────────────────────────────────────
 
 /**
- * Write content to the vault through the write enforcement gate.
- * This plan implements Guard 1 (path allowlist) only.
- * Guard 2 (content filter) and Guard 3 (style lint) are added in Plan 02.
+ * Write content to the vault through the three-gate write enforcement pipeline.
+ * Plan 02: Adds Guard 2 (content filter with sanitization) and Guard 3 (style lint).
+ *
+ * Three gates run sequentially:
+ *   1. Path guard: canonical path security + RIGHT-side allowlist
+ *   2. Content filter: two-stage keyword scan + Haiku classification + sanitization
+ *   3. Style lint: banned word regex check with attemptCount-driven escalation
  *
  * @param {string} relativePath - Vault-relative path (must be on RIGHT side)
  * @param {string} content - Content to write
- * @param {object} [options={}] - Options (reserved for future guards)
- * @returns {Promise<{ decision: 'WRITTEN', path: string }>}
+ * @param {object} [options={}] - Options
+ * @param {number} [options.attemptCount=0] - Retry count for style lint (caller-tracked)
+ * @returns {Promise<{ decision: 'WRITTEN'|'QUARANTINED', path?: string, quarantinePath?: string }>}
  * @throws {VaultWriteError} With code PATH_BLOCKED if path not on RIGHT side
  * @throws {VaultWriteError} With code INVALID_PATH on path security violations
+ * @throws {VaultWriteError} With code STYLE_VIOLATION on first style lint failure
  */
 async function vaultWrite(relativePath, content, options = {}) {
   // Guard 1: Canonical path security + path allowlist
@@ -379,6 +394,39 @@ async function vaultWrite(relativePath, content, options = {}) {
     throw new VaultWriteError(pathResult.reason, 'PATH_BLOCKED');
   }
 
+  // Guard 2: Content filter — two-stage (keyword scan + Haiku) with sanitization
+  const haikuContextChars = config.haikuContextChars || 100;
+  const contentResult = await checkContent(content, config.excludedTerms, haikuContextChars);
+
+  if (contentResult.decision === 'BLOCK') {
+    // Attempt paragraph-level sanitization
+    const sanitizeResult = sanitizeContent(content, config.excludedTerms);
+    const totalParagraphs = content.split('\n\n').length;
+
+    if (sanitizeResult.redactedCount > totalParagraphs / 2) {
+      // Content is primarily about excluded topics — quarantine (metadata only)
+      logDecision('WRITE', normalized, 'QUARANTINED', contentResult.reason);
+      return await quarantine(normalized, contentResult.reason);
+    } else {
+      // Sanitization sufficient — write redacted version
+      logDecision('WRITE', normalized, 'SANITIZED', `${sanitizeResult.redactedCount} paragraph(s) redacted`);
+      content = sanitizeResult.sanitized;
+    }
+  }
+
+  // Guard 3: Style lint — banned word regex check
+  const styleResult = checkStyle(content, getBannedWords(), options.attemptCount ?? 0);
+
+  if (styleResult.decision === 'REJECT') {
+    throw new VaultWriteError(styleResult.reason, 'STYLE_VIOLATION');
+  }
+
+  if (styleResult.decision === 'QUARANTINE') {
+    logDecision('WRITE', normalized, 'QUARANTINED', styleResult.reason);
+    return await quarantine(normalized, styleResult.reason);
+  }
+
+  // All guards passed — write to vault
   const absolutePath = path.join(VAULT_ROOT, normalized);
 
   // Create parent directory (may not exist yet)
@@ -386,9 +434,16 @@ async function vaultWrite(relativePath, content, options = {}) {
 
   // Symlink defense: verify resolved parent directory is still inside VAULT_ROOT
   // Only applicable when parent directory exists (realpathSync requires the path to exist)
+  // Both paths resolved via realpathSync to handle OS-level symlinks (e.g., /var → /private/var on macOS)
   try {
     const realParent = fs.realpathSync(path.dirname(absolutePath));
-    if (!realParent.startsWith(VAULT_ROOT)) {
+    let realVaultRoot;
+    try {
+      realVaultRoot = fs.realpathSync(VAULT_ROOT);
+    } catch (_) {
+      realVaultRoot = VAULT_ROOT;
+    }
+    if (!realParent.startsWith(realVaultRoot)) {
       logDecision('WRITE', normalized, 'BLOCKED', 'Symlink escape detected');
       throw new VaultWriteError('Symlink escape detected', 'INVALID_PATH');
     }
@@ -459,6 +514,10 @@ function toQualifiedWikilink(folder, noteName, displayText) {
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 
+// Re-export policy modules (Plan 02 addition)
+const contentPolicy = require('./content-policy');
+const stylePolicy = require('./style-policy');
+
 module.exports = {
   // Core write/read
   vaultWrite,
@@ -492,4 +551,10 @@ module.exports = {
 
   // Constants
   VAULT_ROOT,
+
+  // Content policy exports (Plan 02)
+  ...contentPolicy,
+
+  // Style policy exports (Plan 02)
+  ...stylePolicy,
 };
