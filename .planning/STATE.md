@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-21)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Phase 01 — vault-foundation
+**Current focus:** Phase 02 — content-pipeline
 
 ## Current Position
 
 Phase: 2
-Plan: Not started
-Status: Executing Phase 01
+Plan: Not started — context gathered, ready for planning
+Status: Phase 2 context gathered
 Last activity: 2026-04-22
 
 Progress: [██░░░░░░░░] 25%
@@ -74,8 +74,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22T13:59:53.970Z
-Stopped at: Phase 2 context gathered
-Resume with: `/gsd:discuss-phase 2` or `/gsd:plan-phase 2` for Content Pipeline.
-Followup items: config hot-reload defect, excluded terms expansion (see tasks/todo.md).
-PR: https://github.com/UsernameTron/second-brain/pull/1 — merge before starting Phase 2.
+Last session: 2026-04-22 (Session 8)
+Stopped at: Phase 2 context gathered — 50 decisions in 02-CONTEXT.md, ready for planning.
+Resume with: `/gsd:plan-phase 2` to create execution plans for Content Pipeline.
+Followup items: config hot-reload defect + excluded terms expansion (both claimed by Phase 2, see D-48/D-49).
+PR #1: Merged.
