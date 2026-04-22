@@ -1,0 +1,19 @@
+{
+  "calendar": {
+    "workingHours": { "start": 8, "end": 18 },
+    "excludeDeclined": true,
+    "defaultWindowHours": 24
+  },
+  "gmail": {
+    "vipSenders": [
+      "cpeteconnor@gmail.com"
+    ],
+    "defaultWindowHours": 24,
+    "maxResults": 20
+  },
+  "github": {
+    "owner": "UsernameTron",
+    "repos": ["second-brain"],
+    "defaultWindowHours": 24
+  }
+}

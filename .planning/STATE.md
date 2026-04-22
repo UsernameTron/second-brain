@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 shipped via PR #2 (173e81a). Phase 3 not yet started.
-last_updated: "2026-04-22"
+stopped_at: Completed 03-03-PLAN.md — Gmail connector with VIP filtering and draft-only write
+last_updated: "2026-04-22T21:07:37.391Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
+  completed_phases: 3
+  total_plans: 12
+  completed_plans: 12
   percent: 50
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-21)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Phase 03 — external-integrations
+**Current focus:** Phase 04 — daily-briefing-and-scheduling
 
 ## Current Position
 
-Phase: 3 (External Integrations)
-Plan: 4 plans in 2 waves — plan-phase COMPLETE, verified PASSED
-Status: Phase 3 plans reviewed (PASS), all 5 patches applied and merged (PR #8, db5f622). gmail-mcp-pete repo scaffolded (UsernameTron/gmail-mcp-pete). Agent ecosystem designed (4 agents planned, not yet deployed). Ready for agent deploy then execute-phase.
+Phase: 4 (Daily Briefing & Scheduling)
+Plan: Not started
+Status: Phase 3 complete (4/4 plans, 478 tests, verification PASSED). Ready for Phase 4.
 Last activity: 2026-04-22
 
-Progress: [█████░░░░░] 50% (2/4 phases complete)
+Progress: [███████░░░] 75% (3/4 phases complete)
 
 ## Performance Metrics
 
@@ -52,6 +52,8 @@ Progress: [█████░░░░░] 50% (2/4 phases complete)
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 03-external-integrations P03 | 10 | 1 tasks | 3 files |
+| Phase 03-external-integrations P04 | 12 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -67,6 +69,9 @@ Recent decisions affecting current work:
 - Wikilink enrichment is non-blocking (D-39) — failures logged, never block pipeline
 - Dead-letter auto-retry: 15-min interval, 3-attempt cap, freeze after cap (D-37)
 - jest.doMock preferred over jest.mock when mock factories need dynamic configuration
+- [Phase 03-external-integrations]: Gmail connector: two-layer VIP filtering (D-09 server-side allowedSenders + D-10 connector-side case-insensitive) with no-throw contract and no send-verb exports
+- [Phase 03-external-integrations]: PR time-window filtering done client-side (list_pull_requests lacks since param) — filter by updated_at after fetch
+- [Phase 03-external-integrations]: Partial GitHub MCP failure returns makeResult with warnings[] in data — preserves partial data for /today degraded mode (D-20)
 
 ### Pending Todos
 
@@ -74,14 +79,14 @@ None yet.
 
 ### Blockers/Concerns
 
-- Gmail/Calendar MCP connector approach TBD (Docker catalog vs Cowork native vs custom). Affects Phase 3.
 - Claude Desktop scheduled task recurrence syntax unverified. Affects Phase 4.
+- gmail-mcp-pete OAuth flow not yet wired (repo scaffolded, stubs only).
 
 ## Session Continuity
 
-Last session: 2026-04-22 (Session 18)
-Stopped at: Phase 3 review patches merged (PR #8). gmail-mcp-pete scaffolded. Agent ecosystem plan drafted (4 agents: vault-guardian, code-writer, test-writer, codebase-scout).
-Resume with: Deploy agent ecosystem (approve plan in /Users/cpconnor/.claude/plans/lexical-crunching-lobster.md), then `/gsd:execute-phase 3`.
-Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss, b4e6a77). PR #6 merged (Phase 3 context refinements, c6736ea). PR #8 merged (Phase 3 review patches, db5f622).
-Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions). gmail-mcp-pete OAuth flow (wire during 03-03).
-Branch: master (clean)
+Last session: 2026-04-22 (Session 19)
+Stopped at: Phase 3 execution complete — 4/4 plans, 478 tests, verification 9/9 PASSED (88.8/100). All connectors built: calendar, gmail, github. PROJECT.md evolved.
+Resume with: `/gsd:discuss-phase 4` or `/gsd:plan-phase 4` for Daily Briefing & Scheduling. Ship Phase 3 via PR first.
+Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss). PR #6 merged (context refinements). PR #8 merged (review patches). Phase 3 execution on chore/phase3-complete — needs PR + merge.
+Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions). gmail-mcp-pete OAuth flow (stubs only — needs real OAuth wiring).
+Branch: chore/phase3-complete
