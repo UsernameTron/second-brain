@@ -53,8 +53,8 @@ Plans:
 - [x] 02-02-PLAN.md — Two-stage classifier, note formatter, /new command orchestration (Stages 0-3, 5)
 - [x] 02-03-PLAN.md — Wikilink suggestion engine: vault index cache, hybrid search+LLM pipeline (Stage 4)
 - [x] 02-04-PLAN.md — Memory extraction: /wrap transcript extraction, /extract-memories, memory-proposals.md management with locking and dedup, /wrap Stop hook script
-- [ ] 02-05-PLAN.md — Memory promotion (/promote-memories), dead-letter lifecycle (/promote-unrouted, /reroute), wikilink integration into /new
-- [ ] 02-06-PLAN.md — Background lifecycle: dead-letter auto-retry, left-proposal auto-archive, /today briefing helpers, daily sweep scheduling
+- [x] 02-05-PLAN.md — Memory promotion (/promote-memories), dead-letter lifecycle (/promote-unrouted, /reroute), wikilink integration into /new
+- [x] 02-06-PLAN.md — Background lifecycle: dead-letter auto-retry, left-proposal auto-archive, /today briefing helpers, daily sweep scheduling
 
 ### Phase 3: External Integrations
 **Goal**: Gmail, Google Calendar, and GitHub data are accessible to Claude Code through MCP connectors operating at minimum viable permissions
