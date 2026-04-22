@@ -26,6 +26,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const EventEmitter = require('events');
+let chokidar;
+try { chokidar = require('chokidar'); } catch (_) { chokidar = null; }
 
 // Policy modules — integrated in Plan 02
 const { checkContent, sanitizeContent } = require('./content-policy');
@@ -41,8 +44,19 @@ const VAULT_ROOT = process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude
 
 /**
  * Config directory relative to project root (one level up from src/).
+ * CONFIG_DIR_OVERRIDE allows test isolation without touching the real config.
  */
-const CONFIG_DIR = path.join(__dirname, '..', 'config');
+const CONFIG_DIR = process.env.CONFIG_DIR_OVERRIDE
+  || path.join(__dirname, '..', 'config');
+
+// ── Config reload event emitter ──────────────────────────────────────────────
+
+/**
+ * EventEmitter for config lifecycle events.
+ * Fires 'config:reloaded' after successful hot-reload.
+ * Consumers (e.g., pipeline stages) listen on this to invalidate caches.
+ */
+const configEvents = new EventEmitter();
 
 // ── Error class ──────────────────────────────────────────────────────────────
 
@@ -91,8 +105,8 @@ function logDecision(action, filePath, decision, reason) {
 /** @type {{ left: string[], right: string[], excludedTerms: string[] } | null} */
 let _config = null;
 
-/** Debounce flag to prevent macOS double-fire (Pitfall 2 from RESEARCH.md) */
-let _reloading = false;
+/** Active chokidar watcher instance (kept for cleanup in tests) */
+let _watcher = null;
 
 /**
  * Validate config object structure and constraints.
@@ -179,28 +193,46 @@ function getConfig() {
   return _config;
 }
 
+/** @type {boolean} Debounce guard for config reload */
+let _reloading = false;
+
+/**
+ * Internal reload handler. Debounces with 50ms to prevent macOS double-fire.
+ * On parse error, keeps old config and logs warning to stderr.
+ * Fires 'config:reloaded' on configEvents after successful reload.
+ */
+function _handleConfigChange() {
+  if (_reloading) return;
+  _reloading = true;
+  setTimeout(() => {
+    try {
+      _config = loadConfig();
+      configEvents.emit('config:reloaded', _config);
+    } catch (e) {
+      console.error(`[vault-gateway] Config reload failed: ${e.message}. Keeping previous config.`);
+    }
+    _reloading = false;
+  }, 50);
+}
+
 /**
  * Watch a config file for changes and reload on update.
- * Uses 50ms debounce to prevent macOS double-fire (Pitfall 2 from RESEARCH.md).
- * On parse error during hot-reload, keeps old config and logs warning to stderr.
+ * Uses chokidar if available (reliable on macOS), falls back to fs.watchFile.
+ * Fixes D-48: fs.watch does not fire reliably on macOS in production.
  *
  * @param {string} configPath - Absolute path to config file to watch
  */
+/** @type {Array} Active watchers for cleanup */
+const _watchers = [];
+
 function watchConfig(configPath) {
-  fs.watch(configPath, { persistent: false }, (eventType) => {
-    if (eventType === 'change' && !_reloading) {
-      _reloading = true;
-      setTimeout(() => {
-        try {
-          _config = loadConfig();
-        } catch (e) {
-          // Keep old config on parse error — never crash on reload
-          console.error(`[vault-gateway] Config reload failed: ${e.message}. Keeping previous config.`);
-        }
-        _reloading = false;
-      }, 50);
-    }
-  });
+  if (chokidar) {
+    const w = chokidar.watch(configPath, { ignoreInitial: true });
+    w.on('change', _handleConfigChange);
+    _watchers.push(w);
+  } else {
+    fs.watchFile(configPath, { interval: 500 }, _handleConfigChange);
+  }
 }
 
 /**
@@ -551,6 +583,9 @@ module.exports = {
 
   // Constants
   VAULT_ROOT,
+
+  // Config events (hot-reload)
+  configEvents,
 
   // Content policy exports (Plan 02)
   ...contentPolicy,
