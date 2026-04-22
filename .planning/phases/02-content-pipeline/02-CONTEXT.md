@@ -19,7 +19,7 @@ Requirements: INPUT-01, INPUT-02, INPUT-03, INPUT-04, MEM-01, MEM-02, MEM-03
 |-------------|-------------|-------------|
 | INPUT-01 | `/new` captures any input with domain classification | D-01, D-02, D-03, D-04, D-06, D-40 |
 | INPUT-02 | Left/right routing with voice-authenticity gate | D-02 (Stage 1), D-12, D-13, D-14, D-15, D-16 |
-| INPUT-03 | Template overlays for structured domains | D-07, D-08, D-09, D-10, D-11 |
+| INPUT-03 | `/new` integrates ingress filtering — excluded content never reaches disk | D-40, D-41, D-43 |
 | INPUT-04 | Wikilink suggestions on routed notes | D-17, D-18, D-19, D-20 |
 | MEM-01 | Memory extraction from sessions and vault content | D-21, D-22, D-23, D-24, D-25, D-26, D-27, D-44, D-45, D-46 |
 | MEM-02 | Human-reviewed proposal/promotion workflow | D-28, D-29, D-30, D-31, D-33, D-34 |
