@@ -74,9 +74,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22 (Session 9)
-Stopped at: Phase 2 CONTEXT.md cleaned up (5 targeted edits + review). 1 CRITICAL traceability fix applied. 10 remaining review items sent to Codex/Gemini for peer review before further CONTEXT mutation.
-Resume with: Fold peer review results into CONTEXT.md (items 2-11 from review), then `/gsd:plan-phase 2`.
-Followup items: config hot-reload defect + excluded terms expansion (both claimed by Phase 2, see D-48/D-49).
+Last session: 2026-04-22 (Session 10)
+Stopped at: Cross-AI review complete. 02-REVIEWS.md committed with BLOCK gate recommendation. 5 CRITICAL fixes identified, 7 HIGH items queued.
+Resume with: Resolve 5 CRITICAL amendments in 02-CONTEXT.md (LEFT routing D-02/D-12, blocked-content D-35/D-41, taxonomy D-03/D-36, /promote-unrouted decisions, memory-proposals.md schema). Then `/gsd:plan-phase 2 --reviews`.
+Followup items: config hot-reload defect + excluded terms expansion (D-48/D-49). Gemini CLI needs re-auth (`gemini auth login`).
 PR #1: Merged.
-Review artifacts: `~/.claude/plans/sleepy-plotting-treehouse.md` (11-item ranked fix list).
+Review artifacts: `.planning/phases/02-content-pipeline/02-REVIEWS.md` (Codex + Claude host, 5 CRITICAL + 7 HIGH).
