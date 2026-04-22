@@ -4,6 +4,7 @@
 - [x] Execute Phase 1: Vault Foundation (`/gsd:execute-phase 1`)
 
 ## Followup
+- [ ] **DEFECT: Config hot-reload not firing — fs.watch broken or cache not invalidating.** Workaround: restart Node process after config edits. Debug in dedicated session.
 - [ ] **Expand excluded-terms.json to 15-20 entries before v1 go-live** — Categories: former employer product names, project codenames, client names, internal tools, senior leadership names. Currently 3 seed entries (ISPN, Genesys, Asana).
 
 ## Completed
