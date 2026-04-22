@@ -64,10 +64,13 @@ Plans:
   1. Gmail connector returns VIP-filtered emails with draft-only write permission (send is impossible)
   2. Google Calendar connector returns upcoming events with read-only permission (write is impossible)
   3. GitHub connector returns activity feed scoped to UsernameTron repos
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 03-01: TBD
+- [ ] 03-01-PLAN.md — Shared connector infrastructure: SOURCE enum, uniform result shape, config/schema, test helpers
+- [ ] 03-02-PLAN.md — Calendar connector: Cowork native MCP, working-hours + declined filtering, read-only API surface
+- [ ] 03-03-PLAN.md — Gmail connector: gmail-mcp-pete MCP, two-layer VIP filtering, draft-only write
+- [ ] 03-04-PLAN.md — GitHub connector: Docker MCP, UsernameTron repo scoping, event-type filtering
 
 ### Phase 4: Daily Briefing and Scheduling
 **Goal**: A single /today command produces a comprehensive morning prep list from all data sources, runs unattended on a cron schedule, and degrades gracefully when sources fail
