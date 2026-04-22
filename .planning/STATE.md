@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 
 Phase: 3 (External Integrations)
 Plan: 4 plans in 2 waves — plan-phase COMPLETE, verified PASSED
-Status: Phase 3 planned (5dd9a94). 03-01 shared infra (Wave 1), 03-02 calendar + 03-03 gmail + 03-04 github (Wave 2 parallel). Awaiting consolidated cross-AI review then execute-phase.
+Status: Phase 3 plans reviewed (PASS), all 5 patches applied and merged (PR #8, db5f622). gmail-mcp-pete repo scaffolded (UsernameTron/gmail-mcp-pete). Agent ecosystem designed (4 agents planned, not yet deployed). Ready for agent deploy then execute-phase.
 Last activity: 2026-04-22
 
 Progress: [█████░░░░░] 50% (2/4 phases complete)
@@ -79,9 +79,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22 (Session 16)
-Stopped at: Phase 3 plan-phase complete. 4 plans in 2 waves, verified PASSED. PR #6 merged (context refinements). Plans committed on master (5dd9a94).
-Resume with: Consolidated cross-AI review (Gemini + Codex) of 03-CONTEXT.md + 4 plan files, then `/gsd:execute-phase 3`.
-Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss, b4e6a77). PR #6 merged (Phase 3 context refinements, c6736ea).
-Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions).
+Last session: 2026-04-22 (Session 18)
+Stopped at: Phase 3 review patches merged (PR #8). gmail-mcp-pete scaffolded. Agent ecosystem plan drafted (4 agents: vault-guardian, code-writer, test-writer, codebase-scout).
+Resume with: Deploy agent ecosystem (approve plan in /Users/cpconnor/.claude/plans/lexical-crunching-lobster.md), then `/gsd:execute-phase 3`.
+Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss, b4e6a77). PR #6 merged (Phase 3 context refinements, c6736ea). PR #8 merged (Phase 3 review patches, db5f622).
+Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions). gmail-mcp-pete OAuth flow (wire during 03-03).
 Branch: master (clean)
