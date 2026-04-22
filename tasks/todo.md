@@ -21,11 +21,11 @@
 - [x] Phase 1 cross-AI review (Codex — 5 HIGH concerns)
 - [x] Phase 1 plan revision (all concerns addressed, verified)
 
-## Session Handoff — 2026-04-22 (Session 9)
+## Session Handoff — 2026-04-22 (Session 12)
 
 **Branch:** `chore/session-cleanup`
-**State:** Phase 2 CONTEXT.md cleaned (4 commits: D-04 fix, D-23/D-02/D-03 edits, In-Scope labels, INPUT-03 traceability). Internal review produced 11-item fix list. Item 1 (CRITICAL: INPUT-03 traceability) applied. Items 2-11 held for Codex/Gemini peer review.
-**Next:** Send items 2-11 to Codex/Gemini. Fold peer review results. Then `/gsd:plan-phase 2`.
-**Review artifact:** `~/.claude/plans/sleepy-plotting-treehouse.md`
-**Key items for peer review:** /reroute + /promote-unrouted have zero decisions (HIGH), D-03/D-04 overlap needs clarifying clause (MEDIUM), D-36 failure taxonomy is vacuous (MEDIUM).
-**Tests:** 96 passing across 5 suites (Phase 1 baseline).
+**State:** Phase 2 fully planned — 6 plans in 3 waves, checker PASSED. All 7 requirements covered (INPUT-01–04, MEM-01–03). Plans committed as 4f79efb + 888e892 + 427b1b5.
+**Next:** `/gsd:execute-phase 2` to build the Content Pipeline. Clear context first — plans are dense.
+**Wave execution order:** Wave 1 (Plan 01 infra), Wave 2 (Plans 02/03/04 parallel), Wave 3 (Plans 05/06 parallel).
+**Tests:** 96 passing across 5 suites (Phase 1 baseline — Phase 2 will add substantially).
+**Gemini CLI:** Still needs re-auth (`gemini auth login`).
