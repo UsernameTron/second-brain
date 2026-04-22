@@ -208,6 +208,12 @@ Use these entry points:
 - `/gsd:execute-phase` for planned phase work
 
 Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
+
+## Session Handoffs
+
+When the user says "stop," "kill the session," "we're done," or hands off to a future session via a carry-forward note: stop. Do not start any work mentioned in the carry-forward note. Carry-forward items belong to the next session, not the current one. Items described as "needs refresh," "should update," "to verify," or any other forward-looking phrasing in a handoff are reference material for the next session — not a task list for this one.
+
+If you notice something that needs doing while writing a handoff, either do it before writing the handoff or leave it for the next session. Never both.
 <!-- GSD:workflow-end -->
 
 <!-- GSD:profile-start -->
