@@ -221,6 +221,7 @@ async function _writeCandidateWithLock(candidate) {
     '**Proposed related:** ' + relatedStr,
     '',
     'session_id:: ' + sessionId,
+    'source_ref:: ' + (sourceRef || ''),
     'captured_at:: ' + capturedAt,
     'source_file:: ' + sourceFile,
     'category:: ' + category,
