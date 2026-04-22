@@ -3,7 +3,7 @@ phase: 3
 reviewers: [gemini, codex]
 reviewed_at: "2026-04-22T18:00:00Z"
 plans_reviewed: [03-01-PLAN.md, 03-02-PLAN.md, 03-03-PLAN.md, 03-04-PLAN.md]
-gate_recommendation: PATCH-THEN-PROCEED
+gate_recommendation: PASS
 ---
 
 # Cross-AI Plan Review — Phase 3
@@ -114,5 +114,11 @@ The Phase 3 plan set is mostly well-shaped: the wave ordering is sensible, the c
 4. **03-02 (Calendar)**: Add edge-case specs for all-day events (no start hour), timezone normalization, and attendee email matching.
 5. **All plans**: Add defensive input validation for mcpClient parameter and required arguments.
 
-### Gate Recommendation: PATCH-THEN-PROCEED
-Both reviewers independently reached PATCH-THEN-PROCEED. Architecture is sound. Patches are clarifications and implementation-fidelity fixes, not redesigns.
+### Gate Recommendation: PASS
+All 5 patches applied (commits d9c46f3..69bae20 on docs/phase3-cross-ai-review). Both reviewers' concerns addressed:
+1. 03-04 rewritten for verified MCP tools (list_commits/list_issues/list_pull_requests)
+2. 03-03 wired allowedSenders per D-09
+3. 03-01 extended with full JSON schema validation + memoized lazy loader
+4. 03-02 calendar edge cases (all-day, timezone, case-insensitive attendee, mcpClient guard)
+5. Defensive input validation (mcpClient guards) applied across 03-02, 03-03, 03-04
+Architecture unchanged. Ready for /gsd:execute-phase 3.
