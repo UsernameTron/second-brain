@@ -2,7 +2,22 @@
 
 ## What This Is
 
-A project that orchestrates an Obsidian vault into Pete Connor's personal operating system — compounding memory, proactive daily briefing, and intelligent input routing. The project code and GSD state live at ~/projects/second-brain/; the vault lives at ~/Claude Cowork/; they couple through the Obsidian MCP gateway. Built on a left/right write-permission architecture where human voice is preserved on one side and agent-generated content lives on the other. Integrates Gmail, Google Calendar, GitHub, and cross-project GSD state into a single morning prep workflow.
+An Obsidian vault orchestrated into a personal operating system with compounding memory, proactive daily briefing, intelligent input routing, and external integrations. Code at ~/projects/second-brain/, vault at ~/Claude Cowork/, coupled through Obsidian MCP. Left/right write-permission architecture preserves human voice on LEFT while agent-generated content writes to RIGHT. Integrates Gmail (draft-only), Google Calendar (read-only), GitHub (UsernameTron-scoped), and cross-project GSD state into a single `/today` morning prep workflow.
+
+## Current State
+
+Shipped v1.0 MVP on 2026-04-22. 502 tests passing, 21/21 requirements validated.
+
+**Codebase:** ~4,500 LOC JavaScript (Node.js), 15 plans across 4 phases.
+
+**What works end-to-end:**
+- `/new` classifies input, enforces left/right routing, filters excluded content, suggests wikilinks
+- `/today` produces 6-section daily briefing with graceful degradation
+- Memory extraction, proposals, promotion pipeline with human review gate
+- Gmail, Calendar, GitHub connectors with zero-trust permissions
+- RemoteTrigger config for pre-morning scheduling (trigger disabled pending activation)
+
+**Known gaps:** gmail-mcp-pete OAuth not wired (stubs only), in-batch dedup gap in promote-memories, config hot-reload defect, excluded terms at 3 seed terms, no CI pipeline.
 
 ## Core Value
 
@@ -12,21 +27,31 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 
 ### Validated
 
-- [x] Left/right vault directory structure with write-permission enforcement — Validated in Phase 1: Vault Foundation
-- [x] `/new` ingress filtering: ISPN, Genesys, Asana content stripped before writing to disk — Validated in Phase 1: Vault Foundation (3 seed terms; expansion tracked as pre-v1 followup)
-- [x] Wikilink cross-references between left and right sides — Validated in Phase 1: Vault Foundation
+- ✓ Left/right vault directory structure with write-permission enforcement — v1.0
+- ✓ `/new` ingress filtering: ISPN, Genesys, Asana content stripped before writing to disk — v1.0
+- ✓ Wikilink cross-references between left and right sides — v1.0
+- ✓ `/new` command: multi-domain input router classifying by domain and left/right write permission — v1.0
+- ✓ `/new` routing rules: voice/reflections/drafts → LEFT, agent-derived/summaries → RIGHT — v1.0
+- ✓ `memory-proposals.md` extraction pipeline with source attribution — v1.0
+- ✓ `memory.md` promotion workflow with human review gate — v1.0
+- ✓ Proposal batches capped at 5-10 items — v1.0
+- ✓ Gmail MCP connector (draft-only permission, no send) with VIP filtering — v1.0
+- ✓ Google Calendar MCP connector (read-only permission) — v1.0
+- ✓ GitHub activity connector (UsernameTron repo scoping) — v1.0
+- ✓ `/today` command: 6-section morning prep list — v1.0
+- ✓ `/today` data-source health reporting — v1.0
+- ✓ `/today` cross-project slippage detection — v1.0
+- ✓ `/today` frog identification — v1.0
+- ✓ Scheduled `/today` execution via RemoteTrigger — v1.0
+- ✓ Graceful degradation when MCP sources fail — v1.0
+- ✓ Anti-AI writing style enforcement in vault content — v1.0
+- ✓ Centralized write-gateway function — v1.0
+- ✓ Dead-letter lifecycle with auto-retry — v1.0
+- ✓ Wikilink suggestion engine — v1.0
 
 ### Active
-- [ ] `memory.md` — agent-maintained, promoted from `memory-proposals.md` with user approval
-- [ ] `memory-proposals.md` — auto-extracted candidates from sessions, awaiting approval
-- [x] `/today` command — morning prep list with 6 sections (meetings, VIP emails, slippage, frog, GitHub, pipeline) — Validated in Phase 4: Daily Briefing and Scheduling
-- [x] `/today` data sources: Gmail (VIP-filtered, draft-only), Google Calendar (read-only), cross-project .planning/ state, GitHub activity (UsernameTron) — Validated in Phase 4: Daily Briefing and Scheduling
-- [ ] `/new` command — multi-domain input router classifying by domain and left/right write permission
-- [ ] `/new` routing rules: voice/reflections/drafts → LEFT, agent-derived/summaries → RIGHT
-- [x] Gmail MCP connector (draft-only permission, no send) — Validated in Phase 3: External Integrations
-- [x] Google Calendar MCP connector (read-only permission) — Validated in Phase 3: External Integrations
-- [x] GitHub activity connector (UsernameTron repo scoping) — Validated in Phase 3: External Integrations
-- [x] Scheduled `/today` execution via cron (pre-morning review) — Validated in Phase 4: RemoteTrigger config created, trigger disabled pending activation
+
+(None — v1.0 complete. Define in next milestone via `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -37,6 +62,11 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - Calendar write capability — zero-trust: read-only
 - Mobile app — vault accessed via Obsidian desktop/sync
 - Real-time sync — batch processing (cron + on-demand) is sufficient
+- Autonomous email sending — one hallucination away from a career incident
+- Chat interface for vault — Claude Code sessions ARE the chat interface
+- Automatic memory promotion — skipping human review gate amplifies errors
+- Complex taxonomy/tagging — left/right split + wikilinks is sufficient
+- Notification system — pull-based (/today) only; push creates anxiety
 
 ## Context
 
@@ -82,11 +112,18 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Write-permission split (not content-type) | Voice preservation is the governing principle — keeps human authenticity intact. Left = human-only writes; right = agent-writable. Rule: "any file whose words should sound like ME lives on the LEFT." | **Resolved: write-permission boundary.** Enforced at /new ingress and via MCP write-scope configuration. |
-| Vault-as-project vs project-alongside-vault | Separation of concerns: code changes weekly, vault changes daily; they have different lifecycles, audiences, and failure modes. Cole's reference implementation is project-alongside-vault by design. | Resolved: project-alongside-vault. Project at ~/projects/second-brain/, vault at ~/Claude Cowork/, coupled through Obsidian MCP. |
-| Ingress filtering over post-hoc removal | Cheaper to strip excluded content at /new than chase it across files after the fact | — Pending |
-| memory-proposals.md staging area | Human-in-the-loop for memory promotion prevents agent hallucinations from entering long-term memory | — Pending |
-| Cowork native connectors over Docker MCP for Gmail/Calendar | Simpler auth flow, better permission scoping, avoids Docker networking for latency-sensitive morning prep | — Pending |
+| Write-permission split (not content-type) | Voice preservation is the governing principle — keeps human authenticity intact. Left = human-only writes; right = agent-writable. | ✓ Good — enforced at /new ingress and write-gateway |
+| Project-alongside-vault | Separation of concerns: code changes weekly, vault changes daily; different lifecycles. | ✓ Good — project at ~/projects/second-brain/, vault at ~/Claude Cowork/ |
+| Ingress filtering over post-hoc removal | Cheaper to strip excluded content at /new than chase it across files after the fact | ✓ Good — three-gate pipeline catches at capture |
+| memory-proposals.md staging area | Human-in-the-loop prevents agent hallucinations from entering long-term memory | ✓ Good — promotion requires explicit /promote-memories |
+| Cowork native for Calendar, custom MCP for Gmail | Calendar: Cowork MCP simpler. Gmail: needed custom server for VIP filtering and draft-only enforcement. | ✓ Good — both connectors working with zero-trust scopes |
+| chokidar v3 (not v5) | v5 is ESM-only, project uses CJS | ✓ Good — avoided breaking change |
+| LLM classify() never throws | Returns {success, data/error, failureMode} — callers handle gracefully | ✓ Good — enables graceful degradation in /today |
+| Wikilink enrichment non-blocking | Failures logged, never block pipeline | ✓ Good — /new completes even if wikilinks fail |
+| Dead-letter auto-retry: 15-min, 3-attempt cap, freeze | Prevents infinite retry loops while giving transient failures a chance | ✓ Good — bounded retry with freeze semantics |
+| RemoteTrigger for scheduling (not launchd) | First-class Claude integration, no plist management | ⚠️ Revisit — trigger disabled pending activation, verify reliability |
+| PR time-window filtering client-side | list_pull_requests lacks since param | ✓ Good — filter by updated_at after fetch |
+| Partial GitHub MCP failure returns warnings[] | Preserves partial data for /today degraded mode | ✓ Good — matches graceful degradation design |
 
 ## Evolution
 
@@ -106,4 +143,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-22 after Phase 1 completion*
+*Last updated: 2026-04-22 after v1.0 milestone*
