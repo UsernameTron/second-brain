@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 4 context gathered — 22 decisions locked, scheduling verified via RemoteTrigger probe
+status: planned
+stopped_at: Phase 4 planned — 3 plans in 2 waves, verification passed
 last_updated: "2026-04-22T21:35:38.811Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 12
+  total_plans: 15
   completed_plans: 12
   percent: 75
 ---
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 ## Current Position
 
 Phase: 4 (Daily Briefing & Scheduling)
-Plan: Not started
-Status: Phase 4 context gathered (22 decisions, scheduling verified via RemoteTrigger probe). Ready for planning.
+Plan: 3 plans created (04-01, 04-02, 04-03) in 2 waves. Verification passed.
+Status: Planned. Ready for execution.
 Last activity: 2026-04-22
 
 Progress: [███████░░░] 75% (3/4 phases complete)
@@ -86,7 +86,7 @@ None yet.
 
 Last session: 2026-04-22T21:35:38.809Z
 Stopped at: Phase 4 context gathered — 22 decisions locked, scheduling verified via RemoteTrigger probe
-Resume with: `/gsd:plan-phase 4` for Daily Briefing & Scheduling.
+Resume with: `/gsd:execute-phase 4` for Daily Briefing & Scheduling.
 Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss). PR #6 merged (context refinements). PR #8 merged (review patches). PR #10 merged (Phase 3 execution).
 Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions). gmail-mcp-pete OAuth flow (parallel workstream, stubs only). Delete test trigger trig_01NHx3Uz8ni8eZSfsMph4miY.
 Branch: master (clean)
