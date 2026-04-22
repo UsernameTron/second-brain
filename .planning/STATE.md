@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 ## Current Position
 
 Phase: 3 (External Integrations)
-Plan: Not started
-Status: Phase 2 shipped to master (PR #2, 173e81a). Phase 3 discuss/plan pending.
+Plan: Not started — discuss-phase COMPLETE, plan-phase pending
+Status: Phase 3 discuss-phase complete (22 decisions, PR #5 merged b4e6a77). Linter refinements on branch chore/phase3-context-refinements (D-02, D-06, D-09/D-10, D-15, D-23 upgraded). Ready for plan-phase after cross-AI review.
 Last activity: 2026-04-22
 
 Progress: [█████░░░░░] 50% (2/4 phases complete)
@@ -79,9 +79,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22 (Session 14)
-Stopped at: STATE.md refreshed post-ship. Ready for Phase 3 discuss.
-Resume with: `/gsd:discuss-phase 3` for External Integrations context gathering.
-Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a).
+Last session: 2026-04-22 (Session 15)
+Stopped at: Phase 3 discuss-phase complete. 22 decisions locked. Linter refinements committed on chore/phase3-context-refinements. Ready for cross-AI review then plan-phase.
+Resume with: Merge chore/phase3-context-refinements, then Gemini re-auth (`gemini auth login`), cross-AI review of 03-CONTEXT.md, then `/gsd:plan-phase 3`.
+Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss, b4e6a77).
 Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions). Gemini CLI needs re-auth.
-Branch: master (clean)
+Branch: chore/phase3-context-refinements (1 commit ahead of master)
