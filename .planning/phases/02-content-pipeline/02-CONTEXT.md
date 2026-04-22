@@ -12,6 +12,21 @@ Requirements: INPUT-01, INPUT-02, INPUT-03, INPUT-04, MEM-01, MEM-02, MEM-03
 
 </domain>
 
+<traceability>
+## Requirements Traceability
+
+| Requirement | Description | Satisfied By |
+|-------------|-------------|-------------|
+| INPUT-01 | `/new` captures any input with domain classification | D-01, D-02, D-03, D-04, D-06, D-40 |
+| INPUT-02 | Left/right routing with voice-authenticity gate | D-02 (Stage 1), D-12, D-13, D-14, D-15, D-16 |
+| INPUT-03 | Template overlays for structured domains | D-07, D-08, D-09, D-10, D-11 |
+| INPUT-04 | Wikilink suggestions on routed notes | D-17, D-18, D-19, D-20 |
+| MEM-01 | Memory extraction from sessions and vault content | D-21, D-22, D-23, D-24, D-25, D-26, D-27, D-44, D-45, D-46 |
+| MEM-02 | Human-reviewed proposal/promotion workflow | D-28, D-29, D-30, D-31, D-33, D-34 |
+| MEM-03 | Batch-capped promotion with dedup and archiving | D-32, D-33, D-34 |
+
+</traceability>
+
 <decisions>
 ## Implementation Decisions
 
@@ -20,15 +35,18 @@ Requirements: INPUT-01, INPUT-02, INPUT-03, INPUT-04, MEM-01, MEM-02, MEM-03
 - **D-01:** `/new` supports both invocation modes: argument-based (`/new 'text'`) for quick capture, interactive prompt when no args given.
 - **D-02:** Domains map 1:1 to vault directories. Classifier is hierarchical, two-stage — NOT a flat 13-label model.
   - **Stage 1 — Voice gate:** Binary LEFT vs RIGHT classification based on voice-authenticity rule ("any file whose words should sound like ME lives on the LEFT"). Output: LEFT or RIGHT + confidence score.
-  - **Stage 2 — Subdirectory pick:** Within the chosen side, pick the target directory. LEFT: ABOUT ME/, Daily/, Relationships/, Drafts/. RIGHT: memory/, briefings/, ctg/, job-hunt/, interview-prep/, content/, research/, ideas/, proposals/. Output: full directory path + confidence score.
+  - **Stage 2 — Subdirectory pick:** Within the chosen side, pick the target directory. LEFT: ABOUT ME/, Daily/, Relationships/, Drafts/. RIGHT: memory/, briefings/, ctg/, job-hunt/, interview-prep/, content/, research/, ideas/. memory/ contains memory.md at `memory/memory.md` and `memory-archive/YYYY.md` files. proposals/ is a subsystem-owned destination (left-proposals, memory-proposals, unrouted). Classifier never routes to it directly. Output: full directory path + confidence score.
 - **D-03:** Confidence-gated fallback:
   - Stage 1 confidence < 0.8 → prompt user to confirm LEFT/RIGHT before Stage 2
   - Stage 2 confidence < 0.7 → present top 2 candidates, ask user to pick
   - Above both thresholds → route silently, log decision, surface "routed to path/" in response
+  In non-interactive invocation contexts (Stop hook, scheduled task, headless CLI), interactive fallbacks are disabled. Ambiguous classifications route to dead-letter with failure-mode: non-interactive-ambiguous. User reviews via `/reroute` on next session.
 - **D-04:** LLM strategy: Haiku for both stages by default. Sonnet escalation on low-confidence Stage 2 results.
-  - Stage 2 Haiku confidence >= 0.8 → accept
-  - Stage 2 Haiku confidence < 0.8 → re-run Stage 2 on Sonnet; accept Sonnet regardless of its confidence
-  - Sonnet confidence also < 0.7 → fall through to interactive "pick top 2" prompt
+  - Stage 2 Haiku confidence >= 0.8 → accept Haiku result
+  - Stage 2 Haiku confidence < 0.8 → re-run Stage 2 on Sonnet
+  - Sonnet confidence >= 0.7 → accept Sonnet result
+  - Sonnet confidence < 0.7 → fall through to interactive "pick top 2" prompt
+  Stage 1 does not escalate to Sonnet; voice-gate binary classification is empirically reliable on Haiku. Sonnet is reserved for Stage 2 where label cardinality is higher.
 - **D-05:** Domain extensibility: adding a new vault directory requires (a) add to RIGHT allowlist in vault-paths.json, (b) add label + one-line description to Stage 2 classifier prompt. No routing-table maintenance.
 - **D-06:** Classification instrumentation: log every classification with input text length, Stage 1 result + confidence, Stage 2 result + confidence, whether Sonnet escalation fired, final destination. Calibrate 0.8/0.7 thresholds after 100+ invocations.
 
@@ -62,7 +80,7 @@ Requirements: INPUT-01, INPUT-02, INPUT-03, INPUT-04, MEM-01, MEM-02, MEM-03
 
 - **D-21:** Three triggers: (1) session wrap hook (primary, automated on /wrap), (2) on-demand `/extract-memories` with --file, --dir, --since, --daily-range, (3) scheduled daily sweep of Daily/ notes at 23:45.
 - **D-22:** Seven memory categories: DECISION, LEARNING, PREFERENCE, RELATIONSHIP, CONSTRAINT, PATTERN, OTHER. Extractor assigns exactly one per candidate.
-- **D-23:** Each category has explicit inclusion shape ("Decided X because Y"), example, and exclusion rules. OTHER requires one-sentence justification.
+- **D-23:** Category definitions (inclusion shape, example, exclusion rules) are owned by `config/templates.json` under the `memory-categories` key. Schema at `config/schema/memory-categories.schema.json`. OTHER requires one-sentence justification in the extractor output.
 - **D-24:** Explicit exclusions from extraction: routine actions, status updates, debugging steps, TODO items, uninterpreted third-party quotes, ISPN/Genesys/Asana content, content already verbatim in memory.md.
 - **D-25:** Confidence gate: >= 0.75 → write standard; 0.5-0.75 → write with status: low-confidence; < 0.5 → drop.
 - **D-26:** Extraction prompt: Haiku with system prompt listing categories + rules, user prompt is transcript/file content. Returns JSON array of {category, content, source-ref, confidence, rationale}.
@@ -196,7 +214,7 @@ Requirements: INPUT-01, INPUT-02, INPUT-03, INPUT-04, MEM-01, MEM-02, MEM-03
 ### New Config Files
 - `config/pipeline.json` — all Phase 2 thresholds
 - `config/templates.json` — per-domain template field definitions
-- `config/schema/*.schema.json` — JSON schemas for all config files
+- `config/schema/*.schema.json` — JSON schemas for all config files (includes `memory-categories.schema.json` per D-23)
 
 ### Modified Config Files
 - `config/excluded-terms.json` — expanded 3 → 15-20 entries (Pete-owned list)
