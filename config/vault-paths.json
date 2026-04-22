@@ -1,5 +1,20 @@
 {
   "left": ["ABOUT ME", "Daily", "Relationships", "Drafts"],
-  "right": ["memory", "briefings", "ctg", "job-hunt", "interview-prep", "content", "research", "ideas", "proposals"],
+  "right": [
+    "memory",
+    "briefings",
+    "ctg",
+    "job-hunt",
+    "interview-prep",
+    "content",
+    "research",
+    "ideas",
+    "proposals",
+    "proposals/unrouted",
+    "proposals/left-proposals",
+    "proposals/left-proposals/archive",
+    "memory-proposals-archive",
+    "memory-archive"
+  ],
   "haikuContextChars": 100
 }

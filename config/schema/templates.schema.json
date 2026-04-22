@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Templates Configuration Schema",
+  "description": "Validates config/templates.json — domain template overlays and memory category definitions",
+  "type": "object",
+  "required": ["domain-templates", "memory-categories"],
+  "properties": {
+    "domain-templates": {
+      "type": "object",
+      "description": "Per-domain template field definitions. Keys are domain names (vault directory names).",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["fields"],
+        "properties": {
+          "fields": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "description": "Ordered list of template field names for this domain"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "memory-categories": {
+      "type": "object",
+      "description": "Memory category definitions. Keys are category names (DECISION, LEARNING, etc.).",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["description", "example", "exclusions"],
+        "properties": {
+          "description": { "type": "string", "minLength": 1 },
+          "example": { "type": "string", "minLength": 1 },
+          "exclusions": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,41 @@
+{
+  "classifier": {
+    "stage1ConfidenceThreshold": 0.8,
+    "stage2ConfidenceThreshold": 0.7,
+    "sonnetEscalationThreshold": 0.8,
+    "sonnetAcceptThreshold": 0.7,
+    "shortInputChars": 50
+  },
+  "extraction": {
+    "confidenceAccept": 0.75,
+    "confidenceLowConfidence": 0.5,
+    "chunkSize": 100,
+    "chunkOverlap": 10,
+    "oversizeThresholdBytes": 5242880,
+    "oversizeThresholdMessages": 2000
+  },
+  "wikilink": {
+    "relevanceThreshold": 0.6,
+    "maxSuggestions": 5,
+    "minSuggestions": 3,
+    "candidatePoolSize": 20
+  },
+  "promotion": {
+    "batchCapMax": 10,
+    "batchCapMin": 5,
+    "archiveEntriesThreshold": 500,
+    "archiveSizeThresholdKB": 200,
+    "proposalArchiveThreshold": 100
+  },
+  "retry": {
+    "delayMinutes": 15,
+    "maxAttempts": 3
+  },
+  "leftProposal": {
+    "autoArchiveDays": 14
+  },
+  "filename": {
+    "maxLength": 60,
+    "haikuWordRange": [4, 8]
+  }
+}
