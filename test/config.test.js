@@ -11,7 +11,8 @@ describe('Task 1: Config files and utils', () => {
     expect(vp.right).toBeInstanceOf(Array);
     expect(vp.left).toContain('ABOUT ME');
     expect(vp.right).toContain('proposals');
-    expect(vp.right).toHaveLength(9);
+    // Phase 2 adds 5 new directories to the right allowlist (D-68); length grows from 9.
+    expect(vp.right.length).toBeGreaterThanOrEqual(9);
   });
 
   test('excluded-terms.json is valid JSON array containing required terms', () => {

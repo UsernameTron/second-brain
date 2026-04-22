@@ -6,3 +6,4 @@ context/
 .env
 .claude/
 node_modules/
+.cache/

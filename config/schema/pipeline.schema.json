@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Pipeline Configuration Schema",
+  "description": "Validates config/pipeline.json — all Phase 2 thresholds and configuration values",
+  "type": "object",
+  "required": ["classifier", "extraction", "wikilink", "promotion", "retry", "leftProposal", "filename"],
+  "properties": {
+    "classifier": {
+      "type": "object",
+      "required": ["stage1ConfidenceThreshold", "stage2ConfidenceThreshold", "sonnetEscalationThreshold", "sonnetAcceptThreshold", "shortInputChars"],
+      "properties": {
+        "stage1ConfidenceThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "stage2ConfidenceThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sonnetEscalationThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sonnetAcceptThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "shortInputChars": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "extraction": {
+      "type": "object",
+      "required": ["confidenceAccept", "confidenceLowConfidence", "chunkSize", "chunkOverlap", "oversizeThresholdBytes", "oversizeThresholdMessages"],
+      "properties": {
+        "confidenceAccept": { "type": "number", "minimum": 0, "maximum": 1 },
+        "confidenceLowConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "chunkSize": { "type": "integer", "minimum": 1 },
+        "chunkOverlap": { "type": "integer", "minimum": 0 },
+        "oversizeThresholdBytes": { "type": "integer", "minimum": 1 },
+        "oversizeThresholdMessages": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "wikilink": {
+      "type": "object",
+      "required": ["relevanceThreshold", "maxSuggestions", "minSuggestions", "candidatePoolSize"],
+      "properties": {
+        "relevanceThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "maxSuggestions": { "type": "integer", "minimum": 1 },
+        "minSuggestions": { "type": "integer", "minimum": 1 },
+        "candidatePoolSize": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "promotion": {
+      "type": "object",
+      "required": ["batchCapMax", "batchCapMin", "archiveEntriesThreshold", "archiveSizeThresholdKB", "proposalArchiveThreshold"],
+      "properties": {
+        "batchCapMax": { "type": "integer", "minimum": 1 },
+        "batchCapMin": { "type": "integer", "minimum": 1 },
+        "archiveEntriesThreshold": { "type": "integer", "minimum": 1 },
+        "archiveSizeThresholdKB": { "type": "integer", "minimum": 1 },
+        "proposalArchiveThreshold": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "retry": {
+      "type": "object",
+      "required": ["delayMinutes", "maxAttempts"],
+      "properties": {
+        "delayMinutes": { "type": "integer", "minimum": 1 },
+        "maxAttempts": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "leftProposal": {
+      "type": "object",
+      "required": ["autoArchiveDays"],
+      "properties": {
+        "autoArchiveDays": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "filename": {
+      "type": "object",
+      "required": ["maxLength", "haikuWordRange"],
+      "properties": {
+        "maxLength": { "type": "integer", "minimum": 1 },
+        "haikuWordRange": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

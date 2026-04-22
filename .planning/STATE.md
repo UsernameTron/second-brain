@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 1 Wave 1 complete, Wave 2 (Plan 01-02) not started
-last_updated: "2026-04-22T12:55:58.318Z"
+stopped_at: Phase 2 planned — 6 plans in 3 waves, verified by checker (PASSED).
+last_updated: "2026-04-22T16:53:03.364Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  completed_phases: 2
+  total_plans: 8
+  completed_plans: 8
   percent: 25
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-21)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Phase 01 — vault-foundation
+**Current focus:** Phase 03 — external-integrations
 
 ## Current Position
 
-Phase: 2
+Phase: 3
 Plan: Not started
-Status: Executing Phase 01
+Status: Phase 2 complete, Phase 3 not yet discussed/planned
 Last activity: 2026-04-22
 
-Progress: [██░░░░░░░░] 25%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -62,6 +62,11 @@ Recent decisions affecting current work:
 
 - Write-permission split resolved: LEFT = human voice, RIGHT = agent output
 - Project-alongside-vault resolved: code at ~/projects/second-brain/, vault at ~/Claude Cowork/
+- chokidar v3 (not v5) for CJS compatibility — v5 is ESM-only
+- LLM client classify() never throws — returns {success, data/error, failureMode}
+- Wikilink enrichment is non-blocking (D-39) — failures logged, never block pipeline
+- Dead-letter auto-retry: 15-min interval, 3-attempt cap, freeze after cap (D-37)
+- jest.doMock preferred over jest.mock when mock factories need dynamic configuration
 
 ### Pending Todos
 
@@ -74,9 +79,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-21 (Session 6)
-Stopped at: Phase 1 Wave 1 complete, Wave 2 (Plan 01-02) not started
-Resume with: `/gsd:execute-phase 1` (will skip completed Plan 01-01, execute Plan 01-02)
-Note: Plan 01-02 has `autonomous: false` — Task 2 is a human checkpoint for excluded terms expansion (15-20 entries).
-Plan 01-02 was amended this session: added sanitizeTermForPrompt() for prompt injection defense (Gemini review MEDIUM).
-Handoff: `.planning/HANDOFF.json` and `.planning/phases/01-vault-foundation/.continue-here.md`
+Last session: 2026-04-22 (Session 13)
+Stopped at: Phase 2 complete — 6/6 plans executed, verified (PASSED), phase marked complete. 461 tests, 24 suites.
+Resume with: `/gsd:discuss-phase 3` to gather context for External Integrations, or `/gsd:plan-phase 3` if skipping discuss.
+Followup items: Excluded terms expansion (D-49) deferred. Gemini CLI needs re-auth (`gemini auth login`). 3 human UAT items pending for Phase 2 (LLM accuracy, wikilink relevance, Obsidian UX).
+PR #1: Merged.
+Branch: `chore/session-cleanup` — needs PR for Phase 2 work.
