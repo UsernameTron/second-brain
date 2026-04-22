@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 CONTEXT reviewed and partially cleaned
-last_updated: "2026-04-22T21:00:00.000Z"
+stopped_at: Phase 2 CONTEXT amendments complete — all review gate items resolved
+last_updated: "2026-04-22T22:00:00.000Z"
 last_activity: 2026-04-22
 progress:
   total_phases: 4
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 ## Current Position
 
 Phase: 2
-Plan: Not started — context gathered, ready for planning
-Status: Phase 2 context gathered
+Plan: Not started — context amended, review gate cleared, ready for planning
+Status: Phase 2 context complete (68 decisions, review amendments applied)
 Last activity: 2026-04-22
 
 Progress: [██░░░░░░░░] 25%
@@ -74,9 +74,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22 (Session 10)
-Stopped at: Cross-AI review complete. 02-REVIEWS.md committed with BLOCK gate recommendation. 5 CRITICAL fixes identified, 7 HIGH items queued.
-Resume with: Resolve 5 CRITICAL amendments in 02-CONTEXT.md (LEFT routing D-02/D-12, blocked-content D-35/D-41, taxonomy D-03/D-36, /promote-unrouted decisions, memory-proposals.md schema). Then `/gsd:plan-phase 2 --reviews`.
-Followup items: config hot-reload defect + excluded terms expansion (D-48/D-49). Gemini CLI needs re-auth (`gemini auth login`).
+Last session: 2026-04-22 (Session 11)
+Stopped at: All 5 CRITICAL + 7 HIGH review items resolved. 18 new decisions (D-51–D-68) added. Review gate cleared.
+Resume with: `/gsd:plan-phase 2 --reviews` to create execution plans for Content Pipeline.
+Followup items: config hot-reload defect (D-48) + excluded terms expansion (D-49). Gemini CLI needs re-auth (`gemini auth login`).
 PR #1: Merged.
-Review artifacts: `.planning/phases/02-content-pipeline/02-REVIEWS.md` (Codex + Claude host, 5 CRITICAL + 7 HIGH).
+Review artifacts: `.planning/phases/02-content-pipeline/02-REVIEWS.md` (Codex + Claude host — gate now CLEARED).
