@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Connectors Configuration",
+  "description": "Validates config/connectors.json — runtime config for calendar, gmail, and github connectors",
+  "type": "object",
+  "required": ["calendar", "gmail", "github"],
+  "properties": {
+    "calendar": {
+      "type": "object",
+      "required": ["workingHours", "excludeDeclined", "defaultWindowHours"],
+      "properties": {
+        "workingHours": {
+          "type": "object",
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "integer", "minimum": 0, "maximum": 23 },
+            "end": { "type": "integer", "minimum": 0, "maximum": 23 }
+          },
+          "additionalProperties": false
+        },
+        "excludeDeclined": { "type": "boolean" },
+        "defaultWindowHours": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "gmail": {
+      "type": "object",
+      "required": ["vipSenders", "defaultWindowHours", "maxResults"],
+      "properties": {
+        "vipSenders": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "defaultWindowHours": { "type": "integer", "minimum": 1 },
+        "maxResults": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "github": {
+      "type": "object",
+      "required": ["owner", "repos", "defaultWindowHours"],
+      "properties": {
+        "owner": { "type": "string", "minLength": 1 },
+        "repos": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "defaultWindowHours": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
