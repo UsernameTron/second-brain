@@ -1,9 +1,13 @@
 # Todo
 
 ## Current
-- [x] Execute Phase 1: Vault Foundation (`/gsd:execute-phase 1`)
+- [x] Execute Phase 2: Content Pipeline (461 tests passing, cross-AI reviewed PASS)
 
 ## Followup
+- [ ] **DEFECT (LOW): in-batch dedup gap in src/promote-memories.js:330-338** — two proposals with identical contentHash in the same promotion batch can both promote. Fix: track Set of promoted hashes inside batch loop + add test. Surfaced by Gemini + host-session review of Phase 2.
+- [ ] UAT pending: LLM classification accuracy spot-check on real captures
+- [ ] UAT pending: wikilink relevance review against memory.md output
+- [ ] UAT pending: Obsidian UX walkthrough for capture → promote flow
 - [ ] **DEFECT: Config hot-reload not firing — fs.watch broken or cache not invalidating.** Workaround: restart Node process after config edits. Debug in dedicated session.
 - [ ] **Expand excluded-terms.json to 15-20 entries before v1 go-live** — Categories: former employer product names, project codenames, client names, internal tools, senior leadership names. Currently 3 seed entries (ISPN, Genesys, Asana).
 
@@ -20,12 +24,10 @@
 - [x] Phase 1 planning (2 plans, 2 waves)
 - [x] Phase 1 cross-AI review (Codex — 5 HIGH concerns)
 - [x] Phase 1 plan revision (all concerns addressed, verified)
-
-## Session Handoff — 2026-04-22 (Session 12)
-
-**Branch:** `chore/session-cleanup`
-**State:** Phase 2 fully planned — 6 plans in 3 waves, checker PASSED. All 7 requirements covered (INPUT-01–04, MEM-01–03). Plans committed as 4f79efb + 888e892 + 427b1b5.
-**Next:** `/gsd:execute-phase 2` to build the Content Pipeline. Clear context first — plans are dense.
-**Wave execution order:** Wave 1 (Plan 01 infra), Wave 2 (Plans 02/03/04 parallel), Wave 3 (Plans 05/06 parallel).
-**Tests:** 96 passing across 5 suites (Phase 1 baseline — Phase 2 will add substantially).
-**Gemini CLI:** Still needs re-auth (`gemini auth login`).
+- [x] Execute Phase 1: Vault Foundation (`/gsd:execute-phase 1`)
+- [x] Phase 2 context gathering (68 decisions, D-01..D-68)
+- [x] Phase 2 cross-AI context review (Codex + host session, 5 CRITICAL resolved)
+- [x] Phase 2 planning (6 plans, 3 waves, checker PASSED)
+- [x] Execute Phase 2: Content Pipeline (6/6 plans, 461 tests, 24 suites)
+- [x] Phase 2 verification (gsd-verifier 6/6 must-haves PASSED)
+- [x] Phase 2 post-execution code review (Gemini + host session, PASS)
