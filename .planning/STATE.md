@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 4 planned — 3 plans in 2 waves, verification passed (10/10 dimensions)
-last_updated: "2026-04-22T22:10:12.642Z"
+last_updated: "2026-04-22T22:21:30.017Z"
 last_activity: 2026-04-22 -- Phase 04 execution started
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 15
-  completed_plans: 12
+  completed_plans: 15
   percent: 75
 ---
 
@@ -72,6 +72,7 @@ Recent decisions affecting current work:
 - [Phase 03-external-integrations]: Gmail connector: two-layer VIP filtering (D-09 server-side allowedSenders + D-10 connector-side case-insensitive) with no-throw contract and no send-verb exports
 - [Phase 03-external-integrations]: PR time-window filtering done client-side (list_pull_requests lacks since param) — filter by updated_at after fetch
 - [Phase 03-external-integrations]: Partial GitHub MCP failure returns makeResult with warnings[] in data — preserves partial data for /today degraded mode (D-20)
+- [Phase 04-daily-briefing-and-scheduling]: Pipeline failure simulated by making briefing-helpers mock reject — matches _getPipelineState() try/catch behavior
 
 ### Pending Todos
 
