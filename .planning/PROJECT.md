@@ -23,8 +23,9 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - [ ] `/today` data sources: Gmail (VIP-filtered, draft-only), Google Calendar (read-only), memory.md, cross-project .planning/ state, GitHub activity (UsernameTron)
 - [ ] `/new` command — multi-domain input router classifying by domain and left/right write permission
 - [ ] `/new` routing rules: voice/reflections/drafts → LEFT, agent-derived/summaries → RIGHT
-- [ ] Gmail MCP connector (draft-only permission, no send)
-- [ ] Google Calendar MCP connector (read-only permission)
+- [x] Gmail MCP connector (draft-only permission, no send) — Validated in Phase 3: External Integrations
+- [x] Google Calendar MCP connector (read-only permission) — Validated in Phase 3: External Integrations
+- [x] GitHub activity connector (UsernameTron repo scoping) — Validated in Phase 3: External Integrations
 - [ ] Scheduled `/today` execution via cron (pre-morning review)
 
 ### Out of Scope
@@ -50,9 +51,10 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - Filesystem — Claude Code direct read/write on `/Users/cpconnor/projects/`
 - Claude in Chrome — paired browsing agent (not a /today source)
 
-**Integrations needed:**
-- Gmail — preferred: Cowork native connector with draft-only permission
-- Google Calendar — preferred: Cowork native connector with read-only permission
+**Integrations built (Phase 3):**
+- Gmail — src/connectors/gmail.js wrapping gmail-mcp-pete MCP server, VIP filtering, draft-only
+- Google Calendar — src/connectors/calendar.js wrapping Cowork native MCP tools, working-hours filtering, read-only
+- GitHub — src/connectors/github.js wrapping Docker MCP tools, UsernameTron repo scoping, Promise.allSettled
 
 **Runtime:**
 - `ccdScheduledTasksEnabled = true` in claude_desktop_config.json for cron-based /today
