@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: milestone
-status: complete
-stopped_at: All 4 phases complete — 21/21 requirements validated, 502 tests passing
-last_updated: "2026-04-22T22:40:00.000Z"
-last_activity: 2026-04-22 -- Phase 04 shipped — PR #12
+milestone_name: MVP
+status: archived
+stopped_at: v1.0 milestone archived, tagged, and committed
+last_updated: "2026-04-22T23:00:00.000Z"
+last_activity: 2026-04-22 -- v1.0 milestone completion ceremony
 progress:
   total_phases: 4
   completed_phases: 4
@@ -18,76 +18,37 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-21)
+See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Phase 04 — daily-briefing-and-scheduling
+**Current focus:** v1.0 archived — planning next milestone
 
 ## Current Position
 
-Phase: 04 (daily-briefing-and-scheduling) — COMPLETE
-Plan: 3 of 3 — All plans complete
-Status: Milestone v1.0 complete
-Last activity: 2026-04-22 -- Phase 04 verified and completed
-
-Progress: [██████████] 100% (4/4 phases complete)
-
-## Performance Metrics
-
-**Velocity:**
-
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
-
-**By Phase:**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| - | - | - | - |
-
-**Recent Trend:**
-
-- Last 5 plans: -
-- Trend: -
-
-*Updated after each plan completion*
-| Phase 03-external-integrations P03 | 10 | 1 tasks | 3 files |
-| Phase 03-external-integrations P04 | 12 | 1 tasks | 2 files |
+Milestone: v1.0 MVP — ARCHIVED
+Phases: 4/4 complete | Plans: 15/15 complete | Tests: 502 | Requirements: 21/21
+Progress: [██████████] 100%
 
 ## Accumulated Context
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- Write-permission split resolved: LEFT = human voice, RIGHT = agent output
-- Project-alongside-vault resolved: code at ~/projects/second-brain/, vault at ~/Claude Cowork/
-- chokidar v3 (not v5) for CJS compatibility — v5 is ESM-only
-- LLM client classify() never throws — returns {success, data/error, failureMode}
-- Wikilink enrichment is non-blocking (D-39) — failures logged, never block pipeline
-- Dead-letter auto-retry: 15-min interval, 3-attempt cap, freeze after cap (D-37)
-- jest.doMock preferred over jest.mock when mock factories need dynamic configuration
-- [Phase 03-external-integrations]: Gmail connector: two-layer VIP filtering (D-09 server-side allowedSenders + D-10 connector-side case-insensitive) with no-throw contract and no send-verb exports
-- [Phase 03-external-integrations]: PR time-window filtering done client-side (list_pull_requests lacks since param) — filter by updated_at after fetch
-- [Phase 03-external-integrations]: Partial GitHub MCP failure returns makeResult with warnings[] in data — preserves partial data for /today degraded mode (D-20)
-- [Phase 04-daily-briefing-and-scheduling]: Pipeline failure simulated by making briefing-helpers mock reject — matches _getPipelineState() try/catch behavior
+All v1.0 decisions logged in PROJECT.md Key Decisions table (12 entries with outcomes).
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
-- gmail-mcp-pete OAuth flow not yet wired (repo scaffolded, stubs only) — out-of-scope for Phase 4, tracked as parallel workstream.
-- RemoteTrigger test trigger `trig_01NHx3Uz8ni8eZSfsMph4miY` needs manual deletion at https://claude.ai/code/scheduled.
+- gmail-mcp-pete OAuth flow not yet wired (stubs only) — track for v1.1
+- RemoteTrigger test trigger `trig_01NHx3Uz8ni8eZSfsMph4miY` needs manual deletion at https://claude.ai/code/scheduled
+- Known gaps carried forward: in-batch dedup, config hot-reload, excluded terms expansion, no CI
 
 ## Session Continuity
 
 Last session: 2026-04-22
-Stopped at: Milestone v1.0 shipped (PR #12 merged). Mid-ceremony for /gsd:complete-milestone — archives not yet written.
-Resume with: `/gsd:complete-milestone` to finish archiving, retrospective, and git tag
-Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss). PR #6 merged (context refinements). PR #8 merged (review patches). PR #10 merged (Phase 3 execution). PR #11 merged (Phase 4 context). PR #12 (Phase 4 execution — pending merge).
-Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions). gmail-mcp-pete OAuth flow (parallel workstream, stubs only). Delete test trigger trig_01NHx3Uz8ni8eZSfsMph4miY. Enable RemoteTrigger after activating scheduling config.
-Branch: chore/phase4-planning
+Stopped at: v1.0 milestone archived. MILESTONES.md, PROJECT.md, ROADMAP.md, RETROSPECTIVE.md updated. REQUIREMENTS.md archived and deleted.
+Resume with: `/gsd:new-milestone` to start v1.1 planning
+Ship log: PRs #1, #2, #5, #6, #8, #10, #11, #12 merged.
+Followup items: In-batch dedup gap. Config hot-reload defect. Excluded terms expansion (3→15-20). CI gap. gmail-mcp-pete OAuth. Delete test trigger. Enable RemoteTrigger.
