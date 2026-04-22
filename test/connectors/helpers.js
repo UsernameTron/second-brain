@@ -38,9 +38,8 @@ function assertSuccessShape(result) {
   expect(result.data).not.toBeNull();
   expect(result).toHaveProperty('error', null);
   expect(
-    _validSources.has(result.source),
-    `source '${result.source}' is not a valid SOURCE enum member`
-  ).toBe(true);
+    _validSources.has(result.source)
+  ).toBe(true); // source must be a valid SOURCE enum member
   expect(typeof result.fetchedAt).toBe('string');
   expect(new Date(result.fetchedAt).toISOString()).toBe(result.fetchedAt);
   // Exact-field check: no extra fields allowed
@@ -64,9 +63,8 @@ function assertErrorShape(result) {
   expect(typeof result.error).toBe('string');
   expect(result.error.length).toBeGreaterThan(0);
   expect(
-    _validSources.has(result.source),
-    `source '${result.source}' is not a valid SOURCE enum member`
-  ).toBe(true);
+    _validSources.has(result.source)
+  ).toBe(true); // source must be a valid SOURCE enum member
   expect(typeof result.fetchedAt).toBe('string');
   expect(new Date(result.fetchedAt).toISOString()).toBe(result.fetchedAt);
   // Exact-field check: no extra fields allowed
@@ -80,9 +78,8 @@ function assertErrorShape(result) {
  */
 function assertSourceEnum(result) {
   expect(
-    _validSources.has(result.source),
-    `source '${result.source}' is not a valid SOURCE enum member`
-  ).toBe(true);
+    _validSources.has(result.source)
+  ).toBe(true); // source must be a valid SOURCE enum member
 }
 
 module.exports = { assertSuccessShape, assertErrorShape, assertSourceEnum };
