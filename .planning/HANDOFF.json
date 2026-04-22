@@ -1,38 +1,42 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-22T20:00:31.565Z",
-  "phase": "03",
-  "phase_name": "external-integrations",
-  "phase_dir": ".planning/phases/03-external-integrations",
-  "plan": 0,
-  "task": 0,
-  "total_tasks": 0,
+  "timestamp": "2026-04-22T22:19:52Z",
+  "phase": "04",
+  "phase_name": "daily-briefing-and-scheduling",
+  "phase_dir": ".planning/phases/04-daily-briefing-and-scheduling",
+  "plan": 3,
+  "task": 2,
+  "total_tasks": 5,
   "status": "paused",
-  "stage": "pre-execution-patching",
   "completed_tasks": [
-    {"id": 1, "name": "Cross-AI review (Gemini + Codex)", "status": "done", "commit": "afac6e0"},
-    {"id": 2, "name": "Patch 03-04: GitHub tool surface rewrite", "status": "done", "commit": "6328b38"},
-    {"id": 3, "name": "Patch 03-01: GitHub config schema (owner + repos)", "status": "done", "commit": "62afa1c"},
-    {"id": 4, "name": "Patch 03-03: Gmail VIP allowlist + guards", "status": "done", "commit": "4aa59ba"},
-    {"id": 5, "name": "Patch 03-01: Schema validation + lazy config loader", "status": "in_progress", "progress": "loadConnectorsConfig patched for full schema validation, getConnectorsConfig memoized wrapper added. Behavior specs updated. Not yet committed."}
+    {"id": 1, "plan": "04-01", "name": "Add slippage config to pipeline.json and update schema", "status": "done", "commit": "7270b2c"},
+    {"id": 2, "plan": "04-01", "name": "Build src/today-command.js — the complete /today module", "status": "done", "commit": "ced670e"},
+    {"id": 3, "plan": "04-03", "name": "Create scheduling config and RemoteTrigger setup script", "status": "done", "commit": "21910ad"}
   ],
   "remaining_tasks": [
-    {"id": 6, "name": "Patch 03-02: Calendar edge-case specs (all-day, timezone, attendee)", "status": "not_started"},
-    {"id": 7, "name": "Patch all plans: Defensive input validation specs (mcpClient guards)", "status": "not_started"},
-    {"id": 8, "name": "Commit all patches, update REVIEWS.md gate to PASS, squash-merge to master", "status": "not_started"}
+    {"id": 4, "plan": "04-02", "name": "Write /today contract tests", "status": "partially_done", "progress": "test/today-command.test.js exists (861 lines) but not committed"},
+    {"id": 5, "plan": "04-03", "name": "Human verification of /today output and scheduling config", "status": "checkpoint_pending", "type": "human-verify"}
   ],
-  "blockers": [],
+  "blockers": [
+    {"description": "04-02 test agent wrote test file but did not commit to worktree branch", "type": "technical", "workaround": "Test file exists as untracked — commit it, run tests, fix failures, create SUMMARY"},
+    {"description": "04-03 Task 2 requires human dry-run verification", "type": "human_action", "workaround": "Run dry-run command, review output, type approved"}
+  ],
   "human_actions_pending": [
-    {"action": "Create gmail-mcp-pete repo skeleton on GitHub (UsernameTron/gmail-mcp-pete)", "context": "03-03 integration tests need this repo to exist. Not blocking plan patches but needed before execute-phase.", "blocking": false}
+    {"action": "Verify /today dry-run output and scheduling config", "context": "04-03 Task 2 checkpoint", "blocking": true}
   ],
   "decisions": [
-    {"decision": "GitHub connector uses list_commits + list_issues + list_pull_requests per repo (not list_user_events)", "rationale": "MCP_DOCKER does not expose list_user_events tool. Verified via ToolSearch.", "phase": "03"},
-    {"decision": "Config uses owner + repos (not eventTypes)", "rationale": "Activity types are implicit in tool selection. eventTypes was for a fictional unified events API.", "phase": "03"},
-    {"decision": "Gmail connector passes allowedSenders to server-side MCP call", "rationale": "D-09 specifies server-side VIP filtering. Plan omitted wiring the parameter.", "phase": "03"},
-    {"decision": "All connectors use memoized lazy config loader", "rationale": "Module-level config load is brittle for Phase 4 graceful degradation.", "phase": "03"},
-    {"decision": "loadConnectorsConfig validates full JSON schema (not just top-level keys)", "rationale": "D-23 specifies schema validation. Top-level-only check misses type errors.", "phase": "03"}
+    {"decision": "All dependencies injectable via options for testability", "rationale": "mcpClient, haikuClient, projectsDir, vaultRoot, date all injectable", "phase": "04"},
+    {"decision": "Slippage scan is synchronous fs.readdirSync", "rationale": "Simple and reliable for local filesystem", "phase": "04"},
+    {"decision": "Manual date formatting instead of date-fns", "rationale": "Avoids adding dependency for simple formatting", "phase": "04"}
   ],
-  "uncommitted_files": [".planning/phases/03-external-integrations/03-01-PLAN.md"],
-  "next_action": "Finish remaining patches (03-02 calendar edge cases, defensive input validation), commit all, update REVIEWS.md gate to PASS, squash-merge branch to master, then /gsd:execute-phase 3",
-  "context_notes": "Cross-AI review returned PATCH-THEN-PROCEED from both Gemini and Codex. 2 HIGH (GitHub tool surface, Gmail VIP wiring) and several MEDIUM. 3 of 5 patches applied on branch docs/phase3-cross-ai-review (5 commits). Remaining patches are smaller. After patches, update REVIEWS.md gate to PASS, merge, execute."
+  "uncommitted_files": [
+    "test/today-command.test.js",
+    ".planning/STATE.md"
+  ],
+  "worktree_branches": [
+    "worktree-agent-a1f58c8b",
+    "worktree-agent-af56829b"
+  ],
+  "next_action": "Commit test/today-command.test.js, run tests, fix failures, create 04-02-SUMMARY.md. Then handle 04-03 checkpoint. Then regression gate, verification, phase completion, milestone lifecycle.",
+  "context_notes": "Autonomous execution of Phase 4. Wave 1 complete. Wave 2 partially complete. Running via /gsd:autonomous with --no-transition."
 }
