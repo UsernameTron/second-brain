@@ -74,9 +74,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-21 (Session 6)
-Stopped at: Phase 1 Wave 1 complete, Wave 2 (Plan 01-02) not started
-Resume with: `/gsd:execute-phase 1` (will skip completed Plan 01-01, execute Plan 01-02)
-Note: Plan 01-02 has `autonomous: false` — Task 2 is a human checkpoint for excluded terms expansion (15-20 entries).
-Plan 01-02 was amended this session: added sanitizeTermForPrompt() for prompt injection defense (Gemini review MEDIUM).
-Handoff: `.planning/HANDOFF.json` and `.planning/phases/01-vault-foundation/.continue-here.md`
+Last session: 2026-04-22 (Session 7)
+Stopped at: Phase 1 complete and shipped (PR #1). Phase 2 not started.
+Resume with: `/gsd:discuss-phase 2` or `/gsd:plan-phase 2` for Content Pipeline.
+Followup items: config hot-reload defect, excluded terms expansion (see tasks/todo.md).
+PR: https://github.com/UsernameTron/second-brain/pull/1 — merge before starting Phase 2.
