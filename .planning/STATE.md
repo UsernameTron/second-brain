@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 planned — 6 plans in 3 waves, verified by checker (PASSED).
-last_updated: "2026-04-22T16:53:03.364Z"
+stopped_at: Phase 2 shipped via PR #2 (173e81a). Phase 3 not yet started.
+last_updated: "2026-04-22"
 last_activity: 2026-04-22
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 8
   completed_plans: 8
-  percent: 25
+  percent: 50
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 
 ## Current Position
 
-Phase: 3
+Phase: 3 (External Integrations)
 Plan: Not started
-Status: Phase 2 complete, Phase 3 not yet discussed/planned
+Status: Phase 2 shipped to master (PR #2, 173e81a). Phase 3 discuss/plan pending.
 Last activity: 2026-04-22
 
-Progress: [█████░░░░░] 50%
+Progress: [█████░░░░░] 50% (2/4 phases complete)
 
 ## Performance Metrics
 
@@ -79,9 +79,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22 (Session 13)
-Stopped at: Phase 2 complete — 6/6 plans executed, verified (PASSED), phase marked complete. 461 tests, 24 suites.
-Resume with: `/gsd:discuss-phase 3` to gather context for External Integrations, or `/gsd:plan-phase 3` if skipping discuss.
-Followup items: Excluded terms expansion (D-49) deferred. Gemini CLI needs re-auth (`gemini auth login`). 3 human UAT items pending for Phase 2 (LLM accuracy, wikilink relevance, Obsidian UX).
-PR #1: Merged.
-Branch: `chore/session-cleanup` — needs PR for Phase 2 work.
+Last session: 2026-04-22 (Session 14)
+Stopped at: STATE.md refreshed post-ship. Ready for Phase 3 discuss.
+Resume with: `/gsd:discuss-phase 3` for External Integrations context gathering.
+Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a).
+Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions). Gemini CLI needs re-auth.
+Branch: master (clean)
