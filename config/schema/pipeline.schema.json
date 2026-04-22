@@ -3,7 +3,7 @@
   "title": "Pipeline Configuration Schema",
   "description": "Validates config/pipeline.json — all Phase 2 thresholds and configuration values",
   "type": "object",
-  "required": ["classifier", "extraction", "wikilink", "promotion", "retry", "leftProposal", "filename"],
+  "required": ["classifier", "extraction", "wikilink", "promotion", "retry", "leftProposal", "filename", "slippage"],
   "properties": {
     "classifier": {
       "type": "object",
@@ -81,6 +81,16 @@
           "minItems": 2,
           "maxItems": 2
         }
+      },
+      "additionalProperties": false
+    },
+    "slippage": {
+      "type": "object",
+      "required": ["staleDays", "excludeProjects", "maxProjects"],
+      "properties": {
+        "staleDays": { "type": "integer", "minimum": 1 },
+        "excludeProjects": { "type": "array", "items": { "type": "string" } },
+        "maxProjects": { "type": "integer", "minimum": 1 }
       },
       "additionalProperties": false
     }
