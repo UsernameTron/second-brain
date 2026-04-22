@@ -13,5 +13,8 @@
 ### Learned Rules
 <!-- Added during sessions when corrections occur -->
 
+## Session Exemptions
+- [2026-04-22] Session 11: `/prime` boot-only session. No user corrections occurred — stop hook likely triggered on BLOCK gate language from prior session context. No lesson to capture.
+
 ## Archived
 <!-- Rules that no longer apply -->

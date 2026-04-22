@@ -17,25 +17,32 @@ Requirements: INPUT-01, INPUT-02, INPUT-03, INPUT-04, MEM-01, MEM-02, MEM-03
 
 | Requirement | Description | Satisfied By |
 |-------------|-------------|-------------|
-| INPUT-01 | `/new` captures any input with domain classification | D-01, D-02, D-03, D-04, D-06, D-40 |
-| INPUT-02 | Left/right routing with voice-authenticity gate | D-02 (Stage 1), D-12, D-13, D-14, D-15, D-16 |
-| INPUT-03 | `/new` integrates ingress filtering — excluded content never reaches disk | D-40, D-41, D-43 |
+| INPUT-01 | `/new` captures any input with domain classification | D-01, D-02, D-03, D-04, D-06, D-40, D-59 |
+| INPUT-02 | Left/right routing with voice-authenticity gate | D-02 (Stage 1), D-12, D-13, D-14, D-15, D-16, D-59 |†
+| INPUT-03 | `/new` integrates ingress filtering — excluded content never reaches disk | D-40, D-41, D-43, D-49 |
 | INPUT-04 | Wikilink suggestions on routed notes | D-17, D-18, D-19, D-20 |
-| MEM-01 | Memory extraction from sessions and vault content | D-21, D-22, D-23, D-24, D-25, D-26, D-27, D-44, D-45, D-46 |
-| MEM-02 | Human-reviewed proposal/promotion workflow | D-28, D-29, D-30, D-31, D-33, D-34 |
+| MEM-01 | Memory extraction from sessions and vault content | D-21, D-22, D-23, D-24, D-25, D-26, D-27, D-44, D-45, D-46, D-55, D-56, D-64, D-65, D-66 |
+| MEM-02 | Human-reviewed proposal/promotion workflow | D-28, D-29, D-30, D-31, D-33, D-34, D-55, D-56, D-57, D-58 |
 | MEM-03 | Batch-capped promotion with dedup and archiving | D-32, D-33, D-34 |
+
+† **INPUT-02 footnote:** LEFT routing enforcement IS the proposal queue per project design. PROJECT.md defines the write-permission boundary: "any file whose words should sound like ME lives on the LEFT" and agents never write to LEFT directly. D-12's routing to proposals/left-proposals/ satisfies INPUT-02's "route to LEFT" requirement through the proposal-queue mechanism — the proposal IS the route, with human review as the final gate before LEFT-side placement.
 
 </traceability>
 
 <decisions>
 ## Implementation Decisions
 
-### Input Classification (D-01 through D-06)
+### Input Classification (D-01 through D-06, D-59)
 
 - **D-01:** `/new` supports both invocation modes: argument-based (`/new 'text'`) for quick capture, interactive prompt when no args given.
 - **D-02:** Domains map 1:1 to vault directories. Classifier is hierarchical, two-stage — NOT a flat 13-label model.
   - **Stage 1 — Voice gate:** Binary LEFT vs RIGHT classification based on voice-authenticity rule ("any file whose words should sound like ME lives on the LEFT"). Output: LEFT or RIGHT + confidence score.
-  - **Stage 2 — Subdirectory pick:** Within the chosen side, pick the target directory. LEFT: ABOUT ME/, Daily/, Relationships/, Drafts/. RIGHT: memory/, briefings/, ctg/, job-hunt/, interview-prep/, content/, research/, ideas/. memory/ contains memory.md at `memory/memory.md` and `memory-archive/YYYY.md` files. proposals/ is a subsystem-owned destination (left-proposals, memory-proposals, unrouted). Classifier never routes to it directly. Output: full directory path + confidence score.
+  - **Stage 2 — Subdirectory pick:** Within the chosen side, pick the target directory. LEFT labels: ABOUT ME/, Daily/, Relationships/, Drafts/. RIGHT labels: memory/, briefings/, ctg/, job-hunt/, interview-prep/, content/, research/, ideas/. memory/ contains memory.md at `memory/memory.md` and `memory-archive/YYYY.md` files. proposals/ is a subsystem-owned destination (left-proposals, memory-proposals, unrouted). Classifier never routes to it directly. Output: full directory path + confidence score. **When Stage 1 = LEFT, the Stage 2 directory path is advisory only** (stored as `suggested-left-path` in the proposal file per D-13). The actual write target is always `proposals/left-proposals/` per D-12 — the classifier's LEFT subdirectory pick informs the human reviewer, it does not determine the write destination.
+- **D-59:** Stage 1 voice-authenticity classification criteria. The voice gate answers: "Would this text sound natural if Pete said it aloud or wrote it himself?" Operational rules:
+  - LEFT signals: first-person voice, personal opinions/reflections, relationship context, emotional content, identity statements, career narratives, communication style preferences. Examples: journal entries, personal notes, relationship notes, self-authored drafts.
+  - RIGHT signals: structured data, agent-generated content, research summaries, extracted/synthesized information, technical reference, briefing output, template-driven content. Examples: meeting notes (structured), job postings (external data), memory entries, briefing sections.
+  - Mixed content: if the input contains both personal voice and structured data, classify by dominant voice. If roughly equal, classify LEFT (human voice takes precedence — false-LEFT is recoverable via /reroute, false-RIGHT risks agent-written content on the LEFT side).
+  - Ambiguity: short inputs (< 50 chars) with no clear voice signal default to RIGHT with reduced confidence (triggers D-03 fallback).
 - **D-03:** Confidence-gated fallback:
   - Stage 1 confidence < 0.8 → prompt user to confirm LEFT/RIGHT before Stage 2
   - Stage 2 confidence < 0.7 → present top 2 candidates, ask user to pick
@@ -52,7 +59,7 @@ Requirements: INPUT-01, INPUT-02, INPUT-03, INPUT-04, MEM-01, MEM-02, MEM-03
 
 ### Note Format (D-07 through D-11)
 
-- **D-07:** Base format for every routed note: YAML frontmatter (created, source, domain, routed-by with stage-1/stage-2 provenance, filename-basis, tags) + raw input body preserved verbatim.
+- **D-07:** Base format for every routed note: YAML frontmatter (created, source, domain, routed-by with stage-1/stage-2 provenance, filename-basis, tags) + raw input body preserved verbatim. **Note:** memory.md entries use inline Dataview fields (`field:: value`) instead of YAML frontmatter because multiple entries share one file — see D-29. These are intentionally different metadata strategies; do not assume consistency across note types.
 - **D-08:** Template overlays for 3 domains ONLY:
   - briefings/ → adds: attendees, meeting-date, decisions[], follow-ups[]
   - job-hunt/ → adds: company, role-title, stage, next-step-date, source-url
@@ -92,32 +99,103 @@ Requirements: INPUT-01, INPUT-02, INPUT-03, INPUT-04, MEM-01, MEM-02, MEM-03
 - **D-29:** Entry format: `## YYYY-MM-DD · CATEGORY · source-ref-short` header, one-paragraph prose body, 4-6 inline fields.
 - **D-30:** Review surface: Obsidian (primary, user marks checkboxes). CLI `/promote-memories` is the promotion executor — reads marks, validates, writes to memory.md, archives processed proposals. CLI is execution-only, never interactive.
 - **D-31:** Proposal format: per-candidate section with checkboxes (accept/reject/edit-then-accept/defer), proposed tags, proposed related links. Exactly one box checked per candidate; ambiguous marking = skip with warning.
-- **D-32:** Batch cap: 10 default (MEM-03), override via `--max N`, `--all` bypasses with confirmation. Promote by confidence-descending; excess deferred for next run.
+- **D-32:** Batch cap: enforced hard ceiling of 10 per `/promote-memories` invocation (MEM-03 compliant). `--max N` overrides downward only; valid range 5-10. No `--all` bypass — the cap is a design constraint to keep review manageable, not a default. Promote by confidence-descending; excess marked candidates defer to next run with status: deferred.
 - **D-33:** Dedup on promotion: content-hash check against memory.md + memory-archive/*.md. Match → skip, mark as duplicate-of-existing-memory.
 - **D-34:** Growth management: archive oldest complete year to `memory-archive/YYYY.md` when memory.md exceeds 200KB or 500 entries. Retain current + previous year minimum. Dataview queries include archive.
 
-### Error Handling (D-35 through D-39)
+### Error Handling (D-35 through D-39, D-67)
 
-- **D-35:** Global fallback: dead-letter + notify. Input preservation is non-negotiable. Never lose captures. Dead-letter location: `proposals/unrouted/`.
-- **D-36:** Failure-mode taxonomy: api-error, timeout, parse-error, confidence-floor, gate-rejection. Each maps to specific dead-letter behavior.
-- **D-37:** Auto-retry: api-error and timeout only → retry after 15min, increment on failure, cap at 3 attempts, then freeze for manual handling. parse-error, confidence-floor, gate-rejection → never auto-retry.
+- **D-35:** Global fallback: dead-letter + notify. Input preservation is non-negotiable for content that passes Stage 0. Never lose captures that clear the exclusion gate. Dead-letter location: `proposals/unrouted/`. **Exclusion:** Stage 0 BLOCK results (D-41) are intentional rejections, not lost captures — they do not dead-letter. The "never lose captures" guarantee applies to Stages 1-5 only.
+- **D-36:** Failure-mode taxonomy (7 modes, each maps to specific dead-letter behavior):
+  - `api-error` — LLM API call failed (network, rate-limit, 5xx). Auto-retryable per D-37.
+  - `timeout` — LLM call exceeded deadline. Auto-retryable per D-37.
+  - `parse-error` — LLM returned non-parseable output (invalid JSON, missing fields). Not auto-retryable.
+  - `confidence-floor` — Both Haiku and Sonnet (if escalated) returned below threshold. Not auto-retryable.
+  - `gate-rejection` — Stage 0 content-policy rejection where fail-open is disallowed but dead-letter is appropriate (distinct from BLOCK, which exits without dead-letter per D-41).
+  - `non-interactive-ambiguous` — Confidence below interactive-prompt threshold (D-03) in a non-interactive context (Stop hook, scheduled task, headless CLI). Not auto-retryable; user reviews via `/reroute` on next interactive session.
+  - `exclusion-unavailable` — Stage 0 internal failure (content-policy.js crashed or unreachable). Fail-closed: dead-letter rather than skip exclusion gate. Auto-retryable per D-37.
+- **D-37:** Auto-retry: api-error, timeout, and exclusion-unavailable → retry after 15min, increment on failure, cap at 3 attempts, then freeze for manual handling (status: frozen). parse-error, confidence-floor, gate-rejection, non-interactive-ambiguous → never auto-retry.
 - **D-38:** Notification: /new returns immediately with dead-letter path + failure mode. /today surfaces unrouted count. Count > 10 = top-line warning.
 - **D-39:** Enrichment failures (wikilink, template extraction) never block the primary write path. Write note with base format, omit enrichment sections.
+- **D-67:** /today briefing sections for Phase 2 state. Two new sections appended to /today output:
+  - **Memory proposals pending:** count of candidates with `status:: pending` in proposals/memory-proposals.md. Format: "Memory proposals pending: N awaiting review" (or omit section if 0).
+  - **Unrouted dead-letter:** count of files in proposals/unrouted/ grouped by status. Format: "Unrouted: N pending, M frozen (3+ retry failures)". Count > 10 total = top-line warning: "⚠ N unrouted captures need attention". Count source: filesystem directory listing of proposals/unrouted/, status parsed from each file's frontmatter.
 
-### Pipeline Composition (D-40 through D-43)
+### Pipeline Composition (D-40 through D-43, D-68)
 
 - **D-40:** Sequential pipeline: Stage 0 (exclusion gate, content-policy.js, Phase 1) → Stage 1 (voice gate) → Stage 2 (subdir pick) → Stage 3 (template extraction, conditional) → Stage 4 (wikilink generation) → Stage 5 (vault-gateway write).
 - **D-41:** Stage 0 is a hard gate. On BLOCK, /new exits immediately — no dead-letter, no classification. On Stage 0 internal failure, fail-closed: dead-letter with failure-mode: exclusion-unavailable. Never fail-open on the trust boundary.
 - **D-42:** Shared infrastructure across stages: single Haiku client wrapper, structured-output JSON parser, logger with correlation IDs (UUID per /new invocation), dead-letter writer.
-- **D-43:** Phase boundary: content-policy.js is Phase 1 code, consumed via existing exports. Phase 2 does not modify its internals. Adding correlation IDs to its logs is an explicit Phase 2 task if needed.
+- **D-43:** Phase boundary: content-policy.js, style-policy.js, vault-gateway.js, and utils.js are Phase 1 code, consumed via existing exports. Phase 2 does not modify their internals. Adding correlation IDs to their logs is an explicit Phase 2 task if needed. **Carve-out:** config files (vault-paths.json, excluded-terms.json) are parameters, not internals — they ARE in Phase 2 scope. Phase 2 adds entries to these files per D-68 and D-49.
+- **D-68:** vault-paths.json additions for Phase 2. The following 5 directories are added to the RIGHT-side allowlist in vault-paths.json during Phase 2 bootstrap (first task):
+  - `proposals/unrouted/` — dead-letter files (D-35)
+  - `proposals/left-proposals/` — LEFT routing proposals (D-12)
+  - `proposals/left-proposals/archive/` — auto-archived old proposals (D-16)
+  - `memory-proposals-archive/` — archived processed proposals by month (D-57)
+  - `memory-archive/` — yearly archive of old memory.md entries (D-34)
+  Directories are created on first use (vault-gateway.js mkdir-on-write pattern), not at install time. proposals/unrouted/promoted/ and proposals/unrouted/rerouted/ (D-53, D-62) are subdirectories of proposals/unrouted/ and inherit its allowlist entry.
 
-### Session Transcript (D-44 through D-46)
+### /reroute Contract (D-60 through D-63)
+
+- **D-60:** `/reroute <file>` re-invokes the full classification pipeline (Stages 1-5) on an existing dead-letter or left-proposal file. Stage 0 (exclusion gate) re-runs — if content now triggers BLOCK, the file is rejected (not rerouted) and the user is notified.
+- **D-61:** Reprocessing stages: (1) read original input body from file (strip frontmatter/metadata), (2) run Stage 0, (3) run Stage 1 + Stage 2 classification, (4) apply template extraction if applicable, (5) generate wikilinks, (6) write to new destination via vault-gateway. On failure at any stage, leave original file in place unchanged and report the failure mode.
+- **D-62:** File movement on success: original file is moved to `proposals/<origin>/rerouted/` with reroute metadata appended (rerouted-at, rerouted-from, rerouted-to). If the new classification is LEFT, the result goes to proposals/left-proposals/ per D-12 (never directly to LEFT). If RIGHT, the note is written to the classified RIGHT directory.
+- **D-63:** Status transitions: dead-letter `status: unrouted` → `status: rerouted` (on success) or `status: reroute-failed` (on failure). Left-proposal `status: pending` → `status: rerouted` (on success). Rerouting a left-proposal to a different LEFT path updates suggested-left-path in the new proposal.
+
+### /promote-unrouted Contract (D-51 through D-54)
+
+- **D-51:** `/promote-unrouted <file> --target <path>` manually promotes a dead-letter file to a specified vault path. Required arguments: file (dead-letter filename in proposals/unrouted/) and --target (destination directory from vault-paths.json). No implicit classification — the user has already decided where this belongs.
+- **D-52:** Validation pipeline: (1) verify file exists in proposals/unrouted/, (2) verify --target is a valid RIGHT-side path in vault-paths.json OR a valid LEFT label (in which case route to proposals/left-proposals/ with suggested-left-path set to --target per D-12), (3) re-run Stage 0 exclusion gate (content-policy.js) — if BLOCK, refuse promotion and report reason, (4) apply template extraction (D-08/D-09) if --target matches a templated domain, (5) generate wikilinks (D-17-D-19), (6) write via vault-gateway.
+- **D-53:** On successful promotion: move original dead-letter file to proposals/unrouted/promoted/ with promotion metadata appended to frontmatter (promoted-at, promoted-to, promoted-by: manual). On failed promotion: leave file in place, report error.
+- **D-54:** LEFT target handling: if --target resolves to a LEFT directory, promotion creates a left-proposal in proposals/left-proposals/ (never writes to LEFT directly). The proposal's suggested-left-path is set to --target. This preserves the write-permission boundary.
+
+### Session Transcript (D-44 through D-46, D-64 through D-66)
 
 - **D-44:** /wrap reads session transcript via transcript_path from hook stdin (JSONL format). Streams line-by-line, does not load full file.
-- **D-45:** Extraction corpus: user messages, assistant text content, semantically-weighted tool outputs (git diff, merged PRs). Excludes: system messages, empty/short messages, Read/Glob/Grep/LS tool pairs.
-- **D-46:** Oversized transcripts (> 5MB or > 2000 messages): chunked extraction in 100-message windows, deduplicate candidates across chunks by content-hash.
+- **D-64:** /wrap hook stdin schema (received as JSON via stdin from Claude Code Stop hook):
+  ```json
+  {
+    "session_id": "string (Claude Code session UUID)",
+    "transcript_path": "string (absolute path to .jsonl transcript file)",
+    "cwd": "string (working directory)",
+    "hook_event_name": "Stop"
+  }
+  ```
+  Missing or unreadable transcript_path: log warning, skip memory extraction, continue with remaining /wrap steps (session logging, STATE.md update). Memory extraction failure never blocks /wrap completion.
+- **D-65:** Source-ref formation for session-extracted candidates: `session:<session_id>` (from hook stdin). For /extract-memories file-based extraction: `file:<relative-vault-path>`. For daily sweep: `daily:<YYYY-MM-DD>`. These populate the `source_file` field in memory-proposals.md (D-56).
+- **D-66:** Dedup across /wrap and daily sweep: before writing any candidate to memory-proposals.md, check content_hash against (a) all pending/deferred candidates in memory-proposals.md, (b) all entries in memory.md, (c) all entries in memory-archive/*.md. Match on content_hash → skip silently. This prevents the daily sweep from duplicating candidates already extracted by /wrap for the same day.
+- **D-45:** Extraction corpus: user messages, assistant text content, tool outputs that represent decisions or outcomes (git diff summaries, merged PR titles, created/modified file paths). Excludes: system-reminder messages, messages < 20 characters, raw Read/Glob/Grep/Bash-ls output (high volume, low signal). "Semantically weighted" means: git diff and PR content weighted 2x in the extraction prompt as high-signal sources.
+- **D-46:** Oversized transcripts (> 5MB or > 2000 messages): chunked extraction in 100-message windows with 10-message overlap at boundaries to preserve context. Deduplicate candidates across chunks by content_hash before writing to memory-proposals.md.
 
-### Config and Carryovers (D-47 through D-50)
+### memory-proposals.md Schema (D-55 through D-58)
+
+- **D-55:** Location: `proposals/memory-proposals.md` (RIGHT side, single active file). File-level structure: YAML frontmatter (last_updated, total_pending, total_processed) followed by per-candidate sections in reverse-chronological order (newest first).
+- **D-56:** Per-candidate section format:
+  ```
+  ### <candidate-id> · <CATEGORY> · <source-ref-short>
+  - [ ] accept
+  - [ ] reject
+  - [ ] edit-then-accept
+  - [ ] defer
+
+  **Content:** <one-paragraph proposed memory entry>
+  **Proposed tags:** <comma-separated>
+  **Proposed related:** <wikilinks>
+
+  session_id:: <claude-session-id from hook stdin or "manual" for /extract-memories>
+  captured_at:: <ISO-8601 timestamp of extraction>
+  source_file:: <vault path or transcript path that produced this candidate>
+  category:: <one of 7 categories from D-22>
+  confidence:: <0.00-1.00>
+  content_hash:: <SHA-256 hex, first 12 chars>
+  status:: pending | accepted | rejected | duplicate | deferred
+  extraction_trigger:: wrap | extract-memories | daily-sweep
+  ```
+  Candidate-id format: `mem-YYYYMMDD-NNN` (date of extraction + sequence number within that day).
+- **D-57:** Rotation: when memory-proposals.md exceeds 100 candidates (regardless of status), archive all non-pending candidates to `memory-proposals-archive/YYYY-MM.md` grouped by month. Pending candidates remain in the active file. Archive runs at the start of `/promote-memories` before promotion logic.
+- **D-58:** Concurrency model for /wrap + /extract-memories concurrent writes: file-level advisory lock via `<proposals/memory-proposals.md>.lock` lockfile. Lock acquisition with 5-second timeout. On lock timeout: buffer candidates to `proposals/memory-proposals-pending.jsonl` (append-only). Next writer that acquires the lock flushes the pending buffer first. This prevents data loss without requiring complex file-merge logic.
+
+### Config and Carryovers (D-47 through D-50, D-68)
 
 - **D-47:** Config layout: config/pipeline.json (new), config/templates.json (new), config/schema/*.schema.json (new). Alongside existing vault-paths.json and excluded-terms.json.
 - **D-48:** Phase 2 owns hot-reload defect fix as prerequisite task (first task in Phase 2 execution). chokidar-based config/ directory watch, schema validation on change, atomic in-memory swap, config:reloaded event. Integration test required.
@@ -204,12 +282,12 @@ Requirements: INPUT-01, INPUT-02, INPUT-03, INPUT-04, MEM-01, MEM-02, MEM-03
 - `/new` — argument + interactive modes; hierarchical classifier; template extraction; wikilink suggestions; dead-letter on failure
 - `/extract-memories` — on-demand extraction with --file, --dir, --since, --daily-range
 - `/promote-memories` — reads marked state from memory-proposals.md, promotes accepted to memory.md, archives processed
-- `/reroute` — re-invokes classifier on dead-letter or left-proposal files
-- `/promote-unrouted` — manual promotion of dead-letter files with explicit target-path
+- `/reroute` — re-invokes classifier on dead-letter or left-proposal files (D-60 through D-63)
+- `/promote-unrouted` — manual promotion of dead-letter files with explicit target-path (D-51 through D-54)
 
 ### Modified Commands
-- `/wrap` — add session-transcript memory-extraction step as Stop hook
-- `/today` — add "Memory proposals pending: N" and "Unrouted dead-letter: N pending, M frozen" briefing sections
+- `/wrap` — add session-transcript memory-extraction step as Stop hook (D-64 through D-66)
+- `/today` — add "Memory proposals pending: N" and "Unrouted dead-letter: N pending, M frozen" briefing sections (D-67)
 
 ### New Config Files
 - `config/pipeline.json` — all Phase 2 thresholds
