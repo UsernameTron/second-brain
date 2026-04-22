@@ -12,21 +12,19 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Left/right vault directory structure with write-permission enforcement — Validated in Phase 1: Vault Foundation
+- [x] `/new` ingress filtering: ISPN, Genesys, Asana content stripped before writing to disk — Validated in Phase 1: Vault Foundation (3 seed terms; expansion tracked as pre-v1 followup)
+- [x] Wikilink cross-references between left and right sides — Validated in Phase 1: Vault Foundation
 
 ### Active
-
-- [ ] Left/right vault directory structure with write-permission enforcement
 - [ ] `memory.md` — agent-maintained, promoted from `memory-proposals.md` with user approval
 - [ ] `memory-proposals.md` — auto-extracted candidates from sessions, awaiting approval
 - [ ] `/today` command — morning prep list with 6 sections (meetings, emails, frogs, job hunt, airealitycheck, slippage)
 - [ ] `/today` data sources: Gmail (VIP-filtered, draft-only), Google Calendar (read-only), memory.md, cross-project .planning/ state, GitHub activity (UsernameTron)
 - [ ] `/new` command — multi-domain input router classifying by domain and left/right write permission
 - [ ] `/new` routing rules: voice/reflections/drafts → LEFT, agent-derived/summaries → RIGHT
-- [ ] `/new` ingress filtering: ISPN, Genesys, Asana content stripped before writing to disk
 - [ ] Gmail MCP connector (draft-only permission, no send)
 - [ ] Google Calendar MCP connector (read-only permission)
-- [ ] Wikilink cross-references between left and right sides
 - [ ] Scheduled `/today` execution via cron (pre-morning review)
 
 ### Out of Scope
@@ -106,4 +104,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-21 after initialization*
+*Last updated: 2026-04-22 after Phase 1 completion*
