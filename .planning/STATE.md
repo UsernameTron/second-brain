@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 ## Current Position
 
 Phase: 3 (External Integrations)
-Plan: Not started — discuss-phase COMPLETE, plan-phase pending
-Status: Phase 3 discuss-phase complete (22 decisions, PR #5 merged b4e6a77). Linter refinements on branch chore/phase3-context-refinements (D-02, D-06, D-09/D-10, D-15, D-23 upgraded). Ready for plan-phase after cross-AI review.
+Plan: 4 plans in 2 waves — plan-phase COMPLETE, verified PASSED
+Status: Phase 3 planned (5dd9a94). 03-01 shared infra (Wave 1), 03-02 calendar + 03-03 gmail + 03-04 github (Wave 2 parallel). Awaiting consolidated cross-AI review then execute-phase.
 Last activity: 2026-04-22
 
 Progress: [█████░░░░░] 50% (2/4 phases complete)
@@ -79,9 +79,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22 (Session 15)
-Stopped at: Phase 3 discuss-phase complete. 22 decisions locked. Linter refinements committed on chore/phase3-context-refinements. Ready for cross-AI review then plan-phase.
-Resume with: Merge chore/phase3-context-refinements, then `/gsd:plan-phase 3`. Consolidated cross-AI review (Gemini + Codex) covers context + plans together, run before execute-phase.
-Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss, b4e6a77).
+Last session: 2026-04-22 (Session 16)
+Stopped at: Phase 3 plan-phase complete. 4 plans in 2 waves, verified PASSED. PR #6 merged (context refinements). Plans committed on master (5dd9a94).
+Resume with: Consolidated cross-AI review (Gemini + Codex) of 03-CONTEXT.md + 4 plan files, then `/gsd:execute-phase 3`.
+Ship log: PR #1 merged (Phase 1). PR #2 merged (Phase 2, 173e81a). PR #5 merged (Phase 3 discuss, b4e6a77). PR #6 merged (Phase 3 context refinements, c6736ea).
 Followup items: In-batch dedup gap (promote-memories.js:330-338). Config hot-reload defect. Excluded terms expansion (3→15-20). 3 human UAT items. CI gap (no GitHub Actions).
-Branch: chore/phase3-context-refinements (1 commit ahead of master)
+Branch: master (clean)
