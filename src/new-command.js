@@ -12,6 +12,8 @@
  *   Stage 3: Template extraction (conditional on domain, via note-formatter)
  *   Stage 4: Note formatting (note-formatter.formatNote / formatLeftProposal)
  *   Stage 5: Vault write (vault-gateway.vaultWrite)
+ *   Stage 4 (post-write): Wikilink enrichment (wikilink-engine.suggestWikilinks) — non-blocking (D-39)
+ *   Stage 4 (post-write): Index update (wikilink-engine.refreshIndexEntry) per D-18
  *
  * Routing:
  *   - LEFT → proposals/left-proposals/<filename>
@@ -46,6 +48,11 @@ const {
 const {
   vaultWrite,
 } = require('./vault-gateway');
+
+const {
+  suggestWikilinks,
+  refreshIndexEntry,
+} = require('./wikilink-engine');
 
 // ── runNew ────────────────────────────────────────────────────────────────────
 
@@ -218,6 +225,19 @@ async function runNew(input, options = {}) {
     const targetPath = `${targetDir}/${filename}`;
 
     await vaultWrite(targetPath, formattedContent);
+
+    // ── Stage 4 (post-write): Wikilink enrichment ────────────────────────
+    // Non-blocking per D-39: failures logged but never block the pipeline
+    try {
+      const wikiResult = await suggestWikilinks(formattedContent, { correlationId });
+      if (wikiResult.section && wikiResult.links && wikiResult.links.length > 0) {
+        const enrichedContent = formattedContent + '\n' + wikiResult.section;
+        await vaultWrite(targetPath, enrichedContent);
+      }
+      await refreshIndexEntry(targetPath);
+    } catch (wikiErr) {
+      console.error(`[wikilinks] Non-blocking failure: ${wikiErr.message} (correlation-id: ${correlationId})`);
+    }
 
     const destination = targetPath;
     console.log(`Routed to ${destination} (correlation-id: ${correlationId})`);
