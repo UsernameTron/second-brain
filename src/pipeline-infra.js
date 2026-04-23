@@ -278,22 +278,102 @@ async function writeDeadLetter(inputBody, failureMode, correlationId, metadata =
   return { path: relativePath };
 }
 
-// ── Config loaders ───────────────────────────────────────────────────────────
+// ── Config overlay helpers ───────────────────────────────────────────────────
 
 /**
- * Load and validate pipeline.json.
- * Reads from CONFIG_DIR (or CONFIG_DIR_OVERRIDE in tests).
- * Throws on missing required fields.
- *
- * @returns {object} Parsed pipeline configuration
- * @throws {Error} On file read or required-field validation failure
+ * Deep-merge source into target. Arrays replace wholesale (not concatenated).
+ * Mutates target in place.
  */
-function loadPipelineConfig() {
-  const filePath = path.join(CONFIG_DIR, 'pipeline.json');
+function deepMerge(target, source) {
+  for (const key of Object.keys(source)) {
+    if (
+      source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])
+      && target[key] && typeof target[key] === 'object' && !Array.isArray(target[key])
+    ) {
+      deepMerge(target[key], source[key]);
+    } else {
+      target[key] = source[key];
+    }
+  }
+  return target;
+}
+
+/** Track which config names are wired to the overlay system. */
+const _overlayWiredConfigs = new Set();
+let _overlayOrphanCheckDone = false;
+
+/**
+ * Load a config JSON file and deep-merge a gitignored .local.json overlay
+ * if one exists. Optionally validates the merged result against a JSON Schema.
+ *
+ * @param {string} name - Config base name (e.g. 'pipeline' loads pipeline.json)
+ * @param {object} [opts]
+ * @param {boolean} [opts.validate=false] - Run schema validation on merged result
+ * @returns {object} Parsed (and optionally merged) configuration
+ * @throws {Error} On file read, JSON parse, or schema validation failure
+ */
+function loadConfigWithOverlay(name, opts = {}) {
+  _overlayWiredConfigs.add(name);
+
+  const filePath = path.join(CONFIG_DIR, `${name}.json`);
   const raw = fs.readFileSync(filePath, 'utf8');
   const config = JSON.parse(raw);
 
-  // Validate required top-level sections
+  const localPath = path.join(CONFIG_DIR, `${name}.local.json`);
+  if (fs.existsSync(localPath)) {
+    const localRaw = fs.readFileSync(localPath, 'utf8');
+    const localOverrides = JSON.parse(localRaw);
+    deepMerge(config, localOverrides);
+  }
+
+  if (opts.validate) {
+    const schemaPath = path.join(CONFIG_DIR, 'schema', `${name}.schema.json`);
+    if (fs.existsSync(schemaPath)) {
+      const Ajv = require('ajv');
+      const ajv = new Ajv({ allErrors: true });
+      const schemaRaw = fs.readFileSync(schemaPath, 'utf8');
+      const schema = JSON.parse(schemaRaw);
+      delete schema.$schema;
+      const validate = ajv.compile(schema);
+      if (!validate(config)) {
+        const errors = validate.errors.map(e => `${e.instancePath}: ${e.message}`).join('; ');
+        throw new Error(`${name} config (after overlay merge) violates schema: ${errors}`);
+      }
+    }
+  }
+
+  // One-time check: warn about .local.json files that aren't wired to any loader
+  if (!_overlayOrphanCheckDone) {
+    _overlayOrphanCheckDone = true;
+    try {
+      const entries = fs.readdirSync(CONFIG_DIR);
+      for (const entry of entries) {
+        const match = entry.match(/^(.+)\.local\.json$/);
+        if (match && !_overlayWiredConfigs.has(match[1])) {
+          process.stderr.write(
+            `[config-overlay] WARNING: ${entry} exists but "${match[1]}" is not wired to loadConfigWithOverlay — overlay will be ignored\n`
+          );
+        }
+      }
+    } catch (_) { /* non-fatal */ }
+  }
+
+  return config;
+}
+
+// ── Config loaders ───────────────────────────────────────────────────────────
+
+/**
+ * Load and validate pipeline.json with optional local overlay.
+ * Reads from CONFIG_DIR (or CONFIG_DIR_OVERRIDE in tests).
+ * Validates merged result against pipeline.schema.json.
+ *
+ * @returns {object} Parsed pipeline configuration
+ * @throws {Error} On file read, required-field, or schema validation failure
+ */
+function loadPipelineConfig() {
+  const config = loadConfigWithOverlay('pipeline', { validate: true });
+
   const required = ['classifier', 'extraction', 'wikilink', 'promotion', 'retry', 'leftProposal', 'filename', 'slippage'];
   for (const key of required) {
     if (!(key in config)) {
@@ -305,17 +385,15 @@ function loadPipelineConfig() {
 }
 
 /**
- * Load and validate templates.json.
+ * Load and validate templates.json with optional local overlay.
  * Reads from CONFIG_DIR (or CONFIG_DIR_OVERRIDE in tests).
- * Throws on missing required keys.
+ * Validates merged result against templates.schema.json.
  *
  * @returns {object} Parsed templates configuration
- * @throws {Error} On file read or required-key validation failure
+ * @throws {Error} On file read, required-key, or schema validation failure
  */
 function loadTemplatesConfig() {
-  const filePath = path.join(CONFIG_DIR, 'templates.json');
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const config = JSON.parse(raw);
+  const config = loadConfigWithOverlay('templates', { validate: true });
 
   const required = ['domain-templates', 'memory-categories'];
   for (const key of required) {
@@ -336,4 +414,5 @@ module.exports = {
   writeDeadLetter,
   loadPipelineConfig,
   loadTemplatesConfig,
+  loadConfigWithOverlay,
 };

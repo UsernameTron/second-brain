@@ -350,6 +350,87 @@ describe('loadPipelineConfig', () => {
   });
 });
 
+// ── config overlay (pipeline.local.json) ────────────────────────────────────
+
+describe('loadConfigWithOverlay', () => {
+  let tmpDir, configDir;
+  const realConfigDir = path.join(__dirname, '..', 'config');
+
+  function setupTempConfig(localOverrides) {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-test-'));
+    configDir = tmpDir;
+    // Copy base pipeline.json
+    fs.copyFileSync(
+      path.join(realConfigDir, 'pipeline.json'),
+      path.join(configDir, 'pipeline.json')
+    );
+    // Copy schema
+    const schemaDir = path.join(configDir, 'schema');
+    fs.mkdirSync(schemaDir);
+    fs.copyFileSync(
+      path.join(realConfigDir, 'schema', 'pipeline.schema.json'),
+      path.join(schemaDir, 'pipeline.schema.json')
+    );
+    // Write local overlay if provided
+    if (localOverrides) {
+      fs.writeFileSync(
+        path.join(configDir, 'pipeline.local.json'),
+        JSON.stringify(localOverrides, null, 2)
+      );
+    }
+    process.env.CONFIG_DIR_OVERRIDE = configDir;
+    jest.resetModules();
+  }
+
+  afterEach(() => {
+    delete process.env.CONFIG_DIR_OVERRIDE;
+    jest.resetModules();
+    if (tmpDir) {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+    }
+  });
+
+  test('overlay merges correctly — overridden value applied, base values unchanged', () => {
+    setupTempConfig({ classifier: { llm: { provider: 'local' } } });
+    const { loadPipelineConfig } = require('../src/pipeline-infra');
+    const config = loadPipelineConfig();
+    expect(config.classifier.llm.provider).toBe('local');
+    expect(config.classifier.stage1ConfidenceThreshold).toBe(0.8);
+  });
+
+  test('deep-merge preserves sibling fields within nested objects', () => {
+    setupTempConfig({ classifier: { llm: { localEndpoint: 'http://localhost:9999' } } });
+    const { loadPipelineConfig } = require('../src/pipeline-infra');
+    const config = loadPipelineConfig();
+    expect(config.classifier.llm.localEndpoint).toBe('http://localhost:9999');
+    expect(config.classifier.llm.provider).toBe('anthropic');
+    expect(config.classifier.llm.localModel).toBe('qwen2.5-coder-7b');
+  });
+
+  test('no overlay present — returns base config unchanged', () => {
+    setupTempConfig(null);
+    const { loadPipelineConfig } = require('../src/pipeline-infra');
+    const config = loadPipelineConfig();
+    expect(config.classifier.llm.provider).toBe('anthropic');
+    expect(config.classifier.stage1ConfidenceThreshold).toBe(0.8);
+  });
+
+  test('schema-violation overlay throws with descriptive error', () => {
+    setupTempConfig({ classifier: { llm: { provider: 'invalid-provider' } } });
+    const { loadPipelineConfig } = require('../src/pipeline-infra');
+    expect(() => loadPipelineConfig()).toThrow(/violates schema/);
+  });
+
+  test('base file on disk is not mutated by overlay merge', () => {
+    setupTempConfig({ classifier: { llm: { provider: 'local' } } });
+    const { loadPipelineConfig } = require('../src/pipeline-infra');
+    loadPipelineConfig();
+    const baseRaw = fs.readFileSync(path.join(configDir, 'pipeline.json'), 'utf8');
+    const base = JSON.parse(baseRaw);
+    expect(base.classifier.llm.provider).toBe('anthropic');
+  });
+});
+
 // ── loadTemplatesConfig ──────────────────────────────────────────────────────
 
 describe('loadTemplatesConfig', () => {

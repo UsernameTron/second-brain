@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy to pipeline.local.json to override pipeline.json locally. pipeline.local.json is gitignored.",
+  "classifier": {
+    "llm": {
+      "provider": "local",
+      "localModel": "qwen3.6-27b"
+    }
+  }
+}
