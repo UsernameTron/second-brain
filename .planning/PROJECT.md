@@ -6,7 +6,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-Shipped v1.0 MVP (2026-04-22) and v1.1 Go Live (2026-04-23). Two milestones complete: 7 phases, 22 plans, ~17,000 LOC JavaScript (Node.js).
+Shipped v1.0 MVP (2026-04-22) and v1.1 Go Live (2026-04-23). Two milestones complete: 7 phases, 22 plans, ~17,000 LOC JavaScript (Node.js). v1.2 Phase 8 (Hook Infrastructure) complete — auto-test, protected-file guard, HOOK-03 contract deployed.
 
 **What works end-to-end:**
 - `/new` classifies input, enforces left/right routing, filters excluded content (15 terms), suggests wikilinks
@@ -56,11 +56,13 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ UAT pass (LLM accuracy, wikilink relevance, promotion dedup) — v1.1
 - ✓ CI pipeline (GitHub Actions, Node 20+22, push + PR triggers) — v1.1
 
+- ✓ Auto-run tests on source edit (PostToolUse observer hook) — v1.2
+- ✓ Protected file edit guard (PreToolUse gate for .env, config/schema, credentials) — v1.2
+- ✓ Security scan gate integration contract (stub for Phase 9) — v1.2
+
 ### Active
 
-- HOOK-01: Auto-Run Tests on Source Edit — v1.2
-- HOOK-02: Protected File Edit Guard — v1.2
-- HOOK-03: Mandatory Security Scan in Ship Pipeline — v1.2
+
 - SEC-01: Security Scanner Agent — v1.2
 - SEC-02: Independent Test Verification Gate — v1.2
 - SEC-03: Config/Schema Validation Skill — v1.2
