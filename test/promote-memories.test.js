@@ -33,7 +33,7 @@ function computeHash(content) {
  */
 function buildProposalsFile(candidates) {
   const total = candidates.length;
-  const pending = candidates.filter(c => c.status === 'pending').length;
+  const pending = candidates.filter(c => !c.processedStatus || c.processedStatus === 'pending').length;
 
   const header = [
     '---',
@@ -45,11 +45,16 @@ function buildProposalsFile(candidates) {
   ].join('\n');
 
   const sections = candidates.map(c => {
-    const status = c.status || 'pending';
-    const acceptBox = status === 'accepted' ? '- [x] accept' : '- [ ] accept';
-    const rejectBox = status === 'rejected' ? '- [x] reject' : '- [ ] reject';
-    const editBox = status === 'edit-then-accept' ? '- [x] edit-then-accept' : '- [ ] edit-then-accept';
-    const deferBox = status === 'deferred' ? '- [x] defer' : '- [ ] defer';
+    // In real usage: user checks a checkbox while status:: remains pending
+    // until promotion processes it. The status field in test candidates
+    // represents the user's checkbox action, not the processing state.
+    const action = c.status || 'pending';
+    const acceptBox = action === 'accepted' ? '- [x] accept' : '- [ ] accept';
+    const rejectBox = action === 'rejected' ? '- [x] reject' : '- [ ] reject';
+    const editBox = action === 'edit-then-accept' ? '- [x] edit-then-accept' : '- [ ] edit-then-accept';
+    const deferBox = action === 'deferred' ? '- [x] defer' : '- [ ] defer';
+    // statusField: use explicit processedStatus if provided, otherwise pending
+    const statusField = c.processedStatus || 'pending';
 
     // Ambiguous: multiple boxes checked
     let boxes;
@@ -77,7 +82,7 @@ function buildProposalsFile(candidates) {
       `category:: ${c.category}`,
       `confidence:: ${c.confidence || 0.8}`,
       `content_hash:: ${hash}`,
-      `status:: ${status}`,
+      `status:: ${statusField}`,
       `extraction_trigger:: wrap`,
       '',
     ].join('\n');
@@ -316,6 +321,7 @@ describe('promoteMemories - memory.md entry format', () => {
     const memoryFile = path.join(memoryDir, 'memory.md');
     const content = fs.readFileSync(memoryFile, 'utf8');
     expect(content).toContain('Pete decided to use CommonJS for all modules in this project.');
+    expect(content).toMatch(/content_hash:: [a-f0-9]+/);
   });
 });
 
@@ -400,7 +406,7 @@ describe('promoteMemories - in-batch dedup', () => {
       'category:: LEARNING',
       'confidence:: 0.95',
       `content_hash:: ${hash}`,
-      'status:: accepted',
+      'status:: pending',
       'extraction_trigger:: wrap',
       '',
     ].join('\n');
@@ -409,9 +415,7 @@ describe('promoteMemories - in-batch dedup', () => {
     fs.writeFileSync(proposalsFile, proposalsWithBoth, 'utf8');
 
     const result = await promoteMemories.promoteMemories({ max: 5 });
-    // The accepted candidate should promote — pending proposals are not checked
-    // during promotion (they would always self-match). Proposals-file dedup
-    // belongs in the extractor path (writeCandidate), not the promotion loop.
+    // The accepted candidate should promote — checkbox [x] accept with status:: pending
     expect(result.promoted).toBe(1);
     expect(result.duplicates).toBe(0);
   });
@@ -618,7 +622,7 @@ describe('promoteMemories - in-batch duplicate detection', () => {
       'category:: LEARNING',
       'confidence:: 0.9',
       `content_hash:: ${pendingHash}`,
-      'status:: accepted',
+      'status:: pending',
       'extraction_trigger:: wrap',
       '',
     ].join('\n');
@@ -626,7 +630,7 @@ describe('promoteMemories - in-batch duplicate detection', () => {
     const fullFile = [
       '---',
       `last_updated: ${new Date().toISOString()}`,
-      'total_pending: 1',
+      'total_pending: 2',
       'total_processed: 0',
       '---',
       '',
@@ -636,8 +640,7 @@ describe('promoteMemories - in-batch duplicate detection', () => {
     fs.writeFileSync(proposalsFile, fullFile, 'utf8');
 
     const result = await promoteMemories.promoteMemories({ max: 5 });
-    // Accepted candidate should promote — proposals-file dedup is not checked
-    // during promotion (self-match bug). Extractor path handles proposals dedup.
+    // Accepted candidate promotes; pending entry with same hash is a duplicate
     expect(result.promoted).toBe(1);
     expect(result.duplicates).toBe(0);
   });
@@ -671,16 +674,16 @@ describe('promoteMemories - in-batch duplicate detection', () => {
 
 describe('promoteMemories - proposal archive', () => {
   test('proposal archive triggers when total candidates > 100', async () => {
-    // Create 101 candidates: first 5 accepted, rest pending
+    // Create 101 candidates: first 5 already promoted (non-pending), rest pending
     const candidates = [];
     for (let i = 0; i < 101; i++) {
-      const status = i < 5 ? 'accepted' : 'pending';
       candidates.push({
         candidateId: `mem-20260422-${String(i + 1).padStart(3, '0')}`,
         category: 'LEARNING',
         confidence: 0.8,
         content: `Unique content for proposal archive test entry number ${i + 1} alpha.`,
-        status,
+        status: i < 5 ? 'accepted' : 'pending',
+        processedStatus: i < 5 ? 'promoted' : 'pending',
         sourceRef: 'session:abc12345',
         capturedAt: '2026-03-01T10:00:00.000Z',
       });
@@ -699,13 +702,13 @@ describe('promoteMemories - proposal archive', () => {
   test('pending candidates remain in proposals file after archive', async () => {
     const candidates = [];
     for (let i = 0; i < 101; i++) {
-      const status = i < 5 ? 'accepted' : 'pending';
       candidates.push({
         candidateId: `mem-20260422-${String(i + 1).padStart(3, '0')}`,
         category: 'LEARNING',
         confidence: 0.8,
         content: `Proposal archive pending test content number ${i + 1} beta.`,
-        status,
+        status: i < 5 ? 'accepted' : 'pending',
+        processedStatus: i < 5 ? 'promoted' : 'pending',
         sourceRef: 'session:abc12345',
         capturedAt: '2026-04-01T10:00:00.000Z',
       });

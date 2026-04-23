@@ -178,7 +178,7 @@ function buildMemoryEntry(candidate) {
   const today = todayString();
   const shortRef = sourceRefShort(candidate.sourceRef);
   const addedAt = nowISO();
-  return `### ${today} · ${candidate.category} · ${shortRef}\n\n${candidate.content}\n\ncategory:: ${candidate.category}\nsource-ref:: ${candidate.sourceRef || ''}\ntags:: ${candidate.tags || ''}\nadded:: ${addedAt}\nrelated:: ${candidate.related || ''}\n`;
+  return `### ${today} · ${candidate.category} · ${shortRef}\n\n${candidate.content}\n\ncategory:: ${candidate.category}\nsource-ref:: ${candidate.sourceRef || ''}\ntags:: ${candidate.tags || ''}\nadded:: ${addedAt}\nrelated:: ${candidate.related || ''}\ncontent_hash:: ${candidate.contentHash || ''}\n`;
 }
 
 async function appendToMemoryFile(promotedCandidates) {
@@ -310,15 +310,16 @@ async function promoteMemories(options = {}) {
 
   const acceptedCandidates = allCandidates.filter(c => {
     if (c.ambiguous) return false;
+    // Only process candidates still in pending state — skip already-promoted/rejected
+    if (c.currentStatus !== 'pending') return false;
     if (c.checkboxStatus === 'accepted' || c.checkboxStatus === 'edit-then-accept') return true;
-    if (c.checkboxStatus === null && (c.currentStatus === 'accepted' || c.currentStatus === 'edit-then-accept')) return true;
     return false;
   });
 
   const rejectedCandidates = allCandidates.filter(c => {
     if (c.ambiguous) return false;
+    if (c.currentStatus !== 'pending') return false;
     if (c.checkboxStatus === 'rejected') return true;
-    if (c.checkboxStatus === null && c.currentStatus === 'rejected') return true;
     return false;
   });
 
