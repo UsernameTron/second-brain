@@ -47,6 +47,20 @@ jest.mock('../src/pipeline-infra', () => ({
     },
     filename: { maxLength: 60, haikuWordRange: [4, 8] },
   })),
+  safeLoadPipelineConfig: jest.fn(() => ({
+    config: {
+      classifier: {
+        stage1ConfidenceThreshold: 0.8,
+        stage2ConfidenceThreshold: 0.7,
+        sonnetEscalationThreshold: 0.8,
+        sonnetAcceptThreshold: 0.7,
+        shortInputChars: 50,
+      },
+      filename: { maxLength: 60, haikuWordRange: [4, 8] },
+    },
+    error: null,
+  })),
+  safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
   loadTemplatesConfig: jest.fn(() => ({
     'domain-templates': {},
     'memory-categories': {},
@@ -113,6 +127,20 @@ describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
         },
         filename: { maxLength: 60, haikuWordRange: [4, 8] },
       })),
+      safeLoadPipelineConfig: jest.fn(() => ({
+        config: {
+          classifier: {
+            stage1ConfidenceThreshold: 0.8,
+            stage2ConfidenceThreshold: 0.7,
+            sonnetEscalationThreshold: 0.8,
+            sonnetAcceptThreshold: 0.7,
+            shortInputChars: 50,
+          },
+          filename: { maxLength: 60, haikuWordRange: [4, 8] },
+        },
+        error: null,
+      })),
+      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
       loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
     }));
 

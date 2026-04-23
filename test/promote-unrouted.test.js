@@ -49,6 +49,7 @@ jest.mock('../src/pipeline-infra', () => ({
     classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 },
     filename: { maxLength: 60, haikuWordRange: [4, 8] },
   })),
+  safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings', 'research'], haikuContextChars: 100 })),
   loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
 }));
 
@@ -119,6 +120,7 @@ beforeEach(() => {
       classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 },
       filename: { maxLength: 60, haikuWordRange: [4, 8] },
     })),
+    safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings', 'research'], haikuContextChars: 100 })),
     loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
   }));
 });
@@ -184,6 +186,7 @@ describe('promoteUnrouted', () => {
         classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 },
         filename: { maxLength: 60, haikuWordRange: [4, 8] },
       })),
+      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings', 'research'], haikuContextChars: 100 })),
       loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
     }));
 
@@ -220,6 +223,7 @@ describe('promoteUnrouted', () => {
       createHaikuClient: jest.fn(() => ({ classify: jest.fn() })),
       writeDeadLetter: jest.fn(),
       loadPipelineConfig: jest.fn(() => ({ classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 }, filename: { maxLength: 60, haikuWordRange: [4, 8] } })),
+      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings', 'research'], haikuContextChars: 100 })),
       loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
     }));
 
@@ -262,6 +266,7 @@ describe('promoteUnrouted', () => {
       createHaikuClient: jest.fn(() => ({ classify: jest.fn() })),
       writeDeadLetter: jest.fn(),
       loadPipelineConfig: jest.fn(() => ({ classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 }, filename: { maxLength: 60, haikuWordRange: [4, 8] } })),
+      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings', 'research'], haikuContextChars: 100 })),
       loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
     }));
 
@@ -312,6 +317,7 @@ describe('promoteUnrouted', () => {
       createHaikuClient: jest.fn(() => ({ classify: jest.fn() })),
       writeDeadLetter: jest.fn(),
       loadPipelineConfig: jest.fn(() => ({ classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 }, filename: { maxLength: 60, haikuWordRange: [4, 8] } })),
+      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings', 'research'], haikuContextChars: 100 })),
       loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
     }));
 
@@ -365,6 +371,7 @@ describe('promoteUnrouted', () => {
       createHaikuClient: jest.fn(() => ({ classify: jest.fn() })),
       writeDeadLetter: jest.fn(),
       loadPipelineConfig: jest.fn(() => ({ classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 }, filename: { maxLength: 60, haikuWordRange: [4, 8] } })),
+      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings', 'research'], haikuContextChars: 100 })),
       loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
     }));
 
@@ -407,6 +414,7 @@ describe('promoteUnrouted', () => {
       createHaikuClient: jest.fn(() => ({ classify: jest.fn() })),
       writeDeadLetter: jest.fn(),
       loadPipelineConfig: jest.fn(() => ({ classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 }, filename: { maxLength: 60, haikuWordRange: [4, 8] } })),
+      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings', 'research'], haikuContextChars: 100 })),
       loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
     }));
 

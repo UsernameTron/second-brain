@@ -1,13 +1,13 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-23T21:39:00.376Z",
+  "timestamp": "2026-04-23T22:13:17.359Z",
   "phase": "12",
   "phase_name": "Critical Safety Fixes",
   "phase_dir": ".planning/milestones/v1.3",
   "plan": 1,
   "task": 6,
   "total_tasks": 6,
-  "status": "all_tasks_committed",
+  "status": "verification_in_progress",
   "completed_tasks": [
     {"id": "T12.2", "name": "Guard loadVaultPaths JSON.parse", "status": "done", "commit": "7c3166d"},
     {"id": "T12.3", "name": "safeLoadPipelineConfig wrapper", "status": "done", "commit": "33e6e5a"},
@@ -20,11 +20,14 @@
   "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Fixed errexit bug in security-scan-gate.sh discovered during test writing", "rationale": "set -e killed the script before reaching grep fallback when claude agent failed", "phase": "12"},
-    {"decision": "Used jest.doMock with full pipeline.json config clone for classifyLocal tests", "rationale": "Config validation requires all 8 sections; partial config causes LOAD_ERROR fallthrough to Anthropic", "phase": "12"},
-    {"decision": "writeDeadLetter tests now mock vaultWrite instead of reading files from disk", "rationale": "Function no longer uses fs.promises.writeFile — tests verify the vaultWrite contract instead", "phase": "12"}
+    {"decision": "Used jest.isolateModules for safeLoadPipelineConfig and classifyLocal tests", "rationale": "jest.resetModules + jest.mock hoisting causes CONFIG_DIR_OVERRIDE to leak between describe blocks when pipeline.local.json exists", "phase": "12"},
+    {"decision": "Added CONFIG_DIR_OVERRIDE with temp dirs (no local override) to createHaikuClient and local LLM routing test blocks", "rationale": "pipeline.local.json sets provider:local which breaks tests expecting provider:anthropic behavior", "phase": "12"}
   ],
-  "uncommitted_files": [],
-  "next_action": "Run Phase 12 verification: analyze the 23 test failures (likely pre-existing), run grep verifications, then update STATE.md and handoff. Then plan Phase 13.",
-  "context_notes": "All 6 Phase 12 tasks are committed. Full test suite shows 617 passed / 23 failed / 640 total. The handoff noted 6 pre-existing failures in pipeline-infra.test.js (createHaikuClient/local LLM routing). The 23 failures need triage — some are pre-existing, others may include UAT/classification tests that need a running LLM. Security-scan-gate bash tests: 8/8 pass. Grep verifications (T12.1 fs.promises, T12.2 loadVaultPaths imports) not yet run."
+  "uncommitted_files": [
+    "test/integration-pipeline.test.js",
+    "test/pipeline-infra.test.js",
+    "test/promote-unrouted.test.js"
+  ],
+  "next_action": "Run full test suite to verify test fixes. 14/18 regressions confirmed fixed (integration-pipeline: 7, promote-unrouted: 7). Remaining in pipeline-infra.test.js: safeLoadPipelineConfig (4 tests rewritten with jest.isolateModules), classifyLocal (6 tests rewritten with jest.isolateModules), and 1 'local LLM routing > parse error' test — all need verification run. The parse error test fails within its describe block because mockPipelineConfig does not intercept pipeline.local.json overlay reads; fix is to use the same temp config dir approach already applied to the beforeEach. Pre-existing: 4 createHaikuClient tests NOW FIXED. UAT classification (1) requires running LLM — accepted.",
+  "context_notes": "Root cause of ALL 18 regressions: T12.2/T12.3 renamed exports (loadVaultPaths→safeLoadVaultPaths, loadPipelineConfig→safeLoadPipelineConfig) but test mocks in 3 files were not updated. Secondary: pipeline.local.json (provider:local, model:qwen/qwen3.6-27b) causes test pollution via CONFIG_DIR overlay — tests loading real config dir get local LLM routing instead of Anthropic. Fix: (1) added missing mock exports to integration-pipeline and promote-unrouted, (2) isolated config dirs for createHaikuClient and local LLM routing blocks, (3) jest.isolateModules for safeLoadPipelineConfig and classifyLocal. Grep verifications passed: no fs.promises.writeFile in writeDeadLetter, no standalone loadVaultPaths in source."
 }

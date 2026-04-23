@@ -49,8 +49,22 @@ describe('generateCorrelationId', () => {
 describe('createHaikuClient', () => {
   let createHaikuClient;
   let mockCreate;
+  let tmpConfigDir;
+  let originalConfigDir;
 
   beforeAll(() => {
+    // Create isolated config dir without pipeline.local.json overlay
+    // so tests always use provider: "anthropic" (the base config default)
+    tmpConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), 'haiku-test-config-'));
+    const realConfigDir = path.join(__dirname, '..', 'config');
+    fs.cpSync(realConfigDir, tmpConfigDir, { recursive: true });
+    // Remove local override to ensure provider: "anthropic"
+    const localOverride = path.join(tmpConfigDir, 'pipeline.local.json');
+    if (fs.existsSync(localOverride)) fs.rmSync(localOverride);
+
+    originalConfigDir = process.env.CONFIG_DIR_OVERRIDE;
+    process.env.CONFIG_DIR_OVERRIDE = tmpConfigDir;
+
     // Mock @anthropic-ai/sdk before requiring pipeline-infra
     jest.mock('@anthropic-ai/sdk', () => {
       const mockCreate = jest.fn();
@@ -71,6 +85,7 @@ describe('createHaikuClient', () => {
 
   // Fresh mock setup per describe block
   beforeEach(() => {
+    process.env.CONFIG_DIR_OVERRIDE = tmpConfigDir;
     jest.resetModules();
     mockCreate = jest.fn();
     jest.mock('@anthropic-ai/sdk', () => {
@@ -88,6 +103,12 @@ describe('createHaikuClient', () => {
   afterAll(() => {
     jest.unmock('@anthropic-ai/sdk');
     jest.resetModules();
+    if (originalConfigDir === undefined) {
+      delete process.env.CONFIG_DIR_OVERRIDE;
+    } else {
+      process.env.CONFIG_DIR_OVERRIDE = originalConfigDir;
+    }
+    fs.rmSync(tmpConfigDir, { recursive: true, force: true });
   });
 
   test('returns object with classify() method', () => {
@@ -483,9 +504,22 @@ describe('loadTemplatesConfig', () => {
 
 describe('local LLM routing', () => {
   let mockLogDecision;
+  let tmpConfigDir;
+  let originalConfigDir;
   const originalFetch = global.fetch;
 
   beforeEach(() => {
+    // Create isolated config dir to control pipeline.json without local overlay interference
+    tmpConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-routing-test-'));
+    const realConfigDir = path.join(__dirname, '..', 'config');
+    fs.cpSync(realConfigDir, tmpConfigDir, { recursive: true });
+    // Remove local override so tests fully control LLM config
+    const localOverride = path.join(tmpConfigDir, 'pipeline.local.json');
+    if (fs.existsSync(localOverride)) fs.rmSync(localOverride);
+
+    originalConfigDir = process.env.CONFIG_DIR_OVERRIDE;
+    process.env.CONFIG_DIR_OVERRIDE = tmpConfigDir;
+
     jest.resetModules();
     mockLogDecision = jest.fn();
 
@@ -515,6 +549,12 @@ describe('local LLM routing', () => {
   afterEach(() => {
     global.fetch = originalFetch;
     jest.restoreAllMocks();
+    if (originalConfigDir === undefined) {
+      delete process.env.CONFIG_DIR_OVERRIDE;
+    } else {
+      process.env.CONFIG_DIR_OVERRIDE = originalConfigDir;
+    }
+    fs.rmSync(tmpConfigDir, { recursive: true, force: true });
   });
 
   afterAll(() => {
@@ -525,25 +565,13 @@ describe('local LLM routing', () => {
   });
 
   function mockPipelineConfig(llmOverride) {
-    const realFs = jest.requireActual('fs');
-    const realPath = jest.requireActual('path');
-    const configPath = realPath.join(__dirname, '..', 'config', 'pipeline.json');
-    const baseConfig = JSON.parse(realFs.readFileSync(configPath, 'utf8'));
+    // Write controlled pipeline.json to isolated config dir
+    const configPath = path.join(tmpConfigDir, 'pipeline.json');
+    const baseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     if (llmOverride !== undefined) {
       baseConfig.classifier.llm = llmOverride;
     }
-    jest.doMock('fs', () => {
-      const actual = jest.requireActual('fs');
-      return {
-        ...actual,
-        readFileSync: jest.fn((filePath, encoding) => {
-          if (typeof filePath === 'string' && filePath.includes('pipeline.json')) {
-            return JSON.stringify(baseConfig);
-          }
-          return actual.readFileSync(filePath, encoding);
-        }),
-      };
-    });
+    fs.writeFileSync(configPath, JSON.stringify(baseConfig));
   }
 
   test('when provider is "local" and endpoint responds, uses local endpoint', async () => {
@@ -794,89 +822,100 @@ describe('safeLoadVaultPaths', () => {
 // ── safeLoadPipelineConfig (T12.3) ──────────────────────────────────────────
 
 describe('safeLoadPipelineConfig', () => {
-  let tmpDir, originalConfigDir;
-
-  beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'safe-pipeline-config-'));
-    originalConfigDir = process.env.CONFIG_DIR_OVERRIDE;
-    process.env.CONFIG_DIR_OVERRIDE = tmpDir;
-    jest.resetModules();
-  });
-
-  afterEach(() => {
-    if (originalConfigDir === undefined) {
-      delete process.env.CONFIG_DIR_OVERRIDE;
-    } else {
-      process.env.CONFIG_DIR_OVERRIDE = originalConfigDir;
-    }
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  });
-
   test('returns { config, error: null } on valid config', () => {
-    // Write a valid pipeline.json with required sections
-    const validConfig = {
-      classifier: { shortInputChars: 100 },
-      extraction: {},
-      wikilink: {},
-      promotion: {},
-      retry: {},
-      leftProposal: {},
-      filename: {},
-      slippage: {},
-    };
-    fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), JSON.stringify(validConfig));
-    // Schema dir must exist but schema file is optional for non-validate path
-    fs.mkdirSync(path.join(tmpDir, 'schema'), { recursive: true });
-    const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
-    const result = safeLoadPipelineConfig();
-    expect(result.error).toBeNull();
-    expect(result.config).toMatchObject(validConfig);
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'safe-pipeline-config-'));
+    try {
+      const validConfig = {
+        classifier: { shortInputChars: 100 },
+        extraction: {},
+        wikilink: {},
+        promotion: {},
+        retry: {},
+        leftProposal: {},
+        filename: {},
+        slippage: {},
+      };
+      fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), JSON.stringify(validConfig));
+      fs.mkdirSync(path.join(tmpDir, 'schema'), { recursive: true });
+
+      jest.isolateModules(() => {
+        process.env.CONFIG_DIR_OVERRIDE = tmpDir;
+        const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
+        const result = safeLoadPipelineConfig();
+        expect(result.error).toBeNull();
+        expect(result.config).toMatchObject(validConfig);
+      });
+    } finally {
+      delete process.env.CONFIG_DIR_OVERRIDE;
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   test('returns { config: null, error } on malformed JSON', () => {
-    fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), '{ bad json!!!');
-    const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
-    const result = safeLoadPipelineConfig();
-    expect(result.config).toBeNull();
-    expect(result.error).toBeInstanceOf(Error);
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'safe-pipeline-config-'));
+    try {
+      fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), '{ bad json!!!');
+
+      jest.isolateModules(() => {
+        process.env.CONFIG_DIR_OVERRIDE = tmpDir;
+        const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
+        const result = safeLoadPipelineConfig();
+        expect(result.config).toBeNull();
+        expect(result.error).toBeInstanceOf(Error);
+      });
+    } finally {
+      delete process.env.CONFIG_DIR_OVERRIDE;
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   test('returns { config: null, error } on missing required section', () => {
-    // Missing 'classifier' required section
-    const partial = { extraction: {}, wikilink: {}, promotion: {}, retry: {}, leftProposal: {}, filename: {}, slippage: {} };
-    fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), JSON.stringify(partial));
-    fs.mkdirSync(path.join(tmpDir, 'schema'), { recursive: true });
-    const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
-    const result = safeLoadPipelineConfig();
-    expect(result.config).toBeNull();
-    expect(result.error.message).toContain('classifier');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'safe-pipeline-config-'));
+    try {
+      const partial = { extraction: {}, wikilink: {}, promotion: {}, retry: {}, leftProposal: {}, filename: {}, slippage: {} };
+      fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), JSON.stringify(partial));
+      fs.mkdirSync(path.join(tmpDir, 'schema'), { recursive: true });
+
+      jest.isolateModules(() => {
+        process.env.CONFIG_DIR_OVERRIDE = tmpDir;
+        const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
+        const result = safeLoadPipelineConfig();
+        expect(result.config).toBeNull();
+        expect(result.error.message).toContain('classifier');
+      });
+    } finally {
+      delete process.env.CONFIG_DIR_OVERRIDE;
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   test('calls logDecision with LOAD_ERROR on failure', () => {
-    fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), '{ broken');
-    const mockLogDecision = jest.fn();
-    jest.doMock('../src/vault-gateway', () => ({ logDecision: mockLogDecision }));
-    const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
-    safeLoadPipelineConfig();
-    expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'pipeline.json', 'LOAD_ERROR', expect.any(String));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'safe-pipeline-config-'));
+    try {
+      fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), '{ broken');
+      const mockLogDecision = jest.fn();
+
+      jest.isolateModules(() => {
+        process.env.CONFIG_DIR_OVERRIDE = tmpDir;
+        jest.doMock('../src/vault-gateway', () => ({ logDecision: mockLogDecision }));
+        const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
+        safeLoadPipelineConfig();
+        expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'pipeline.json', 'LOAD_ERROR', expect.any(String));
+      });
+    } finally {
+      delete process.env.CONFIG_DIR_OVERRIDE;
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
 
 // ── classifyLocal — T12.5 LLM fallback hardening ────────────────────────────
 
 describe('classifyLocal — LLM fallback hardening', () => {
-  let mockLogDecision;
-  let mockAnthropicCreate;
   let tmpConfigDir;
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    jest.resetModules();
-    mockLogDecision = jest.fn();
-    mockAnthropicCreate = jest.fn().mockResolvedValue({
-      content: [{ text: '{"fallback":true}' }],
-    });
-
     // Create temp config dir with local LLM provider — must include all required sections
     tmpConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-test-'));
     const realConfigDir = path.join(__dirname, '..', 'config');
@@ -893,40 +932,42 @@ describe('classifyLocal — LLM fallback hardening', () => {
       fs.cpSync(schemaDir, path.join(tmpConfigDir, 'schema'), { recursive: true });
     }
     process.env.CONFIG_DIR_OVERRIDE = tmpConfigDir;
-
-    jest.doMock('../src/vault-gateway', () => ({
-      logDecision: mockLogDecision,
-      vaultWrite: jest.fn().mockResolvedValue({ decision: 'WRITTEN' }),
-    }));
-    jest.doMock('../src/content-policy', () => ({
-      sanitizeTermForPrompt: jest.fn((t) => t),
-    }));
-    jest.doMock('@anthropic-ai/sdk', () => {
-      return jest.fn().mockImplementation(() => ({
-        messages: { create: mockAnthropicCreate },
-      }));
-    });
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
     delete process.env.CONFIG_DIR_OVERRIDE;
-    jest.restoreAllMocks();
     try { fs.rmSync(tmpConfigDir, { recursive: true, force: true }); } catch (_) {}
   });
 
-  afterAll(() => {
-    jest.resetModules();
-  });
-
-  function loadClient() {
-    const { createHaikuClient } = require('../src/pipeline-infra');
-    return createHaikuClient();
+  function loadClientIsolated(mockLogDecision, mockAnthropicCreate) {
+    let client;
+    jest.isolateModules(() => {
+      jest.doMock('../src/vault-gateway', () => ({
+        logDecision: mockLogDecision,
+        vaultWrite: jest.fn().mockResolvedValue({ decision: 'WRITTEN' }),
+      }));
+      jest.doMock('../src/content-policy', () => ({
+        sanitizeTermForPrompt: jest.fn((t) => t),
+      }));
+      jest.doMock('@anthropic-ai/sdk', () => {
+        return jest.fn().mockImplementation(() => ({
+          messages: { create: mockAnthropicCreate },
+        }));
+      });
+      const { createHaikuClient } = require('../src/pipeline-infra');
+      client = createHaikuClient();
+    });
+    return client;
   }
 
   test('falls back to Anthropic on AbortError (timeout)', async () => {
+    const mockLogDecision = jest.fn();
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({
+      content: [{ text: '{"fallback":true}' }],
+    });
     global.fetch = jest.fn().mockRejectedValue(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
-    const client = loadClient();
+    const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
     expect(mockLogDecision).toHaveBeenCalledWith(
@@ -937,10 +978,14 @@ describe('classifyLocal — LLM fallback hardening', () => {
   });
 
   test('falls back to Anthropic on ECONNREFUSED', async () => {
+    const mockLogDecision = jest.fn();
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({
+      content: [{ text: '{"fallback":true}' }],
+    });
     const connErr = new Error('fetch failed');
     connErr.code = 'ECONNREFUSED';
     global.fetch = jest.fn().mockRejectedValue(connErr);
-    const client = loadClient();
+    const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
     expect(mockLogDecision).toHaveBeenCalledWith(
@@ -950,8 +995,10 @@ describe('classifyLocal — LLM fallback hardening', () => {
   });
 
   test('does NOT fall back on HTTP 500 — returns api-error', async () => {
+    const mockLogDecision = jest.fn();
+    const mockAnthropicCreate = jest.fn();
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
-    const client = loadClient();
+    const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
     expect(result.success).toBe(false);
@@ -961,12 +1008,14 @@ describe('classifyLocal — LLM fallback hardening', () => {
   });
 
   test('returns api-error on malformed response shape (missing choices)', async () => {
+    const mockLogDecision = jest.fn();
+    const mockAnthropicCreate = jest.fn();
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: jest.fn().mockResolvedValue({ id: 'abc', object: 'chat.completion' }),
     });
-    const client = loadClient();
+    const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
     expect(result.success).toBe(false);
@@ -978,6 +1027,8 @@ describe('classifyLocal — LLM fallback hardening', () => {
   });
 
   test('returns parse-error on invalid JSON in response content', async () => {
+    const mockLogDecision = jest.fn();
+    const mockAnthropicCreate = jest.fn();
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -985,7 +1036,7 @@ describe('classifyLocal — LLM fallback hardening', () => {
         choices: [{ message: { content: 'not valid json at all' } }],
       }),
     });
-    const client = loadClient();
+    const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
     expect(result.success).toBe(false);
@@ -994,6 +1045,8 @@ describe('classifyLocal — LLM fallback hardening', () => {
   });
 
   test('successful local classification returns parsed data', async () => {
+    const mockLogDecision = jest.fn();
+    const mockAnthropicCreate = jest.fn();
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -1001,7 +1054,7 @@ describe('classifyLocal — LLM fallback hardening', () => {
         choices: [{ message: { content: '{"category":"note","confidence":0.95}' } }],
       }),
     });
-    const client = loadClient();
+    const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
     expect(result.success).toBe(true);
