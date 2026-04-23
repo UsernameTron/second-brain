@@ -51,7 +51,20 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 
 ### Active
 
-(None — v1.0 complete. Define in next milestone via `/gsd:new-milestone`)
+(Defined in REQUIREMENTS.md for v1.1)
+
+## Current Milestone: v1.1 Go Live
+
+**Goal:** Close the gap between "works in tests" and "works on my desk at 6:45 AM."
+
+**Target features:**
+- Wire gmail-mcp-pete OAuth (real credentials, not stubs)
+- Enable RemoteTrigger on real cron schedule
+- Expand excluded terms to 15-20 entries
+- Fix in-batch dedup bug in promote-memories
+- Fix config hot-reload defect
+- UAT pass (LLM accuracy, wikilink relevance, Obsidian UX walkthrough)
+- CI pipeline (run tests on push)
 
 ### Out of Scope
 
@@ -143,4 +156,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-22 after v1.0 milestone*
+*Last updated: 2026-04-22 after v1.1 milestone start*

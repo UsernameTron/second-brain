@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: MVP
-status: archived
-stopped_at: v1.0 milestone archived, tagged, and committed
-last_updated: "2026-04-22T23:00:00.000Z"
-last_activity: 2026-04-22 -- v1.0 milestone completion ceremony
+milestone: v1.1
+milestone_name: Go Live
+status: active
+stopped_at: null
+last_updated: "2026-04-22T00:00:00.000Z"
+last_activity: 2026-04-22 -- Milestone v1.1 started
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 15
-  completed_plans: 15
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,13 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** v1.0 archived — planning next milestone
+**Current focus:** v1.1 Go Live — close the gap between "works in tests" and "works on my desk at 6:45 AM"
 
 ## Current Position
 
-Milestone: v1.0 MVP — ARCHIVED
-Phases: 4/4 complete | Plans: 15/15 complete | Tests: 502 | Requirements: 21/21
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-22 — Milestone v1.1 started
 
 ## Accumulated Context
 
