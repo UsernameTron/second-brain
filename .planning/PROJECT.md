@@ -6,18 +6,19 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-Shipped v1.0 MVP on 2026-04-22. 502 tests passing, 21/21 requirements validated.
+Shipped v1.0 MVP on 2026-04-22. v1.1 hardening complete 2026-04-23. 547 tests passing, 21/21 v1.0 requirements validated + 9 v1.1 requirements satisfied.
 
-**Codebase:** ~4,500 LOC JavaScript (Node.js), 15 plans across 4 phases.
+**Codebase:** ~5,000 LOC JavaScript (Node.js), 21 plans across 7 phases (2 milestones).
 
 **What works end-to-end:**
 - `/new` classifies input, enforces left/right routing, filters excluded content, suggests wikilinks
 - `/today` produces 6-section daily briefing with graceful degradation
 - Memory extraction, proposals, promotion pipeline with human review gate
-- Gmail, Calendar, GitHub connectors with zero-trust permissions
-- RemoteTrigger config for pre-morning scheduling (trigger disabled pending activation)
+- Gmail (OAuth wired), Calendar, GitHub connectors with zero-trust permissions
+- RemoteTrigger active for pre-morning scheduling
+- GitHub Actions CI pipeline (Node 20+22 matrix, push to master + PR triggers)
 
-**Known gaps:** gmail-mcp-pete OAuth not wired (stubs only), in-batch dedup gap in promote-memories, config hot-reload defect, excluded terms at 3 seed terms, no CI pipeline.
+**Known gaps:** Config hot-reload defect (FIX-02, deferred — restart workaround sufficient). Branch protection pending repo upgrade to GitHub Pro or public.
 
 ## Core Value
 
@@ -49,9 +50,16 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ Dead-letter lifecycle with auto-retry — v1.0
 - ✓ Wikilink suggestion engine — v1.0
 
+- ✓ Gmail OAuth wired (real credentials, live VIP filtering) — v1.1
+- ✓ RemoteTrigger enabled on real cron schedule — v1.1
+- ✓ Excluded terms expanded to production list — v1.1
+- ✓ In-batch dedup bug fixed in promote-memories — v1.1
+- ✓ UAT pass (LLM accuracy, wikilink relevance, promotion dedup) — v1.1
+- ✓ CI pipeline (GitHub Actions, Node 20+22, push + PR triggers) — v1.1
+
 ### Active
 
-(Defined in REQUIREMENTS.md for v1.1)
+None — v1.1 milestone complete.
 
 ## Current Milestone: v1.1 Go Live
 
@@ -156,4 +164,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-22 after v1.1 milestone start*
+*Last updated: 2026-04-23 after Phase 7 (Hardening) complete — v1.1 milestone done*
