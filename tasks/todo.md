@@ -1,28 +1,17 @@
 # Todo
 
 ## Current
-- [x] Execute Phase 2: Content Pipeline (461 tests passing, cross-AI reviewed PASS)
-- [x] Phase 3 discuss-phase (22 decisions, D-01..D-22, PR #5 merged)
-- [x] Phase 3 context refinements — PR #6 squash-merged (c6736ea), branch deleted
-- [x] Consolidated cross-AI review (Gemini + Codex) of 03-CONTEXT.md + 4 plan files — PR #8 merged (db5f622), gate PASS
-- [x] Phase 3 plan-phase — 4 plans, 2 waves, verification 8/8 PASSED
-- [x] gmail-mcp-pete repo scaffolded (UsernameTron/gmail-mcp-pete) — 3 stub tools, pushed
-- [x] Deploy agent ecosystem (4 agents: vault-guardian, code-writer, test-writer, codebase-scout) — skipped, executed without agents
-- [x] `/gsd:execute-phase 3` — External Integrations (4/4 plans, 478 tests, verification 9/9 PASSED)
-- [x] Ship Phase 3 — PR #10 merged (50f438f), chore/phase3-complete branch deleted
-- [x] `/gsd:discuss-phase 4` — 22 decisions locked, scheduling verified via RemoteTrigger probe
-- [ ] `/gsd:plan-phase 4` — Daily Briefing & Scheduling
+- [ ] `/gsd:discuss-phase 5` or `/gsd:plan-phase 5` — plan Integration Wiring phase
 - [ ] Delete test trigger trig_01NHx3Uz8ni8eZSfsMph4miY at https://claude.ai/code/scheduled
 
-## Session Handoff (Session 20 — 2026-04-22)
-- Phase 3 shipped: PR #10 merged (50f438f), chore/phase3-complete branch deleted, local master rebased to origin
-- Phase 4 discuss-phase complete: 22 decisions (D-01..D-22) locked in 04-CONTEXT.md
-- Scheduling verified: RemoteTrigger API probed — standard 5-field cron in UTC, `environment_id` required, `mcp_connections` for Google Calendar available. Test trigger created (disabled) and needs manual deletion.
-- Gmail scope resolved: out-of-scope for Phase 4, parallel workstream. Phase 4 uses interface contract; works with stubs.
-- Two previously-flagged blockers dissolved: scheduled task syntax verified, gmail-mcp-pete scoped out
-- Key decisions: dual-surface output (vault note + terminal), decay-rate section ordering, 2 Haiku calls max, inline slippage scanner (7-day threshold), always-run synthesis with diagnostic fallback, grep-friendly error format
-- Branch: master (clean)
-- Next session: `/gsd:plan-phase 4` — then execute. Delete test trigger first.
+## Session Handoff (Session 23 — 2026-04-22)
+- v1.1 "Go Live" milestone initialized: PROJECT.md, STATE.md, REQUIREMENTS.md, ROADMAP.md updated
+- 9 requirements across 3 phases (5-7): Integration Wiring → Defect Fixes & UAT → Hardening
+- No new features — defect fixes, OAuth wiring, UAT, CI only
+- Research skipped (all items known)
+- 4 commits: milestone start (ec3d5cf), requirements (d527580), roadmap (ccfb2d0)
+- Branch: master
+- Next session: `/gsd:plan-phase 5` for Integration Wiring (INTEG-01, INTEG-02, INTEG-03)
 
 ## Followup
 - [ ] **DEFECT (LOW): in-batch dedup gap in src/promote-memories.js:330-338** — two proposals with identical contentHash in the same promotion batch can both promote. Fix: track Set of promoted hashes inside batch loop + add test. Surfaced by Gemini + host-session review of Phase 2.
