@@ -58,11 +58,29 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 
 ### Active
 
-None — v1.1 milestone complete. Next requirements defined with `/gsd:new-milestone`.
+- HOOK-01: Auto-Run Tests on Source Edit — v1.2
+- HOOK-02: Protected File Edit Guard — v1.2
+- HOOK-03: Mandatory Security Scan in Ship Pipeline — v1.2
+- SEC-01: Security Scanner Agent — v1.2
+- SEC-02: Independent Test Verification Gate — v1.2
+- SEC-03: Config/Schema Validation Skill — v1.2
+- SKILL-01: Agent Roster Hardening — v1.2
+- SKILL-02: Pipeline Health Check Skill — v1.2
+- SKILL-03: context7 MCP Integration — v1.2
+- CI-01: CI Coverage + Dependency Audit — v1.2
+- CI-02: Local LLM Routing — v1.2
 
 ## Current Milestone
 
-None active. v1.1 Go Live shipped 2026-04-23. Next milestone starts with `/gsd:new-milestone`.
+**v1.2 Automation & Quality** — 4 phases (8-11), 11 requirements, 12 backlog items promoted.
+
+**Goal:** Close quality, security, and automation gaps identified by agent-teams assessment, crew analysis, and automation recommender. No new features — hardening the development workflow and CI pipeline.
+
+**Phases:**
+- Phase 8: Hook Infrastructure (HOOK-01, HOOK-02, HOOK-03)
+- Phase 9: Security & Verification (SEC-01, SEC-02, SEC-03)
+- Phase 10: Agent Hardening & Skills (SKILL-01, SKILL-02, SKILL-03)
+- Phase 11: CI & LLM Infrastructure (CI-01, CI-02)
 
 <details>
 <summary>v1.1 Go Live (shipped 2026-04-23)</summary>

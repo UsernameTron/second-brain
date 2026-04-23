@@ -1,5 +1,21 @@
 # Milestones
 
+## v1.2 Automation & Quality (In Progress)
+
+**Phases:** 4 (08-11) | **Requirements:** 11 | **Backlog items promoted:** 12
+
+**Goal:** Close quality, security, and automation gaps. No new features.
+
+**Phases:**
+- Phase 8: Hook Infrastructure — auto-test hook, protected file guard, security scan gate
+- Phase 9: Security & Verification — security scanner agent, test verifier, config validator skill
+- Phase 10: Agent Hardening & Skills — roster improvements, pipeline health skill, context7 MCP
+- Phase 11: CI & LLM Infrastructure — CI coverage enforcement, local LLM routing
+
+**Started:** 2026-04-23
+
+---
+
 ## v1.1 Go Live (Shipped: 2026-04-23)
 
 **Phases:** 3 (05-07) | **Plans:** 7 | **Requirements:** 11/12 satisfied, 1 deferred

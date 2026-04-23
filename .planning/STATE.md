@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Go Live
-status: complete
-stopped_at: v1.1 milestone archived
-last_updated: "2026-04-24T00:00:00.000Z"
-last_activity: 2026-04-23 -- Session 38: automation recommender analysis, backlog 999.7-999.12 added, executive proposal drafted
+milestone: v1.2
+milestone_name: Automation & Quality
+status: active
+stopped_at: milestone initialized
+last_updated: "2026-04-23T00:00:00.000Z"
+last_activity: 2026-04-23 -- Session 39: shipped backlog branch (PR #20), initialized v1.2 milestone with 12 requirements across 4 phases
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -20,18 +20,41 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Between milestones — ready for `/gsd:new-milestone`
+**Current focus:** v1.2 Automation & Quality — Phase 8 (Hook Infrastructure)
 
 ## Current Position
 
-Milestone: v1.1 Go Live — COMPLETE and ARCHIVED
-All phases shipped. No active work.
+Milestone: v1.2 Automation & Quality — ACTIVE
+Phase 8: Hook Infrastructure — NOT STARTED (next: /gsd:discuss-phase 8 or /gsd:plan-phase 8)
+
+## Requirements Map
+
+| ID | Title | Phase | Status |
+|----|-------|-------|--------|
+| HOOK-01 | Auto-Run Tests on Source Edit | 8 | Not Started |
+| HOOK-02 | Protected File Edit Guard | 8 | Not Started |
+| HOOK-03 | Mandatory Security Scan in Ship Pipeline | 8 | Not Started |
+| SEC-01 | Security Scanner Agent | 9 | Not Started |
+| SEC-02 | Independent Test Verification Gate | 9 | Not Started |
+| SEC-03 | Config/Schema Validation Skill | 9 | Not Started |
+| SKILL-01 | Agent Roster Hardening | 10 | Not Started |
+| SKILL-02 | Pipeline Health Check Skill | 10 | Not Started |
+| SKILL-03 | context7 MCP Integration | 10 | Not Started |
+| CI-01 | CI Coverage + Dependency Audit | 11 | Not Started |
+| CI-02 | Local LLM Routing | 11 | Not Started |
+
+## Corrections Applied
+
+1. All `config/schemas/` references corrected to `config/schema/` (actual directory name)
+2. Items needing `.claude/settings.json` creation noted as prerequisite (file does not exist)
+3. Test file convention: `src/{module}.js` → `test/{module}.test.js` (not src/__tests__)
 
 ## Accumulated Context
 
 ### Decisions
 
-All decisions logged in PROJECT.md Key Decisions table (16 entries with outcomes).
+All v1.0/v1.1 decisions logged in PROJECT.md Key Decisions table (16 entries with outcomes).
+v1.2 decisions will be captured during discuss-phase for each phase.
 
 ### Pending Todos
 
@@ -39,13 +62,12 @@ All decisions logged in PROJECT.md Key Decisions table (16 entries with outcomes
 
 ### Blockers/Concerns
 
-- FIX-02 (config hot-reload) deferred to backlog — no symptom, restart workaround sufficient
+- FIX-02 (config hot-reload) deferred — no symptom, restart workaround sufficient
 
 ## Session Continuity
 
-Last session: 2026-04-23 (Session 38)
-Stopped at: Backlog expanded to 12 items (999.1–999.12), executive proposal drafted for admin approval
-Resume with: Push `chore/backlog-quality-security` branch → PR → merge. Then `/gsd:new-milestone` to start v1.2.
-Ship log: PRs #1-#18 merged. v1.0 and v1.1 tags created. Branch `chore/backlog-quality-security` has 4 unpushed commits.
-Backlog: 999.1 (Local LLM), 999.2 (Test Verification Gate), 999.3 (Security Scan Before PR), 999.4 (Config/Schema Validation), 999.5 (Security Scanner Agent), 999.6 (Agent Roster Hardening), 999.7 (Auto-Run Tests Hook), 999.8 (Protected File Edit Guard), 999.9 (Pipeline Health Check Skill), 999.10 (Config Validator Skill), 999.11 (context7 MCP + .mcp.json), 999.12 (CI Coverage + Dependency Audit).
-Executive proposal: `.claude/plans/cryptic-sleeping-boot.md` — detailed technical specs for all 12 items, security impact assessment, 4-wave implementation priority.
+Last session: 2026-04-23 (Session 39)
+Stopped at: v1.2 milestone initialized — REQUIREMENTS.md, ROADMAP.md, STATE.md, PROJECT.md updated
+Resume with: `/gsd:discuss-phase 8` or `/gsd:plan-phase 8` for Hook Infrastructure
+Ship log: PRs #1-#20 merged. v1.0 and v1.1 tags created.
+Phase dependency chain: 8 → 9 → 10 → 11 (sequential, each depends on prior)
