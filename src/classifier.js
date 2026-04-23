@@ -90,7 +90,7 @@ async function runStage0(content, correlationId) {
     const termsPath = path.join(CONFIG_DIR, 'excluded-terms.json');
     const raw = fs.readFileSync(termsPath, 'utf8');
     const parsed = JSON.parse(raw);
-    excludedTerms = parsed.terms || [];
+    excludedTerms = Array.isArray(parsed) ? parsed : (parsed.terms || []);
   } catch (_) {
     // Non-fatal: if terms can't be loaded, we still call checkContent with empty list
     // The checkContent will pass (no terms to match), which is fail-open for exclusion-unavailable

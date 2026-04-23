@@ -52,12 +52,24 @@ function generateCorrelationId() {
  * @returns {{ classify: Function }}
  */
 function createLlmClient(options = {}) {
-  const Anthropic = require('@anthropic-ai/sdk');
-  const { sanitizeTermForPrompt } = require('./content-policy');
-  const { logDecision } = require('./vault-gateway');
-
   const model = options.model || 'claude-haiku-4-5';
-  const anthropic = new Anthropic();
+
+  let Anthropic, sanitizeTermForPrompt, logDecision, anthropic;
+  try {
+    Anthropic = require('@anthropic-ai/sdk');
+    ({ sanitizeTermForPrompt } = require('./content-policy'));
+    ({ logDecision } = require('./vault-gateway'));
+    anthropic = new Anthropic();
+  } catch (initErr) {
+    // API key missing or invalid — return a stub whose classify() always degrades gracefully
+    return {
+      classify: async () => ({
+        success: false,
+        error: `LLM client initialization failed: ${initErr.message}`,
+        failureMode: 'api-error',
+      }),
+    };
+  }
 
   /**
    * Send a classify request to the LLM and return structured result.

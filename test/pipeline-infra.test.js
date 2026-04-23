@@ -140,6 +140,55 @@ describe('createHaikuClient', () => {
   });
 });
 
+// ── createLlmClient — missing API key graceful degradation (FIX-04) ──────────
+
+describe('createLlmClient — missing API key', () => {
+  beforeEach(() => {
+    jest.resetModules();
+    // Mock SDK constructor to throw (simulates missing ANTHROPIC_API_KEY)
+    jest.mock('@anthropic-ai/sdk', () => {
+      return jest.fn().mockImplementation(() => {
+        throw new Error('The ANTHROPIC_API_KEY environment variable is missing or empty');
+      });
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    jest.unmock('@anthropic-ai/sdk');
+    jest.resetModules();
+  });
+
+  test('createHaikuClient returns object with classify() when API key missing', () => {
+    const { createHaikuClient } = require('../src/pipeline-infra');
+    const client = createHaikuClient();
+    expect(typeof client).toBe('object');
+    expect(typeof client.classify).toBe('function');
+  });
+
+  test('classify() returns { success: false, failureMode: api-error } when API key missing', async () => {
+    const { createHaikuClient } = require('../src/pipeline-infra');
+    const client = createHaikuClient();
+    const result = await client.classify('system prompt', 'user content');
+
+    expect(result.success).toBe(false);
+    expect(result.failureMode).toBe('api-error');
+    expect(result.error).toMatch(/initialization failed|ANTHROPIC_API_KEY/i);
+  });
+
+  test('createSonnetClient also degrades gracefully when API key missing', async () => {
+    const { createSonnetClient } = require('../src/pipeline-infra');
+    const client = createSonnetClient();
+    const result = await client.classify('system prompt', 'user content');
+
+    expect(result.success).toBe(false);
+    expect(result.failureMode).toBe('api-error');
+  });
+});
+
 // ── createSonnetClient ───────────────────────────────────────────────────────
 
 describe('createSonnetClient', () => {

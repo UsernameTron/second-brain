@@ -496,6 +496,75 @@ describe('getEvent', () => {
   });
 });
 
+// ── Remote MCP connector (FIX-03) ────────────────────────────────────────────
+
+describe('getCalendarEvents — remote MCP connector', () => {
+  let getCalendarEvents;
+
+  beforeEach(() => {
+    jest.resetModules();
+    ({ getCalendarEvents } = require('../../src/connectors/calendar'));
+  });
+
+  it('returns error when mcpClient is null and no remote context', async () => {
+    const result = await getCalendarEvents(null);
+    assertErrorShape(result);
+    expect(result.source).toBe(SOURCE.CALENDAR);
+  });
+
+  it('fetches events via remote MCP connector when options.remote is true and mcpClient is null', async () => {
+    // Remote MCP tools are available globally via process.env context when REMOTE_TRIGGER=true
+    // The connector should attempt a remote MCP call using a standalone callTool
+    // We simulate success by injecting a remoteMcpCallTool via options
+    const mockRemoteCallTool = jest.fn().mockResolvedValue({
+      events: [makeValidEvent()],
+    });
+    const result = await getCalendarEvents(null, { remote: true, _remoteCallTool: mockRemoteCallTool });
+    assertSuccessShape(result);
+    expect(result.data.events).toHaveLength(1);
+    expect(result.source).toBe(SOURCE.CALENDAR);
+    expect(mockRemoteCallTool).toHaveBeenCalled();
+  });
+
+  it('applies the same filtering (declined, working hours) to remote events', async () => {
+    const mockRemoteCallTool = jest.fn().mockResolvedValue({
+      events: [makeDeclinedEvent(), makeValidEvent()],
+    });
+    const result = await getCalendarEvents(null, { remote: true, _remoteCallTool: mockRemoteCallTool });
+    assertSuccessShape(result);
+    expect(result.data.events).toHaveLength(1);
+    expect(result.data.events[0].id).toBe('event-valid');
+  });
+
+  it('returns makeError when remote MCP call fails', async () => {
+    const mockRemoteCallTool = jest.fn().mockRejectedValue(new Error('remote MCP timeout'));
+    const result = await getCalendarEvents(null, { remote: true, _remoteCallTool: mockRemoteCallTool });
+    assertErrorShape(result);
+    expect(result.source).toBe(SOURCE.CALENDAR);
+  });
+
+  it('returns makeError when options.remote is true but no _remoteCallTool provided', async () => {
+    const result = await getCalendarEvents(null, { remote: true });
+    assertErrorShape(result);
+    expect(result.source).toBe(SOURCE.CALENDAR);
+  });
+
+  it('local mcpClient path is unaffected when remote option is false', async () => {
+    const mcpClient = { callTool: jest.fn().mockResolvedValue({ events: [makeValidEvent()] }) };
+    const result = await getCalendarEvents(mcpClient, { remote: false, hours: 24 });
+    assertSuccessShape(result);
+    expect(mcpClient.callTool).toHaveBeenCalled();
+    expect(result.data.events).toHaveLength(1);
+  });
+
+  it('local mcpClient path unaffected when no options passed', async () => {
+    const mcpClient = { callTool: jest.fn().mockResolvedValue({ events: [] }) };
+    const result = await getCalendarEvents(mcpClient);
+    assertSuccessShape(result);
+    expect(mcpClient.callTool).toHaveBeenCalled();
+  });
+});
+
 // ── D-02 Contract: no write-verb exports ─────────────────────────────────────
 
 describe('D-02 contract: no write-verb exports', () => {
