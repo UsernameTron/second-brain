@@ -49,7 +49,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 8. Hook Infrastructure | v1.2 | 3/3 | Complete | 2026-04-23 |
 | 9. Security & Verification | v1.2 | 3/3 | Complete | 2026-04-23 |
 | 10. Agent Hardening & Skills | v1.2 | 2/2 | Complete | 2026-04-23 |
-| 11. CI & LLM Infrastructure | v1.2 | 0/2 | Not Started | — |
+| 11. CI & LLM Infrastructure | v1.2 | 0/2 | Complete    | 2026-04-23 |
 
 ## v1.2 Automation & Quality (Phases 8-11)
 
@@ -87,7 +87,7 @@ Plans:
 **Depends on:** Phase 9 (CI coverage enforcement needs passing coverage baseline)
 **Goal:** Enforce coverage in CI, wire local LLM as Haiku fallback.
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 11-01-PLAN.md — Local LLM routing in createLlmClient() with Haiku fallback (CI-02)
