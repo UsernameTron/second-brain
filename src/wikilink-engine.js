@@ -46,23 +46,8 @@ function getCacheFile() {
 
 // ── Config loading ───────────────────────────────────────────────────────────
 
-/**
- * Load vault-paths.json to discover which directories to index.
- * @returns {{ left: string[], right: string[] }}
- */
-function loadVaultPaths() {
-  const filePath = path.join(CONFIG_DIR, 'vault-paths.json');
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-/**
- * Load pipeline.json to get wikilink thresholds.
- * @returns {{ wikilink: { relevanceThreshold, maxSuggestions, minSuggestions, candidatePoolSize } }}
- */
-function loadPipelineConfig() {
-  const filePath = path.join(CONFIG_DIR, 'pipeline.json');
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
+// loadVaultPaths and loadPipelineConfig consolidated into pipeline-infra.js (T12.2, T12.3)
+const { safeLoadVaultPaths, safeLoadPipelineConfig } = require('./pipeline-infra');
 
 // ── Frontmatter parsing ──────────────────────────────────────────────────────
 
@@ -215,7 +200,7 @@ function collectMarkdownFiles(absDir, relBase) {
  * @returns {Promise<Array<{ path: string, title: string, firstLine: string, tags: string[] }>>}
  */
 async function buildVaultIndex() {
-  const vaultPaths = loadVaultPaths();
+  const vaultPaths = safeLoadVaultPaths();
   const allDirs = [...(vaultPaths.left || []), ...(vaultPaths.right || [])];
 
   const index = [];
@@ -412,12 +397,8 @@ async function suggestWikilinks(noteBody, noteTags = [], options = {}) {
   if (index.length === 0) return EMPTY_RESULT;
 
   // Load pipeline config for thresholds
-  let pipelineConfig;
-  try {
-    pipelineConfig = loadPipelineConfig();
-  } catch (_) {
-    return EMPTY_RESULT;
-  }
+  const { config: pipelineConfig } = safeLoadPipelineConfig();
+  if (!pipelineConfig) return EMPTY_RESULT;
 
   const {
     relevanceThreshold,

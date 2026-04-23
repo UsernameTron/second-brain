@@ -26,6 +26,19 @@ jest.mock('../src/pipeline-infra', () => ({
     },
     filename: { maxLength: 60, haikuWordRange: [4, 8] },
   })),
+  safeLoadPipelineConfig: jest.fn(() => ({
+    config: {
+      classifier: {
+        stage1ConfidenceThreshold: 0.8,
+        stage2ConfidenceThreshold: 0.7,
+        sonnetEscalationThreshold: 0.8,
+        sonnetAcceptThreshold: 0.7,
+        shortInputChars: 50,
+      },
+      filename: { maxLength: 60, haikuWordRange: [4, 8] },
+    },
+    error: null,
+  })),
   loadTemplatesConfig: jest.fn(() => ({
     'domain-templates': {
       briefings: {
@@ -61,6 +74,13 @@ describe('formatNote', () => {
       loadPipelineConfig: jest.fn(() => ({
         classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 },
         filename: { maxLength: 60, haikuWordRange: [4, 8] },
+      })),
+      safeLoadPipelineConfig: jest.fn(() => ({
+        config: {
+          classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 },
+          filename: { maxLength: 60, haikuWordRange: [4, 8] },
+        },
+        error: null,
       })),
       loadTemplatesConfig: jest.fn(() => ({
         'domain-templates': {
@@ -181,6 +201,13 @@ describe('formatLeftProposal', () => {
         classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 },
         filename: { maxLength: 60, haikuWordRange: [4, 8] },
       })),
+      safeLoadPipelineConfig: jest.fn(() => ({
+        config: {
+          classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 },
+          filename: { maxLength: 60, haikuWordRange: [4, 8] },
+        },
+        error: null,
+      })),
       loadTemplatesConfig: jest.fn(() => ({
         'domain-templates': { briefings: { fields: ['attendees'] } },
         'memory-categories': {},
@@ -274,6 +301,13 @@ describe('generateFilename', () => {
       loadPipelineConfig: jest.fn(() => ({
         classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 },
         filename: { maxLength: 60, haikuWordRange: [4, 8] },
+      })),
+      safeLoadPipelineConfig: jest.fn(() => ({
+        config: {
+          classifier: { stage1ConfidenceThreshold: 0.8, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 },
+          filename: { maxLength: 60, haikuWordRange: [4, 8] },
+        },
+        error: null,
       })),
       loadTemplatesConfig: jest.fn(() => ({
         'domain-templates': {},

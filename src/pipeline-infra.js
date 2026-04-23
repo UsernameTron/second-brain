@@ -56,10 +56,8 @@ function createLlmClient(options = {}) {
 
   // Check for local LLM provider config
   let llmConfig;
-  try {
-    const pipelineConfig = loadPipelineConfig();
-    llmConfig = pipelineConfig.classifier && pipelineConfig.classifier.llm;
-  } catch { llmConfig = null; }
+  const { config: pipelineConfig_ } = safeLoadPipelineConfig();
+  llmConfig = pipelineConfig_ && pipelineConfig_.classifier && pipelineConfig_.classifier.llm;
   const useLocal = llmConfig && llmConfig.provider === 'local';
 
   let Anthropic, sanitizeTermForPrompt, logDecision, anthropic;
@@ -87,10 +85,17 @@ function createLlmClient(options = {}) {
     const maxTokens = callOptions.maxTokens || 1024;
     const correlationId = callOptions.correlationId || 'none';
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (process.env.LM_API_TOKEN) {
+        headers['Authorization'] = `Bearer ${process.env.LM_API_TOKEN}`;
+      }
       const response = await fetch(`${llmConfig.localEndpoint}/v1/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
+        signal: controller.signal,
         body: JSON.stringify({
           model: llmConfig.localModel,
           messages: [
@@ -98,14 +103,21 @@ function createLlmClient(options = {}) {
             { role: 'user', content: typeof userContent === 'string' ? userContent : JSON.stringify(userContent) },
           ],
           max_tokens: maxTokens,
+          response_format: { type: 'json_object' },
         }),
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`Local LLM returned HTTP ${response.status}`);
+        logDecision('LLM_CLASSIFY', llmConfig.localModel, 'ERROR', `local: HTTP ${response.status}`);
+        return { success: false, error: `Local LLM returned HTTP ${response.status}`, failureMode: 'api-error' };
       }
 
       const body = await response.json();
+      if (!body.choices?.[0]?.message?.content || typeof body.choices[0].message.content !== 'string') {
+        logDecision('LLM_CLASSIFY', llmConfig.localModel, 'SHAPE_ERROR', 'response missing choices[0].message.content');
+        return { success: false, error: 'Local LLM response missing expected shape', failureMode: 'api-error' };
+      }
       const rawText = body.choices[0].message.content;
 
       logDecision('LLM_CLASSIFY', llmConfig.localModel, 'CALLED', `local endpoint, correlation-id: ${correlationId}`);
@@ -115,15 +127,30 @@ function createLlmClient(options = {}) {
       const data = JSON.parse(stripped);
       return { success: true, data };
     } catch (err) {
-      // Connection error or HTTP error — fall back to Anthropic
+      clearTimeout(timeoutId);
+
+      // Parse errors: return immediately, no fallback
       const isParseError = err instanceof SyntaxError || (err.message && err.message.includes('JSON'));
       if (isParseError) {
         logDecision('LLM_CLASSIFY', llmConfig.localModel, 'PARSE_ERROR', `local: ${err.message}`);
         return { success: false, error: `JSON parse failed: ${err.message}`, failureMode: 'parse-error' };
       }
 
-      logDecision('LLM_CLASSIFY', llmConfig.localModel, 'FALLBACK', `local endpoint unreachable, falling back to Anthropic: ${err.message}`);
-      return classifyAnthropic(systemPrompt, userContent, callOptions);
+      // Network/timeout errors: fall back to Anthropic
+      const isNetworkError = err.name === 'AbortError'
+        || err.code === 'ECONNREFUSED'
+        || err.code === 'ENOTFOUND'
+        || err.code === 'ETIMEDOUT'
+        || err.message?.includes('fetch failed');
+
+      if (isNetworkError) {
+        logDecision('LLM_CLASSIFY', llmConfig.localModel, 'FALLBACK', `local endpoint unreachable: ${err.message}`);
+        return classifyAnthropic(systemPrompt, userContent, callOptions);
+      }
+
+      // Unexpected errors: surface, do NOT fall back
+      logDecision('LLM_CLASSIFY', llmConfig.localModel, 'ERROR', `local: ${err.message}`);
+      return { success: false, error: err.message, failureMode: 'api-error' };
     }
   }
 
@@ -243,7 +270,7 @@ function createSonnetClient(options = {}) {
  * @returns {Promise<{ path: string }>} Relative path to written dead-letter file
  */
 async function writeDeadLetter(inputBody, failureMode, correlationId, metadata = {}) {
-  const { vaultWrite } = require('./vault-gateway');
+  const { vaultWrite, logDecision } = require('./vault-gateway');
 
   const now = new Date();
 
@@ -269,31 +296,139 @@ async function writeDeadLetter(inputBody, failureMode, correlationId, metadata =
 
   const fileContent = `${frontmatter}\n${inputBody}`;
 
-  // Write via vault-gateway to enforce path guard and content policy
-  // Use a low-level write to avoid style lint for infrastructure files
-  const absolutePath = path.join(VAULT_ROOT, relativePath);
-  await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
-  await fs.promises.writeFile(absolutePath, fileContent, 'utf8');
+  // Write via vault-gateway, enforcing path guard and content policy.
+  // attemptCount: 1 tells Guard 3 to quarantine (not reject) on style violations —
+  // dead letters are infrastructure artifacts, not user-facing content.
+  try {
+    const result = await vaultWrite(relativePath, fileContent, { attemptCount: 1 });
+    if (result.decision === 'QUARANTINED') {
+      logDecision('DEAD_LETTER', relativePath, 'QUARANTINED', 'dead-letter quarantined by vault policy');
+      return { path: result.quarantinePath || relativePath, quarantined: true };
+    }
+    return { path: relativePath };
+  } catch (err) {
+    logDecision('DEAD_LETTER', relativePath, 'WRITE_FAILED', err.message);
+    throw err;
+  }
+}
 
-  return { path: relativePath };
+// ── Safe vault-paths loader ─────────────────────────────────────────────────
+
+/**
+ * Load vault-paths.json with guard against malformed or missing file.
+ * Returns a safe default on any read/parse error and logs via logDecision.
+ *
+ * @returns {{ left: string[], right: string[], haikuContextChars: number }}
+ */
+function safeLoadVaultPaths() {
+  const SAFE_DEFAULT = { left: [], right: [], haikuContextChars: 100 };
+  try {
+    const filePath = path.join(CONFIG_DIR, 'vault-paths.json');
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw);
+  } catch (err) {
+    const { logDecision } = require('./vault-gateway');
+    logDecision('CONFIG', 'vault-paths.json', 'LOAD_ERROR', err.message);
+    return SAFE_DEFAULT;
+  }
+}
+
+// ── Config overlay helpers ───────────────────────────────────────────────────
+
+/**
+ * Deep-merge source into target. Arrays replace wholesale (not concatenated).
+ * Mutates target in place.
+ */
+function deepMerge(target, source) {
+  for (const key of Object.keys(source)) {
+    if (
+      source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])
+      && target[key] && typeof target[key] === 'object' && !Array.isArray(target[key])
+    ) {
+      deepMerge(target[key], source[key]);
+    } else {
+      target[key] = source[key];
+    }
+  }
+  return target;
+}
+
+/** Track which config names are wired to the overlay system. */
+const _overlayWiredConfigs = new Set();
+let _overlayOrphanCheckDone = false;
+
+/**
+ * Load a config JSON file and deep-merge a gitignored .local.json overlay
+ * if one exists. Optionally validates the merged result against a JSON Schema.
+ *
+ * @param {string} name - Config base name (e.g. 'pipeline' loads pipeline.json)
+ * @param {object} [opts]
+ * @param {boolean} [opts.validate=false] - Run schema validation on merged result
+ * @returns {object} Parsed (and optionally merged) configuration
+ * @throws {Error} On file read, JSON parse, or schema validation failure
+ */
+function loadConfigWithOverlay(name, opts = {}) {
+  _overlayWiredConfigs.add(name);
+
+  const filePath = path.join(CONFIG_DIR, `${name}.json`);
+  const raw = fs.readFileSync(filePath, 'utf8');
+  const config = JSON.parse(raw);
+
+  const localPath = path.join(CONFIG_DIR, `${name}.local.json`);
+  if (fs.existsSync(localPath)) {
+    const localRaw = fs.readFileSync(localPath, 'utf8');
+    const localOverrides = JSON.parse(localRaw);
+    deepMerge(config, localOverrides);
+  }
+
+  if (opts.validate) {
+    const schemaPath = path.join(CONFIG_DIR, 'schema', `${name}.schema.json`);
+    if (fs.existsSync(schemaPath)) {
+      const Ajv = require('ajv');
+      const ajv = new Ajv({ allErrors: true });
+      const schemaRaw = fs.readFileSync(schemaPath, 'utf8');
+      const schema = JSON.parse(schemaRaw);
+      delete schema.$schema;
+      const validate = ajv.compile(schema);
+      if (!validate(config)) {
+        const errors = validate.errors.map(e => `${e.instancePath}: ${e.message}`).join('; ');
+        throw new Error(`${name} config (after overlay merge) violates schema: ${errors}`);
+      }
+    }
+  }
+
+  // One-time check: warn about .local.json files that aren't wired to any loader
+  if (!_overlayOrphanCheckDone) {
+    _overlayOrphanCheckDone = true;
+    try {
+      const entries = fs.readdirSync(CONFIG_DIR);
+      for (const entry of entries) {
+        const match = entry.match(/^(.+)\.local\.json$/);
+        if (match && !_overlayWiredConfigs.has(match[1])) {
+          process.stderr.write(
+            `[config-overlay] WARNING: ${entry} exists but "${match[1]}" is not wired to loadConfigWithOverlay — overlay will be ignored\n`
+          );
+        }
+      }
+    } catch (_) { /* non-fatal */ }
+  }
+
+  return config;
 }
 
 // ── Config loaders ───────────────────────────────────────────────────────────
 
 /**
- * Load and validate pipeline.json.
+ * Load and validate pipeline.json with optional local overlay.
  * Reads from CONFIG_DIR (or CONFIG_DIR_OVERRIDE in tests).
- * Throws on missing required fields.
+ * Validates merged result against pipeline.schema.json.
  *
  * @returns {object} Parsed pipeline configuration
- * @throws {Error} On file read or required-field validation failure
+ * @throws {Error} On file read, required-field, or schema validation failure
  */
 function loadPipelineConfig() {
-  const filePath = path.join(CONFIG_DIR, 'pipeline.json');
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const config = JSON.parse(raw);
+  const config = loadConfigWithOverlay('pipeline', { validate: true });
 
-  // Validate required top-level sections
   const required = ['classifier', 'extraction', 'wikilink', 'promotion', 'retry', 'leftProposal', 'filename', 'slippage'];
   for (const key of required) {
     if (!(key in config)) {
@@ -305,17 +440,15 @@ function loadPipelineConfig() {
 }
 
 /**
- * Load and validate templates.json.
+ * Load and validate templates.json with optional local overlay.
  * Reads from CONFIG_DIR (or CONFIG_DIR_OVERRIDE in tests).
- * Throws on missing required keys.
+ * Validates merged result against templates.schema.json.
  *
  * @returns {object} Parsed templates configuration
- * @throws {Error} On file read or required-key validation failure
+ * @throws {Error} On file read, required-key, or schema validation failure
  */
 function loadTemplatesConfig() {
-  const filePath = path.join(CONFIG_DIR, 'templates.json');
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const config = JSON.parse(raw);
+  const config = loadConfigWithOverlay('templates', { validate: true });
 
   const required = ['domain-templates', 'memory-categories'];
   for (const key of required) {
@@ -327,6 +460,25 @@ function loadTemplatesConfig() {
   return config;
 }
 
+// ── Safe config wrapper ─────────────────────────────────────────────────────
+
+/**
+ * Load pipeline config without throwing. Returns { config, error } tuple.
+ * Callers that want fail-fast keep using loadPipelineConfig() directly.
+ * Callers that need graceful degradation use this wrapper.
+ *
+ * @returns {{ config: object|null, error: Error|null }}
+ */
+function safeLoadPipelineConfig() {
+  try {
+    return { config: loadPipelineConfig(), error: null };
+  } catch (err) {
+    const { logDecision } = require('./vault-gateway');
+    logDecision('CONFIG', 'pipeline.json', 'LOAD_ERROR', err.message);
+    return { config: null, error: err };
+  }
+}
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -336,4 +488,7 @@ module.exports = {
   writeDeadLetter,
   loadPipelineConfig,
   loadTemplatesConfig,
+  loadConfigWithOverlay,
+  safeLoadVaultPaths,
+  safeLoadPipelineConfig,
 };

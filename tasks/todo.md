@@ -1,8 +1,31 @@
 # Todo
 
 ## Current
-- Between milestones — `/gsd:new-milestone` when ready
+- [ ] `/gsd:ship` Phase 12 — shipping now
+- [x] Create UAT-BASELINE.md documenting UAT-01 pre-existing failure
+- [x] Annotate SEC-HOOK-01 as CLOSED in `.planning/backlog.md`
 - [ ] Configure branch protection (repo is public, CI passes)
+- [ ] Merge `chore/commit-planning-artifacts` branch to master
+
+## Session Handoff (Session 50 — 2026-04-23)
+- Phase 12 Critical Safety Fixes: 6/6 tasks DONE, VERIFIED, GO verdict
+- 3 review agents dispatched and signed off: silent-failure-hunter (0 BLOCK, 9 FLAG), pr-test-analyzer (PASS), pipeline-reviewer (PASS after fixes)
+- Critical bug caught by pipeline-reviewer: missing `await` on `formatNote`/`generateFilename` in lifecycle.js — fixed in `143b17f`
+- 11 test isolation failures fixed by gsd-debugger via temp-config-dir pattern — `3d71ed4`
+- Test suite: 639/640 pass (UAT-01 pre-existing, needs live LLM)
+- Branch `chore/commit-planning-artifacts` has commits ready for PR
+- Next: `/gsd:ship` to create Phase 12 PR, then Phase 13 (Config Schema Gaps)
+
+## Session Handoff (Session 45 — 2026-04-23)
+- Completed comprehensive 8-domain codebase review (76/100, CONDITIONAL GO)
+- Branch `chore/commit-planning-artifacts` has 1 unpushed commit (3 planning artifacts)
+- Top 5 remediation items for next milestone:
+  1. Refactor today-command.js (724 LOC god module → 5 sub-modules)
+  2. Add try/catch around loadVaultPaths() and all loadPipelineConfig() calls
+  3. Add ESLint + SAST to CI pipeline
+  4. Create schemas for excluded-terms.json, scheduling.json, vault-paths.json
+  5. Add CI environment check to UAT tests + reduce classifier over-mocking
+- Review delivered as conversation output — compare against independent analysis
 
 ## Session Handoff (Session 38 — 2026-04-23)
 - Ran automation recommender: analyzed codebase for hooks, subagents, skills, MCP, CI gaps
@@ -13,7 +36,6 @@
 - Next: push branch → PR → merge, then `/gsd:new-milestone` for v1.2
 
 ## Followup
-- [ ] **DEFERRED: Config hot-reload (FIX-02)** — no real symptom observed. Revisit if a symptom surfaces.
 - [ ] Backlog 999.1–999.12: 12 items queued in ROADMAP.md (see executive proposal at `.claude/plans/cryptic-sleeping-boot.md`)
 
 ## Completed
@@ -51,3 +73,7 @@
 - [x] Deploy project-scoped agents (test-runner, docs-sync, vault-guardian, pipeline-reviewer) — PR #16
 - [x] Sync local master to origin, delete stale local branches
 - [x] Phase directory archival decision (kept in place)
+- [x] v1.2 milestone finalized and tagged v1.2.0 (2026-04-23)
+- [x] Config overlay system shipped (pipeline.local.json support)
+- [x] v1.2 milestone audit — GO verdict (50/50 exit criteria)
+- [x] Config hot-reload (FIX-02) — deferred permanently, no symptom observed

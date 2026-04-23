@@ -188,6 +188,7 @@ function setupMocks({
 
   jest.doMock('../src/pipeline-infra', () => ({
     loadPipelineConfig: jest.fn().mockReturnValue(pipelineConfig),
+    safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: pipelineConfig, error: null }),
     createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
   }));
 
@@ -207,6 +208,7 @@ function setupMocks({
   jest.doMock('../src/briefing-helpers', () => briefingHelpersMock);
   jest.doMock('../src/pipeline-infra', () => ({
     loadPipelineConfig: jest.fn().mockReturnValue(pipelineConfig),
+    safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: pipelineConfig, error: null }),
     createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
   }));
 
@@ -850,6 +852,7 @@ describe('runToday', () => {
       }));
       jest.doMock('../src/pipeline-infra', () => ({
         loadPipelineConfig: jest.fn().mockReturnValue(DEFAULT_PIPELINE_CONFIG),
+        safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
         createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
       }));
 
@@ -912,6 +915,7 @@ describe('runToday', () => {
       }));
       jest.doMock('../src/pipeline-infra', () => ({
         loadPipelineConfig: jest.fn().mockReturnValue(DEFAULT_PIPELINE_CONFIG),
+        safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
         createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
       }));
 
@@ -969,6 +973,7 @@ describe('runToday', () => {
       }));
       jest.doMock('../src/pipeline-infra', () => ({
         loadPipelineConfig: jest.fn().mockImplementation(() => { throw new Error('config missing'); }),
+        safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: null, error: new Error('config missing') }),
         createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
       }));
 

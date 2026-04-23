@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-23T22:13:17.359Z",
+  "phase": "12",
+  "phase_name": "Critical Safety Fixes",
+  "phase_dir": ".planning/milestones/v1.3",
+  "plan": 1,
+  "task": 6,
+  "total_tasks": 6,
+  "status": "verification_in_progress",
+  "completed_tasks": [
+    {"id": "T12.2", "name": "Guard loadVaultPaths JSON.parse", "status": "done", "commit": "7c3166d"},
+    {"id": "T12.3", "name": "safeLoadPipelineConfig wrapper", "status": "done", "commit": "33e6e5a"},
+    {"id": "T12.4", "name": "retryDeadLetters error handling", "status": "done", "commit": "db58386"},
+    {"id": "T12.6", "name": "security-scan-gate.sh fixes + test harness", "status": "done", "commit": "608a184"},
+    {"id": "T12.5", "name": "LLM fallback hardening", "status": "done", "commit": "150d6f4"},
+    {"id": "T12.1", "name": "writeDeadLetter through vault-gateway", "status": "done", "commit": "779fe51"}
+  ],
+  "remaining_tasks": [],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Used jest.isolateModules for safeLoadPipelineConfig and classifyLocal tests", "rationale": "jest.resetModules + jest.mock hoisting causes CONFIG_DIR_OVERRIDE to leak between describe blocks when pipeline.local.json exists", "phase": "12"},
+    {"decision": "Added CONFIG_DIR_OVERRIDE with temp dirs (no local override) to createHaikuClient and local LLM routing test blocks", "rationale": "pipeline.local.json sets provider:local which breaks tests expecting provider:anthropic behavior", "phase": "12"}
+  ],
+  "uncommitted_files": [
+    "test/integration-pipeline.test.js",
+    "test/pipeline-infra.test.js",
+    "test/promote-unrouted.test.js"
+  ],
+  "next_action": "Run full test suite to verify test fixes. 14/18 regressions confirmed fixed (integration-pipeline: 7, promote-unrouted: 7). Remaining in pipeline-infra.test.js: safeLoadPipelineConfig (4 tests rewritten with jest.isolateModules), classifyLocal (6 tests rewritten with jest.isolateModules), and 1 'local LLM routing > parse error' test — all need verification run. The parse error test fails within its describe block because mockPipelineConfig does not intercept pipeline.local.json overlay reads; fix is to use the same temp config dir approach already applied to the beforeEach. Pre-existing: 4 createHaikuClient tests NOW FIXED. UAT classification (1) requires running LLM — accepted.",
+  "context_notes": "Root cause of ALL 18 regressions: T12.2/T12.3 renamed exports (loadVaultPaths→safeLoadVaultPaths, loadPipelineConfig→safeLoadPipelineConfig) but test mocks in 3 files were not updated. Secondary: pipeline.local.json (provider:local, model:qwen/qwen3.6-27b) causes test pollution via CONFIG_DIR overlay — tests loading real config dir get local LLM routing instead of Anthropic. Fix: (1) added missing mock exports to integration-pipeline and promote-unrouted, (2) isolated config dirs for createHaikuClient and local LLM routing blocks, (3) jest.isolateModules for safeLoadPipelineConfig and classifyLocal. Grep verifications passed: no fs.promises.writeFile in writeDeadLetter, no standalone loadVaultPaths in source."
+}

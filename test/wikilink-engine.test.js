@@ -53,6 +53,7 @@ beforeAll(() => {
     retry: { delayMinutes: 15, maxAttempts: 3 },
     leftProposal: { autoArchiveDays: 14 },
     filename: { maxLength: 60, haikuWordRange: [4, 8] },
+    slippage: {},
   }));
 
   // Create vault directory structure

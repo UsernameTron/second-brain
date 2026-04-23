@@ -41,7 +41,7 @@ const {
   getDeadLetterSummary,
   formatBriefingSection,
 } = require('./briefing-helpers');
-const { loadPipelineConfig, createHaikuClient } = require('./pipeline-infra');
+const { safeLoadPipelineConfig, createHaikuClient } = require('./pipeline-infra');
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -645,7 +645,10 @@ async function runToday(options = {}) {
     const mcpClient = options.mcpClient || null;
 
     // ── Load config ───────────────────────────────────────────────────────
-    const config = loadPipelineConfig();
+    const { config, error: configErr } = safeLoadPipelineConfig();
+    if (configErr) {
+      process.stderr.write(`[today] WARNING: config load failed: ${configErr.message} — rendering static briefing only\n`);
+    }
 
     // ── LLM client ────────────────────────────────────────────────────────
     const haikuClient = options.haikuClient || createHaikuClient();
@@ -671,7 +674,7 @@ async function runToday(options = {}) {
       : { proposalCount: 0, deadLetter: { pending: 0, frozen: 0, total: 0, warning: false }, ok: false, error: 'PIPELINE_ERROR: state unavailable' };
 
     // Slippage scan (sync, inline per D-12)
-    const slippage = _scanSlippage(projectsDir, config, date);
+    const slippage = config ? _scanSlippage(projectsDir, config, date) : [];
 
     // ── Frog identification (D-15) ────────────────────────────────────────
     const frogData = await _identifyFrog(slippage, haikuClient);

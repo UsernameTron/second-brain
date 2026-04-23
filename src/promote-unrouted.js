@@ -24,10 +24,8 @@ const path = require('path');
 const VAULT_ROOT = () => process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude Cowork');
 const CONFIG_DIR = () => process.env.CONFIG_DIR_OVERRIDE || path.join(__dirname, '..', 'config');
 
-function loadVaultPaths() {
-  const raw = fs.readFileSync(path.join(CONFIG_DIR(), 'vault-paths.json'), 'utf8');
-  return JSON.parse(raw);
-}
+// loadVaultPaths consolidated into pipeline-infra.js as safeLoadVaultPaths (T12.2)
+const { safeLoadVaultPaths } = require('./pipeline-infra');
 
 /**
  * Strip frontmatter from file content to extract the original input body.
@@ -83,12 +81,7 @@ async function promoteUnrouted(filename, options = {}) {
   }
 
   // ── (2) Validate --target ─────────────────────────────────────────────────
-  let vaultPaths;
-  try {
-    vaultPaths = loadVaultPaths();
-  } catch (err) {
-    return { promoted: false, reason: `Failed to load vault-paths.json: ${err.message}` };
-  }
+  const vaultPaths = safeLoadVaultPaths();
 
   const targetResolved = resolveTarget(target, vaultPaths);
   if (!targetResolved) {

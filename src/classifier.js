@@ -30,7 +30,8 @@ const {
   createHaikuClient,
   createSonnetClient,
   writeDeadLetter,
-  loadPipelineConfig,
+  safeLoadPipelineConfig,
+  safeLoadVaultPaths,
 } = require('./pipeline-infra');
 
 const { checkContent } = require('./content-policy');
@@ -40,15 +41,7 @@ const { checkContent } = require('./content-policy');
 const CONFIG_DIR = process.env.CONFIG_DIR_OVERRIDE
   || path.join(__dirname, '..', 'config');
 
-/**
- * Load vault-paths.json for Stage 2 label building.
- * @returns {{ left: string[], right: string[] }}
- */
-function loadVaultPaths() {
-  const filePath = path.join(CONFIG_DIR, 'vault-paths.json');
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
-}
+// loadVaultPaths consolidated into pipeline-infra.js as safeLoadVaultPaths (T12.2)
 
 // ── Instrumentation logging ───────────────────────────────────────────────────
 
@@ -135,7 +128,8 @@ async function runStage0(content, correlationId) {
  * @returns {Promise<{ side: string|null, confidence: number, rationale?: string, failureMode?: string }>}
  */
 async function runStage1(content, correlationId, options = {}) {
-  const pipelineConfig = loadPipelineConfig();
+  const { config: pipelineConfig, error: configErr } = safeLoadPipelineConfig();
+  if (configErr) return { side: null, confidence: 0, failureMode: 'config-error' };
   const { shortInputChars } = pipelineConfig.classifier;
 
   const haikuClient = createHaikuClient();
@@ -200,7 +194,7 @@ Determine if the input text was written by or sounds like it was written by the 
  * @returns {string[]} List of directory labels
  */
 function buildStage2Labels(side) {
-  const vaultPaths = loadVaultPaths();
+  const vaultPaths = safeLoadVaultPaths();
 
   if (side === 'LEFT') {
     // LEFT labels are the human-voice directories
@@ -235,7 +229,8 @@ function buildStage2Labels(side) {
  * }>}
  */
 async function runStage2(content, stage1Result, correlationId, options = {}) {
-  const pipelineConfig = loadPipelineConfig();
+  const { config: pipelineConfig, error: configErr } = safeLoadPipelineConfig();
+  if (configErr) return { directory: null, confidence: 0, failureMode: 'config-error' };
   const { sonnetEscalationThreshold, sonnetAcceptThreshold } = pipelineConfig.classifier;
 
   const { side } = stage1Result;
@@ -376,7 +371,10 @@ ${labelList}
 async function classifyInput(content, options = {}) {
   const { interactive = true } = options;
   const correlationId = generateCorrelationId();
-  const pipelineConfig = loadPipelineConfig();
+  const { config: pipelineConfig, error: configErr } = safeLoadPipelineConfig();
+  if (configErr) {
+    return { success: false, failureMode: 'config-error', correlationId };
+  }
   const { stage1ConfidenceThreshold } = pipelineConfig.classifier;
 
   const instrumentation = {

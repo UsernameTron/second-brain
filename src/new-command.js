@@ -30,7 +30,7 @@
 const {
   generateCorrelationId,
   writeDeadLetter,
-  loadPipelineConfig,
+  safeLoadPipelineConfig,
 } = require('./pipeline-infra');
 
 const {
@@ -78,7 +78,10 @@ async function runNew(input, options = {}) {
   const { interactive = true, source = 'cli' } = options;
   const correlationId = generateCorrelationId();
 
-  const pipelineConfig = loadPipelineConfig();
+  const { config: pipelineConfig, error: configErr } = safeLoadPipelineConfig();
+  if (configErr) {
+    return { correlationId, blocked: false, routed: false, error: `Config load failed: ${configErr.message}` };
+  }
   const { stage1ConfidenceThreshold } = pipelineConfig.classifier;
 
   // Validate input
