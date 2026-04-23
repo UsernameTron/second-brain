@@ -78,7 +78,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 07-01-PLAN.md — CI workflow (Node 20+22 matrix), README badge, branch protection
+- [x] 07-01-PLAN.md — CI workflow (Node 20+22 matrix), README badge, branch protection
 
 ## Progress
 
