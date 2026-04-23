@@ -48,11 +48,11 @@ None.
 ### Blockers/Concerns
 
 - Remote execution degradation: Calendar MCP attached but today-command.js doesn't consume it, Haiku API key missing, path mismatch /root vs /Users/cpconnor (filed as FIX-03/04/05 for Phase 6)
-- Known gaps carried forward: in-batch dedup (FIX-01), config hot-reload (FIX-02)
+- Known gaps carried forward: in-batch dedup (FIX-01), config hot-reload (FIX-02 — deferred to backlog, no symptom)
 
 ## Session Continuity
 
 Last session: 2026-04-23T04:01:49.837Z
 Stopped at: Phase 6 context gathered
-Resume with: `/gsd:discuss-phase 6` or `/gsd:plan-phase 6` — Phase 6 scope includes FIX-01 through FIX-05 plus UAT-01/02/03
+Resume with: `/gsd:plan-phase 6` — Phase 6 context gathered, scope is 7 requirements (FIX-01, FIX-03/04/05, UAT-01/02/03). FIX-02 deferred.
 Ship log: PRs #1, #2, #5, #6, #8, #10, #11, #12 merged.

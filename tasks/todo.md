@@ -1,20 +1,21 @@
 # Todo
 
 ## Current
-- [ ] `/gsd:discuss-phase 6` or `/gsd:plan-phase 6` — Defect Fixes and UAT (8 requirements: FIX-01 through FIX-05, UAT-01/02/03)
+- [ ] `/gsd:plan-phase 6` — Defect Fixes and UAT (7 requirements: FIX-01, FIX-03/04/05, UAT-01/02/03)
 
-## Session Handoff (Session 28 — 2026-04-23)
-- Phase 5 (Integration Wiring) fully complete — 3/3 plans, all INTEG requirements satisfied
-- RemoteTrigger `trig_01KvxeDfYDAEwAzw9zw9DKKB` created and verified firing
-- Trigger fires with expected degradation: Calendar/Gmail/GitHub MCP unavailable in remote, Haiku API key missing, path mismatch
-- Three new FIX requirements filed for Phase 6: FIX-03 (MCP connector consumption), FIX-04 (Haiku key handling), FIX-05 (path normalization)
-- Cleaned up all checkpoint files (HANDOFF.json, .continue-here files)
+## Session Handoff (Session 29 — 2026-04-22)
+- Phase 6 context gathered — 06-CONTEXT.md with 9 decisions locked
+- FIX-02 (config hot-reload) deferred to backlog — no real symptom, two mechanisms already implemented
+- Phase 6 scope narrowed to 7 requirements (was 8)
+- Key design: Calendar MUST work remotely (detect attached MCP connector), everything else degrades cleanly
+- UAT uses synthetic test inputs (not real captures from Pete's workflow)
+- Dedup fix: within-batch Set + check proposals file
 - Branch: chore/session-24-wrap
-- Next session: plan Phase 6 — 8 requirements spanning defect fixes + remote execution refinements + UAT
+- Next session: `/gsd:plan-phase 6`
 
 ## Followup
 - [ ] **DEFECT (LOW): in-batch dedup gap in src/promote-memories.js:330-338** — two proposals with identical contentHash in the same promotion batch can both promote. Fix: track Set of promoted hashes inside batch loop + add test. (FIX-01)
-- [ ] **DEFECT: Config hot-reload not firing — fs.watch broken or cache not invalidating.** Workaround: restart Node process after config edits. (FIX-02)
+- [ ] **DEFERRED: Config hot-reload (FIX-02)** — no real symptom observed, two mechanisms already in place. Revisit if a symptom surfaces.
 - [ ] **DEFECT: Remote execution — today-command.js doesn't consume MCP connectors in remote trigger context.** Calendar connector attached but unused. (FIX-03)
 - [ ] **DEFECT: Remote execution — missing Haiku API key causes classification failure in remote env.** Need graceful fallback. (FIX-04)
 - [ ] **DEFECT: Remote execution — path mismatch /root vs /Users/cpconnor.** Need path normalization for local vs remote. (FIX-05)
