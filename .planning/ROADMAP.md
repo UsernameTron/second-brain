@@ -75,7 +75,10 @@ Plans:
   1. A push to master or an open PR triggers a GitHub Actions workflow that runs the full 502+ test suite
   2. A failing test causes the CI run to fail with a visible error in the PR checks panel
   3. A green CI badge is visible on the repo README
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 07-01-PLAN.md — CI workflow (Node 20+22 matrix), README badge, branch protection
 
 ## Progress
 
@@ -87,4 +90,4 @@ Plans:
 | 4. Daily Briefing and Scheduling | v1.0 | 3/3 | Complete | 2026-04-22 |
 | 5. Integration Wiring | v1.1 | 3/3 | Complete | 2026-04-23 |
 | 6. Defect Fixes and UAT | v1.1 | 3/3 | Complete | 2026-04-23 |
-| 7. Hardening | v1.1 | 0/? | Not started | - |
+| 7. Hardening | v1.1 | 0/1 | Not started | - |
