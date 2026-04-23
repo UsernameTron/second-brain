@@ -641,25 +641,11 @@ describe('local LLM routing', () => {
   });
 
   test('when llm config section is absent, defaults to Anthropic (backward compat)', async () => {
-    mockPipelineConfig(undefined);
-    // Remove llm key entirely
-    jest.resetModules();
-    const realFs = jest.requireActual('fs');
-    const configPath = path.join(__dirname, '..', 'config', 'pipeline.json');
-    const baseConfig = JSON.parse(realFs.readFileSync(configPath, 'utf8'));
+    // Write pipeline.json WITHOUT the llm key to the temp config dir
+    const configPath = path.join(tmpConfigDir, 'pipeline.json');
+    const baseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     delete baseConfig.classifier.llm;
-    jest.doMock('fs', () => {
-      const actual = jest.requireActual('fs');
-      return {
-        ...actual,
-        readFileSync: jest.fn((filePath, encoding) => {
-          if (typeof filePath === 'string' && filePath.includes('pipeline.json')) {
-            return JSON.stringify(baseConfig);
-          }
-          return actual.readFileSync(filePath, encoding);
-        }),
-      };
-    });
+    fs.writeFileSync(configPath, JSON.stringify(baseConfig));
 
     global.fetch = jest.fn();
 
@@ -895,15 +881,16 @@ describe('safeLoadPipelineConfig', () => {
       fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), '{ broken');
       const mockLogDecision = jest.fn();
 
-      jest.isolateModules(() => {
-        process.env.CONFIG_DIR_OVERRIDE = tmpDir;
-        jest.doMock('../src/vault-gateway', () => ({ logDecision: mockLogDecision }));
-        const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
-        safeLoadPipelineConfig();
-        expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'pipeline.json', 'LOAD_ERROR', expect.any(String));
-      });
+      jest.resetModules();
+      process.env.CONFIG_DIR_OVERRIDE = tmpDir;
+      jest.doMock('../src/vault-gateway', () => ({ logDecision: mockLogDecision }));
+      const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
+      safeLoadPipelineConfig();
+      expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'pipeline.json', 'LOAD_ERROR', expect.any(String));
     } finally {
       delete process.env.CONFIG_DIR_OVERRIDE;
+      jest.unmock('../src/vault-gateway');
+      jest.resetModules();
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
@@ -916,6 +903,7 @@ describe('classifyLocal — LLM fallback hardening', () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
+    jest.resetModules();
     // Create temp config dir with local LLM provider — must include all required sections
     tmpConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-test-'));
     const realConfigDir = path.join(__dirname, '..', 'config');
@@ -937,28 +925,28 @@ describe('classifyLocal — LLM fallback hardening', () => {
   afterEach(() => {
     global.fetch = originalFetch;
     delete process.env.CONFIG_DIR_OVERRIDE;
+    jest.unmock('../src/vault-gateway');
+    jest.unmock('../src/content-policy');
+    jest.unmock('@anthropic-ai/sdk');
+    jest.resetModules();
     try { fs.rmSync(tmpConfigDir, { recursive: true, force: true }); } catch (_) {}
   });
 
   function loadClientIsolated(mockLogDecision, mockAnthropicCreate) {
-    let client;
-    jest.isolateModules(() => {
-      jest.doMock('../src/vault-gateway', () => ({
-        logDecision: mockLogDecision,
-        vaultWrite: jest.fn().mockResolvedValue({ decision: 'WRITTEN' }),
+    jest.doMock('../src/vault-gateway', () => ({
+      logDecision: mockLogDecision,
+      vaultWrite: jest.fn().mockResolvedValue({ decision: 'WRITTEN' }),
+    }));
+    jest.doMock('../src/content-policy', () => ({
+      sanitizeTermForPrompt: jest.fn((t) => t),
+    }));
+    jest.doMock('@anthropic-ai/sdk', () => {
+      return jest.fn().mockImplementation(() => ({
+        messages: { create: mockAnthropicCreate },
       }));
-      jest.doMock('../src/content-policy', () => ({
-        sanitizeTermForPrompt: jest.fn((t) => t),
-      }));
-      jest.doMock('@anthropic-ai/sdk', () => {
-        return jest.fn().mockImplementation(() => ({
-          messages: { create: mockAnthropicCreate },
-        }));
-      });
-      const { createHaikuClient } = require('../src/pipeline-infra');
-      client = createHaikuClient();
     });
-    return client;
+    const { createHaikuClient } = require('../src/pipeline-infra');
+    return createHaikuClient();
   }
 
   test('falls back to Anthropic on AbortError (timeout)', async () => {
