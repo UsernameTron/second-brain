@@ -19,4 +19,18 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
       - run: npm ci
-      - run: npm test
+
+      - name: Run tests with coverage
+        # TODO: Ratchet branches to 90 once branch coverage gaps are closed
+        run: npx jest --verbose --coverage --coverageThreshold='{"global":{"branches":70,"functions":90,"lines":90,"statements":90}}'
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-node-${{ matrix.node-version }}
+          path: coverage/
+          retention-days: 14
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high
