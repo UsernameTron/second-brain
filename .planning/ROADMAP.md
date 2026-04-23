@@ -91,3 +91,15 @@ Plans:
 | 5. Integration Wiring | v1.1 | 3/3 | Complete | 2026-04-23 |
 | 6. Defect Fixes and UAT | v1.1 | 3/3 | Complete | 2026-04-23 |
 | 7. Hardening | v1.1 | 0/1 | Not started | - |
+
+## Backlog
+
+### Phase 999.1: Wire Local LLM (LM Studio) into Pipeline (BACKLOG)
+
+**Goal:** Route Haiku classification calls to local LM Studio (localhost:1234) via provider-switching in createLlmClient(). Eliminates API costs for routine classification tasks on M4 Pro hardware.
+**Spec:** `docs/second-brain-local-llm-backlog.md`
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)
