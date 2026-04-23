@@ -25,8 +25,8 @@ See: .planning/PROJECT.md (updated 2026-04-22)
 ## Current Position
 
 Phase: 06 (defect-fixes-and-uat) — COMPLETE
-Phase: 07 (hardening) — NOT STARTED
-Last activity: 2026-04-23 -- Phase 06 complete, all bugs fixed, UAT passed
+Phase: 07 (hardening) — CONTEXT GATHERED
+Last activity: 2026-04-23 -- Phase 07 context gathered (discuss-phase complete)
 
 ## Accumulated Context
 
@@ -41,6 +41,7 @@ All v1.0 decisions logged in PROJECT.md Key Decisions table (12 entries with out
 - [Phase 05]: RemoteTrigger ID: trig_01KvxeDfYDAEwAzw9zw9DKKB
 - [Phase 06]: UAT test harnesses call real Anthropic API — accuracy and relevance cannot be validated with stubs
 - [Phase 06]: FIX-01 had 3 sub-bugs: proposals self-match in dedup, missing content_hash in memory.md, non-pending candidates re-processed
+- [Phase 07]: CI matrix: Node 20 + 22 LTS. Triggers: push to master + PRs only. Badge on README + branch protection requiring CI pass.
 
 ### Pending Todos
 
@@ -54,5 +55,5 @@ None.
 
 Last session: 2026-04-23T11:45:34.248Z
 Stopped at: Phase 7 context gathered
-Resume with: `/gsd:discuss-phase 7` or `/gsd:plan-phase 7` — CI pipeline for GitHub Actions.
+Resume with: `/gsd:plan-phase 7` — CI pipeline for GitHub Actions (context already gathered).
 Ship log: PRs #1, #2, #5, #6, #8, #10, #11, #12 merged.
