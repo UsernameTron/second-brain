@@ -152,11 +152,11 @@ function sanitizeContent(content, excludedTerms) {
   const markers = [];
 
   const sanitizedParagraphs = paragraphs.map((paragraph, idx) => {
-    // Check if any excluded term appears in this paragraph (case-insensitive, word-boundary)
-    const hasExcludedTerm = excludedTerms.some(term => {
-      const regex = new RegExp('\\b' + escapeRegex(term) + '\\b', 'i');
-      return regex.test(paragraph);
-    });
+    // Check if any excluded term appears in this paragraph (case-insensitive substring match)
+    const paragraphLower = paragraph.toLowerCase();
+    const hasExcludedTerm = excludedTerms.some(term =>
+      paragraphLower.includes(term.toLowerCase())
+    );
 
     if (hasExcludedTerm) {
       redactedCount++;
@@ -189,12 +189,12 @@ function sanitizeContent(content, excludedTerms) {
  * @returns {Promise<{ decision: 'PASS' } | { decision: 'BLOCK', reason: string, matchedTerm: string }>}
  */
 async function checkContent(content, excludedTerms, contextChars = 100) {
-  // Stage 1: Keyword scan
+  // Stage 1: Keyword scan (case-insensitive substring match; content lowercased once outside loop)
   let matchedTerm = null;
+  const contentLower = content.toLowerCase();
 
   for (const term of excludedTerms) {
-    const regex = new RegExp('\\b' + escapeRegex(term) + '\\b', 'i');
-    if (regex.test(content)) {
+    if (contentLower.includes(term.toLowerCase())) {
       matchedTerm = term;
       break;
     }
