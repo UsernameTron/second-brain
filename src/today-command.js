@@ -45,8 +45,15 @@ const { loadPipelineConfig, createHaikuClient } = require('./pipeline-infra');
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const DEFAULT_PROJECTS_DIR = path.join(process.env.HOME, 'projects');
-const DEFAULT_VAULT_ROOT = path.join(process.env.HOME, 'Claude Cowork');
+// Use env overrides first so both local and remote environments can override via env var.
+// Per FIX-05: no hardcoded /Users/cpconnor assumptions.
+// PROJECTS_DIR env var allows remote trigger to point at an alternate projects directory
+// or skip slippage scanning when ~/projects/ is unavailable (scanner degrades gracefully anyway).
+// VAULT_ROOT follows the same pattern used by briefing-helpers.js and pipeline-infra.js.
+const DEFAULT_PROJECTS_DIR = process.env.PROJECTS_DIR
+  || path.join(process.env.HOME, 'projects');
+const DEFAULT_VAULT_ROOT = process.env.VAULT_ROOT
+  || path.join(process.env.HOME, 'Claude Cowork');
 
 // Day-of-week and month abbreviations for D-09 heading format
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
