@@ -6,7 +6,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-Shipped v1.0 MVP (2026-04-22) and v1.1 Go Live (2026-04-23). Two milestones complete: 7 phases, 22 plans, ~17,000 LOC JavaScript (Node.js). v1.2 Phases 8-9 complete — hooks deployed, security scanner agent, test verifier agent, config validation skill all operational. 1653 tests passing.
+Shipped v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), and v1.2 Automation & Quality (2026-04-23). Three milestones complete: 11 phases, 27 plans. 614 tests passing across 28 suites. CI enforces 90% coverage (statements/functions/lines) with npm audit gating.
 
 **What works end-to-end:**
 - `/new` classifies input, enforces left/right routing, filters excluded content (15 terms), suggests wikilinks
@@ -62,13 +62,14 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ Security scanner agent (read-only, secrets + npm audit + protected files) — v1.2
 - ✓ Independent test verification gate (read-only reporter, haiku model) — v1.2
 - ✓ Config/schema validation skill (AJV-based, dynamic discovery) — v1.2
+- ✓ Agent roster hardened (trigger language, output contracts for 4 agents) — v1.2
+- ✓ Pipeline health check skill (6-check diagnostic) — v1.2
+- ✓ context7 MCP integration (library docs via .mcp.json) — v1.2
+- ✓ CI coverage enforcement (90% stmts/funcs/lines, npm audit gating) — v1.2
+- ✓ Local LLM routing (configurable provider, Anthropic fallback with logging) — v1.2
 
 ### Active
-- SKILL-01: Agent Roster Hardening — v1.2
-- SKILL-02: Pipeline Health Check Skill — v1.2
-- SKILL-03: context7 MCP Integration — v1.2
-- CI-01: CI Coverage + Dependency Audit — v1.2
-- CI-02: Local LLM Routing — v1.2
+(none — v1.2 milestone complete)
 
 ## Current Milestone
 
