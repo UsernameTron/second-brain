@@ -6,5 +6,6 @@ context/
 .env
 .claude/*
 !.claude/hooks/
+.claude/hooks/*.log
 node_modules/
 .cache/
