@@ -26,7 +26,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 ## v1.1 Phases
 
 - [x] **Phase 5: Integration Wiring** — Wire gmail-mcp-pete OAuth, activate RemoteTrigger cron, expand excluded terms (completed 2026-04-23)
-- [ ] **Phase 6: Defect Fixes and UAT** — Fix in-batch dedup, config hot-reload, and remote-execution degradation; validate classification, wikilinks, and end-to-end UX
+- [x] **Phase 6: Defect Fixes and UAT** — Fixed in-batch dedup (FIX-01), remote-execution degradation (FIX-03/04/05); validated classification, wikilinks, and end-to-end UX (UAT-01/02/03) (completed 2026-04-23)
 - [ ] **Phase 7: Hardening** — GitHub Actions CI pipeline running full test suite on push
 
 ## Phase Details
@@ -60,12 +60,12 @@ Plans:
   - Wire today-command.js to consume MCP connectors in remote trigger context
   - Handle missing Haiku API key gracefully in remote execution
   - Resolve path differences between local (`/Users/cpconnor`) and remote (`/root`) execution
-**Plans:** 3 plans
+**Plans:** 3/3 plans executed
 
 Plans:
-- [ ] 06-01-PLAN.md — In-batch dedup fix + Haiku API key graceful degradation (FIX-01, FIX-02 deferred, FIX-04)
-- [ ] 06-02-PLAN.md — Remote calendar MCP connector + path resolution (FIX-03, FIX-05)
-- [ ] 06-03-PLAN.md — UAT validation: classification accuracy, wikilink relevance, end-to-end UX (UAT-01, UAT-02, UAT-03)
+- [x] 06-01-PLAN.md — In-batch dedup fix + Haiku API key graceful degradation (FIX-01, FIX-04)
+- [x] 06-02-PLAN.md — Remote calendar MCP connector + path resolution (FIX-03, FIX-05)
+- [x] 06-03-PLAN.md — UAT validation: classification accuracy, wikilink relevance, end-to-end UX (UAT-01, UAT-02, UAT-03)
 
 ### Phase 7: Hardening
 **Goal**: Every push to master is automatically verified by the test suite
@@ -86,5 +86,5 @@ Plans:
 | 3. External Integrations | v1.0 | 4/4 | Complete | 2026-04-22 |
 | 4. Daily Briefing and Scheduling | v1.0 | 3/3 | Complete | 2026-04-22 |
 | 5. Integration Wiring | v1.1 | 3/3 | Complete | 2026-04-23 |
-| 6. Defect Fixes and UAT | v1.1 | 0/3 | Not started | - |
+| 6. Defect Fixes and UAT | v1.1 | 3/3 | Complete | 2026-04-23 |
 | 7. Hardening | v1.1 | 0/? | Not started | - |

@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Phases
 status: executing
-stopped_at: Completed 06-03 Tasks 1-2; Task 3 awaiting human checkpoint
-last_updated: "2026-04-23T04:57:40.813Z"
-last_activity: 2026-04-23 -- Phase 06 execution started
+stopped_at: Phase 06 complete. Phase 07 not started.
+last_updated: "2026-04-23T05:35:00.000Z"
+last_activity: 2026-04-23 -- Phase 06 complete, FIX-01 bugs fixed, UAT-03 verified
 progress:
   total_phases: 3
   completed_phases: 2
@@ -20,14 +20,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Phase 06 — defect-fixes-and-uat
+**Current focus:** Phase 07 — hardening
 
 ## Current Position
 
-Phase: 06 (defect-fixes-and-uat) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 06
-Last activity: 2026-04-23 -- Phase 06 execution started
+Phase: 06 (defect-fixes-and-uat) — COMPLETE
+Phase: 07 (hardening) — NOT STARTED
+Last activity: 2026-04-23 -- Phase 06 complete, all bugs fixed, UAT passed
 
 ## Accumulated Context
 
@@ -41,6 +40,7 @@ All v1.0 decisions logged in PROJECT.md Key Decisions table (12 entries with out
 - [Phase 05]: RemoteTrigger API uses nested job_config.ccr structure, not flat fields
 - [Phase 05]: RemoteTrigger ID: trig_01KvxeDfYDAEwAzw9zw9DKKB
 - [Phase 06]: UAT test harnesses call real Anthropic API — accuracy and relevance cannot be validated with stubs
+- [Phase 06]: FIX-01 had 3 sub-bugs: proposals self-match in dedup, missing content_hash in memory.md, non-pending candidates re-processed
 
 ### Pending Todos
 
@@ -48,12 +48,11 @@ None.
 
 ### Blockers/Concerns
 
-- Remote execution degradation: Calendar MCP attached but today-command.js doesn't consume it, Haiku API key missing, path mismatch /root vs /Users/cpconnor (filed as FIX-03/04/05 for Phase 6)
-- Known gaps carried forward: in-batch dedup (FIX-01), config hot-reload (FIX-02 — deferred to backlog, no symptom)
+- FIX-02 (config hot-reload) deferred to backlog — no symptom, restart workaround sufficient
 
 ## Session Continuity
 
-Last session: 2026-04-23T04:57:24.482Z
-Stopped at: Completed 06-03 Tasks 1-2; Task 3 awaiting human checkpoint
-Resume with: `/gsd:plan-phase 6` — Phase 6 context gathered, scope is 7 requirements (FIX-01, FIX-03/04/05, UAT-01/02/03). FIX-02 deferred.
+Last session: 2026-04-23T05:35:00.000Z
+Stopped at: Phase 06 complete. Ready for Phase 07 (hardening).
+Resume with: `/gsd:discuss-phase 7` or `/gsd:plan-phase 7` — CI pipeline for GitHub Actions.
 Ship log: PRs #1, #2, #5, #6, #8, #10, #11, #12 merged.
