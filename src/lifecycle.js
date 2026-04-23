@@ -187,38 +187,46 @@ async function retryDeadLetters() {
     }
 
     if (retrySuccess) {
-      // Write formatted note to destination
+      const { formatNote, generateFilename } = require('./note-formatter');
+      const { vaultWrite, logDecision } = require('./vault-gateway');
+
+      const formattedContent = formatNote(body, classificationResult, {});
+      const filename_ = generateFilename(body, {});
+      const directory = classificationResult.directory || 'memory';
+      const destPath = `${directory}/${filename_}.md`;
+
+      // Step 1: Write to vault — if this fails, dead letter stays in unrouted/ (correct)
+      let writeResult;
       try {
-        const { formatNote, generateFilename } = require('./note-formatter');
-        const { vaultWrite } = require('./vault-gateway');
-
-        const formattedContent = formatNote(body, classificationResult, {});
-        const filename_ = generateFilename(body, {});
-        const directory = classificationResult.directory || 'memory';
-        const destPath = `${directory}/${filename_}.md`;
-
-        await vaultWrite(destPath, formattedContent);
-
-        // Move original dead-letter to promoted/
-        const promotedPath = path.join(promotedDir, filename);
-        fs.mkdirSync(promotedDir, { recursive: true });
-
-        // Add promoted metadata to frontmatter before moving
-        const updatedFields = {
-          ...fields,
-          'promoted-at': new Date().toISOString(),
-          'promoted-to': destPath,
-          'promoted-by': 'auto-retry',
-        };
-        const promotedContent = serializeFrontmatter(updatedFields) + '\n' + body;
-        fs.writeFileSync(promotedPath, promotedContent, 'utf8');
-        fs.unlinkSync(filePath);
-
-        summary.succeeded++;
-      } catch (_) {
-        // Write succeeded classification-wise but write/move failed — treat as failed
+        writeResult = await vaultWrite(destPath, formattedContent);
+      } catch (writeErr) {
+        logDecision('RETRY', destPath, 'WRITE_FAILED', writeErr.message);
         retrySuccess = false;
-        summary.succeeded--; // undo the pre-increment that would happen below
+      }
+
+      // Step 2: If write succeeded, move original to promoted/ and unlink
+      if (retrySuccess && writeResult) {
+        if (writeResult.decision === 'QUARANTINED') {
+          logDecision('RETRY', destPath, 'QUARANTINED', 'vault policy quarantined during retry');
+        }
+        try {
+          const promotedPath = path.join(promotedDir, filename);
+          fs.mkdirSync(promotedDir, { recursive: true });
+          const updatedFields = {
+            ...fields,
+            'promoted-at': new Date().toISOString(),
+            'promoted-to': writeResult.decision === 'QUARANTINED' ? writeResult.quarantinePath : destPath,
+            'promoted-by': 'auto-retry',
+          };
+          const promotedContent = serializeFrontmatter(updatedFields) + '\n' + body;
+          fs.writeFileSync(promotedPath, promotedContent, 'utf8');
+          fs.unlinkSync(filePath);
+        } catch (moveErr) {
+          // Write succeeded but move/unlink failed — data is safe in vault.
+          // Log but count as success (data integrity preserved).
+          logDecision('RETRY', destPath, 'MOVE_FAILED', `write succeeded but move failed: ${moveErr.message}`);
+        }
+        summary.succeeded++;
       }
     }
 

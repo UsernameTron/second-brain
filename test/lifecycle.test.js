@@ -329,6 +329,58 @@ describe('retryDeadLetters', () => {
     // 10 minutes < 15 minutes (delayMinutes), so should be skipped
     expect(result.skipped).toBe(1);
   });
+
+  // T12.4 — write/move isolation tests
+  test('vaultWrite rejection keeps dead-letter in unrouted, succeeded=0', async () => {
+    const { classifyInput } = require('../src/classifier');
+    classifyInput.mockResolvedValue({ success: true, directory: 'memory', side: 'RIGHT', confidence: 0.9 });
+    const { vaultWrite, logDecision } = require('../src/vault-gateway');
+    vaultWrite.mockRejectedValue(new Error('vault write failed'));
+
+    writeDeadLetterFile('dl-write-fail.md', makeDeadLetter({ createdMinutesAgo: 30 }));
+    const result = await lifecycle.retryDeadLetters();
+
+    expect(result.succeeded).toBe(0);
+    expect(logDecision).toHaveBeenCalledWith('RETRY', expect.any(String), 'WRITE_FAILED', 'vault write failed');
+    // Original file should still exist in unrouted/
+    expect(fs.existsSync(path.join(unroutedDir, 'dl-write-fail.md'))).toBe(true);
+  });
+
+  test('vaultWrite QUARANTINED result still removes from unrouted, logs QUARANTINED', async () => {
+    const { classifyInput } = require('../src/classifier');
+    classifyInput.mockResolvedValue({ success: true, directory: 'memory', side: 'RIGHT', confidence: 0.9 });
+    const { vaultWrite, logDecision } = require('../src/vault-gateway');
+    vaultWrite.mockResolvedValue({ decision: 'QUARANTINED', quarantinePath: 'quarantine/test.md' });
+
+    writeDeadLetterFile('dl-quarantined.md', makeDeadLetter({ createdMinutesAgo: 30 }));
+    const result = await lifecycle.retryDeadLetters();
+
+    expect(result.succeeded).toBe(1);
+    expect(logDecision).toHaveBeenCalledWith('RETRY', expect.any(String), 'QUARANTINED', expect.any(String));
+    // Original should be removed from unrouted/
+    expect(fs.existsSync(path.join(unroutedDir, 'dl-quarantined.md'))).toBe(false);
+  });
+
+  test('write success + move/unlink failure still counts as succeeded, logs MOVE_FAILED', async () => {
+    const { classifyInput } = require('../src/classifier');
+    classifyInput.mockResolvedValue({ success: true, directory: 'memory', side: 'RIGHT', confidence: 0.9 });
+    const { vaultWrite, logDecision } = require('../src/vault-gateway');
+    vaultWrite.mockResolvedValue({ decision: 'WRITTEN', path: 'memory/note.md' });
+
+    writeDeadLetterFile('dl-move-fail.md', makeDeadLetter({ createdMinutesAgo: 30 }));
+
+    // Make promoted dir read-only to force move failure
+    const promotedDir = path.join(unroutedDir, 'promoted');
+    fs.chmodSync(promotedDir, 0o444);
+
+    const result = await lifecycle.retryDeadLetters();
+
+    // Restore permissions for cleanup
+    fs.chmodSync(promotedDir, 0o755);
+
+    expect(result.succeeded).toBe(1);
+    expect(logDecision).toHaveBeenCalledWith('RETRY', expect.any(String), 'MOVE_FAILED', expect.stringContaining('write succeeded but move failed'));
+  });
 });
 
 // ── archiveStaleLeftProposals ────────────────────────────────────────────────
