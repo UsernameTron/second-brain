@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Review Remediation
-status: phase 12 VERIFIED — GO, awaiting ship
-stopped_at: Phase 12 verified, awaiting user approval to /gsd:ship
+status: phases 13+14 DISCUSSING in parallel workstreams
+stopped_at: Phase 12 shipped (PR #22, d65b0c6). Phases 13+14 planning.
 last_updated: "2026-04-23"
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 0
   completed_plans: 0
 ---
@@ -19,16 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** v1.3 Review Remediation — scaffolded, phase 12 ready for discuss/plan.
+**Current focus:** v1.3 Review Remediation — Phase 12 shipped, Phases 13+14 in parallel workstreams.
 
 ## Current Position
 
-Phase: 12 (VERIFIED — GO, awaiting ship)
-Plan: PHASE-12-PLAN.md (committed)
 Milestone: v1.3 Review Remediation
-Phase 12: Critical Safety Fixes — VERIFIED (6/6 tasks DONE, 3 review agents PASS, verification report committed)
-Phase 13: Config Schema Gaps — PENDING (depends on 12)
-Phase 14: CI Hardening — PENDING (depends on 12)
+Phase 12: Critical Safety Fixes — SHIPPED (PR #22, merge d65b0c6)
+Phase 13: Config Schema Gaps — DISCUSSING (workstream: schemas, branch: feat/phase-13-schemas)
+Phase 14: CI Hardening — DISCUSSING (workstream: ci-hardening, branch: feat/phase-14-ci-hardening)
 Phase 15: Architecture Refactor — PENDING (depends on 13)
 Phase 16: Test Quality — PENDING (depends on 15)
 
@@ -58,18 +56,22 @@ v1.3 decisions: none yet.
 ### Pending Todos
 
 - Configure branch protection (repo is now public, CI passes)
-- Merge `chore/commit-planning-artifacts` branch to master
 
 ### Blockers/Concerns
 
 None active.
 
+## Workstreams
+
+| Workstream | Phase | Branch | Status |
+|------------|-------|--------|--------|
+| schemas | 13 | feat/phase-13-schemas | DISCUSSING |
+| ci-hardening | 14 | feat/phase-14-ci-hardening | DISCUSSING |
+
 ## Session Continuity
 
-Last session: 2026-04-23 (Session 50)
-Stopped at: Phase 12 verified — GO verdict. Awaiting user approval to `/gsd:ship`.
-Resume with: `/gsd:ship` (Phase 12 PR) — user must approve first.
-Handoff: `.planning/milestones/v1.3/PHASE-12-VERIFICATION.md`
-Ship log: PRs #1-#20 merged. Tags: v1.0, v1.1, v1.2.0.
-v1.3 dependency chain: 12 → {13, 14} → 15 → 16
-Pre-ship housekeeping: create UAT-BASELINE.md, annotate SEC-HOOK-01 as CLOSED in backlog.md
+Last session: 2026-04-23 (Session 51)
+Stopped at: Phase 12 shipped (PR #22). Phases 13+14 opened in parallel workstreams.
+Resume with: Plan both phases, then `/gsd:execute-phase` on each workstream.
+Ship log: PRs #1-#22 merged. Tags: v1.0, v1.1, v1.2.0.
+v1.3 dependency chain: 12 (SHIPPED) → {13, 14} (parallel) → 15 → 16
