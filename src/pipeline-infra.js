@@ -56,10 +56,8 @@ function createLlmClient(options = {}) {
 
   // Check for local LLM provider config
   let llmConfig;
-  try {
-    const pipelineConfig = loadPipelineConfig();
-    llmConfig = pipelineConfig.classifier && pipelineConfig.classifier.llm;
-  } catch { llmConfig = null; }
+  const { config: pipelineConfig_ } = safeLoadPipelineConfig();
+  llmConfig = pipelineConfig_ && pipelineConfig_.classifier && pipelineConfig_.classifier.llm;
   const useLocal = llmConfig && llmConfig.provider === 'local';
 
   let Anthropic, sanitizeTermForPrompt, logDecision, anthropic;
@@ -88,9 +86,13 @@ function createLlmClient(options = {}) {
     const correlationId = callOptions.correlationId || 'none';
 
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (process.env.LM_API_TOKEN) {
+        headers['Authorization'] = `Bearer ${process.env.LM_API_TOKEN}`;
+      }
       const response = await fetch(`${llmConfig.localEndpoint}/v1/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           model: llmConfig.localModel,
           messages: [
@@ -98,6 +100,7 @@ function createLlmClient(options = {}) {
             { role: 'user', content: typeof userContent === 'string' ? userContent : JSON.stringify(userContent) },
           ],
           max_tokens: maxTokens,
+          response_format: { type: 'json_object' },
         }),
       });
 
@@ -426,6 +429,25 @@ function loadTemplatesConfig() {
   return config;
 }
 
+// ── Safe config wrapper ─────────────────────────────────────────────────────
+
+/**
+ * Load pipeline config without throwing. Returns { config, error } tuple.
+ * Callers that want fail-fast keep using loadPipelineConfig() directly.
+ * Callers that need graceful degradation use this wrapper.
+ *
+ * @returns {{ config: object|null, error: Error|null }}
+ */
+function safeLoadPipelineConfig() {
+  try {
+    return { config: loadPipelineConfig(), error: null };
+  } catch (err) {
+    const { logDecision } = require('./vault-gateway');
+    logDecision('CONFIG', 'pipeline.json', 'LOAD_ERROR', err.message);
+    return { config: null, error: err };
+  }
+}
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -437,4 +459,5 @@ module.exports = {
   loadTemplatesConfig,
   loadConfigWithOverlay,
   safeLoadVaultPaths,
+  safeLoadPipelineConfig,
 };

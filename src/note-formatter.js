@@ -23,7 +23,7 @@ const path = require('path');
 
 const {
   createHaikuClient,
-  loadPipelineConfig,
+  safeLoadPipelineConfig,
   loadTemplatesConfig,
 } = require('./pipeline-infra');
 
@@ -353,8 +353,8 @@ async function formatLeftProposal(inputBody, classificationResult, options = {})
  * @returns {Promise<{ filename: string, filenameBasis: 'user-provided'|'first-line'|'haiku-generated' }>}
  */
 async function generateFilename(inputBody, options = {}) {
-  const pipelineConfig = loadPipelineConfig();
-  const maxLength = pipelineConfig.filename.maxLength || 60;
+  const { config: pipelineConfig } = safeLoadPipelineConfig();
+  const maxLength = (pipelineConfig && pipelineConfig.filename && pipelineConfig.filename.maxLength) || 60;
 
   let baseFilename;
   let filenameBasis;

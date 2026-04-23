@@ -38,6 +38,19 @@ jest.mock('../src/pipeline-infra', () => ({
     },
     filename: { maxLength: 60 },
   })),
+  safeLoadPipelineConfig: jest.fn(() => ({
+    config: {
+      classifier: {
+        stage1ConfidenceThreshold: 0.8,
+        stage2ConfidenceThreshold: 0.7,
+        sonnetEscalationThreshold: 0.8,
+        sonnetAcceptThreshold: 0.7,
+        shortInputChars: 50,
+      },
+      filename: { maxLength: 60 },
+    },
+    error: null,
+  })),
   loadTemplatesConfig: jest.fn(() => ({
     'domain-templates': {},
     'memory-categories': {},
@@ -81,6 +94,7 @@ describe('runStage0', () => {
       createHaikuClient: jest.fn(),
       createSonnetClient: jest.fn(),
       writeDeadLetter: jest.fn().mockResolvedValue({ path: 'proposals/unrouted/test.md' }),
+      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
       loadPipelineConfig: jest.fn(() => ({
         classifier: {
           stage1ConfidenceThreshold: 0.8,
@@ -90,6 +104,19 @@ describe('runStage0', () => {
           shortInputChars: 50,
         },
         filename: { maxLength: 60 },
+      })),
+      safeLoadPipelineConfig: jest.fn(() => ({
+        config: {
+          classifier: {
+            stage1ConfidenceThreshold: 0.8,
+            stage2ConfidenceThreshold: 0.7,
+            sonnetEscalationThreshold: 0.8,
+            sonnetAcceptThreshold: 0.7,
+            shortInputChars: 50,
+          },
+          filename: { maxLength: 60 },
+        },
+        error: null,
       })),
       loadTemplatesConfig: jest.fn(() => ({
         'domain-templates': {},
@@ -149,6 +176,7 @@ describe('runStage1', () => {
       createHaikuClient: jest.fn(() => mockHaikuClient),
       createSonnetClient: jest.fn(),
       writeDeadLetter: jest.fn().mockResolvedValue({ path: 'proposals/unrouted/test.md' }),
+      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
       loadPipelineConfig: jest.fn(() => ({
         classifier: {
           stage1ConfidenceThreshold: 0.8,
@@ -158,6 +186,19 @@ describe('runStage1', () => {
           shortInputChars: 50,
         },
         filename: { maxLength: 60 },
+      })),
+      safeLoadPipelineConfig: jest.fn(() => ({
+        config: {
+          classifier: {
+            stage1ConfidenceThreshold: 0.8,
+            stage2ConfidenceThreshold: 0.7,
+            sonnetEscalationThreshold: 0.8,
+            sonnetAcceptThreshold: 0.7,
+            shortInputChars: 50,
+          },
+          filename: { maxLength: 60 },
+        },
+        error: null,
       })),
       loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
     }));
@@ -238,6 +279,7 @@ describe('runStage2', () => {
       createHaikuClient: jest.fn(() => mockHaikuClient),
       createSonnetClient: jest.fn(() => mockSonnetClient),
       writeDeadLetter: jest.fn().mockResolvedValue({ path: 'proposals/unrouted/test.md' }),
+      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
       loadPipelineConfig: jest.fn(() => ({
         classifier: {
           stage1ConfidenceThreshold: 0.8,
@@ -247,6 +289,19 @@ describe('runStage2', () => {
           shortInputChars: 50,
         },
         filename: { maxLength: 60 },
+      })),
+      safeLoadPipelineConfig: jest.fn(() => ({
+        config: {
+          classifier: {
+            stage1ConfidenceThreshold: 0.8,
+            stage2ConfidenceThreshold: 0.7,
+            sonnetEscalationThreshold: 0.8,
+            sonnetAcceptThreshold: 0.7,
+            shortInputChars: 50,
+          },
+          filename: { maxLength: 60 },
+        },
+        error: null,
       })),
       loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
     }));
@@ -359,6 +414,7 @@ describe('classifyInput', () => {
       createHaikuClient: jest.fn(() => mockHaikuClient),
       createSonnetClient: jest.fn(() => mockSonnetClient),
       writeDeadLetter: mockWriteDeadLetter,
+      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
       loadPipelineConfig: jest.fn(() => ({
         classifier: {
           stage1ConfidenceThreshold: 0.8,
@@ -368,6 +424,19 @@ describe('classifyInput', () => {
           shortInputChars: 50,
         },
         filename: { maxLength: 60 },
+      })),
+      safeLoadPipelineConfig: jest.fn(() => ({
+        config: {
+          classifier: {
+            stage1ConfidenceThreshold: 0.8,
+            stage2ConfidenceThreshold: 0.7,
+            sonnetEscalationThreshold: 0.8,
+            sonnetAcceptThreshold: 0.7,
+            shortInputChars: 50,
+          },
+          filename: { maxLength: 60 },
+        },
+        error: null,
       })),
       loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
     }));

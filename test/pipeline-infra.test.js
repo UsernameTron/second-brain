@@ -778,3 +778,74 @@ describe('safeLoadVaultPaths', () => {
     expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'vault-paths.json', 'LOAD_ERROR', expect.any(String));
   });
 });
+
+// ── safeLoadPipelineConfig (T12.3) ──────────────────────────────────────────
+
+describe('safeLoadPipelineConfig', () => {
+  let tmpDir, originalConfigDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'safe-pipeline-config-'));
+    originalConfigDir = process.env.CONFIG_DIR_OVERRIDE;
+    process.env.CONFIG_DIR_OVERRIDE = tmpDir;
+    jest.resetModules();
+  });
+
+  afterEach(() => {
+    if (originalConfigDir === undefined) {
+      delete process.env.CONFIG_DIR_OVERRIDE;
+    } else {
+      process.env.CONFIG_DIR_OVERRIDE = originalConfigDir;
+    }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('returns { config, error: null } on valid config', () => {
+    // Write a valid pipeline.json with required sections
+    const validConfig = {
+      classifier: { shortInputChars: 100 },
+      extraction: {},
+      wikilink: {},
+      promotion: {},
+      retry: {},
+      leftProposal: {},
+      filename: {},
+      slippage: {},
+    };
+    fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), JSON.stringify(validConfig));
+    // Schema dir must exist but schema file is optional for non-validate path
+    fs.mkdirSync(path.join(tmpDir, 'schema'), { recursive: true });
+    const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
+    const result = safeLoadPipelineConfig();
+    expect(result.error).toBeNull();
+    expect(result.config).toMatchObject(validConfig);
+  });
+
+  test('returns { config: null, error } on malformed JSON', () => {
+    fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), '{ bad json!!!');
+    const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
+    const result = safeLoadPipelineConfig();
+    expect(result.config).toBeNull();
+    expect(result.error).toBeInstanceOf(Error);
+  });
+
+  test('returns { config: null, error } on missing required section', () => {
+    // Missing 'classifier' required section
+    const partial = { extraction: {}, wikilink: {}, promotion: {}, retry: {}, leftProposal: {}, filename: {}, slippage: {} };
+    fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), JSON.stringify(partial));
+    fs.mkdirSync(path.join(tmpDir, 'schema'), { recursive: true });
+    const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
+    const result = safeLoadPipelineConfig();
+    expect(result.config).toBeNull();
+    expect(result.error.message).toContain('classifier');
+  });
+
+  test('calls logDecision with LOAD_ERROR on failure', () => {
+    fs.writeFileSync(path.join(tmpDir, 'pipeline.json'), '{ broken');
+    const mockLogDecision = jest.fn();
+    jest.doMock('../src/vault-gateway', () => ({ logDecision: mockLogDecision }));
+    const { safeLoadPipelineConfig } = require('../src/pipeline-infra');
+    safeLoadPipelineConfig();
+    expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'pipeline.json', 'LOAD_ERROR', expect.any(String));
+  });
+});

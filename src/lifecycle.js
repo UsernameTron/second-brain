@@ -22,7 +22,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const { loadPipelineConfig } = require('./pipeline-infra');
+const { safeLoadPipelineConfig } = require('./pipeline-infra');
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -106,7 +106,8 @@ function serializeFrontmatter(fields) {
  * @returns {Promise<{ retried: number, succeeded: number, failed: number, frozen: number, skipped: number }>}
  */
 async function retryDeadLetters() {
-  const config = loadPipelineConfig();
+  const { config, error: configErr } = safeLoadPipelineConfig();
+  if (configErr) return { retried: 0, succeeded: 0, failed: 0, frozen: 0, skipped: 0 };
   const delayMinutes = config.retry.delayMinutes;
   const maxAttempts = config.retry.maxAttempts;
 
@@ -260,7 +261,8 @@ async function retryDeadLetters() {
  * @returns {Promise<{ archived: number, skipped: number }>}
  */
 async function archiveStaleLeftProposals() {
-  const config = loadPipelineConfig();
+  const { config, error: configErr } = safeLoadPipelineConfig();
+  if (configErr) return { archived: 0, skipped: 0 };
   const autoArchiveDays = config.leftProposal.autoArchiveDays;
 
   const leftProposalsDir = path.join(VAULT_ROOT, 'proposals', 'left-proposals');
