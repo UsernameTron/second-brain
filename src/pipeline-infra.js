@@ -85,6 +85,8 @@ function createLlmClient(options = {}) {
     const maxTokens = callOptions.maxTokens || 1024;
     const correlationId = callOptions.correlationId || 'none';
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (process.env.LM_API_TOKEN) {
@@ -93,6 +95,7 @@ function createLlmClient(options = {}) {
       const response = await fetch(`${llmConfig.localEndpoint}/v1/chat/completions`, {
         method: 'POST',
         headers,
+        signal: controller.signal,
         body: JSON.stringify({
           model: llmConfig.localModel,
           messages: [
@@ -103,12 +106,18 @@ function createLlmClient(options = {}) {
           response_format: { type: 'json_object' },
         }),
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`Local LLM returned HTTP ${response.status}`);
+        logDecision('LLM_CLASSIFY', llmConfig.localModel, 'ERROR', `local: HTTP ${response.status}`);
+        return { success: false, error: `Local LLM returned HTTP ${response.status}`, failureMode: 'api-error' };
       }
 
       const body = await response.json();
+      if (!body.choices?.[0]?.message?.content || typeof body.choices[0].message.content !== 'string') {
+        logDecision('LLM_CLASSIFY', llmConfig.localModel, 'SHAPE_ERROR', 'response missing choices[0].message.content');
+        return { success: false, error: 'Local LLM response missing expected shape', failureMode: 'api-error' };
+      }
       const rawText = body.choices[0].message.content;
 
       logDecision('LLM_CLASSIFY', llmConfig.localModel, 'CALLED', `local endpoint, correlation-id: ${correlationId}`);
@@ -118,15 +127,30 @@ function createLlmClient(options = {}) {
       const data = JSON.parse(stripped);
       return { success: true, data };
     } catch (err) {
-      // Connection error or HTTP error — fall back to Anthropic
+      clearTimeout(timeoutId);
+
+      // Parse errors: return immediately, no fallback
       const isParseError = err instanceof SyntaxError || (err.message && err.message.includes('JSON'));
       if (isParseError) {
         logDecision('LLM_CLASSIFY', llmConfig.localModel, 'PARSE_ERROR', `local: ${err.message}`);
         return { success: false, error: `JSON parse failed: ${err.message}`, failureMode: 'parse-error' };
       }
 
-      logDecision('LLM_CLASSIFY', llmConfig.localModel, 'FALLBACK', `local endpoint unreachable, falling back to Anthropic: ${err.message}`);
-      return classifyAnthropic(systemPrompt, userContent, callOptions);
+      // Network/timeout errors: fall back to Anthropic
+      const isNetworkError = err.name === 'AbortError'
+        || err.code === 'ECONNREFUSED'
+        || err.code === 'ENOTFOUND'
+        || err.code === 'ETIMEDOUT'
+        || err.message?.includes('fetch failed');
+
+      if (isNetworkError) {
+        logDecision('LLM_CLASSIFY', llmConfig.localModel, 'FALLBACK', `local endpoint unreachable: ${err.message}`);
+        return classifyAnthropic(systemPrompt, userContent, callOptions);
+      }
+
+      // Unexpected errors: surface, do NOT fall back
+      logDecision('LLM_CLASSIFY', llmConfig.localModel, 'ERROR', `local: ${err.message}`);
+      return { success: false, error: err.message, failureMode: 'api-error' };
     }
   }
 

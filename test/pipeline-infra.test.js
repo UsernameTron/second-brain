@@ -849,3 +849,150 @@ describe('safeLoadPipelineConfig', () => {
     expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'pipeline.json', 'LOAD_ERROR', expect.any(String));
   });
 });
+
+// ── classifyLocal — T12.5 LLM fallback hardening ────────────────────────────
+
+describe('classifyLocal — LLM fallback hardening', () => {
+  let mockLogDecision;
+  let mockAnthropicCreate;
+  let tmpConfigDir;
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    jest.resetModules();
+    mockLogDecision = jest.fn();
+    mockAnthropicCreate = jest.fn().mockResolvedValue({
+      content: [{ text: '{"fallback":true}' }],
+    });
+
+    // Create temp config dir with local LLM provider — must include all required sections
+    tmpConfigDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-test-'));
+    const realConfigDir = path.join(__dirname, '..', 'config');
+    const realConfig = JSON.parse(fs.readFileSync(path.join(realConfigDir, 'pipeline.json'), 'utf8'));
+    realConfig.classifier.llm = {
+      provider: 'local',
+      localEndpoint: 'http://localhost:9999',
+      localModel: 'test-model',
+    };
+    fs.writeFileSync(path.join(tmpConfigDir, 'pipeline.json'), JSON.stringify(realConfig));
+    // Copy schema dir so validation passes
+    const schemaDir = path.join(realConfigDir, 'schema');
+    if (fs.existsSync(schemaDir)) {
+      fs.cpSync(schemaDir, path.join(tmpConfigDir, 'schema'), { recursive: true });
+    }
+    process.env.CONFIG_DIR_OVERRIDE = tmpConfigDir;
+
+    jest.doMock('../src/vault-gateway', () => ({
+      logDecision: mockLogDecision,
+      vaultWrite: jest.fn().mockResolvedValue({ decision: 'WRITTEN' }),
+    }));
+    jest.doMock('../src/content-policy', () => ({
+      sanitizeTermForPrompt: jest.fn((t) => t),
+    }));
+    jest.doMock('@anthropic-ai/sdk', () => {
+      return jest.fn().mockImplementation(() => ({
+        messages: { create: mockAnthropicCreate },
+      }));
+    });
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    delete process.env.CONFIG_DIR_OVERRIDE;
+    jest.restoreAllMocks();
+    try { fs.rmSync(tmpConfigDir, { recursive: true, force: true }); } catch (_) {}
+  });
+
+  afterAll(() => {
+    jest.resetModules();
+  });
+
+  function loadClient() {
+    const { createHaikuClient } = require('../src/pipeline-infra');
+    return createHaikuClient();
+  }
+
+  test('falls back to Anthropic on AbortError (timeout)', async () => {
+    global.fetch = jest.fn().mockRejectedValue(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
+    const client = loadClient();
+    const result = await client.classify('sys', 'content');
+
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY', 'test-model', 'FALLBACK', expect.stringContaining('aborted')
+    );
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ fallback: true });
+  });
+
+  test('falls back to Anthropic on ECONNREFUSED', async () => {
+    const connErr = new Error('fetch failed');
+    connErr.code = 'ECONNREFUSED';
+    global.fetch = jest.fn().mockRejectedValue(connErr);
+    const client = loadClient();
+    const result = await client.classify('sys', 'content');
+
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY', 'test-model', 'FALLBACK', expect.stringContaining('unreachable')
+    );
+    expect(result.success).toBe(true);
+  });
+
+  test('does NOT fall back on HTTP 500 — returns api-error', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
+    const client = loadClient();
+    const result = await client.classify('sys', 'content');
+
+    expect(result.success).toBe(false);
+    expect(result.failureMode).toBe('api-error');
+    expect(result.error).toContain('HTTP 500');
+    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+  });
+
+  test('returns api-error on malformed response shape (missing choices)', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ id: 'abc', object: 'chat.completion' }),
+    });
+    const client = loadClient();
+    const result = await client.classify('sys', 'content');
+
+    expect(result.success).toBe(false);
+    expect(result.failureMode).toBe('api-error');
+    expect(result.error).toContain('missing expected shape');
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY', 'test-model', 'SHAPE_ERROR', expect.any(String)
+    );
+  });
+
+  test('returns parse-error on invalid JSON in response content', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({
+        choices: [{ message: { content: 'not valid json at all' } }],
+      }),
+    });
+    const client = loadClient();
+    const result = await client.classify('sys', 'content');
+
+    expect(result.success).toBe(false);
+    expect(result.failureMode).toBe('parse-error');
+    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+  });
+
+  test('successful local classification returns parsed data', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({
+        choices: [{ message: { content: '{"category":"note","confidence":0.95}' } }],
+      }),
+    });
+    const client = loadClient();
+    const result = await client.classify('sys', 'content');
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ category: 'note', confidence: 0.95 });
+  });
+});
