@@ -6,19 +6,17 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-Shipped v1.0 MVP on 2026-04-22. v1.1 hardening complete 2026-04-23. 547 tests passing, 21/21 v1.0 requirements validated + 9 v1.1 requirements satisfied.
-
-**Codebase:** ~5,000 LOC JavaScript (Node.js), 21 plans across 7 phases (2 milestones).
+Shipped v1.0 MVP (2026-04-22) and v1.1 Go Live (2026-04-23). Two milestones complete: 7 phases, 22 plans, ~17,000 LOC JavaScript (Node.js).
 
 **What works end-to-end:**
-- `/new` classifies input, enforces left/right routing, filters excluded content, suggests wikilinks
+- `/new` classifies input, enforces left/right routing, filters excluded content (15 terms), suggests wikilinks
 - `/today` produces 6-section daily briefing with graceful degradation
 - Memory extraction, proposals, promotion pipeline with human review gate
 - Gmail (OAuth wired), Calendar, GitHub connectors with zero-trust permissions
-- RemoteTrigger active for pre-morning scheduling
-- GitHub Actions CI pipeline (Node 20+22 matrix, push to master + PR triggers)
+- RemoteTrigger active for weekday pre-morning scheduling
+- GitHub Actions CI pipeline (Node 20+22 matrix, push + PR triggers, badge on README)
 
-**Known gaps:** Config hot-reload defect (FIX-02, deferred — restart workaround sufficient). Branch protection pending repo upgrade to GitHub Pro or public.
+**Known gaps:** Config hot-reload defect (FIX-02, deferred — restart workaround sufficient).
 
 ## Core Value
 
@@ -52,27 +50,36 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 
 - ✓ Gmail OAuth wired (real credentials, live VIP filtering) — v1.1
 - ✓ RemoteTrigger enabled on real cron schedule — v1.1
-- ✓ Excluded terms expanded to production list — v1.1
-- ✓ In-batch dedup bug fixed in promote-memories — v1.1
+- ✓ Excluded terms expanded to production list (15 terms, substring matching) — v1.1
+- ✓ In-batch dedup bug fixed in promote-memories (3 sub-bugs) — v1.1
+- ✓ Remote execution hardened (calendar MCP, path resolution, Haiku graceful degradation) — v1.1
 - ✓ UAT pass (LLM accuracy, wikilink relevance, promotion dedup) — v1.1
 - ✓ CI pipeline (GitHub Actions, Node 20+22, push + PR triggers) — v1.1
 
 ### Active
 
-None — v1.1 milestone complete.
+None — v1.1 milestone complete. Next requirements defined with `/gsd:new-milestone`.
 
-## Current Milestone: v1.1 Go Live
+## Current Milestone
+
+None active. v1.1 Go Live shipped 2026-04-23. Next milestone starts with `/gsd:new-milestone`.
+
+<details>
+<summary>v1.1 Go Live (shipped 2026-04-23)</summary>
 
 **Goal:** Close the gap between "works in tests" and "works on my desk at 6:45 AM."
 
-**Target features:**
-- Wire gmail-mcp-pete OAuth (real credentials, not stubs)
-- Enable RemoteTrigger on real cron schedule
-- Expand excluded terms to 15-20 entries
-- Fix in-batch dedup bug in promote-memories
-- Fix config hot-reload defect
-- UAT pass (LLM accuracy, wikilink relevance, Obsidian UX walkthrough)
-- CI pipeline (run tests on push)
+**Delivered:**
+- Gmail OAuth wired with real credentials
+- RemoteTrigger on weekday cron schedule
+- Excluded terms expanded to 15 with substring matching
+- In-batch dedup fixed (3 sub-bugs)
+- Remote execution hardened (calendar MCP, path resolution, Haiku graceful degradation)
+- UAT pass (LLM accuracy, wikilink relevance, Obsidian UX)
+- GitHub Actions CI pipeline (Node 20+22)
+
+**Deferred:** FIX-02 (config hot-reload) — restart workaround sufficient.
+</details>
 
 ### Out of Scope
 
@@ -142,9 +149,13 @@ None — v1.1 milestone complete.
 | LLM classify() never throws | Returns {success, data/error, failureMode} — callers handle gracefully | ✓ Good — enables graceful degradation in /today |
 | Wikilink enrichment non-blocking | Failures logged, never block pipeline | ✓ Good — /new completes even if wikilinks fail |
 | Dead-letter auto-retry: 15-min, 3-attempt cap, freeze | Prevents infinite retry loops while giving transient failures a chance | ✓ Good — bounded retry with freeze semantics |
-| RemoteTrigger for scheduling (not launchd) | First-class Claude integration, no plist management | ⚠️ Revisit — trigger disabled pending activation, verify reliability |
+| RemoteTrigger for scheduling (not launchd) | First-class Claude integration, no plist management | ✓ Good — activated v1.1, fires weekday mornings |
 | PR time-window filtering client-side | list_pull_requests lacks since param | ✓ Good — filter by updated_at after fetch |
 | Partial GitHub MCP failure returns warnings[] | Preserves partial data for /today degraded mode | ✓ Good — matches graceful degradation design |
+| Substring matching for excluded terms | Word-boundary regex missed embedded substrings | ✓ Good — single toLowerCase, catches all variants |
+| AUTH_ERRORS structural comparison | errorType field not string matching — resilient to message changes | ✓ Good — typed error taxonomy |
+| UAT harnesses call real Anthropic API | Accuracy and relevance cannot be validated with stubs | ✓ Good — verified LLM quality in CI-excluded tests |
+| GitHub Actions Node 20+22 matrix | LTS coverage without maintaining older versions | ✓ Good — CI green on both |
 
 ## Evolution
 
@@ -164,4 +175,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-23 after Phase 7 (Hardening) complete — v1.1 milestone done*
+*Last updated: 2026-04-23 after v1.1 milestone completion*

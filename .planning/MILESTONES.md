@@ -1,5 +1,24 @@
 # Milestones
 
+## v1.1 Go Live (Shipped: 2026-04-23)
+
+**Phases:** 3 (05-07) | **Plans:** 7 | **Requirements:** 11/12 satisfied, 1 deferred
+
+**Key accomplishments:**
+
+- Gmail OAuth wired — googleapis live calls with Keychain-backed OAuth2, replacing all stubs in gmail-mcp-pete
+- Excluded terms expanded from 3 to 15 with substring matching and Array.isArray config guard
+- RemoteTrigger activated — production cron for weekday `/today` execution
+- In-batch dedup fixed (3 sub-bugs: self-match, missing content_hash, non-pending re-processing)
+- Remote execution hardened — calendar MCP connector, env-var path resolution, Haiku API graceful degradation
+- GitHub Actions CI pipeline — Node 20+22 matrix, push + PR triggers, README badge
+
+**Timeline:** 2026-04-22 to 2026-04-23 (2 days)
+
+**Known gaps:** FIX-02 (config hot-reload) deferred — restart workaround sufficient. Sparse vault produces zero wikilinks (observation, not defect — vault needs content to cross-reference).
+
+---
+
 ## v1.0 MVP (Shipped: 2026-04-22)
 
 **Phases:** 4 | **Plans:** 15 | **Tasks:** 19 | **Tests:** 502 | **Requirements:** 21/21
