@@ -57,3 +57,12 @@ Migrated from v1.2 MILESTONE-AUDIT.md (2026-04-23). Source: 7 verification warni
 - **Manual scan result** (same agent, proper prompt): `pass: true`, 0 blocking findings
 - **v1.2.0 commit diff verified:** 4 markdown files only (`.planning/STATE.md`, `.planning/backlog.md`, `tasks/lessons.md`, `tasks/todo.md`), no source, no config, no secrets
 - **Action:** hook bypassed once via shell push; v1.3 T12.6 expanded to cover call-site fix + tri-state exit codes (finding / infra failure / spawn failure) + grep-based fallback
+
+**Resolution (v1.3 Phase 12 T12.6, commit 143b17f):**
+- Line 35 prompt argument: FIXED
+- Line 47 stderr redirect: FIXED (2>&2 → 2>&1)
+- Tri-state exit codes: IMPLEMENTED (1=finding, 2=infra, 3=spawn)
+- Grep-based fallback on spawn failure: IMPLEMENTED
+- Audit log to .cache/security-scan-log.jsonl: IMPLEMENTED
+- Test harness test/hooks/security-scan-gate.test.sh: 8/8 assertions passing
+Status: CLOSED.
