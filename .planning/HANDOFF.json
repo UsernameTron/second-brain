@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-23T21:39:00.376Z",
+  "phase": "12",
+  "phase_name": "Critical Safety Fixes",
+  "phase_dir": ".planning/milestones/v1.3",
+  "plan": 1,
+  "task": 6,
+  "total_tasks": 6,
+  "status": "all_tasks_committed",
+  "completed_tasks": [
+    {"id": "T12.2", "name": "Guard loadVaultPaths JSON.parse", "status": "done", "commit": "7c3166d"},
+    {"id": "T12.3", "name": "safeLoadPipelineConfig wrapper", "status": "done", "commit": "33e6e5a"},
+    {"id": "T12.4", "name": "retryDeadLetters error handling", "status": "done", "commit": "db58386"},
+    {"id": "T12.6", "name": "security-scan-gate.sh fixes + test harness", "status": "done", "commit": "608a184"},
+    {"id": "T12.5", "name": "LLM fallback hardening", "status": "done", "commit": "150d6f4"},
+    {"id": "T12.1", "name": "writeDeadLetter through vault-gateway", "status": "done", "commit": "779fe51"}
+  ],
+  "remaining_tasks": [],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Fixed errexit bug in security-scan-gate.sh discovered during test writing", "rationale": "set -e killed the script before reaching grep fallback when claude agent failed", "phase": "12"},
+    {"decision": "Used jest.doMock with full pipeline.json config clone for classifyLocal tests", "rationale": "Config validation requires all 8 sections; partial config causes LOAD_ERROR fallthrough to Anthropic", "phase": "12"},
+    {"decision": "writeDeadLetter tests now mock vaultWrite instead of reading files from disk", "rationale": "Function no longer uses fs.promises.writeFile — tests verify the vaultWrite contract instead", "phase": "12"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Run Phase 12 verification: analyze the 23 test failures (likely pre-existing), run grep verifications, then update STATE.md and handoff. Then plan Phase 13.",
+  "context_notes": "All 6 Phase 12 tasks are committed. Full test suite shows 617 passed / 23 failed / 640 total. The handoff noted 6 pre-existing failures in pipeline-infra.test.js (createHaikuClient/local LLM routing). The 23 failures need triage — some are pre-existing, others may include UAT/classification tests that need a running LLM. Security-scan-gate bash tests: 8/8 pass. Grep verifications (T12.1 fs.promises, T12.2 loadVaultPaths imports) not yet run."
+}
