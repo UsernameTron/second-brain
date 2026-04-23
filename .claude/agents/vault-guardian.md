@@ -1,6 +1,6 @@
 ---
 name: vault-guardian
-description: Read-only auditor for LEFT/RIGHT vault write-permission boundary, content policy violations, and style policy enforcement. Use proactively after vault-touching code changes.
+description: Audits LEFT/RIGHT vault write-permission boundary, content policy, and style policy enforcement in vault-gateway code. Use when vault-gateway.js, content-policy.js, or style-policy.js are modified, or for on-demand vault integrity audits.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

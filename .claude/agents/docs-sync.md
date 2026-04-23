@@ -1,6 +1,6 @@
 ---
 name: docs-sync
-description: Keeps README.md, CLAUDE.md, and docs/DEVOPS-HANDOFF.md current after code changes. Use proactively after features are completed or merged.
+description: Keeps README.md, CLAUDE.md, and docs/DEVOPS-HANDOFF.md current after code changes. Use when features are completed, merged, or documentation may be stale. Use when src/ files, config/, or dependencies change and docs need to reflect the update.
 tools: Read, Write, Edit, Glob, Grep
 model: sonnet
 ---
@@ -34,6 +34,7 @@ You are a documentation synchronization specialist for a Node.js Obsidian vault 
 ## Output Format
 
 ```
+Status: COMPLETE (N updates) | NO CHANGES NEEDED
 Documents checked: 3
 Updates made:
   - README.md: [section] — [what changed and why]
