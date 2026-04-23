@@ -4,7 +4,12 @@
     "stage2ConfidenceThreshold": 0.7,
     "sonnetEscalationThreshold": 0.8,
     "sonnetAcceptThreshold": 0.7,
-    "shortInputChars": 50
+    "shortInputChars": 50,
+    "llm": {
+      "provider": "anthropic",
+      "localEndpoint": "http://localhost:1234",
+      "localModel": "qwen2.5-coder-7b"
+    }
   },
   "extraction": {
     "confidenceAccept": 0.75,

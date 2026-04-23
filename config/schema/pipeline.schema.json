@@ -13,7 +13,17 @@
         "stage2ConfidenceThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
         "sonnetEscalationThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
         "sonnetAcceptThreshold": { "type": "number", "minimum": 0, "maximum": 1 },
-        "shortInputChars": { "type": "integer", "minimum": 1 }
+        "shortInputChars": { "type": "integer", "minimum": 1 },
+        "llm": {
+          "type": "object",
+          "required": ["provider", "localEndpoint", "localModel"],
+          "properties": {
+            "provider": { "type": "string", "enum": ["anthropic", "local"] },
+            "localEndpoint": { "type": "string", "minLength": 1 },
+            "localModel": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },
