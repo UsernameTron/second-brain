@@ -57,3 +57,23 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 Plans:
 - [ ] TBD (promote with /gsd:review-backlog when ready)
+
+### Phase 999.2: Independent Test Verification Gate (BACKLOG)
+
+**Goal:** Add an independent quality gate where a separate agent re-runs the full test suite after GSD execution — not trusting the executor's self-reported results. Inspired by agent-teams Quality Agent pattern (cherry-pick 1).
+**Approach:** Either enhance `/gsd:verify-work` to spawn an independent test-runner agent, or add a PostToolUse hook on phase completion that triggers a clean-context test run. Must confirm all tests pass and coverage >= 90% independently of the executor.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)
+
+### Phase 999.3: Mandatory Security Scan Before PR (BACKLOG)
+
+**Goal:** Add a security agent step to `/gsd:ship` that runs OWASP checks, scans for leaked secrets (OAuth tokens, API keys), and audits dependencies before PR creation. Inspired by agent-teams Security Agent pattern (cherry-pick 2).
+**Approach:** Integrate into the `/gsd:ship` pipeline as a blocking gate. Scan changed files for secrets patterns, run dependency audit (`npm audit`), check for hardcoded credentials in connector configs. Block PR creation on Critical/High findings.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)
