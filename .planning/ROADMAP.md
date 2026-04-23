@@ -46,9 +46,9 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 5. Integration Wiring | v1.1 | 3/3 | Complete | 2026-04-23 |
 | 6. Defect Fixes and UAT | v1.1 | 3/3 | Complete | 2026-04-23 |
 | 7. Hardening | v1.1 | 1/1 | Complete | 2026-04-23 |
-| 8. Hook Infrastructure | v1.2 | 0/? | Not Started | — |
-| 9. Security & Verification | v1.2 | 2/3 | In Progress|  |
-| 10. Agent Hardening & Skills | v1.2 | 0/? | Not Started | — |
+| 8. Hook Infrastructure | v1.2 | 3/3 | Complete | 2026-04-23 |
+| 9. Security & Verification | v1.2 | 3/3 | Complete | 2026-04-23 |
+| 10. Agent Hardening & Skills | v1.2 | 2/2 | Complete | 2026-04-23 |
 | 11. CI & LLM Infrastructure | v1.2 | 0/? | Not Started | — |
 
 ## v1.2 Automation & Quality (Phases 8-11)
@@ -79,8 +79,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Agent roster hardening (SKILL-01) + context7 MCP install (SKILL-03)
-- [ ] 10-02-PLAN.md — Pipeline health check skill (SKILL-02)
+- [x] 10-01-PLAN.md — Agent roster hardening (SKILL-01) + context7 MCP install (SKILL-03) — completed 2026-04-23
+- [x] 10-02-PLAN.md — Pipeline health check skill (SKILL-02) — completed 2026-04-23
 
 ### Phase 11: CI & LLM Infrastructure
 **Requirements:** CI-01, CI-02

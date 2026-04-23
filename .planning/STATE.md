@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Automation & Quality
-status: Executing Phase 10
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-04-23T16:25:59.718Z"
+status: Phase 10 Complete — Phase 11 Next
+stopped_at: Phase 10 verified and marked complete
+last_updated: "2026-04-23T22:00:00.000Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 3
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,15 +19,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Phase 10 — agent-hardening-and-skills
+**Current focus:** Phase 11 — CI & LLM Infrastructure (next)
 
 ## Current Position
 
-Phase: 10 (agent-hardening-and-skills) — EXECUTING
-Plan: 1 of 2
+Phase: 10 (agent-hardening-and-skills) — COMPLETE
+Plan: 2 of 2 — DONE
 Milestone: v1.2 Automation & Quality — ACTIVE
-Phase 8: Hook Infrastructure — COMPLETE (2026-04-23, 9/9 verified)
-Phase 9: Security & Verification — NOT STARTED (next: /gsd:discuss-phase 9 or /gsd:plan-phase 9)
+Phase 8: Hook Infrastructure — COMPLETE (2026-04-23)
+Phase 9: Security & Verification — COMPLETE (2026-04-23)
+Phase 10: Agent Hardening & Skills — COMPLETE (2026-04-23, 16/16 acceptance criteria verified)
+Phase 11: CI & LLM Infrastructure — NOT STARTED (next: /gsd:discuss-phase 11 or /gsd:plan-phase 11)
 
 ## Requirements Map
 
@@ -36,12 +38,12 @@ Phase 9: Security & Verification — NOT STARTED (next: /gsd:discuss-phase 9 or 
 | HOOK-01 | Auto-Run Tests on Source Edit | 8 | Complete |
 | HOOK-02 | Protected File Edit Guard | 8 | Complete |
 | HOOK-03 | Mandatory Security Scan in Ship Pipeline | 8 | Complete (stub) |
-| SEC-01 | Security Scanner Agent | 9 | Not Started |
-| SEC-02 | Independent Test Verification Gate | 9 | Not Started |
-| SEC-03 | Config/Schema Validation Skill | 9 | Not Started |
-| SKILL-01 | Agent Roster Hardening | 10 | Not Started |
-| SKILL-02 | Pipeline Health Check Skill | 10 | Not Started |
-| SKILL-03 | context7 MCP Integration | 10 | Not Started |
+| SEC-01 | Security Scanner Agent | 9 | Complete |
+| SEC-02 | Independent Test Verification Gate | 9 | Complete |
+| SEC-03 | Config/Schema Validation Skill | 9 | Complete |
+| SKILL-01 | Agent Roster Hardening | 10 | Complete |
+| SKILL-02 | Pipeline Health Check Skill | 10 | Complete |
+| SKILL-03 | context7 MCP Integration | 10 | Complete |
 | CI-01 | CI Coverage + Dependency Audit | 11 | Not Started |
 | CI-02 | Local LLM Routing | 11 | Not Started |
 
@@ -50,16 +52,19 @@ Phase 9: Security & Verification — NOT STARTED (next: /gsd:discuss-phase 9 or 
 1. All `config/schemas/` references corrected to `config/schema/` (actual directory name)
 2. Items needing `.claude/settings.json` creation noted as prerequisite (file does not exist)
 3. Test file convention: `src/{module}.js` → `test/{module}.test.js` (not src/__tests__)
+4. context7 CLAUDE.md documentation was missing from execution commit — added during wrap-up
 
 ## Accumulated Context
 
 ### Decisions
 
 All v1.0/v1.1 decisions logged in PROJECT.md Key Decisions table (16 entries with outcomes).
-v1.2 decisions will be captured during discuss-phase for each phase.
+v1.2 decisions:
 
 - [Phase 09]: Agent named security-scanner (not sec-01) to match claude --agent invocation convention
 - [Phase 09]: Gate script uses fail-closed posture: agent failure returns CRITICAL blocking finding, never silently passes
+- [Phase 10]: Phase treated as infrastructure — discuss skipped, research skipped
+- [Phase 10]: context7 MCP installed via .mcp.json (stdio transport, npx @upstash/context7-mcp@latest)
 
 ### Pending Todos
 
@@ -71,8 +76,8 @@ v1.2 decisions will be captured during discuss-phase for each phase.
 
 ## Session Continuity
 
-Last session: 2026-04-23T16:07:45.406Z
-Stopped at: Completed 09-01-PLAN.md
-Resume with: `/gsd:discuss-phase 9` or `/gsd:plan-phase 9` for Security & Verification
-Ship log: PRs #1-#20 merged. v1.0 and v1.1 tags created. Phase 8 on `milestone/v1.2-setup` branch (6 commits, not yet PR'd).
-Phase dependency chain: 8 ✓ → 9 → 10 → 11
+Last session: 2026-04-23
+Stopped at: Phase 10 verified and marked complete. SUMMARYs written for 10-01 and 10-02. All 16 acceptance criteria verified. All tests pass.
+Resume with: `/gsd:discuss-phase 11` or `/gsd:plan-phase 11` for CI & LLM Infrastructure
+Ship log: PRs #1-#20 merged. v1.0 and v1.1 tags created. Phases 8-10 on `milestone/v1.2-setup` branch.
+Phase dependency chain: 8 ✓ → 9 ✓ → 10 ✓ → 11
