@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Review Remediation
-status: scaffolded — phase 12 DISCUSSING
-stopped_at: v1.3 scaffolded, context files written
+status: phase 12 EXECUTING (4/6 done)
+stopped_at: Phase 12 executing, 4/6 tasks committed
 last_updated: "2026-04-23"
 progress:
   total_phases: 5
@@ -23,10 +23,10 @@ See: .planning/PROJECT.md (updated 2026-04-23)
 
 ## Current Position
 
-Phase: 12 (DISCUSSING)
-Plan: none yet
+Phase: 12 (EXECUTING — 4/6 tasks DONE)
+Plan: PHASE-12-PLAN.md (committed)
 Milestone: v1.3 Review Remediation
-Phase 12: Critical Safety Fixes — DISCUSSING
+Phase 12: Critical Safety Fixes — EXECUTING (T12.2, T12.3, T12.4 DONE; T12.6 source done/test pending; T12.5, T12.1 PENDING)
 Phase 13: Config Schema Gaps — PENDING (depends on 12)
 Phase 14: CI Hardening — PENDING (depends on 12)
 Phase 15: Architecture Refactor — PENDING (depends on 13)
@@ -67,8 +67,8 @@ None active.
 ## Session Continuity
 
 Last session: 2026-04-23
-Stopped at: Phase 12 planned (PHASE-12-PLAN.md committed). Execution not started.
-Resume with: `/gsd:execute-phase 12` — 6 tasks, sequential subagents.
+Stopped at: Phase 12 executing — 4/6 tasks committed (T12.2, T12.3, T12.4, T12.6 source). T12.6 test harness pending.
+Resume with: `/gsd:execute-phase 12` — pick up at T12.6 test, then T12.5, T12.1.
 Handoff: `.planning/milestones/v1.3/PHASE-12-HANDOFF.md`
 Ship log: PRs #1-#20 merged. Tags: v1.0, v1.1, v1.2.0.
 v1.3 dependency chain: 12 → {13, 14} → 15 → 16
