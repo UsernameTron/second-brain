@@ -24,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-04-22)
 
 ## Current Position
 
-Phase: 5 (Integration Wiring) — not started
+Phase: 5 (Integration Wiring) — context gathered, ready for planning
 Plan: —
-Status: Roadmap defined, ready to plan Phase 5
-Last activity: 2026-04-22 — v1.1 roadmap created (Phases 5-7)
+Status: Context gathered (05-CONTEXT.md committed), next: plan-phase 5
+Last activity: 2026-04-22 — Phase 5 discuss-phase completed (12 decisions locked)
 
 ## Accumulated Context
 
@@ -49,6 +49,6 @@ None.
 
 Last session: 2026-04-23T00:58:39.513Z
 Stopped at: Phase 5 context gathered
-Resume with: `/gsd:new-milestone` to start v1.1 planning
+Resume with: `/gsd:plan-phase 5` (or `--skip-research` — all decisions locked, research likely unnecessary)
 Ship log: PRs #1, #2, #5, #6, #8, #10, #11, #12 merged.
 Followup items: In-batch dedup gap. Config hot-reload defect. Excluded terms expansion (3→15-20). CI gap. gmail-mcp-pete OAuth. Delete test trigger. Enable RemoteTrigger.
