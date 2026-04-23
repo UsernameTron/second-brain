@@ -20,6 +20,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+// Load .env (LM_API_TOKEN, VAULT_ROOT, etc.) before any process.env reads
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 // ── Path resolution ──────────────────────────────────────────────────────────
 
 const CONFIG_DIR = process.env.CONFIG_DIR_OVERRIDE
