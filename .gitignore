@@ -11,4 +11,5 @@ context/
 !.claude/settings.json
 .claude/hooks/*.log
 node_modules/
+coverage/
 .cache/
