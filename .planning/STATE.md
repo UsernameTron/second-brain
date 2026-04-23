@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Automation & Quality
-status: v1.2 Milestone Complete — All 4 Phases Done
-stopped_at: Phase 11 executed, verified, marked complete
-last_updated: "2026-04-23T23:30:00.000Z"
+milestone: none
+milestone_name: none
+status: v1.2 SHIPPED — awaiting v1.3 scaffolding
+stopped_at: v1.2 finalized, tagged v1.2.0
+last_updated: "2026-04-23"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -19,7 +19,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** v1.2 Milestone Complete — ready for `/gsd:complete-milestone` or `/gsd:ship`
+**Current focus:** Between milestones. v1.2 shipped. v1.3 not yet scaffolded.
 
 ## Current Position
 
@@ -78,8 +78,8 @@ v1.2 decisions:
 
 ## Session Continuity
 
-Last session: 2026-04-23T23:30:00.000Z
-Stopped at: Phase 11 executed, verified, marked complete. v1.2 milestone fully done.
-Resume with: `/gsd:ship` to create PR for v1.2, or `/gsd:complete-milestone` to archive and tag.
-Ship log: PRs #1-#20 merged. v1.0 and v1.1 tags created. Phases 8-11 on `milestone/v1.2-setup` branch.
-Phase dependency chain: 8 ✓ → 9 ✓ → 10 ✓ → 11 ✓
+Last session: 2026-04-23
+Stopped at: v1.2 finalized and tagged v1.2.0. Milestone SHIPPED.
+Resume with: `/gsd:new-milestone` to scaffold v1.3.
+Ship log: PRs #1-#20 merged. Tags: v1.0, v1.1, v1.2.0. All phases archived.
+v1.2 phases: 8 ✓ → 9 ✓ → 10 ✓ → 11 ✓ (all complete)

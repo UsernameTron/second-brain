@@ -1,8 +1,9 @@
 # Todo
 
 ## Current
-- Between milestones — `/gsd:new-milestone` when ready
+- Between milestones — `/gsd:new-milestone` when ready for v1.3
 - [ ] Configure branch protection (repo is public, CI passes)
+- [ ] Merge `chore/commit-planning-artifacts` branch to master
 
 ## Session Handoff (Session 45 — 2026-04-23)
 - Completed comprehensive 8-domain codebase review (76/100, CONDITIONAL GO)
@@ -24,7 +25,6 @@
 - Next: push branch → PR → merge, then `/gsd:new-milestone` for v1.2
 
 ## Followup
-- [ ] **DEFERRED: Config hot-reload (FIX-02)** — no real symptom observed. Revisit if a symptom surfaces.
 - [ ] Backlog 999.1–999.12: 12 items queued in ROADMAP.md (see executive proposal at `.claude/plans/cryptic-sleeping-boot.md`)
 
 ## Completed
@@ -62,3 +62,7 @@
 - [x] Deploy project-scoped agents (test-runner, docs-sync, vault-guardian, pipeline-reviewer) — PR #16
 - [x] Sync local master to origin, delete stale local branches
 - [x] Phase directory archival decision (kept in place)
+- [x] v1.2 milestone finalized and tagged v1.2.0 (2026-04-23)
+- [x] Config overlay system shipped (pipeline.local.json support)
+- [x] v1.2 milestone audit — GO verdict (50/50 exit criteria)
+- [x] Config hot-reload (FIX-02) — deferred permanently, no symptom observed
