@@ -67,7 +67,8 @@ None active.
 ## Session Continuity
 
 Last session: 2026-04-23
-Stopped at: v1.3 scaffolded. Phase 12 context written.
-Resume with: `/gsd:discuss-phase 12` or `/gsd:plan-phase 12` to begin critical safety fixes.
+Stopped at: Phase 12 planned (PHASE-12-PLAN.md committed). Execution not started.
+Resume with: `/gsd:execute-phase 12` — 6 tasks, sequential subagents.
+Handoff: `.planning/milestones/v1.3/PHASE-12-HANDOFF.md`
 Ship log: PRs #1-#20 merged. Tags: v1.0, v1.1, v1.2.0.
 v1.3 dependency chain: 12 → {13, 14} → 15 → 16
