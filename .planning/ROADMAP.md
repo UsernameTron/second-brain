@@ -39,10 +39,10 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   1. `/today` fetches live Gmail data through gmail-mcp-pete using real OAuth credentials (no stubs, no fixture data)
   2. RemoteTrigger fires automatically before 7 AM on a real cron schedule and delivers a complete briefing
   3. Submitting a capture containing a former-employer or project codename is silently dropped by the excluded-terms filter (15-20 terms active)
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
-- [ ] 05-01-PLAN.md — Gmail OAuth bootstrap and live API wiring (gmail-mcp-pete)
+- [x] 05-01-PLAN.md — Gmail OAuth bootstrap and live API wiring (gmail-mcp-pete)
 - [ ] 05-02-PLAN.md — Excluded terms expansion and substring matching update
 - [ ] 05-03-PLAN.md — RemoteTrigger activation (delete test, create real, verify fire)
 
@@ -76,6 +76,6 @@ Plans:
 | 2. Content Pipeline | v1.0 | 6/6 | Complete | 2026-04-21 |
 | 3. External Integrations | v1.0 | 4/4 | Complete | 2026-04-22 |
 | 4. Daily Briefing and Scheduling | v1.0 | 3/3 | Complete | 2026-04-22 |
-| 5. Integration Wiring | v1.1 | 0/3 | Planned | - |
+| 5. Integration Wiring | v1.1 | 1/3 | In Progress|  |
 | 6. Defect Fixes and UAT | v1.1 | 0/? | Not started | - |
 | 7. Hardening | v1.1 | 0/? | Not started | - |
