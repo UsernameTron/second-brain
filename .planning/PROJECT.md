@@ -6,7 +6,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-Shipped v1.0 MVP (2026-04-22) and v1.1 Go Live (2026-04-23). Two milestones complete: 7 phases, 22 plans, ~17,000 LOC JavaScript (Node.js). v1.2 Phase 8 (Hook Infrastructure) complete — auto-test, protected-file guard, HOOK-03 contract deployed.
+Shipped v1.0 MVP (2026-04-22) and v1.1 Go Live (2026-04-23). Two milestones complete: 7 phases, 22 plans, ~17,000 LOC JavaScript (Node.js). v1.2 Phases 8-9 complete — hooks deployed, security scanner agent, test verifier agent, config validation skill all operational. 1653 tests passing.
 
 **What works end-to-end:**
 - `/new` classifies input, enforces left/right routing, filters excluded content (15 terms), suggests wikilinks
@@ -59,13 +59,11 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ Auto-run tests on source edit (PostToolUse observer hook) — v1.2
 - ✓ Protected file edit guard (PreToolUse gate for .env, config/schema, credentials) — v1.2
 - ✓ Security scan gate integration contract (stub for Phase 9) — v1.2
+- ✓ Security scanner agent (read-only, secrets + npm audit + protected files) — v1.2
+- ✓ Independent test verification gate (read-only reporter, haiku model) — v1.2
+- ✓ Config/schema validation skill (AJV-based, dynamic discovery) — v1.2
 
 ### Active
-
-
-- SEC-01: Security Scanner Agent — v1.2
-- SEC-02: Independent Test Verification Gate — v1.2
-- SEC-03: Config/Schema Validation Skill — v1.2
 - SKILL-01: Agent Roster Hardening — v1.2
 - SKILL-02: Pipeline Health Check Skill — v1.2
 - SKILL-03: context7 MCP Integration — v1.2
