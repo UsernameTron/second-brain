@@ -68,6 +68,26 @@ Plans:
 Plans:
 - [ ] TBD (promote with /gsd:review-backlog when ready)
 
+### Phase 999.4: Config/Schema Validation Agent (BACKLOG)
+
+**Goal:** Add an agent or enhance test-runner to validate that runtime configs (`config/*.json`) match their JSON schemas (`config/schema/*.schema.json`), that config changes don't break downstream consumers, and that `scheduling.json` DST values are current.
+**Approach:** Could be a standalone read-only agent or a validation step added to test-runner's workflow. Should catch: schema drift (config field added without schema update), missing required fields, scheduling.json timezone/DST staleness.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)
+
+### Phase 999.5: Security Scanner Agent (BACKLOG)
+
+**Goal:** Deploy a read-only security-focused agent that scans for leaked secrets, hardcoded credentials in connector configs, dependency vulnerabilities, and OAuth scope creep. Complements backlog 999.3 (mandatory scan before PR) — this agent provides the scanning capability that 999.3 gates on.
+**Approach:** Read-only agent (model: sonnet) that checks: no API keys in source files, `excluded-terms.json` doesn't contain sensitive patterns, `npm audit` passes, no `gmail.send` scope references, no hardcoded localhost credentials outside config/. Deploy when 999.3 is promoted to a milestone.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)
+
 ### Phase 999.3: Mandatory Security Scan Before PR (BACKLOG)
 
 **Goal:** Add a security agent step to `/gsd:ship` that runs OWASP checks, scans for leaked secrets (OAuth tokens, API keys), and audits dependencies before PR creation. Inspired by agent-teams Security Agent pattern (cherry-pick 2).
