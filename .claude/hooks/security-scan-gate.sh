@@ -32,8 +32,11 @@ fi
 echo "[security-scan-gate] Ship command detected. Running security scan..." >&2
 
 # Invoke security-scanner agent with prompt argument
+# Temporarily disable errexit so agent failure reaches the fallback path
+set +e
 SCAN_RESULT=$(cd "$CLAUDE_PROJECT_DIR" && claude --agent security-scanner --print "Scan staged changes for secrets, dependency vulnerabilities, and protected file mutations. Return JSON only." 2>&1)
 SCAN_EXIT=$?
+set -e
 
 # If agent failed or result is not valid JSON, fall back to grep-based scan
 if [ $SCAN_EXIT -ne 0 ] || ! echo "$SCAN_RESULT" | node -e "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'))" 2>/dev/null; then
