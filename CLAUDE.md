@@ -68,6 +68,7 @@ A project that orchestrates an Obsidian vault into Pete Connor's personal operat
 ### MCP Server Ecosystem
 | Server | Source | Purpose | Permission Model | Confidence |
 |--------|--------|---------|------------------|------------|
+| `context7` | npm (`@upstash/context7-mcp`) | Library documentation lookups via `resolve-library-id` and `query-docs`. Configured in `.mcp.json`. | Read-only (doc fetches) | HIGH — installed, tools: `resolve-library-id`, `query-docs` |
 | `obsidian-mcp` (via Docker) | `mcp/obsidian` Docker image | Read/write vault through Local REST API plugin | Read everywhere, write only RIGHT side | HIGH — already wired per PROJECT.md |
 | `github-official` (via Docker) | Docker MCP gateway | GitHub activity for `/today` briefing, issue tracking | Read + issue-write on UsernameTron repos only | HIGH — OAuth done per PROJECT.md |
 | `@modelcontextprotocol/server-filesystem` | npm (stdio) | Direct filesystem access to project directory | Read/write within `/Users/cpconnor/projects/` | HIGH — already configured in claude_desktop_config.json |

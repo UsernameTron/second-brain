@@ -54,6 +54,14 @@ function generateCorrelationId() {
 function createLlmClient(options = {}) {
   const model = options.model || 'claude-haiku-4-5';
 
+  // Check for local LLM provider config
+  let llmConfig;
+  try {
+    const pipelineConfig = loadPipelineConfig();
+    llmConfig = pipelineConfig.classifier && pipelineConfig.classifier.llm;
+  } catch { llmConfig = null; }
+  const useLocal = llmConfig && llmConfig.provider === 'local';
+
   let Anthropic, sanitizeTermForPrompt, logDecision, anthropic;
   try {
     Anthropic = require('@anthropic-ai/sdk');
@@ -72,18 +80,59 @@ function createLlmClient(options = {}) {
   }
 
   /**
-   * Send a classify request to the LLM and return structured result.
+   * Classify via local OpenAI-compatible endpoint (e.g. LM Studio).
+   * Falls back to Anthropic Haiku on connection failure.
+   */
+  async function classifyLocal(systemPrompt, userContent, callOptions = {}) {
+    const maxTokens = callOptions.maxTokens || 1024;
+    const correlationId = callOptions.correlationId || 'none';
+
+    try {
+      const response = await fetch(`${llmConfig.localEndpoint}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: llmConfig.localModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: typeof userContent === 'string' ? userContent : JSON.stringify(userContent) },
+          ],
+          max_tokens: maxTokens,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Local LLM returned HTTP ${response.status}`);
+      }
+
+      const body = await response.json();
+      const rawText = body.choices[0].message.content;
+
+      logDecision('LLM_CLASSIFY', llmConfig.localModel, 'CALLED', `local endpoint, correlation-id: ${correlationId}`);
+
+      // Parse JSON response
+      const stripped = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      const data = JSON.parse(stripped);
+      return { success: true, data };
+    } catch (err) {
+      // Connection error or HTTP error — fall back to Anthropic
+      const isParseError = err instanceof SyntaxError || (err.message && err.message.includes('JSON'));
+      if (isParseError) {
+        logDecision('LLM_CLASSIFY', llmConfig.localModel, 'PARSE_ERROR', `local: ${err.message}`);
+        return { success: false, error: `JSON parse failed: ${err.message}`, failureMode: 'parse-error' };
+      }
+
+      logDecision('LLM_CLASSIFY', llmConfig.localModel, 'FALLBACK', `local endpoint unreachable, falling back to Anthropic: ${err.message}`);
+      return classifyAnthropic(systemPrompt, userContent, callOptions);
+    }
+  }
+
+  /**
+   * Send a classify request to Anthropic and return structured result.
    * Returns { success: true, data: parsedJSON } or
    *         { success: false, error: string, failureMode: 'api-error'|'timeout'|'parse-error' }
-   *
-   * @param {string} systemPrompt - System prompt for the LLM
-   * @param {string|object} userContent - User message (string or array of content blocks)
-   * @param {object} [callOptions={}]
-   * @param {number} [callOptions.maxTokens=1024] - Max output tokens
-   * @param {string} [callOptions.correlationId] - For logging
-   * @returns {Promise<{ success: boolean, data?: object, error?: string, failureMode?: string }>}
    */
-  async function classify(systemPrompt, userContent, callOptions = {}) {
+  async function classifyAnthropic(systemPrompt, userContent, callOptions = {}) {
     const maxTokens = callOptions.maxTokens || 1024;
     const correlationId = callOptions.correlationId || 'none';
 
@@ -137,7 +186,7 @@ function createLlmClient(options = {}) {
     }
   }
 
-  return { classify };
+  return { classify: useLocal ? classifyLocal : classifyAnthropic };
 }
 
 /**

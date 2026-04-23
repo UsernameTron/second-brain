@@ -6,7 +6,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-Shipped v1.0 MVP (2026-04-22) and v1.1 Go Live (2026-04-23). Two milestones complete: 7 phases, 22 plans, ~17,000 LOC JavaScript (Node.js).
+Shipped v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), and v1.2 Automation & Quality (2026-04-23). Three milestones complete: 11 phases, 27 plans. 614 tests passing across 28 suites. CI enforces 90% coverage (statements/functions/lines) with npm audit gating.
 
 **What works end-to-end:**
 - `/new` classifies input, enforces left/right routing, filters excluded content (15 terms), suggests wikilinks
@@ -56,13 +56,32 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ UAT pass (LLM accuracy, wikilink relevance, promotion dedup) — v1.1
 - ✓ CI pipeline (GitHub Actions, Node 20+22, push + PR triggers) — v1.1
 
-### Active
+- ✓ Auto-run tests on source edit (PostToolUse observer hook) — v1.2
+- ✓ Protected file edit guard (PreToolUse gate for .env, config/schema, credentials) — v1.2
+- ✓ Security scan gate integration contract (stub for Phase 9) — v1.2
+- ✓ Security scanner agent (read-only, secrets + npm audit + protected files) — v1.2
+- ✓ Independent test verification gate (read-only reporter, haiku model) — v1.2
+- ✓ Config/schema validation skill (AJV-based, dynamic discovery) — v1.2
+- ✓ Agent roster hardened (trigger language, output contracts for 4 agents) — v1.2
+- ✓ Pipeline health check skill (6-check diagnostic) — v1.2
+- ✓ context7 MCP integration (library docs via .mcp.json) — v1.2
+- ✓ CI coverage enforcement (90% stmts/funcs/lines, npm audit gating) — v1.2
+- ✓ Local LLM routing (configurable provider, Anthropic fallback with logging) — v1.2
 
-None — v1.1 milestone complete. Next requirements defined with `/gsd:new-milestone`.
+### Active
+(none — v1.2 milestone complete)
 
 ## Current Milestone
 
-None active. v1.1 Go Live shipped 2026-04-23. Next milestone starts with `/gsd:new-milestone`.
+**v1.2 Automation & Quality** — 4 phases (8-11), 11 requirements, 12 backlog items promoted.
+
+**Goal:** Close quality, security, and automation gaps identified by agent-teams assessment, crew analysis, and automation recommender. No new features — hardening the development workflow and CI pipeline.
+
+**Phases:**
+- Phase 8: Hook Infrastructure (HOOK-01, HOOK-02, HOOK-03)
+- Phase 9: Security & Verification (SEC-01, SEC-02, SEC-03)
+- Phase 10: Agent Hardening & Skills (SKILL-01, SKILL-02, SKILL-03)
+- Phase 11: CI & LLM Infrastructure (CI-01, CI-02)
 
 <details>
 <summary>v1.1 Go Live (shipped 2026-04-23)</summary>

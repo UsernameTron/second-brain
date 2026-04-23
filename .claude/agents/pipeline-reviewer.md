@@ -1,6 +1,6 @@
 ---
 name: pipeline-reviewer
-description: Reviews changes to the content pipeline and connector ecosystem — classifier, memory extractor, promotion, wikilinks, connectors — for correctness, contract compliance, missed edge cases, and pattern consistency. Use proactively after pipeline or connector code changes.
+description: Reviews changes to content pipeline and connector code for correctness, contract compliance, and pattern consistency. Use when pipeline or connector source files (src/classifier.js, src/memory-extractor.js, src/promote-memories.js, src/wikilink-engine.js, src/note-formatter.js, src/lifecycle.js, src/connectors/*.js) are modified.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

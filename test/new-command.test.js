@@ -56,6 +56,12 @@ jest.mock('../src/pipeline-infra', () => ({
   })),
 }));
 
+jest.mock('../src/wikilink-engine', () => ({
+  suggestWikilinks: jest.fn().mockResolvedValue({ section: null, links: [] }),
+  refreshIndexEntry: jest.fn().mockResolvedValue(undefined),
+  buildIndex: jest.fn(),
+}));
+
 process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
 process.env.VAULT_ROOT = '/tmp/test-vault';
 
@@ -71,6 +77,7 @@ describe('runNew', () => {
   let mockFormatLeftProposal;
   let mockGenerateFilename;
   let mockWriteDeadLetter;
+  let mockSuggestWikilinks;
 
   beforeEach(() => {
     jest.resetModules();
@@ -121,12 +128,21 @@ describe('runNew', () => {
       })),
     }));
 
+    jest.mock('../src/wikilink-engine', () => ({
+      suggestWikilinks: jest.fn().mockResolvedValue({ section: null, links: [] }),
+      refreshIndexEntry: jest.fn().mockResolvedValue(undefined),
+      buildIndex: jest.fn(),
+    }));
+
     ({ runNew } = require('../src/new-command'));
     ({ runStage0: mockRunStage0, runStage1: mockRunStage1, runStage2: mockRunStage2 } = require('../src/classifier'));
     ({ vaultWrite: mockVaultWrite } = require('../src/vault-gateway'));
     ({ formatNote: mockFormatNote, formatLeftProposal: mockFormatLeftProposal, generateFilename: mockGenerateFilename } = require('../src/note-formatter'));
     ({ writeDeadLetter: mockWriteDeadLetter } = require('../src/pipeline-infra'));
+    ({ suggestWikilinks: mockSuggestWikilinks } = require('../src/wikilink-engine'));
   });
+
+  // ── Original tests ────────────────────────────────────────────────────────
 
   test('with clean RIGHT input writes to classified directory', async () => {
     mockRunStage0.mockResolvedValue({ blocked: false });
@@ -220,5 +236,151 @@ describe('runNew', () => {
     expect(result.deadLettered).toBe(true);
     expect(result.failureMode).toBe('exclusion-unavailable');
     expect(mockVaultWrite).not.toHaveBeenCalled();
+  });
+
+  // ── Gap tests: empty input ─────────────────────────────────────────────────
+
+  test('empty input in non-interactive mode returns failureMode empty-input', async () => {
+    const result = await runNew('', { interactive: false });
+    expect(result.failureMode).toBe('empty-input');
+    expect(result.deadLettered).toBe(false);
+    expect(result.blocked).toBe(false);
+    expect(result.correlationId).toBeDefined();
+  });
+
+  test('whitespace-only input in non-interactive mode returns failureMode empty-input', async () => {
+    const result = await runNew('   ', { interactive: false });
+    expect(result.failureMode).toBe('empty-input');
+    expect(result.deadLettered).toBe(false);
+  });
+
+  test('empty input in interactive mode returns error message', async () => {
+    const result = await runNew('', { interactive: true });
+    expect(result.error).toBe('No input provided');
+    expect(result.correlationId).toBeDefined();
+  });
+
+  // ── Gap tests: Stage 2 failure path ───────────────────────────────────────
+
+  test('Stage 2 failure dead-letters the input', async () => {
+    mockRunStage0.mockResolvedValue({ blocked: false });
+    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9 });
+    mockRunStage2.mockResolvedValue({ failureMode: 'api-error', directory: null });
+
+    const result = await runNew('Some perfectly good content.', {
+      interactive: false,
+      source: 'cli',
+    });
+
+    expect(mockWriteDeadLetter).toHaveBeenCalledWith(
+      expect.any(String),
+      'api-error',
+      expect.any(String),
+      expect.any(Object)
+    );
+    expect(result.deadLettered).toBe(true);
+    expect(result.failureMode).toBe('api-error');
+    expect(mockVaultWrite).not.toHaveBeenCalled();
+  });
+
+  // ── Gap tests: Stage 3-5 catch block error codes ───────────────────────────
+
+  test('Stage 3-5 catch with STYLE_VIOLATION error code returns gate-rejection failureMode', async () => {
+    mockRunStage0.mockResolvedValue({ blocked: false });
+    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9 });
+    mockRunStage2.mockResolvedValue({ directory: 'research', confidence: 0.85, sonnetEscalated: false });
+
+    const err = Object.assign(new Error('style violation'), { code: 'STYLE_VIOLATION' });
+    mockGenerateFilename.mockRejectedValue(err);
+
+    const result = await runNew('Content that triggers a style gate.', {
+      interactive: false,
+      source: 'cli',
+    });
+
+    expect(result.deadLettered).toBe(true);
+    expect(result.failureMode).toBe('gate-rejection');
+    expect(mockWriteDeadLetter).toHaveBeenCalledWith(
+      expect.any(String),
+      'gate-rejection',
+      expect.any(String),
+      expect.any(Object)
+    );
+  });
+
+  test('Stage 3-5 catch with PATH_BLOCKED error code returns gate-rejection failureMode', async () => {
+    mockRunStage0.mockResolvedValue({ blocked: false });
+    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9 });
+    mockRunStage2.mockResolvedValue({ directory: 'research', confidence: 0.85, sonnetEscalated: false });
+
+    const err = Object.assign(new Error('path blocked'), { code: 'PATH_BLOCKED' });
+    mockGenerateFilename.mockRejectedValue(err);
+
+    const result = await runNew('Content that hits a blocked path.', {
+      interactive: false,
+      source: 'cli',
+    });
+
+    expect(result.deadLettered).toBe(true);
+    expect(result.failureMode).toBe('gate-rejection');
+  });
+
+  test('Stage 3-5 catch with generic error returns api-error failureMode', async () => {
+    mockRunStage0.mockResolvedValue({ blocked: false });
+    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9 });
+    mockRunStage2.mockResolvedValue({ directory: 'research', confidence: 0.85, sonnetEscalated: false });
+
+    mockGenerateFilename.mockRejectedValue(new Error('unexpected failure'));
+
+    const result = await runNew('Content that hits an unexpected error.', {
+      interactive: false,
+      source: 'cli',
+    });
+
+    expect(result.deadLettered).toBe(true);
+    expect(result.failureMode).toBe('api-error');
+  });
+
+  // ── Gap tests: wikilink enrichment non-blocking ───────────────────────────
+
+  test('wikilink enrichment failure is non-blocking — pipeline still succeeds', async () => {
+    mockRunStage0.mockResolvedValue({ blocked: false });
+    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9 });
+    mockRunStage2.mockResolvedValue({ directory: 'research', confidence: 0.85, sonnetEscalated: false });
+    mockSuggestWikilinks.mockRejectedValue(new Error('wikilink service unavailable'));
+
+    const result = await runNew('Valid content that succeeds all stages.', {
+      interactive: false,
+      source: 'cli',
+    });
+
+    expect(result.deadLettered).toBeFalsy();
+    expect(result.blocked).toBe(false);
+    expect(result.destination).toBeDefined();
+    expect(result.side).toBe('RIGHT');
+  });
+
+  // ── Gap tests: LEFT side full routing path ────────────────────────────────
+
+  test('LEFT side routing uses formatLeftProposal and writes to proposals/left-proposals/', async () => {
+    mockRunStage0.mockResolvedValue({ blocked: false });
+    mockRunStage1.mockResolvedValue({ side: 'LEFT', confidence: 0.95, rationale: 'first-person reflection' });
+    mockRunStage2.mockResolvedValue({
+      directory: 'Reflections',
+      confidence: 0.9,
+      sonnetEscalated: false,
+    });
+
+    const result = await runNew(
+      'I realized today that I need to invest more in deep work practices.',
+      { interactive: false, source: 'cli' }
+    );
+
+    expect(mockFormatLeftProposal).toHaveBeenCalled();
+    expect(mockFormatNote).not.toHaveBeenCalled();
+    const writeCallArg = mockVaultWrite.mock.calls[0][0];
+    expect(writeCallArg).toContain('proposals/left-proposals/');
+    expect(result.side).toBe('LEFT');
+    expect(result.deadLettered).toBeFalsy();
   });
 });

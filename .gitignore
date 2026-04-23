@@ -7,6 +7,9 @@ context/
 .claude/*
 !.claude/hooks/
 !.claude/agents/
+!.claude/skills/
+!.claude/settings.json
 .claude/hooks/*.log
 node_modules/
+coverage/
 .cache/
