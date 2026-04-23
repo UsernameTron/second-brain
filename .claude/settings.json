@@ -1,0 +1,29 @@
+{
+  "_hook03_pending": "HOOK-03 security-scan-gate — deferred to Phase 9. Requires SEC-01 agent. See .claude/hooks/security-scan-gate.md for integration contract.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/auto-test.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/protected-file-guard.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
