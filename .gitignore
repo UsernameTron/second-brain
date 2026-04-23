@@ -4,6 +4,7 @@
 state/
 context/
 .env
-.claude/
+.claude/*
+!.claude/hooks/
 node_modules/
 .cache/
