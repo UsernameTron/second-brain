@@ -684,7 +684,7 @@ describe('pipeline-infra module exports', () => {
     jest.unmock('@anthropic-ai/sdk');
   });
 
-  test('exports all 6 required functions', () => {
+  test('exports all 8 required functions', () => {
     const infra = require('../src/pipeline-infra');
     expect(typeof infra.generateCorrelationId).toBe('function');
     expect(typeof infra.createHaikuClient).toBe('function');
@@ -692,6 +692,8 @@ describe('pipeline-infra module exports', () => {
     expect(typeof infra.writeDeadLetter).toBe('function');
     expect(typeof infra.loadPipelineConfig).toBe('function');
     expect(typeof infra.loadTemplatesConfig).toBe('function');
+    expect(typeof infra.safeLoadPipelineConfig).toBe('function');
+    expect(typeof infra.safeLoadVaultPaths).toBe('function');
   });
 });
 

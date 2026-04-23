@@ -303,7 +303,7 @@ async function writeDeadLetter(inputBody, failureMode, correlationId, metadata =
     const result = await vaultWrite(relativePath, fileContent, { attemptCount: 1 });
     if (result.decision === 'QUARANTINED') {
       logDecision('DEAD_LETTER', relativePath, 'QUARANTINED', 'dead-letter quarantined by vault policy');
-      return { path: result.quarantinePath, quarantined: true };
+      return { path: result.quarantinePath || relativePath, quarantined: true };
     }
     return { path: relativePath };
   } catch (err) {

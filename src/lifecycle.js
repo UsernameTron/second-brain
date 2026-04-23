@@ -184,16 +184,17 @@ async function retryDeadLetters() {
       retrySuccess = classificationResult && classificationResult.success === true;
     } catch (err) {
       retrySuccess = false;
+      try { require('./vault-gateway').logDecision('RETRY', filename, 'CLASSIFY_ERROR', err.message); } catch (_) { /* vault-gateway unavailable */ }
     }
 
     if (retrySuccess) {
       const { formatNote, generateFilename } = require('./note-formatter');
       const { vaultWrite, logDecision } = require('./vault-gateway');
 
-      const formattedContent = formatNote(body, classificationResult, {});
-      const filename_ = generateFilename(body, {});
+      const formattedContent = await formatNote(body, classificationResult, {});
+      const { filename: generatedName } = await generateFilename(body, {});
       const directory = classificationResult.directory || 'memory';
-      const destPath = `${directory}/${filename_}.md`;
+      const destPath = `${directory}/${generatedName}.md`;
 
       // Step 1: Write to vault — if this fails, dead letter stays in unrouted/ (correct)
       let writeResult;
