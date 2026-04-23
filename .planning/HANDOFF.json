@@ -1,35 +1,33 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-23T15:43:19.842Z",
-  "phase": "9",
-  "phase_name": "Security & Verification",
-  "phase_dir": ".planning/phases/09-security-and-verification",
+  "timestamp": "2026-04-23T16:32:27.116Z",
+  "phase": "10",
+  "phase_name": "agent-hardening-and-skills",
+  "phase_dir": ".planning/phases/10-agent-hardening-and-skills",
   "plan": null,
   "task": null,
-  "total_tasks": null,
+  "total_tasks": 3,
   "status": "paused",
   "completed_tasks": [
-    {"id": "discuss", "name": "Smart Discuss — 3 grey areas, 21 decisions", "status": "done", "commit": "872eb00"}
+    {"id": 1, "name": "Harden 4 original agents (SKILL-01)", "status": "done", "commit": "b583d48"},
+    {"id": 2, "name": "Install context7 MCP + .mcp.json (SKILL-03)", "status": "done", "commit": "b583d48"},
+    {"id": 3, "name": "Create pipeline-health skill (SKILL-02)", "status": "done", "commit": "f92e6be"}
   ],
-  "remaining_tasks": [
-    {"id": "plan", "name": "Plan Phase 9 (gsd-planner agent)", "status": "not_started"},
-    {"id": "execute", "name": "Execute Phase 9 plans", "status": "not_started"},
-    {"id": "verify", "name": "Verify Phase 9 implementation", "status": "not_started"}
+  "remaining_tasks": [],
+  "incomplete_workflow_steps": [
+    {"step": "Create SUMMARY.md for plans 10-01 and 10-02", "blocking": false},
+    {"step": "Phase verification (gsd-verifier)", "blocking": true},
+    {"step": "Mark phase 10 complete in ROADMAP/STATE", "blocking": true},
+    {"step": "Phase 11 (CI & LLM Infrastructure) — full discuss/plan/execute cycle", "blocking": true}
   ],
   "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "SEC-01 agent file: security-scanner.md (not sec-01.md)", "rationale": "Matches REQUIREMENTS, descriptive naming consistent with existing agents", "phase": "9"},
-    {"decision": "SEC-01 scope: strict HOOK-03 contract only", "rationale": "No scope creep — secrets, npm audit HIGH/CRITICAL, protected files in staged changes", "phase": "9"},
-    {"decision": "SEC-01 model: sonnet", "rationale": "Security scanning benefits from reasoning quality, not run frequently", "phase": "9"},
-    {"decision": "SEC-02 agent: test-verifier.md, read-only reporter, haiku", "rationale": "Distinct from test-runner (which fixes). Read-only tools, speed matters for gate", "phase": "9"},
-    {"decision": "SEC-02 no baseline tracking", "rationale": "Suite is 547 pass / 0 fail — baseline adds complexity without value", "phase": "9"},
-    {"decision": "SEC-03: AJV devDependency for validation", "rationale": "Standard for draft-07 JSON Schema, requires user approval per dependency rule", "phase": "9"},
-    {"decision": "SEC-03: dynamic schema discovery via glob", "rationale": "Future-proof — discovers config/schema/*.schema.json automatically", "phase": "9"},
-    {"decision": "SEC-03: WARNING for missing config (memory-categories.json)", "rationale": "Schema exists but no config file — report but don't fail", "phase": "9"},
-    {"decision": "CRITICAL CORRECTION: config/schema/ (singular) not config/schemas/", "rationale": "Actual directory name confirmed by filesystem", "phase": "9"}
+    {"decision": "Phase 9 completed with full verification (15/15 must-haves)", "rationale": "All 3 requirements (SEC-01, SEC-02, SEC-03) deployed and verified", "phase": "9"},
+    {"decision": "Phase 10 infrastructure — discuss skipped", "rationale": "Pure infrastructure phase with no user-facing decisions", "phase": "10"},
+    {"decision": "Executor agents interrupted mid-workflow", "rationale": "User paused — commits landed but SUMMARYs and verification not done", "phase": "10"}
   ],
-  "uncommitted_files": [],
-  "next_action": "/gsd:plan-phase 9 --skip-research — 21 locked decisions provide sufficient context, research not needed",
-  "context_notes": "Autonomous mode paused during plan-phase. Discuss complete with 21 decisions across 3 areas (SEC-01, SEC-02, SEC-03). All recommendations accepted. CONTEXT.md and DISCUSSION-LOG.md committed. Planner agent was about to be spawned when user interrupted. Phase 8 work (7 commits) still not PR'd to master — on milestone/v1.2-setup branch."
+  "uncommitted_files": [".planning/STATE.md", ".mcp.json"],
+  "next_action": "Commit .mcp.json and STATE.md, create SUMMARYs for 10-01 and 10-02, run phase 10 verification, then continue autonomous to phase 11",
+  "context_notes": "Running /gsd:autonomous --from 9. Phase 9 fully complete. Phase 10 execution work is done (agents hardened, context7 installed, pipeline-health skill created) but the executor agents were interrupted before writing SUMMARYs. Resume should: (1) commit uncommitted files, (2) create minimal SUMMARYs, (3) verify phase 10, (4) mark complete, (5) continue to phase 11. Phase 11 needs full discuss/plan/execute cycle."
 }
