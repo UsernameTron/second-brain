@@ -811,6 +811,140 @@ describe('runToday', () => {
     });
   });
 
+  // ── remote trigger (FIX-03) ──────────────────────────────────────────────
+
+  describe('remote trigger context', () => {
+    it('passes remote context to getCalendarEvents when REMOTE_TRIGGER env var is set and mcpClient is null', async () => {
+      const originalRemoteTrigger = process.env.REMOTE_TRIGGER;
+      process.env.REMOTE_TRIGGER = 'true';
+
+      jest.resetModules();
+
+      const { SOURCE } = require('../src/connectors/types');
+      // Track what args getCalendarEvents was called with
+      const getCalendarEventsMock = jest.fn().mockResolvedValue({
+        success: true,
+        data: [],
+        error: null,
+        source: SOURCE.CALENDAR,
+        fetchedAt: new Date().toISOString(),
+      });
+
+      jest.doMock('../src/connectors/calendar', () => ({
+        getCalendarEvents: getCalendarEventsMock,
+      }));
+      jest.doMock('../src/connectors/gmail', () => ({
+        getRecentEmails: jest.fn().mockResolvedValue({
+          success: false, data: null, error: 'GMAIL_UNAVAILABLE: no client', source: SOURCE.GMAIL, fetchedAt: new Date().toISOString(),
+        }),
+      }));
+      jest.doMock('../src/connectors/github', () => ({
+        getGitHubActivity: jest.fn().mockResolvedValue({
+          success: false, data: null, error: 'GITHUB_UNAVAILABLE: no client', source: SOURCE.GITHUB, fetchedAt: new Date().toISOString(),
+        }),
+      }));
+      jest.doMock('../src/briefing-helpers', () => ({
+        getProposalsPendingCount: jest.fn().mockResolvedValue(0),
+        getDeadLetterSummary: jest.fn().mockResolvedValue({ pending: 0, frozen: 0, total: 0, warning: false }),
+        formatBriefingSection: jest.fn().mockReturnValue(''),
+      }));
+      jest.doMock('../src/pipeline-infra', () => ({
+        loadPipelineConfig: jest.fn().mockReturnValue(DEFAULT_PIPELINE_CONFIG),
+        createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+      }));
+
+      const { runToday } = require('../src/today-command');
+
+      await runToday({
+        mcpClient: null,
+        mode: 'dry-run',
+        projectsDir: tempProjectsDir,
+        vaultRoot: tempVaultRoot,
+        date: FIXED_DATE,
+        haikuClient: makeMockHaikuClient(),
+      });
+
+      // getCalendarEvents should have been called with options containing remote: true
+      expect(getCalendarEventsMock).toHaveBeenCalled();
+      const callArgs = getCalendarEventsMock.mock.calls[0];
+      // First arg is mcpClient (null when remote), second arg is options
+      const calOptions = callArgs[1];
+      expect(calOptions).toBeDefined();
+      expect(calOptions.remote).toBe(true);
+
+      // Restore env
+      if (originalRemoteTrigger === undefined) {
+        delete process.env.REMOTE_TRIGGER;
+      } else {
+        process.env.REMOTE_TRIGGER = originalRemoteTrigger;
+      }
+    });
+
+    it('does NOT pass remote context to gmail or github connectors even when REMOTE_TRIGGER is set', async () => {
+      const originalRemoteTrigger = process.env.REMOTE_TRIGGER;
+      process.env.REMOTE_TRIGGER = 'true';
+
+      jest.resetModules();
+
+      const { SOURCE } = require('../src/connectors/types');
+      const getRecentEmailsMock = jest.fn().mockResolvedValue({
+        success: false, data: null, error: 'GMAIL_UNAVAILABLE', source: SOURCE.GMAIL, fetchedAt: new Date().toISOString(),
+      });
+      const getGitHubActivityMock = jest.fn().mockResolvedValue({
+        success: false, data: null, error: 'GITHUB_UNAVAILABLE', source: SOURCE.GITHUB, fetchedAt: new Date().toISOString(),
+      });
+
+      jest.doMock('../src/connectors/calendar', () => ({
+        getCalendarEvents: jest.fn().mockResolvedValue({
+          success: true, data: [], error: null, source: SOURCE.CALENDAR, fetchedAt: new Date().toISOString(),
+        }),
+      }));
+      jest.doMock('../src/connectors/gmail', () => ({
+        getRecentEmails: getRecentEmailsMock,
+      }));
+      jest.doMock('../src/connectors/github', () => ({
+        getGitHubActivity: getGitHubActivityMock,
+      }));
+      jest.doMock('../src/briefing-helpers', () => ({
+        getProposalsPendingCount: jest.fn().mockResolvedValue(0),
+        getDeadLetterSummary: jest.fn().mockResolvedValue({ pending: 0, frozen: 0, total: 0, warning: false }),
+        formatBriefingSection: jest.fn().mockReturnValue(''),
+      }));
+      jest.doMock('../src/pipeline-infra', () => ({
+        loadPipelineConfig: jest.fn().mockReturnValue(DEFAULT_PIPELINE_CONFIG),
+        createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+      }));
+
+      const { runToday } = require('../src/today-command');
+
+      await runToday({
+        mcpClient: null,
+        mode: 'dry-run',
+        projectsDir: tempProjectsDir,
+        vaultRoot: tempVaultRoot,
+        date: FIXED_DATE,
+        haikuClient: makeMockHaikuClient(),
+      });
+
+      // Gmail and GitHub should be called with null mcpClient (no remote routing)
+      // and their second arg should NOT have remote: true
+      expect(getRecentEmailsMock).toHaveBeenCalled();
+      expect(getGitHubActivityMock).toHaveBeenCalled();
+      const gmailArgs = getRecentEmailsMock.mock.calls[0];
+      const githubArgs = getGitHubActivityMock.mock.calls[0];
+      // First arg for both should be null (no mcpClient)
+      expect(gmailArgs[0]).toBeNull();
+      expect(githubArgs[0]).toBeNull();
+
+      // Restore env
+      if (originalRemoteTrigger === undefined) {
+        delete process.env.REMOTE_TRIGGER;
+      } else {
+        process.env.REMOTE_TRIGGER = originalRemoteTrigger;
+      }
+    });
+  });
+
   // ── error resilience ─────────────────────────────────────────────────────
 
   describe('error resilience', () => {

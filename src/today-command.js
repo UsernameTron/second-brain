@@ -85,12 +85,27 @@ function _formatDateHeading(date) {
  * Uses Promise.allSettled so no single connector can block the others.
  * Per D-01: connector results carry { success, data, error, source, fetchedAt }.
  *
- * @param {object|null} mcpClient - Injected MCP client; null for dry-run/test
+ * Remote trigger support (FIX-03):
+ *   When REMOTE_TRIGGER=true and mcpClient is null, the RemoteTrigger context has the
+ *   Google Calendar MCP connector attached (config/scheduling.json mcp_connections).
+ *   Calendar is the only connector with remote parity per D-01 / Phase 6 decisions.
+ *   Gmail and GitHub continue to degrade gracefully (no remote MCP attached for them).
+ *
+ * @param {object|null} mcpClient - Injected MCP client; null for dry-run/test or remote trigger
  * @returns {Promise<{ calendar: object, gmail: object, github: object }>}
  */
 async function _fanOut(mcpClient) {
+  const isRemoteTrigger = process.env.REMOTE_TRIGGER === 'true';
+
+  // Calendar gets remote context when running in RemoteTrigger and no local mcpClient
+  const calendarOptions = (isRemoteTrigger && !mcpClient)
+    ? { remote: true }
+    : undefined;
+
   const [calSettled, gmailSettled, githubSettled] = await Promise.allSettled([
-    getCalendarEvents(mcpClient),
+    calendarOptions
+      ? getCalendarEvents(null, calendarOptions)
+      : getCalendarEvents(mcpClient),
     getRecentEmails(mcpClient, { vipOnly: true }),
     getGitHubActivity(mcpClient),
   ]);
