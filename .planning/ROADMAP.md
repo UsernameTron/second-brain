@@ -25,8 +25,8 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 ## v1.1 Phases
 
-- [ ] **Phase 5: Integration Wiring** — Wire gmail-mcp-pete OAuth, activate RemoteTrigger cron, expand excluded terms
-- [ ] **Phase 6: Defect Fixes and UAT** — Fix in-batch dedup and config hot-reload; validate classification, wikilinks, and end-to-end UX
+- [x] **Phase 5: Integration Wiring** — Wire gmail-mcp-pete OAuth, activate RemoteTrigger cron, expand excluded terms (completed 2026-04-23)
+- [x] **Phase 6: Defect Fixes and UAT** — Fixed in-batch dedup (FIX-01), remote-execution degradation (FIX-03/04/05); validated classification, wikilinks, and end-to-end UX (UAT-01/02/03) (completed 2026-04-23)
 - [ ] **Phase 7: Hardening** — GitHub Actions CI pipeline running full test suite on push
 
 ## Phase Details
@@ -39,7 +39,12 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   1. `/today` fetches live Gmail data through gmail-mcp-pete using real OAuth credentials (no stubs, no fixture data)
   2. RemoteTrigger fires automatically before 7 AM on a real cron schedule and delivers a complete briefing
   3. Submitting a capture containing a former-employer or project codename is silently dropped by the excluded-terms filter (15-20 terms active)
-**Plans**: TBD
+**Plans:** 3/3 plans executed
+
+Plans:
+- [x] 05-01-PLAN.md — Gmail OAuth bootstrap and live API wiring (gmail-mcp-pete)
+- [x] 05-02-PLAN.md — Excluded terms expansion and substring matching update
+- [x] 05-03-PLAN.md — RemoteTrigger activation (delete test, create real, verify fire)
 
 ### Phase 6: Defect Fixes and UAT
 **Goal**: Known defects are gone and the full capture-to-memory flow works correctly under real-world inputs
@@ -51,7 +56,16 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. 10+ diverse real captures routed through `/new` produce correct left/right classification at >80% accuracy
   4. Promoted memories produce at least one meaningful wikilink back-reference to existing vault content
   5. The full capture → classify → propose → promote flow completes in Obsidian vault UI without manual workarounds
-**Plans**: TBD
+**Additional scope (from Phase 5 verification):**
+  - Wire today-command.js to consume MCP connectors in remote trigger context
+  - Handle missing Haiku API key gracefully in remote execution
+  - Resolve path differences between local (`/Users/cpconnor`) and remote (`/root`) execution
+**Plans:** 3/3 plans executed
+
+Plans:
+- [x] 06-01-PLAN.md — In-batch dedup fix + Haiku API key graceful degradation (FIX-01, FIX-04)
+- [x] 06-02-PLAN.md — Remote calendar MCP connector + path resolution (FIX-03, FIX-05)
+- [x] 06-03-PLAN.md — UAT validation: classification accuracy, wikilink relevance, end-to-end UX (UAT-01, UAT-02, UAT-03)
 
 ### Phase 7: Hardening
 **Goal**: Every push to master is automatically verified by the test suite
@@ -71,6 +85,6 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 | 2. Content Pipeline | v1.0 | 6/6 | Complete | 2026-04-21 |
 | 3. External Integrations | v1.0 | 4/4 | Complete | 2026-04-22 |
 | 4. Daily Briefing and Scheduling | v1.0 | 3/3 | Complete | 2026-04-22 |
-| 5. Integration Wiring | v1.1 | 0/? | Not started | - |
-| 6. Defect Fixes and UAT | v1.1 | 0/? | Not started | - |
+| 5. Integration Wiring | v1.1 | 3/3 | Complete | 2026-04-23 |
+| 6. Defect Fixes and UAT | v1.1 | 3/3 | Complete | 2026-04-23 |
 | 7. Hardening | v1.1 | 0/? | Not started | - |

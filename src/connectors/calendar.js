@@ -151,14 +151,30 @@ function _filterEvents(events, config) {
  *
  * Per D-18: never throws — all errors returned as { success: false }.
  *
- * @param {object}  mcpClient        - Object with callTool(toolName, params) async method
- * @param {object}  [options={}]     - Options
- * @param {number}  [options.hours]  - Look-ahead window in hours (defaults to config.defaultWindowHours)
+ * Supports two execution modes:
+ *   - Local mode: mcpClient provided — uses mcpClient.callTool() (Cowork native transport)
+ *   - Remote mode: mcpClient is null and options.remote === true — uses options._remoteCallTool
+ *     which represents the MCP tool dispatcher available in the RemoteTrigger context
+ *     (the Google Calendar MCP connection attached via config/scheduling.json)
+ *
+ * @param {object|null} mcpClient        - Object with callTool(toolName, params) async method, or null for remote mode
+ * @param {object}      [options={}]     - Options
+ * @param {number}      [options.hours]  - Look-ahead window in hours (defaults to config.defaultWindowHours)
+ * @param {boolean}     [options.remote] - When true and mcpClient is null, use remote MCP connector path
+ * @param {Function}    [options._remoteCallTool] - Injected remote callTool for remote mode (for testing)
  * @returns {Promise<{success: boolean, data: {events: Array}|null, error: string|null, source: string, fetchedAt: string}>}
  */
 async function getCalendarEvents(mcpClient, options = {}) {
-  if (!mcpClient) {
+  const isRemote = !mcpClient && options && options.remote === true;
+
+  // If no mcpClient and not in remote mode, return error
+  if (!mcpClient && !isRemote) {
     return makeError(SOURCE.CALENDAR, 'mcpClient is required');
+  }
+
+  // Remote mode requires a callTool implementation
+  if (isRemote && (!options._remoteCallTool || typeof options._remoteCallTool !== 'function')) {
+    return makeError(SOURCE.CALENDAR, 'Remote MCP connector not available');
   }
 
   try {
@@ -169,7 +185,12 @@ async function getCalendarEvents(mcpClient, options = {}) {
     const timeMin = now.toISOString();
     const timeMax = new Date(now.getTime() + windowHours * 60 * 60 * 1000).toISOString();
 
-    const response = await mcpClient.callTool('list_calendar_events', {
+    // Dispatch via the appropriate transport
+    const callTool = isRemote
+      ? options._remoteCallTool
+      : mcpClient.callTool.bind(mcpClient);
+
+    const response = await callTool('list_calendar_events', {
       timeMin,
       timeMax,
     });

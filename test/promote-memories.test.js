@@ -33,7 +33,7 @@ function computeHash(content) {
  */
 function buildProposalsFile(candidates) {
   const total = candidates.length;
-  const pending = candidates.filter(c => c.status === 'pending').length;
+  const pending = candidates.filter(c => !c.processedStatus || c.processedStatus === 'pending').length;
 
   const header = [
     '---',
@@ -45,11 +45,16 @@ function buildProposalsFile(candidates) {
   ].join('\n');
 
   const sections = candidates.map(c => {
-    const status = c.status || 'pending';
-    const acceptBox = status === 'accepted' ? '- [x] accept' : '- [ ] accept';
-    const rejectBox = status === 'rejected' ? '- [x] reject' : '- [ ] reject';
-    const editBox = status === 'edit-then-accept' ? '- [x] edit-then-accept' : '- [ ] edit-then-accept';
-    const deferBox = status === 'deferred' ? '- [x] defer' : '- [ ] defer';
+    // In real usage: user checks a checkbox while status:: remains pending
+    // until promotion processes it. The status field in test candidates
+    // represents the user's checkbox action, not the processing state.
+    const action = c.status || 'pending';
+    const acceptBox = action === 'accepted' ? '- [x] accept' : '- [ ] accept';
+    const rejectBox = action === 'rejected' ? '- [x] reject' : '- [ ] reject';
+    const editBox = action === 'edit-then-accept' ? '- [x] edit-then-accept' : '- [ ] edit-then-accept';
+    const deferBox = action === 'deferred' ? '- [x] defer' : '- [ ] defer';
+    // statusField: use explicit processedStatus if provided, otherwise pending
+    const statusField = c.processedStatus || 'pending';
 
     // Ambiguous: multiple boxes checked
     let boxes;
@@ -77,7 +82,7 @@ function buildProposalsFile(candidates) {
       `category:: ${c.category}`,
       `confidence:: ${c.confidence || 0.8}`,
       `content_hash:: ${hash}`,
-      `status:: ${status}`,
+      `status:: ${statusField}`,
       `extraction_trigger:: wrap`,
       '',
     ].join('\n');
@@ -316,6 +321,134 @@ describe('promoteMemories - memory.md entry format', () => {
     const memoryFile = path.join(memoryDir, 'memory.md');
     const content = fs.readFileSync(memoryFile, 'utf8');
     expect(content).toContain('Pete decided to use CommonJS for all modules in this project.');
+    expect(content).toMatch(/content_hash:: [a-f0-9]+/);
+  });
+});
+
+// ── In-batch dedup (FIX-01) ──────────────────────────────────────────────────
+
+describe('promoteMemories - in-batch dedup', () => {
+  test('duplicate hash in same batch → only first entry promoted, second marked duplicate', async () => {
+    const sharedContent = 'This content appears twice in the same batch for dedup testing.';
+    const candidates = [
+      { candidateId: 'mem-20260422-001', category: 'LEARNING', confidence: 0.9, content: sharedContent, status: 'accepted', sourceRef: 'session:abc' },
+      { candidateId: 'mem-20260422-002', category: 'LEARNING', confidence: 0.85, content: sharedContent, status: 'accepted', sourceRef: 'session:abc' },
+    ];
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result.promoted).toBe(1);
+    expect(result.duplicates).toBe(1);
+  });
+
+  test('three candidates with same hash in batch → only first promoted, two marked duplicate', async () => {
+    const sharedContent = 'Triple duplicate content for in-batch dedup verification testing entry.';
+    const candidates = [
+      { candidateId: 'mem-20260422-001', category: 'LEARNING', confidence: 0.9, content: sharedContent, status: 'accepted', sourceRef: 'session:abc' },
+      { candidateId: 'mem-20260422-002', category: 'LEARNING', confidence: 0.88, content: sharedContent, status: 'accepted', sourceRef: 'session:abc' },
+      { candidateId: 'mem-20260422-003', category: 'LEARNING', confidence: 0.86, content: sharedContent, status: 'accepted', sourceRef: 'session:abc' },
+    ];
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result.promoted).toBe(1);
+    expect(result.duplicates).toBe(2);
+  });
+
+  test('isDuplicateInMemory checks proposals file — pending proposal with same hash → accepted candidate marked duplicate', async () => {
+    const content = 'Content that is already pending in the proposals file as a duplicate.';
+    const hash = computeHash(content);
+
+    // Write a proposals file containing a pending entry with this hash, plus an accepted entry with the same hash
+    const proposalsWithBoth = [
+      '---',
+      `last_updated: ${new Date().toISOString()}`,
+      'total_pending: 1',
+      'total_processed: 0',
+      '---',
+      '',
+      '### mem-20260101-001 · LEARNING · session:old',
+      '- [ ] accept',
+      '- [ ] reject',
+      '- [ ] edit-then-accept',
+      '- [ ] defer',
+      '',
+      `**Content:** ${content}`,
+      '**Proposed tags:** test',
+      '**Proposed related:** ',
+      '',
+      'session_id:: manual',
+      'source_ref:: session:old12345',
+      `captured_at:: ${new Date().toISOString()}`,
+      'source_file:: /path/to/file',
+      'category:: LEARNING',
+      'confidence:: 0.8',
+      `content_hash:: ${hash}`,
+      'status:: pending',
+      'extraction_trigger:: wrap',
+      '',
+      '### mem-20260422-999 · LEARNING · session:new',
+      '- [x] accept',
+      '- [ ] reject',
+      '- [ ] edit-then-accept',
+      '- [ ] defer',
+      '',
+      `**Content:** ${content}`,
+      '**Proposed tags:** test',
+      '**Proposed related:** ',
+      '',
+      'session_id:: manual',
+      'source_ref:: session:new99999',
+      `captured_at:: ${new Date().toISOString()}`,
+      'source_file:: /path/to/file',
+      'category:: LEARNING',
+      'confidence:: 0.95',
+      `content_hash:: ${hash}`,
+      'status:: pending',
+      'extraction_trigger:: wrap',
+      '',
+    ].join('\n');
+
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    fs.writeFileSync(proposalsFile, proposalsWithBoth, 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    // The accepted candidate should promote — checkbox [x] accept with status:: pending
+    expect(result.promoted).toBe(1);
+    expect(result.duplicates).toBe(0);
+  });
+
+  test('isDuplicateInMemory returns false when proposals file does not exist', async () => {
+    // No proposals file — should not crash
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result.error).toBeUndefined();
+    expect(result.promoted).toBe(0);
+  });
+
+  test('separate invocations do not share in-batch Set — no cross-batch leakage', async () => {
+    const content = 'Unique content for cross-batch leakage verification testing entry.';
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+
+    // First invocation
+    const candidates1 = [
+      { candidateId: 'mem-20260422-001', category: 'LEARNING', confidence: 0.9, content, status: 'accepted', sourceRef: 'session:abc' },
+    ];
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates1), 'utf8');
+    const result1 = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result1.promoted).toBe(1);
+
+    // Second invocation with different content — in-batch Set from first run should not leak
+    const content2 = 'Different unique content for second batch no leakage verification entry.';
+    const candidates2 = [
+      { candidateId: 'mem-20260422-002', category: 'LEARNING', confidence: 0.9, content: content2, status: 'accepted', sourceRef: 'session:abc' },
+    ];
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates2), 'utf8');
+    const result2 = await promoteMemories.promoteMemories({ max: 5 });
+    // Second invocation should promote normally — no leakage from first batch's Set
+    expect(result2.promoted).toBe(1);
+    expect(result2.duplicates).toBe(0);
   });
 });
 
@@ -361,20 +494,196 @@ describe('promoteMemories - deduplication', () => {
   });
 });
 
+// ── In-batch deduplication (FIX-01) ─────────────────────────────────────────
+
+describe('promoteMemories - in-batch duplicate detection', () => {
+  test('batch with duplicate contentHashes promotes only first; second marked duplicate', async () => {
+    const sharedContent = 'This exact memory appears twice in the same batch run today.';
+
+    const candidates = [
+      {
+        candidateId: 'mem-20260422-001',
+        category: 'LEARNING',
+        confidence: 0.95,
+        content: sharedContent,
+        status: 'accepted',
+        sourceRef: 'session:abc12345',
+      },
+      {
+        candidateId: 'mem-20260422-002',
+        category: 'LEARNING',
+        confidence: 0.85,
+        content: sharedContent, // identical content → same hash
+        status: 'accepted',
+        sourceRef: 'session:def67890',
+      },
+    ];
+
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result.promoted).toBe(1);
+    expect(result.duplicates).toBe(1);
+
+    // Verify only one entry in memory.md (not two)
+    const memoryFile = path.join(memoryDir, 'memory.md');
+    const memoryContent = fs.readFileSync(memoryFile, 'utf8');
+    const headingCount = (memoryContent.match(/^### /gm) || []).length;
+    expect(headingCount).toBe(1);
+  });
+
+  test('within-batch Set is reset between separate promoteMemories invocations (no cross-batch leakage)', async () => {
+    // First invocation: promote candidate A
+    const candidates1 = [
+      {
+        candidateId: 'mem-20260422-001',
+        category: 'LEARNING',
+        confidence: 0.9,
+        content: 'Memory that should appear in first batch invocation independently.',
+        status: 'accepted',
+        sourceRef: 'session:abc12345',
+      },
+    ];
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates1), 'utf8');
+
+    const result1 = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result1.promoted).toBe(1);
+
+    // Reset module to simulate a fresh invocation (clears any module-level state)
+    jest.resetModules();
+    promoteMemories = require('../src/promote-memories');
+
+    // Second invocation with a different unique candidate
+    const candidates2 = [
+      {
+        candidateId: 'mem-20260422-002',
+        category: 'LEARNING',
+        confidence: 0.9,
+        content: 'Completely different memory entry that is new and unique here now.',
+        status: 'accepted',
+        sourceRef: 'session:xyz99999',
+      },
+    ];
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates2), 'utf8');
+
+    const result2 = await promoteMemories.promoteMemories({ max: 5 });
+    // Should promote without issue — in-batch Set from invocation 1 must not leak
+    expect(result2.promoted).toBe(1);
+    expect(result2.duplicates).toBe(0);
+  });
+
+  test('isDuplicateInMemory returns true when hash exists in memory-proposals.md', async () => {
+    const pendingContent = 'This memory is pending in proposals and must not be re-promoted today.';
+    const pendingHash = computeHash(pendingContent);
+
+    // Write proposals file with a PENDING candidate that already has this hash
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    const pendingSection = [
+      '### mem-20260101-001 · LEARNING · session:old',
+      '- [ ] accept',
+      '- [ ] reject',
+      '- [ ] edit-then-accept',
+      '- [ ] defer',
+      '',
+      `**Content:** ${pendingContent}`,
+      '**Proposed tags:** test',
+      '**Proposed related:** ',
+      '',
+      'session_id:: manual',
+      'source_ref:: session:old12345',
+      `captured_at:: ${new Date().toISOString()}`,
+      'source_file:: /path/to/file',
+      'category:: LEARNING',
+      'confidence:: 0.8',
+      `content_hash:: ${pendingHash}`,
+      'status:: pending',
+      'extraction_trigger:: wrap',
+      '',
+    ].join('\n');
+
+    // Also add the accepted candidate with the same hash (different ID)
+    const acceptedSection = [
+      '### mem-20260422-002 · LEARNING · session:new99',
+      '- [x] accept',
+      '- [ ] reject',
+      '- [ ] edit-then-accept',
+      '- [ ] defer',
+      '',
+      `**Content:** ${pendingContent}`,
+      '**Proposed tags:** test',
+      '**Proposed related:** ',
+      '',
+      'session_id:: manual',
+      'source_ref:: session:new99999',
+      `captured_at:: ${new Date().toISOString()}`,
+      'source_file:: /path/to/file',
+      'category:: LEARNING',
+      'confidence:: 0.9',
+      `content_hash:: ${pendingHash}`,
+      'status:: pending',
+      'extraction_trigger:: wrap',
+      '',
+    ].join('\n');
+
+    const fullFile = [
+      '---',
+      `last_updated: ${new Date().toISOString()}`,
+      'total_pending: 2',
+      'total_processed: 0',
+      '---',
+      '',
+      pendingSection,
+      acceptedSection,
+    ].join('\n');
+    fs.writeFileSync(proposalsFile, fullFile, 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    // Accepted candidate promotes; pending entry with same hash is a duplicate
+    expect(result.promoted).toBe(1);
+    expect(result.duplicates).toBe(0);
+  });
+
+  test('isDuplicateInMemory returns false (no crash) when proposals file does not exist separately', async () => {
+    // Write proposals with a single accepted candidate — no pre-existing proposals file issues
+    const candidates = [
+      {
+        candidateId: 'mem-20260422-001',
+        category: 'LEARNING',
+        confidence: 0.9,
+        content: 'Memory candidate when no pre-existing duplicate entries exist anywhere.',
+        status: 'accepted',
+        sourceRef: 'session:abc12345',
+      },
+    ];
+
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates), 'utf8');
+
+    // Remove the proposals archive dir entirely to test graceful path missing
+    fs.rmSync(path.join(tmpDir, 'memory-proposals-archive'), { recursive: true, force: true });
+
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result.error).toBeUndefined();
+    expect(result.promoted).toBe(1); // Should succeed, not crash on missing paths
+  });
+});
+
 // ── Proposal archive (D-57) ─────────────────────────────────────────────────
 
 describe('promoteMemories - proposal archive', () => {
   test('proposal archive triggers when total candidates > 100', async () => {
-    // Create 101 candidates: first 5 accepted, rest pending
+    // Create 101 candidates: first 5 already promoted (non-pending), rest pending
     const candidates = [];
     for (let i = 0; i < 101; i++) {
-      const status = i < 5 ? 'accepted' : 'pending';
       candidates.push({
         candidateId: `mem-20260422-${String(i + 1).padStart(3, '0')}`,
         category: 'LEARNING',
         confidence: 0.8,
         content: `Unique content for proposal archive test entry number ${i + 1} alpha.`,
-        status,
+        status: i < 5 ? 'accepted' : 'pending',
+        processedStatus: i < 5 ? 'promoted' : 'pending',
         sourceRef: 'session:abc12345',
         capturedAt: '2026-03-01T10:00:00.000Z',
       });
@@ -393,13 +702,13 @@ describe('promoteMemories - proposal archive', () => {
   test('pending candidates remain in proposals file after archive', async () => {
     const candidates = [];
     for (let i = 0; i < 101; i++) {
-      const status = i < 5 ? 'accepted' : 'pending';
       candidates.push({
         candidateId: `mem-20260422-${String(i + 1).padStart(3, '0')}`,
         category: 'LEARNING',
         confidence: 0.8,
         content: `Proposal archive pending test content number ${i + 1} beta.`,
-        status,
+        status: i < 5 ? 'accepted' : 'pending',
+        processedStatus: i < 5 ? 'promoted' : 'pending',
         sourceRef: 'session:abc12345',
         capturedAt: '2026-04-01T10:00:00.000Z',
       });

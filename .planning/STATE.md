@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Phases
-status: planning
-stopped_at: Phase 5 context gathered
-last_updated: "2026-04-23T00:58:39.515Z"
-last_activity: 2026-04-22 — v1.1 roadmap created (Phases 5-7)
+status: executing
+stopped_at: Phase 06 complete. Phase 07 not started.
+last_updated: "2026-04-23T05:35:00.000Z"
+last_activity: 2026-04-23 -- Phase 06 complete, FIX-01 bugs fixed, UAT-03 verified
 progress:
   total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  completed_phases: 2
+  total_plans: 6
+  completed_plans: 6
 ---
 
 # Project State
@@ -20,14 +20,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-22)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** v1.1 Go Live — close the gap between "works in tests" and "works on my desk at 6:45 AM"
+**Current focus:** Phase 07 — hardening
 
 ## Current Position
 
-Phase: 5 (Integration Wiring) — not started
-Plan: —
-Status: Roadmap defined, ready to plan Phase 5
-Last activity: 2026-04-22 — v1.1 roadmap created (Phases 5-7)
+Phase: 06 (defect-fixes-and-uat) — COMPLETE
+Phase: 07 (hardening) — NOT STARTED
+Last activity: 2026-04-23 -- Phase 06 complete, all bugs fixed, UAT passed
 
 ## Accumulated Context
 
@@ -35,20 +34,25 @@ Last activity: 2026-04-22 — v1.1 roadmap created (Phases 5-7)
 
 All v1.0 decisions logged in PROJECT.md Key Decisions table (12 entries with outcomes).
 
+- [Phase 05]: AUTH_ERRORS constants exported from auth-helper, compared structurally via errorType field not string matching
+- [Phase 05]: Substring matching replaces word-boundary regex for excluded-terms — catches embedded substrings per D-06
+- [Phase 05]: Array.isArray guard in classifier.js fixes silent empty-list bug for bare-array config format
+- [Phase 05]: RemoteTrigger API uses nested job_config.ccr structure, not flat fields
+- [Phase 05]: RemoteTrigger ID: trig_01KvxeDfYDAEwAzw9zw9DKKB
+- [Phase 06]: UAT test harnesses call real Anthropic API — accuracy and relevance cannot be validated with stubs
+- [Phase 06]: FIX-01 had 3 sub-bugs: proposals self-match in dedup, missing content_hash in memory.md, non-pending candidates re-processed
+
 ### Pending Todos
 
 None.
 
 ### Blockers/Concerns
 
-- gmail-mcp-pete OAuth flow not yet wired (stubs only) — track for v1.1
-- RemoteTrigger test trigger `trig_01NHx3Uz8ni8eZSfsMph4miY` needs manual deletion at https://claude.ai/code/scheduled
-- Known gaps carried forward: in-batch dedup, config hot-reload, excluded terms expansion, no CI
+- FIX-02 (config hot-reload) deferred to backlog — no symptom, restart workaround sufficient
 
 ## Session Continuity
 
-Last session: 2026-04-23T00:58:39.513Z
-Stopped at: Phase 5 context gathered
-Resume with: `/gsd:new-milestone` to start v1.1 planning
+Last session: 2026-04-23T05:35:00.000Z
+Stopped at: Phase 06 complete. Ready for Phase 07 (hardening).
+Resume with: `/gsd:discuss-phase 7` or `/gsd:plan-phase 7` — CI pipeline for GitHub Actions.
 Ship log: PRs #1, #2, #5, #6, #8, #10, #11, #12 merged.
-Followup items: In-batch dedup gap. Config hot-reload defect. Excluded terms expansion (3→15-20). CI gap. gmail-mcp-pete OAuth. Delete test trigger. Enable RemoteTrigger.

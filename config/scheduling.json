@@ -1,7 +1,7 @@
 {
   "trigger": {
     "name": "second-brain-daily-briefing",
-    "description": "Pre-morning /today briefing — weekdays 6:45 AM CDT",
+    "id": "trig_01KvxeDfYDAEwAzw9zw9DKKB",
     "schedule": "45 11 * * 1-5",
     "timezone_note": "Cron is UTC. 11:45 UTC = 6:45 AM CDT (America/Chicago). Adjust for DST: CDT=UTC-5, CST=UTC-6.",
     "model": "claude-sonnet-4-6",
@@ -10,12 +10,21 @@
     "mcp_connections": [
       {
         "connector_uuid": "f94e7416-4e60-44bc-9ed2-45fa49a68665",
-        "name": "Google Calendar"
+        "name": "Google-Calendar",
+        "url": "https://calendarmcp.googleapis.com/mcp/v1"
       }
     ],
     "persist_session": false,
     "enabled": false,
     "prompt": "You are running the second-brain daily briefing. Read CLAUDE.md first. Then run the /today command by executing: node -e \"require('./src/today-command').runToday({ mode: 'scheduled' }).then(r => console.log(r.briefing || r.error))\". Report the output."
+  },
+  "dst_ops": {
+    "description": "RemoteTrigger uses UTC cron. Adjust schedule twice yearly for US Central time.",
+    "cdt_schedule": "45 11 * * 1-5",
+    "cdt_note": "CDT (UTC-5): 11:45 UTC = 6:45 AM CDT. Active ~Mar second Sun to Nov first Sun.",
+    "cst_schedule": "45 12 * * 1-5",
+    "cst_note": "CST (UTC-6): 12:45 UTC = 6:45 AM CST. Active ~Nov first Sun to Mar second Sun.",
+    "action": "Update trigger.schedule value and re-create the RemoteTrigger with the new cron expression. Use: RemoteTrigger update trig_01KvxeDfYDAEwAzw9zw9DKKB with new cron_expression."
   },
   "fallback_chain": [
     "RemoteTrigger (primary — server-side cron, no local machine needed)",
@@ -23,7 +32,6 @@
     "macOS launchd (tertiary — system-level, requires plist management)"
   ],
   "notes": {
-    "dst_adjustment": "When CDT shifts to CST (November), change cron to '45 12 * * 1-5' to maintain 6:45 AM local time. When CST shifts to CDT (March), change back to '45 11 * * 1-5'.",
-    "deletion_of_test_trigger": "Test trigger trig_01NHx3Uz8ni8eZSfsMph4miY should be deleted at https://claude.ai/code/scheduled if not already removed."
+    "test_trigger_deleted": "Test trigger trig_01NHx3Uz8ni8eZSfsMph4miY deleted 2026-04-22."
   }
 }

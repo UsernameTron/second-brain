@@ -9,14 +9,17 @@ Requirements for go-live. No new features — defect fixes, integration wiring, 
 
 ### Integration Wiring
 
-- [ ] **INTEG-01**: gmail-mcp-pete OAuth wired with real credentials (gmail.readonly + gmail.compose scopes, VIP filtering active)
-- [ ] **INTEG-02**: RemoteTrigger enabled on real pre-morning cron schedule for /today execution
-- [ ] **INTEG-03**: Excluded terms expanded from 3 seed entries to 15-20 covering former employers, project codenames, client names, internal tools
+- [x] **INTEG-01**: gmail-mcp-pete OAuth wired with real credentials (gmail.readonly + gmail.compose scopes, VIP filtering active)
+- [x] **INTEG-02**: RemoteTrigger enabled on real pre-morning cron schedule for /today execution
+- [x] **INTEG-03**: Excluded terms expanded from 3 seed entries to 15-20 covering former employers, project codenames, client names, internal tools
 
 ### Defect Fixes
 
 - [ ] **FIX-01**: In-batch dedup in promote-memories — track Set of promoted contentHashes within batch loop, prevent duplicate promotion
 - [ ] **FIX-02**: Config hot-reload — diagnose and fix fs.watch / cache invalidation so config changes take effect without Node restart
+- [ ] **FIX-03**: Remote execution — today-command.js consumes MCP connectors in remote trigger context (Calendar connector attached but unused)
+- [ ] **FIX-04**: Remote execution — graceful handling of missing Haiku API key in remote environment
+- [ ] **FIX-05**: Remote execution — resolve path differences between local (/Users/cpconnor) and remote (/root) environments
 
 ### Validation
 
@@ -51,21 +54,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INTEG-01 | Phase 5 | Pending |
-| INTEG-02 | Phase 5 | Pending |
-| INTEG-03 | Phase 5 | Pending |
+| INTEG-01 | Phase 5 | Complete |
+| INTEG-02 | Phase 5 | Complete |
+| INTEG-03 | Phase 5 | Complete |
 | FIX-01 | Phase 6 | Pending |
 | FIX-02 | Phase 6 | Pending |
 | UAT-01 | Phase 6 | Pending |
 | UAT-02 | Phase 6 | Pending |
 | UAT-03 | Phase 6 | Pending |
+| FIX-03 | Phase 6 | Pending |
+| FIX-04 | Phase 6 | Pending |
+| FIX-05 | Phase 6 | Pending |
 | CI-01 | Phase 7 | Pending |
 
 **Coverage:**
-- v1.1 requirements: 9 total
-- Mapped to phases: 9
+- v1.1 requirements: 12 total
+- Mapped to phases: 12
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-22*
-*Last updated: 2026-04-22 after initial definition*
+*Last updated: 2026-04-23 after Phase 5 completion — added FIX-03/04/05 for remote execution refinements*

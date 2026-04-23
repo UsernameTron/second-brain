@@ -133,6 +133,7 @@ function isDuplicateInMemory(contentHash) {
   return false;
 }
 
+
 function sourceRefShort(sourceRef) {
   if (!sourceRef) return 'unknown';
   if (sourceRef.startsWith('session:')) return 'session:' + sourceRef.slice(8, 16);
@@ -177,7 +178,7 @@ function buildMemoryEntry(candidate) {
   const today = todayString();
   const shortRef = sourceRefShort(candidate.sourceRef);
   const addedAt = nowISO();
-  return `### ${today} · ${candidate.category} · ${shortRef}\n\n${candidate.content}\n\ncategory:: ${candidate.category}\nsource-ref:: ${candidate.sourceRef || ''}\ntags:: ${candidate.tags || ''}\nadded:: ${addedAt}\nrelated:: ${candidate.related || ''}\n`;
+  return `### ${today} · ${candidate.category} · ${shortRef}\n\n${candidate.content}\n\ncategory:: ${candidate.category}\nsource-ref:: ${candidate.sourceRef || ''}\ntags:: ${candidate.tags || ''}\nadded:: ${addedAt}\nrelated:: ${candidate.related || ''}\ncontent_hash:: ${candidate.contentHash || ''}\n`;
 }
 
 async function appendToMemoryFile(promotedCandidates) {
@@ -309,15 +310,16 @@ async function promoteMemories(options = {}) {
 
   const acceptedCandidates = allCandidates.filter(c => {
     if (c.ambiguous) return false;
+    // Only process candidates still in pending state — skip already-promoted/rejected
+    if (c.currentStatus !== 'pending') return false;
     if (c.checkboxStatus === 'accepted' || c.checkboxStatus === 'edit-then-accept') return true;
-    if (c.checkboxStatus === null && (c.currentStatus === 'accepted' || c.currentStatus === 'edit-then-accept')) return true;
     return false;
   });
 
   const rejectedCandidates = allCandidates.filter(c => {
     if (c.ambiguous) return false;
+    if (c.currentStatus !== 'pending') return false;
     if (c.checkboxStatus === 'rejected') return true;
-    if (c.checkboxStatus === null && c.currentStatus === 'rejected') return true;
     return false;
   });
 
@@ -329,11 +331,20 @@ async function promoteMemories(options = {}) {
 
   const promoted = [];
   const duplicates = [];
+  const promotedHashes = new Set();
+  // Note: pendingProposalHashes is NOT checked here — candidates being promoted
+  // are themselves pending proposals, so checking would always self-match.
+  // The proposals-file dedup belongs in the extractor path (writeCandidate),
+  // not the promotion batch loop. In-batch dedup uses promotedHashes below.
   for (const candidate of toPromote) {
-    if (isDuplicateInMemory(candidate.contentHash)) {
+    if (
+      isDuplicateInMemory(candidate.contentHash) ||
+      promotedHashes.has(candidate.contentHash)
+    ) {
       duplicates.push(candidate);
     } else {
       promoted.push(candidate);
+      promotedHashes.add(candidate.contentHash);
     }
   }
 
