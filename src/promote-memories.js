@@ -133,30 +133,6 @@ function isDuplicateInMemory(contentHash) {
   return false;
 }
 
-/**
- * Collect content hashes that appear in memory-proposals.md with status: pending.
- * A pending proposal hash should prevent re-promotion of the same content.
- *
- * @returns {Set<string>} Set of content hashes that are pending in proposals
- */
-function getPendingProposalHashes() {
-  const pending = new Set();
-  try {
-    const proposalsPath = PROPOSALS_FILE();
-    if (!fs.existsSync(proposalsPath)) return pending;
-    const content = fs.readFileSync(proposalsPath, 'utf8');
-    // Split on section headers, check each section's hash + status
-    const sections = content.split(/(?=^### mem-\d{8}-\d{3})/m).filter(s => s.trim());
-    for (const section of sections) {
-      const statusMatch = section.match(/^status:: (\S+)/m);
-      const hashMatch = section.match(/^content_hash:: (\S+)/m);
-      if (statusMatch && hashMatch && statusMatch[1] === 'pending') {
-        pending.add(hashMatch[1]);
-      }
-    }
-  } catch (_) {}
-  return pending;
-}
 
 function sourceRefShort(sourceRef) {
   if (!sourceRef) return 'unknown';
@@ -355,12 +331,14 @@ async function promoteMemories(options = {}) {
   const promoted = [];
   const duplicates = [];
   const promotedHashes = new Set();
-  const pendingProposalHashes = getPendingProposalHashes();
+  // Note: pendingProposalHashes is NOT checked here — candidates being promoted
+  // are themselves pending proposals, so checking would always self-match.
+  // The proposals-file dedup belongs in the extractor path (writeCandidate),
+  // not the promotion batch loop. In-batch dedup uses promotedHashes below.
   for (const candidate of toPromote) {
     if (
       isDuplicateInMemory(candidate.contentHash) ||
-      promotedHashes.has(candidate.contentHash) ||
-      pendingProposalHashes.has(candidate.contentHash)
+      promotedHashes.has(candidate.contentHash)
     ) {
       duplicates.push(candidate);
     } else {

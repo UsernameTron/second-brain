@@ -409,9 +409,11 @@ describe('promoteMemories - in-batch dedup', () => {
     fs.writeFileSync(proposalsFile, proposalsWithBoth, 'utf8');
 
     const result = await promoteMemories.promoteMemories({ max: 5 });
-    // The accepted candidate has same hash as pending entry in proposals — should be a duplicate
-    expect(result.duplicates).toBe(1);
-    expect(result.promoted).toBe(0);
+    // The accepted candidate should promote — pending proposals are not checked
+    // during promotion (they would always self-match). Proposals-file dedup
+    // belongs in the extractor path (writeCandidate), not the promotion loop.
+    expect(result.promoted).toBe(1);
+    expect(result.duplicates).toBe(0);
   });
 
   test('isDuplicateInMemory returns false when proposals file does not exist', async () => {
@@ -634,9 +636,10 @@ describe('promoteMemories - in-batch duplicate detection', () => {
     fs.writeFileSync(proposalsFile, fullFile, 'utf8');
 
     const result = await promoteMemories.promoteMemories({ max: 5 });
-    // Accepted candidate should be detected as duplicate because its hash appears in proposals
-    expect(result.duplicates).toBe(1);
-    expect(result.promoted).toBe(0);
+    // Accepted candidate should promote — proposals-file dedup is not checked
+    // during promotion (self-match bug). Extractor path handles proposals dedup.
+    expect(result.promoted).toBe(1);
+    expect(result.duplicates).toBe(0);
   });
 
   test('isDuplicateInMemory returns false (no crash) when proposals file does not exist separately', async () => {
