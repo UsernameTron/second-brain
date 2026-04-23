@@ -21,7 +21,7 @@ No new features. No new agents or skills. Pure infrastructure wiring.
 
 - **D-01:** Single CI job, sequential steps: `npm ci` → `npm test -- --coverage` → coverage threshold check → `npm audit --audit-level=high`. No parallel jobs — suite runs in ~47s, parallel adds YAML complexity and queue wait for no gain on GitHub free tier.
 - **D-02:** Initial coverage threshold set at **85%** (not 90%). Current coverage is 89.96% — setting 90% on day one means the first PR fails and trains everyone to ignore gates. Ratchet to 90% after writing tests for the two modules below 80%.
-- **D-03:** Coverage gap targets: `new-command.js` (72.5%) and `validate-schema.js` (74.2%) are the priority. Write tests to bring these above 80% as part of this phase, then ratchet threshold to 90%.
+- **D-03:** Coverage gap targets: `new-command.js` (72.5%) and `validate-schema.js` (74.2%) are the priority. Write tests to bring these above 80% as part of this phase, then ratchet threshold to 90%. **Sequencing constraint:** gap tests MUST land before the threshold ratchet to 90%. If they are in different waves/plans, the 90% bump goes in the later one. Never set a threshold the suite can't pass.
 - **D-04:** `npm audit --audit-level=high` runs AFTER tests (not before). Audit is cheap but tests are the primary gate. Audit failure blocks the build on HIGH/CRITICAL only — matches SEC-01 agent behavior from Phase 9.
 - **D-05:** Coverage report published as CI artifact per run.
 
