@@ -133,6 +133,31 @@ function isDuplicateInMemory(contentHash) {
   return false;
 }
 
+/**
+ * Collect content hashes that appear in memory-proposals.md with status: pending.
+ * A pending proposal hash should prevent re-promotion of the same content.
+ *
+ * @returns {Set<string>} Set of content hashes that are pending in proposals
+ */
+function getPendingProposalHashes() {
+  const pending = new Set();
+  try {
+    const proposalsPath = PROPOSALS_FILE();
+    if (!fs.existsSync(proposalsPath)) return pending;
+    const content = fs.readFileSync(proposalsPath, 'utf8');
+    // Split on section headers, check each section's hash + status
+    const sections = content.split(/(?=^### mem-\d{8}-\d{3})/m).filter(s => s.trim());
+    for (const section of sections) {
+      const statusMatch = section.match(/^status:: (\S+)/m);
+      const hashMatch = section.match(/^content_hash:: (\S+)/m);
+      if (statusMatch && hashMatch && statusMatch[1] === 'pending') {
+        pending.add(hashMatch[1]);
+      }
+    }
+  } catch (_) {}
+  return pending;
+}
+
 function sourceRefShort(sourceRef) {
   if (!sourceRef) return 'unknown';
   if (sourceRef.startsWith('session:')) return 'session:' + sourceRef.slice(8, 16);
@@ -329,11 +354,18 @@ async function promoteMemories(options = {}) {
 
   const promoted = [];
   const duplicates = [];
+  const promotedHashes = new Set();
+  const pendingProposalHashes = getPendingProposalHashes();
   for (const candidate of toPromote) {
-    if (isDuplicateInMemory(candidate.contentHash)) {
+    if (
+      isDuplicateInMemory(candidate.contentHash) ||
+      promotedHashes.has(candidate.contentHash) ||
+      pendingProposalHashes.has(candidate.contentHash)
+    ) {
       duplicates.push(candidate);
     } else {
       promoted.push(candidate);
+      promotedHashes.add(candidate.contentHash);
     }
   }
 
