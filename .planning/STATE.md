@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Phases
 status: Milestone complete
-stopped_at: Phase 7 executed, v1.1 milestone complete
-last_updated: "2026-04-23T12:30:00.000Z"
-last_activity: 2026-04-23 -- Phase 07 executed, CI pipeline deployed, v1.1 complete
+stopped_at: CI fixes merged, v1.1 milestone complete — ready for ceremony
+last_updated: "2026-04-23T13:00:00.000Z"
+last_activity: 2026-04-23 -- Session 33 — CI fixes merged, PR all green
 progress:
   total_phases: 3
   completed_phases: 3
@@ -45,8 +45,7 @@ All v1.0 decisions logged in PROJECT.md Key Decisions table (12 entries with out
 
 ### Pending Todos
 
-- Merge PR #13 (Phase 07 CI pipeline) after CI passes on public repo
-- Branch protection: configure after first successful CI run on public repo
+- Branch protection: configure now that CI passes on public repo
 - Run `/gsd:complete-milestone` to close v1.1
 
 ### Blockers/Concerns
@@ -56,8 +55,8 @@ All v1.0 decisions logged in PROJECT.md Key Decisions table (12 entries with out
 
 ## Session Continuity
 
-Last session: 2026-04-23T12:30:00.000Z
-Stopped at: Phase 7 executed, v1.1 milestone complete
-Resume with: Merge PR #13, then `/gsd:complete-milestone` to close v1.1.
-Ship log: PRs #1, #2, #5, #6, #8, #10, #11, #12 merged. PR #13 open.
+Last session: 2026-04-23T13:00:00.000Z
+Stopped at: CI fixes merged, v1.1 milestone complete — ready for ceremony
+Resume with: `/gsd:complete-milestone` to close v1.1. Configure branch protection.
+Ship log: PRs #1, #2, #5, #6, #8, #10, #11, #12, #13 merged.
 Backlog: 999.1 — Wire Local LLM (LM Studio) into pipeline (spec at docs/second-brain-local-llm-backlog.md).
