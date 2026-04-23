@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Review Remediation
-status: phase 12 EXECUTING (4/6 done)
-stopped_at: Phase 12 executing, 4/6 tasks committed
+status: phase 12 VERIFIED — GO, awaiting ship
+stopped_at: Phase 12 verified, awaiting user approval to /gsd:ship
 last_updated: "2026-04-23"
 progress:
   total_phases: 5
@@ -23,10 +23,10 @@ See: .planning/PROJECT.md (updated 2026-04-23)
 
 ## Current Position
 
-Phase: 12 (EXECUTING — 4/6 tasks DONE)
+Phase: 12 (VERIFIED — GO, awaiting ship)
 Plan: PHASE-12-PLAN.md (committed)
 Milestone: v1.3 Review Remediation
-Phase 12: Critical Safety Fixes — EXECUTING (T12.2, T12.3, T12.4 DONE; T12.6 source done/test pending; T12.5, T12.1 PENDING)
+Phase 12: Critical Safety Fixes — VERIFIED (6/6 tasks DONE, 3 review agents PASS, verification report committed)
 Phase 13: Config Schema Gaps — PENDING (depends on 12)
 Phase 14: CI Hardening — PENDING (depends on 12)
 Phase 15: Architecture Refactor — PENDING (depends on 13)
@@ -66,9 +66,10 @@ None active.
 
 ## Session Continuity
 
-Last session: 2026-04-23
-Stopped at: Phase 12 executing — 4/6 tasks committed (T12.2, T12.3, T12.4, T12.6 source). T12.6 test harness pending.
-Resume with: `/gsd:execute-phase 12` — pick up at T12.6 test, then T12.5, T12.1.
-Handoff: `.planning/milestones/v1.3/PHASE-12-HANDOFF.md`
+Last session: 2026-04-23 (Session 50)
+Stopped at: Phase 12 verified — GO verdict. Awaiting user approval to `/gsd:ship`.
+Resume with: `/gsd:ship` (Phase 12 PR) — user must approve first.
+Handoff: `.planning/milestones/v1.3/PHASE-12-VERIFICATION.md`
 Ship log: PRs #1-#20 merged. Tags: v1.0, v1.1, v1.2.0.
 v1.3 dependency chain: 12 → {13, 14} → 15 → 16
+Pre-ship housekeeping: create UAT-BASELINE.md, annotate SEC-HOOK-01 as CLOSED in backlog.md
