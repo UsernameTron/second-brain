@@ -1,3 +1,5 @@
+[![CI](https://github.com/UsernameTron/second-brain/actions/workflows/ci.yml/badge.svg)](https://github.com/UsernameTron/second-brain/actions/workflows/ci.yml)
+
 # Second Brain
 
 Pete Connor's Obsidian vault — memory layer, proactive heartbeat, left/right vault architecture.
