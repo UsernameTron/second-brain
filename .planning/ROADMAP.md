@@ -47,7 +47,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 6. Defect Fixes and UAT | v1.1 | 3/3 | Complete | 2026-04-23 |
 | 7. Hardening | v1.1 | 1/1 | Complete | 2026-04-23 |
 | 8. Hook Infrastructure | v1.2 | 0/? | Not Started | — |
-| 9. Security & Verification | v1.2 | 0/? | Not Started | — |
+| 9. Security & Verification | v1.2 | 2/3 | In Progress|  |
 | 10. Agent Hardening & Skills | v1.2 | 0/? | Not Started | — |
 | 11. CI & LLM Infrastructure | v1.2 | 0/? | Not Started | — |
 
