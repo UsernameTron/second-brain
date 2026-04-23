@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Phases
 status: executing
-stopped_at: "Phase 05-01 checkpoint: Tasks 1-2 complete, Task 3 awaiting OAuth bootstrap (human-action)"
-last_updated: "2026-04-23T03:09:41.828Z"
-last_activity: 2026-04-23 -- Phase 05 execution started
+stopped_at: Completed 05-02-PLAN.md — excluded terms expanded to 15, substring matching active, classifier.js config-shape fixed
+last_updated: "2026-04-23T03:17:15.872Z"
+last_activity: 2026-04-23
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-04-22)
 ## Current Position
 
 Phase: 05 (integration-wiring) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 05
-Last activity: 2026-04-23 -- Phase 05 execution started
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-04-23
 
 ## Accumulated Context
 
@@ -36,6 +36,8 @@ Last activity: 2026-04-23 -- Phase 05 execution started
 All v1.0 decisions logged in PROJECT.md Key Decisions table (12 entries with outcomes).
 
 - [Phase 05]: AUTH_ERRORS constants exported from auth-helper, compared structurally via errorType field not string matching
+- [Phase 05]: Substring matching replaces word-boundary regex for excluded-terms — catches embedded substrings per D-06
+- [Phase 05]: Array.isArray guard in classifier.js fixes silent empty-list bug for bare-array config format
 
 ### Pending Todos
 
@@ -49,8 +51,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-23T03:09:38.306Z
-Stopped at: Phase 05-01 checkpoint: Tasks 1-2 complete, Task 3 awaiting OAuth bootstrap (human-action)
+Last session: 2026-04-23T03:17:15.870Z
+Stopped at: Completed 05-02-PLAN.md — excluded terms expanded to 15, substring matching active, classifier.js config-shape fixed
 Resume with: `/gsd:execute-phase 5` — 3 plans revised and verified, ready for execution
 Ship log: PRs #1, #2, #5, #6, #8, #10, #11, #12 merged.
 Followup items: In-batch dedup gap. Config hot-reload defect. Excluded terms expansion (3→15-20). CI gap. gmail-mcp-pete OAuth. Delete test trigger. Enable RemoteTrigger.

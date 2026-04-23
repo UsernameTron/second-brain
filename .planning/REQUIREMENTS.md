@@ -11,7 +11,7 @@ Requirements for go-live. No new features — defect fixes, integration wiring, 
 
 - [ ] **INTEG-01**: gmail-mcp-pete OAuth wired with real credentials (gmail.readonly + gmail.compose scopes, VIP filtering active)
 - [ ] **INTEG-02**: RemoteTrigger enabled on real pre-morning cron schedule for /today execution
-- [ ] **INTEG-03**: Excluded terms expanded from 3 seed entries to 15-20 covering former employers, project codenames, client names, internal tools
+- [x] **INTEG-03**: Excluded terms expanded from 3 seed entries to 15-20 covering former employers, project codenames, client names, internal tools
 
 ### Defect Fixes
 
@@ -53,7 +53,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | INTEG-01 | Phase 5 | Pending |
 | INTEG-02 | Phase 5 | Pending |
-| INTEG-03 | Phase 5 | Pending |
+| INTEG-03 | Phase 5 | Complete |
 | FIX-01 | Phase 6 | Pending |
 | FIX-02 | Phase 6 | Pending |
 | UAT-01 | Phase 6 | Pending |
