@@ -1,9 +1,20 @@
 # Todo
 
 ## Current
-- Between milestones — `/gsd:new-milestone` when ready for v1.3
+- [ ] `/gsd:ship` Phase 12 — shipping now
+- [x] Create UAT-BASELINE.md documenting UAT-01 pre-existing failure
+- [x] Annotate SEC-HOOK-01 as CLOSED in `.planning/backlog.md`
 - [ ] Configure branch protection (repo is public, CI passes)
 - [ ] Merge `chore/commit-planning-artifacts` branch to master
+
+## Session Handoff (Session 50 — 2026-04-23)
+- Phase 12 Critical Safety Fixes: 6/6 tasks DONE, VERIFIED, GO verdict
+- 3 review agents dispatched and signed off: silent-failure-hunter (0 BLOCK, 9 FLAG), pr-test-analyzer (PASS), pipeline-reviewer (PASS after fixes)
+- Critical bug caught by pipeline-reviewer: missing `await` on `formatNote`/`generateFilename` in lifecycle.js — fixed in `143b17f`
+- 11 test isolation failures fixed by gsd-debugger via temp-config-dir pattern — `3d71ed4`
+- Test suite: 639/640 pass (UAT-01 pre-existing, needs live LLM)
+- Branch `chore/commit-planning-artifacts` has commits ready for PR
+- Next: `/gsd:ship` to create Phase 12 PR, then Phase 13 (Config Schema Gaps)
 
 ## Session Handoff (Session 45 — 2026-04-23)
 - Completed comprehensive 8-domain codebase review (76/100, CONDITIONAL GO)
