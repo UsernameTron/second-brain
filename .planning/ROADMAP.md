@@ -97,3 +97,18 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with /gsd:review-backlog when ready)
+
+### Phase 999.6: Agent Roster Hardening (BACKLOG)
+
+**Goal:** Close coverage gaps and quality deficiencies identified by /gsd:crew assessment (2026-04-23). Four improvements, no new agents.
+**Source:** `.claude/plans/fizzy-bubbling-willow.md` (full assessment with line-number evidence)
+**Approach:**
+1. **Expand pipeline-reviewer to cover today-command.js** — currently excluded by both vault-guardian and pipeline-reviewer, leaving the largest module (30KB) unreviewed. Add to component table with briefing-specific review criteria.
+2. **Harden test-runner** (score 7/10, lowest) — add project root resolution, "when NOT to use" guard, redundancy guard against gsd-verifier overlap.
+3. **Add severity definitions to vault-guardian** — CRITICAL/WARNING/INFO levels undefined. Also update grep patterns to catch `fs.promises.writeFile` and `writeFileSync` variants.
+4. **Add test-file mapping to pipeline-reviewer** — explicit `src/{module}.js` → `test/{module}.test.js` convention table for faster reviews.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)
