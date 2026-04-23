@@ -76,8 +76,11 @@ Plans:
 **Depends on:** Phase 9 (agent hardening informed by new agents in Phase 9)
 **Goal:** Harden existing 4 agents, create pipeline health skill, install context7 MCP.
 
+**Plans:** 2 plans
+
 Plans:
-- [ ] TBD (plan with /gsd:plan-phase 10)
+- [ ] 10-01-PLAN.md — Agent roster hardening (SKILL-01) + context7 MCP install (SKILL-03)
+- [ ] 10-02-PLAN.md — Pipeline health check skill (SKILL-02)
 
 ### Phase 11: CI & LLM Infrastructure
 **Requirements:** CI-01, CI-02
