@@ -386,6 +386,189 @@ describe('loadTemplatesConfig', () => {
   });
 });
 
+// ── local LLM routing ───────────────────────────────────────────────────────
+
+describe('local LLM routing', () => {
+  let mockLogDecision;
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    jest.resetModules();
+    mockLogDecision = jest.fn();
+
+    // Mock vault-gateway for logDecision
+    jest.mock('../src/vault-gateway', () => ({
+      logDecision: (...args) => mockLogDecision(...args),
+      configEvents: { on: jest.fn(), once: jest.fn(), emit: jest.fn() },
+      initGateway: jest.fn(),
+    }));
+
+    // Mock content-policy
+    jest.mock('../src/content-policy', () => ({
+      sanitizeTermForPrompt: jest.fn((t) => t),
+    }));
+
+    // Mock Anthropic SDK — always available for fallback
+    jest.mock('@anthropic-ai/sdk', () => {
+      const mockCreate = jest.fn().mockResolvedValue({
+        content: [{ text: '{"label":"RIGHT","confidence":0.85}' }],
+      });
+      return jest.fn().mockImplementation(() => ({
+        messages: { create: mockCreate },
+      }));
+    });
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    jest.unmock('@anthropic-ai/sdk');
+    jest.unmock('../src/vault-gateway');
+    jest.unmock('../src/content-policy');
+    jest.resetModules();
+  });
+
+  function mockPipelineConfig(llmOverride) {
+    const realFs = jest.requireActual('fs');
+    const realPath = jest.requireActual('path');
+    const configPath = realPath.join(__dirname, '..', 'config', 'pipeline.json');
+    const baseConfig = JSON.parse(realFs.readFileSync(configPath, 'utf8'));
+    if (llmOverride !== undefined) {
+      baseConfig.classifier.llm = llmOverride;
+    }
+    jest.doMock('fs', () => {
+      const actual = jest.requireActual('fs');
+      return {
+        ...actual,
+        readFileSync: jest.fn((filePath, encoding) => {
+          if (typeof filePath === 'string' && filePath.includes('pipeline.json')) {
+            return JSON.stringify(baseConfig);
+          }
+          return actual.readFileSync(filePath, encoding);
+        }),
+      };
+    });
+  }
+
+  test('when provider is "local" and endpoint responds, uses local endpoint', async () => {
+    mockPipelineConfig({ provider: 'local', localEndpoint: 'http://localhost:1234', localModel: 'test-model' });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '{"label":"RIGHT","confidence":0.9}' } }],
+      }),
+    });
+
+    const { createHaikuClient } = require('../src/pipeline-infra');
+    const client = createHaikuClient();
+    const result = await client.classify('system', 'content');
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ label: 'RIGHT', confidence: 0.9 });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'http://localhost:1234/v1/chat/completions',
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+
+  test('when local endpoint is unreachable, falls back to Anthropic', async () => {
+    mockPipelineConfig({ provider: 'local', localEndpoint: 'http://localhost:1234', localModel: 'test-model' });
+
+    global.fetch = jest.fn().mockRejectedValue(new TypeError('fetch failed'));
+
+    const { createHaikuClient } = require('../src/pipeline-infra');
+    const client = createHaikuClient();
+    const result = await client.classify('system', 'content');
+
+    // Should fall back to Anthropic and succeed
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ label: 'RIGHT', confidence: 0.85 });
+  });
+
+  test('fallback logs via logDecision with FALLBACK reason', async () => {
+    mockPipelineConfig({ provider: 'local', localEndpoint: 'http://localhost:1234', localModel: 'test-model' });
+
+    global.fetch = jest.fn().mockRejectedValue(new TypeError('fetch failed'));
+
+    const { createHaikuClient } = require('../src/pipeline-infra');
+    const client = createHaikuClient();
+    await client.classify('system', 'content');
+
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY',
+      'test-model',
+      'FALLBACK',
+      expect.stringContaining('local endpoint unreachable')
+    );
+  });
+
+  test('when provider is "anthropic", uses Anthropic SDK (default behavior)', async () => {
+    mockPipelineConfig({ provider: 'anthropic', localEndpoint: 'http://localhost:1234', localModel: 'test-model' });
+
+    global.fetch = jest.fn();
+
+    const { createHaikuClient } = require('../src/pipeline-infra');
+    const client = createHaikuClient();
+    const result = await client.classify('system', 'content');
+
+    expect(result.success).toBe(true);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('when llm config section is absent, defaults to Anthropic (backward compat)', async () => {
+    mockPipelineConfig(undefined);
+    // Remove llm key entirely
+    jest.resetModules();
+    const realFs = jest.requireActual('fs');
+    const configPath = path.join(__dirname, '..', 'config', 'pipeline.json');
+    const baseConfig = JSON.parse(realFs.readFileSync(configPath, 'utf8'));
+    delete baseConfig.classifier.llm;
+    jest.doMock('fs', () => {
+      const actual = jest.requireActual('fs');
+      return {
+        ...actual,
+        readFileSync: jest.fn((filePath, encoding) => {
+          if (typeof filePath === 'string' && filePath.includes('pipeline.json')) {
+            return JSON.stringify(baseConfig);
+          }
+          return actual.readFileSync(filePath, encoding);
+        }),
+      };
+    });
+
+    global.fetch = jest.fn();
+
+    const { createHaikuClient } = require('../src/pipeline-infra');
+    const client = createHaikuClient();
+    const result = await client.classify('system', 'content');
+
+    expect(result.success).toBe(true);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('local endpoint parse error returns parse-error without fallback', async () => {
+    mockPipelineConfig({ provider: 'local', localEndpoint: 'http://localhost:1234', localModel: 'test-model' });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'not valid json' } }],
+      }),
+    });
+
+    const { createHaikuClient } = require('../src/pipeline-infra');
+    const client = createHaikuClient();
+    const result = await client.classify('system', 'content');
+
+    expect(result.success).toBe(false);
+    expect(result.failureMode).toBe('parse-error');
+  });
+});
+
 // ── Exports completeness ─────────────────────────────────────────────────────
 
 describe('pipeline-infra module exports', () => {
