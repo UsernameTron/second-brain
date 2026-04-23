@@ -1,19 +1,23 @@
 # Todo
 
 ## Current
-- [ ] `/gsd:discuss-phase 7` or `/gsd:plan-phase 7` — Hardening (CI-01: GitHub Actions pipeline)
+- [ ] `/gsd:new-milestone` — start next milestone cycle
+- [ ] Configure branch protection (repo is public, CI passes)
 
-## Session Handoff (Session 30 — 2026-04-23)
-- Phase 06 complete — all 3 plans executed, FIX-01/03/04/05 resolved, UAT-01/02/03 passed
-- Fixed 3 sub-bugs in FIX-01 promote-memories dedup: proposals self-match, missing content_hash in memory.md, non-pending re-processing
-- Merged chore/session-24-wrap to master, branch deleted
-- Master is 7 commits ahead of origin (not pushed)
-- Phase 07 (hardening) is next — GitHub Actions CI pipeline
-- Next session: `/gsd:discuss-phase 7` or `/gsd:plan-phase 7`
+## Session Handoff (Session 34 — 2026-04-23)
+- v1.1 Go Live milestone completed and archived
+- Git cleanup: 4 stale branches deleted, local/remote master synced, history reconciled
+- Archives: milestones/v1.1-ROADMAP.md, milestones/v1.1-REQUIREMENTS.md
+- RETROSPECTIVE.md updated with v1.1 section and cross-milestone trends
+- Tag v1.1 pushed to remote
+- PRs #14 (history reconciliation) and #15 (milestone completion) merged
+- Master clean, single branch, synced with origin
+- Next session: `/gsd:new-milestone` to start next cycle
 
 ## Followup
-- [ ] **DEFERRED: Config hot-reload (FIX-02)** — no real symptom observed, two mechanisms already in place. Revisit if a symptom surfaces.
-- [ ] Push master to origin (7 commits ahead)
+- [ ] **DEFERRED: Config hot-reload (FIX-02)** — no real symptom observed. Revisit if a symptom surfaces.
+- [ ] Backlog 999.1: Wire Local LLM (LM Studio) into pipeline (spec at docs/second-brain-local-llm-backlog.md)
+- [ ] Phase directory archival: decide whether to move phases 05-07 to milestones/v1.1-phases/ (or keep in place)
 
 ## Completed
 - [x] Deep questioning and PROJECT.md creation
@@ -42,4 +46,8 @@
 - [x] Phase 5 plan-phase complete (3 plans, 2 waves, checker passed after revision)
 - [x] Phase 5 execution complete (3/3 plans, INTEG-01/02/03 satisfied, RemoteTrigger verified)
 - [x] Phase 6 execution complete (3/3 plans, FIX-01/03/04/05 + UAT-01/02/03)
-- [x] FIX-01: 3 sub-bugs fixed in promote-memories dedup (proposals self-match, content_hash, non-pending re-processing)
+- [x] FIX-01: 3 sub-bugs fixed in promote-memories dedup
+- [x] Phase 7 execution complete (CI pipeline, Node 20+22 matrix, PR #13)
+- [x] v1.0 milestone completed and archived (tag v1.0)
+- [x] v1.1 milestone completed and archived (tag v1.1, PRs #14-#15)
+- [x] Git cleanup: 4 stale branches deleted, history reconciled
