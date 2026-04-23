@@ -1,17 +1,17 @@
 # Todo
 
 ## Current
-- [ ] `/gsd:discuss-phase 5` or `/gsd:plan-phase 5` — plan Integration Wiring phase
-- [ ] Delete test trigger trig_01NHx3Uz8ni8eZSfsMph4miY at https://claude.ai/code/scheduled
+- [ ] `/gsd:execute-phase 5` — execute Integration Wiring (3 plans, 2 waves)
+- [ ] Delete test trigger trig_01NHx3Uz8ni8eZSfsMph4miY at https://claude.ai/code/scheduled (needed before Plan 05-03)
 
-## Session Handoff (Session 23 — 2026-04-22)
-- v1.1 "Go Live" milestone initialized: PROJECT.md, STATE.md, REQUIREMENTS.md, ROADMAP.md updated
-- 9 requirements across 3 phases (5-7): Integration Wiring → Defect Fixes & UAT → Hardening
-- No new features — defect fixes, OAuth wiring, UAT, CI only
-- Research skipped (all items known)
-- 4 commits: milestone start (ec3d5cf), requirements (d527580), roadmap (ccfb2d0)
-- Branch: master
-- Next session: `/gsd:plan-phase 5` for Integration Wiring (INTEG-01, INTEG-02, INTEG-03)
+## Session Handoff (Session 25 — 2026-04-22)
+- Phase 5 plan-phase completed: 3 plans, 2 waves, checker passed after 1 revision
+- Wave 1 (parallel): 05-01 Gmail OAuth bootstrap + wire stubs, 05-02 Excluded terms expansion + substring matching
+- Wave 2 (sequential): 05-03 RemoteTrigger activation (delete test, create real, verify fire)
+- Human checkpoints in plans: OAuth browser consent (05-01), provide excluded terms list (05-02), delete test trigger + verify fire (05-03)
+- Planner found: content-policy.js uses word-boundary regex (needs fix to substring), classifier.js has silent parsing bug (Phase 6), tool schema missing hours param
+- Branch: chore/session-24-wrap
+- Next session: `/gsd:execute-phase 5`
 
 ## Followup
 - [ ] **DEFECT (LOW): in-batch dedup gap in src/promote-memories.js:330-338** — two proposals with identical contentHash in the same promotion batch can both promote. Fix: track Set of promoted hashes inside batch loop + add test. Surfaced by Gemini + host-session review of Phase 2.
@@ -44,3 +44,5 @@
 - [x] Phase 3 discuss-phase complete (22 decisions, 4 areas, PR #5)
 - [x] Phase 3 context refinements merged (PR #6, 6 patches from Gemini round 1)
 - [x] Phase 3 plan-phase complete (4 plans, 2 waves, 897 total lines)
+- [x] Phase 5 discuss-phase complete (12 decisions locked, 05-CONTEXT.md)
+- [x] Phase 5 plan-phase complete (3 plans, 2 waves, checker passed after revision)

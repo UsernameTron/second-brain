@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Phases
 status: planning
-stopped_at: Phase 5 context gathered
+stopped_at: Phase 5 planned
 last_updated: "2026-04-23T00:58:39.515Z"
 last_activity: 2026-04-22 — v1.1 roadmap created (Phases 5-7)
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
 ---
 
@@ -24,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-04-22)
 
 ## Current Position
 
-Phase: 5 (Integration Wiring) — context gathered, ready for planning
-Plan: —
-Status: Context gathered (05-CONTEXT.md committed), next: plan-phase 5
-Last activity: 2026-04-22 — Phase 5 discuss-phase completed (12 decisions locked)
+Phase: 5 (Integration Wiring) — planned, ready for execution
+Plan: 3 plans in 2 waves (05-01 Gmail OAuth, 05-02 Excluded Terms, 05-03 RemoteTrigger)
+Status: Plans created and verified (1 revision — substring verify assertion fixed). Next: execute-phase 5
+Last activity: 2026-04-22 — Phase 5 plan-phase completed (3 plans, checker passed after revision)
 
 ## Accumulated Context
 
@@ -49,6 +49,6 @@ None.
 
 Last session: 2026-04-23T00:58:39.513Z
 Stopped at: Phase 5 context gathered
-Resume with: `/gsd:plan-phase 5` (or `--skip-research` — all decisions locked, research likely unnecessary)
+Resume with: `/gsd:execute-phase 5` — 3 plans ready, Wave 1 (Gmail OAuth + Excluded Terms) parallel, Wave 2 (RemoteTrigger) after
 Ship log: PRs #1, #2, #5, #6, #8, #10, #11, #12 merged.
 Followup items: In-batch dedup gap. Config hot-reload defect. Excluded terms expansion (3→15-20). CI gap. gmail-mcp-pete OAuth. Delete test trigger. Enable RemoteTrigger.
