@@ -51,20 +51,20 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INTEG-01 | — | Pending |
-| INTEG-02 | — | Pending |
-| INTEG-03 | — | Pending |
-| FIX-01 | — | Pending |
-| FIX-02 | — | Pending |
-| UAT-01 | — | Pending |
-| UAT-02 | — | Pending |
-| UAT-03 | — | Pending |
-| CI-01 | — | Pending |
+| INTEG-01 | Phase 5 | Pending |
+| INTEG-02 | Phase 5 | Pending |
+| INTEG-03 | Phase 5 | Pending |
+| FIX-01 | Phase 6 | Pending |
+| FIX-02 | Phase 6 | Pending |
+| UAT-01 | Phase 6 | Pending |
+| UAT-02 | Phase 6 | Pending |
+| UAT-03 | Phase 6 | Pending |
+| CI-01 | Phase 7 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 9 total
-- Mapped to phases: 0
-- Unmapped: 9 ⚠️
+- Mapped to phases: 9
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-22*
