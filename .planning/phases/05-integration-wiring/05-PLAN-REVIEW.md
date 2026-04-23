@@ -1,34 +1,25 @@
 ---
 phase: 05-integration-wiring
-reviewed: 2026-04-22T22:00:00Z
-status: issues_found
+reviewed: 2026-04-22T23:15:00Z
+status: passed
 plans_checked: 3
-issues:
-  - plan: "05-02"
-    dimension: "task_completeness"
-    severity: "blocker"
-    description: "Task 1 automated verify accepts both BLOCK and PASS for substring match test. The whole point of this task is changing from word-boundary to substring matching. 'mygenesysproject' containing 'Genesys' MUST return BLOCK after the change. Current verify: `if (r.decision !== 'BLOCK' && r.decision !== 'PASS') throw` — this silently passes even if word-boundary matching is still in place (since 'Genesys' has no word boundary in 'mygenesysproject' and would return PASS). The verify must assert `r.decision === 'BLOCK'` to actually validate the behavior change."
-    task: 1
-    fix_hint: "Change verify to: `if (r.decision !== 'BLOCK') throw new Error('Expected BLOCK for substring match, got ' + r.decision)`"
-  - plan: "05-03"
-    dimension: "task_completeness"
-    severity: "warning"
-    description: "Task 2 automated verify is `echo` command that always exits 0 regardless of trigger state. This is understandable for an API/UI operation, but the <automated> tag is misleading. Either remove the <automated> wrapper (making it a manual verify) or replace with a command that actually checks trigger existence if an API is available."
-    task: 2
-    fix_hint: "If no programmatic check is possible, change <automated> to a plain text description or restructure Task 2 as checkpoint:human-verify instead of auto."
-  - plan: "05-01"
-    dimension: "task_completeness"
-    severity: "info"
-    description: "Frontmatter files_modified is incomplete. Missing ~/projects/gmail-mcp-pete/src/auth-helper.js (created in Task 1) and ~/projects/gmail-mcp-pete/src/index.js (modified in Task 2 to add hours parameter to tool schema). Task-level <files> tags are correct; only the plan-level frontmatter is inaccurate."
-    task: null
-    fix_hint: "Add src/auth-helper.js and src/index.js to the files_modified list in frontmatter."
+re_review:
+  previous_status: issues_found
+  previous_issues: 3
+  resolved:
+    - "BLOCKER: 05-02 Task 1 verify now asserts BLOCK specifically (was accepting BLOCK or PASS)"
+    - "WARNING: 05-03 Task 2 verify restructured as plain text (was misleading automated echo)"
+    - "INFO: 05-01 frontmatter files_modified now includes auth-helper.js and index.js"
+  remaining: []
+issues: []
 ---
 
-# Phase 5: Integration Wiring — Plan Review
+# Phase 5: Integration Wiring --- Plan Review
 
 **Phase Goal:** The system runs unattended on real credentials and real data
 **Plans Reviewed:** 3
-**Status:** ISSUES FOUND
+**Status:** VERIFICATION PASSED
+**Re-review:** Yes (previous review found 1 blocker, 1 warning, 1 info -- all resolved)
 
 ## Requirement Coverage
 
@@ -38,52 +29,73 @@ issues:
 | INTEG-02 | RemoteTrigger enabled on real pre-morning cron | 05-03 | 1, 2, 3 | COVERED |
 | INTEG-03 | Excluded terms expanded to 15-20 with substring matching | 05-02 | 1, 2, 3 | COVERED |
 
-All three requirements are covered. No orphaned requirements.
+All three requirements mapped. No orphaned requirements.
 
 ## Plan Summary
 
 | Plan | Tasks | Files | Wave | Depends On | Status |
 |------|-------|-------|------|------------|--------|
-| 05-01 (Gmail OAuth) | 3 (2 auto + 1 human checkpoint) | 4 files across gmail-mcp-pete | 1 | None | PASS (info only) |
-| 05-02 (Excluded Terms) | 3 (2 auto + 1 decision checkpoint) | 2 files | 1 | None | FAIL (1 blocker) |
-| 05-03 (RemoteTrigger) | 3 (1 auto + 2 human checkpoints) | 0 files (API/UI operations) | 2 | 05-01, 05-02 | PASS (1 warning) |
+| 05-01 (Gmail OAuth) | 3 (2 auto + 1 human checkpoint) | 4 files in gmail-mcp-pete | 1 | None | PASS |
+| 05-02 (Excluded Terms) | 3 (2 auto + 1 decision checkpoint) | 3 files | 1 | None | PASS |
+| 05-03 (RemoteTrigger) | 3 (1 auto + 2 human checkpoints) | 1 file | 2 | 05-01, 05-02 | PASS |
 
 ## Dimension Results
 
-| Dimension | Verdict |
-|-----------|---------|
-| 1. Requirement Coverage | PASS — all 3 requirements mapped to tasks |
-| 2. Task Completeness | FAIL — 05-02 Task 1 verify does not validate the behavior it claims to test |
-| 3. Dependency Correctness | PASS — no cycles, valid references, correct wave assignment |
-| 4. Key Links Planned | PASS — all key connections have implementing tasks |
-| 5. Scope Sanity | PASS — 3 tasks per plan, reasonable file counts |
-| 6. must_haves Derivation | PASS — truths are user-observable, artifacts map to truths |
-| 7. Context Compliance | PASS — all 12 decisions covered, no deferred ideas in scope |
-| 8. Nyquist Compliance | SKIPPED — no RESEARCH.md for this phase |
-| 9. Cross-Plan Data Contracts | PASS — no conflicting transforms on shared data |
-| 10. CLAUDE.md Compliance | PASS — plans respect project conventions |
+| # | Dimension | Verdict |
+|---|-----------|---------|
+| 1 | Requirement Coverage | PASS -- all 3 requirements mapped to tasks |
+| 2 | Task Completeness | PASS -- all tasks have required fields, verify assertions are correct |
+| 3 | Dependency Correctness | PASS -- no cycles, valid references, correct wave assignment |
+| 4 | Key Links Planned | PASS -- all key connections have implementing tasks |
+| 5 | Scope Sanity | PASS -- 3 tasks per plan, reasonable file counts |
+| 6 | must_haves Derivation | PASS -- truths are user-observable, artifacts map to truths |
+| 7 | Context Compliance | PASS -- all 12 decisions (D-01 through D-12) covered, no deferred ideas in scope |
+| 8 | Nyquist Compliance | SKIPPED -- no RESEARCH.md for this phase |
+| 9 | Cross-Plan Data Contracts | PASS -- no conflicting transforms on shared data |
+| 10 | CLAUDE.md Compliance | PASS -- plans respect zero-trust posture, excluded terms, vault boundaries |
+
+## Review Concerns Resolution
+
+All 5 agreed concerns from the cross-AI review (05-REVIEWS.md) are addressed in the revised plans:
+
+| # | Concern | Severity | Resolution | Plan |
+|---|---------|----------|------------|------|
+| 1 | Auth error taxonomy | HIGH | Task 1 exports AUTH_ERRORS constants, Task 2 defines classifyError mapping googleapis codes to AUTH_REQUIRED / TOKEN_REFRESH_FAILED / PERMISSION_DENIED | 05-01 |
+| 2 | classifier.js schema mismatch | HIGH | Task 1 Change 3 adds Array.isArray guard, classifier.js added to files_modified and must_haves | 05-02 |
+| 3 | toLowerCase() performance | MEDIUM | Task 1 lowercases content once before loop (contentLower), not per-term | 05-02 |
+| 4 | Manual DST documentation | MEDIUM | Task 2 Part B adds dst_ops field to scheduling.json with exact CDT/CST cron values | 05-03 |
+| 5 | MIME parsing policy | MEDIUM | Task 2 specifies 4-level priority: text/plain > HTML-stripped > single-part > graceful empty with bodySource indicator | 05-01 |
+
+## Previous Review Issues Resolution
+
+| # | Severity | Issue | Status |
+|---|----------|-------|--------|
+| 1 | BLOCKER | 05-02 Task 1 verify accepted both BLOCK and PASS | RESOLVED -- now asserts `r.decision !== 'BLOCK'` |
+| 2 | WARNING | 05-03 Task 2 automated verify was echo that always exits 0 | RESOLVED -- verify is now plain text instruction for UI check |
+| 3 | INFO | 05-01 frontmatter files_modified missing auth-helper.js and index.js | RESOLVED -- both now listed in frontmatter |
+
+## Decision Traceability
+
+| Decision | Description | Implementing Plan/Task |
+|----------|-------------|----------------------|
+| D-01 | CLI OAuth setup script | 05-01 Task 1 (scripts/auth.js) |
+| D-02 | Automatic token refresh | 05-01 Task 2 (googleapis client handles refresh) |
+| D-03 | No fail-fast on refresh failure | 05-01 Task 2 (classifyError returns typed error) |
+| D-04 | Wire three stubs | 05-01 Task 2 (listRecentMessages, getMessageBody, createDraft) |
+| D-05 | gmail.readonly + gmail.compose only | 05-01 Task 1 (SCOPES constant), Task 2 (no gmail.send) |
+| D-06 | Substring case-insensitive matching | 05-02 Task 1 (contentLower.includes) |
+| D-07 | 15-20 terms from user | 05-02 Tasks 2+3 (collect + write) |
+| D-08 | Verify/update matching logic | 05-02 Task 1 (replaces word-boundary regex) |
+| D-09 | Enable-observe-verify approach | 05-03 Task 3 (human verify) |
+| D-10 | UTC cron with DST adjustment | 05-03 Task 2 Part B (dst_ops documentation) |
+| D-11 | RemoteTrigger Gmail degradation | 05-03 Task 3 acceptance criteria |
+| D-12 | Delete test, create disabled | 05-03 Tasks 1+2 |
 
 ## Issues
 
-### Blocker (1)
-
-**[05-02 / Task 1 / task_completeness]** Automated verify for substring matching accepts both BLOCK and PASS, which means it cannot distinguish between the old word-boundary behavior and the new substring behavior. The test input "mygenesysproject" with term "Genesys" would return PASS under word-boundary matching (no word boundary around "genesys" in that string) and BLOCK under substring matching. The verify must assert BLOCK specifically.
-
-**Fix:** Change verify assertion from `if (r.decision !== 'BLOCK' && r.decision !== 'PASS')` to `if (r.decision !== 'BLOCK') throw new Error('Expected BLOCK for substring match, got ' + r.decision)`.
-
-### Warning (1)
-
-**[05-03 / Task 2 / task_completeness]** The `<automated>` verify is an echo command that always succeeds. This makes the verify meaningless for the auto task type. If RemoteTrigger creation is inherently a UI/API operation with no programmatic verification, consider restructuring Task 2 as `checkpoint:human-verify` or removing the `<automated>` wrapper.
-
-### Info (1)
-
-**[05-01 / frontmatter / task_completeness]** `files_modified` in frontmatter is missing `src/auth-helper.js` (created in Task 1) and `src/index.js` (modified in Task 2). Task-level `<files>` tags are correct.
-
-## Recommendation
-
-**1 blocker found.** Return to planner to fix the 05-02 Task 1 verify assertion. The fix is a single-line change. The warning on 05-03 Task 2 is acceptable given the inherent limitation of RemoteTrigger API operations.
+None. All previous issues resolved. All review concerns addressed.
 
 ---
 
-_Reviewed: 2026-04-22T22:00:00Z_
+_Reviewed: 2026-04-22T23:15:00Z_
 _Reviewer: Claude (gsd-verifier scope:plan)_
