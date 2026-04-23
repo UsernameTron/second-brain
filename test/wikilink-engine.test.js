@@ -287,92 +287,80 @@ describe('suggestWikilinks — core pipeline', () => {
     fs.writeFileSync(path.join(tmpCacheDir, 'vault-index.json'), JSON.stringify(testIndex), 'utf8');
   });
 
-  test('returns object with section and links keys', async () => {
-    // Mock createHaikuClient by controlling the module
-    jest.mock('../src/pipeline-infra', () => ({
-      ...jest.requireActual('../src/pipeline-infra'),
-      createHaikuClient: () => ({
-        classify: async () => ({
-          success: true,
-          data: [
-            { path: 'memory/artificial-intelligence.md', relevance: 0.9, reason: 'Directly related to AI topic' },
-          ],
-        }),
-      }),
-    }));
+  // Helper: monkey-patch pipeline-infra in require cache with a custom Haiku client,
+  // then requireFresh wikilink-engine so its runtime require picks up the patch.
+  let _patchedCreateHaikuClient = null;
 
-    const { suggestWikilinks } = requireFresh('../src/wikilink-engine');
+  function mockHaikuAndRequire(classifyFn) {
+    // Load the real module and cache a patched version
+    delete require.cache[require.resolve('../src/pipeline-infra')];
+    delete require.cache[require.resolve('../src/wikilink-engine')];
+    const real = require('../src/pipeline-infra');
+    // Replace the cached module's createHaikuClient export
+    require.cache[require.resolve('../src/pipeline-infra')].exports = {
+      ...real,
+      createHaikuClient: () => ({ classify: classifyFn }),
+    };
+    _patchedCreateHaikuClient = classifyFn;
+    return require('../src/wikilink-engine');
+  }
+
+  afterEach(() => {
+    // Restore real pipeline-infra and clear wikilink-engine
+    delete require.cache[require.resolve('../src/pipeline-infra')];
+    delete require.cache[require.resolve('../src/wikilink-engine')];
+    _patchedCreateHaikuClient = null;
+  });
+
+  test('returns object with section and links keys', async () => {
+    const { suggestWikilinks } = mockHaikuAndRequire(async () => ({
+      success: true,
+      data: [
+        { path: 'memory/artificial-intelligence.md', relevance: 0.9, reason: 'Directly related to AI topic' },
+      ],
+    }));
     const result = await suggestWikilinks('This note is about artificial intelligence and AI systems.', ['ai']);
     expect(result).toHaveProperty('section');
     expect(result).toHaveProperty('links');
     expect(typeof result.section).toBe('string');
     expect(Array.isArray(result.links)).toBe(true);
-
-    jest.unmock('../src/pipeline-infra');
   });
 
   test('returns ## Related section for RIGHT notes (non-left-proposal)', async () => {
-    jest.mock('../src/pipeline-infra', () => ({
-      ...jest.requireActual('../src/pipeline-infra'),
-      createHaikuClient: () => ({
-        classify: async () => ({
-          success: true,
-          data: [
-            { path: 'memory/artificial-intelligence.md', relevance: 0.85, reason: 'Core AI topic connection' },
-          ],
-        }),
-      }),
+    const { suggestWikilinks } = mockHaikuAndRequire(async () => ({
+      success: true,
+      data: [
+        { path: 'memory/artificial-intelligence.md', relevance: 0.85, reason: 'Core AI topic connection' },
+      ],
     }));
-
-    const { suggestWikilinks } = requireFresh('../src/wikilink-engine');
     const result = await suggestWikilinks('AI transformation and machine learning strategies.', ['ai']);
     expect(result.section).toContain('## Related');
     expect(result.section).not.toContain('## Suggested wikilinks');
-
-    jest.unmock('../src/pipeline-infra');
   });
 
   test('returns ## Suggested wikilinks section for LEFT proposals (isLeftProposal=true)', async () => {
-    jest.mock('../src/pipeline-infra', () => ({
-      ...jest.requireActual('../src/pipeline-infra'),
-      createHaikuClient: () => ({
-        classify: async () => ({
-          success: true,
-          data: [
-            { path: 'memory/career-strategy.md', relevance: 0.75, reason: 'Career planning related topic' },
-          ],
-        }),
-      }),
+    const { suggestWikilinks } = mockHaikuAndRequire(async () => ({
+      success: true,
+      data: [
+        { path: 'memory/career-strategy.md', relevance: 0.75, reason: 'Career planning related topic' },
+      ],
     }));
-
-    const { suggestWikilinks } = requireFresh('../src/wikilink-engine');
     const result = await suggestWikilinks('My thoughts on career development and growth.', ['career'], { isLeftProposal: true });
     expect(result.section).toContain('## Suggested wikilinks');
     expect(result.section).not.toContain('## Related');
-
-    jest.unmock('../src/pipeline-infra');
   });
 
   test('returns empty result when no candidates meet threshold', async () => {
-    jest.mock('../src/pipeline-infra', () => ({
-      ...jest.requireActual('../src/pipeline-infra'),
-      createHaikuClient: () => ({
-        classify: async () => ({
-          success: true,
-          data: [
-            { path: 'memory/artificial-intelligence.md', relevance: 0.3, reason: 'Weakly related' },
-            { path: 'memory/career-strategy.md', relevance: 0.2, reason: 'Not related' },
-          ],
-        }),
-      }),
+    const { suggestWikilinks } = mockHaikuAndRequire(async () => ({
+      success: true,
+      data: [
+        { path: 'memory/artificial-intelligence.md', relevance: 0.3, reason: 'Weakly related' },
+        { path: 'memory/career-strategy.md', relevance: 0.2, reason: 'Not related' },
+      ],
     }));
-
-    const { suggestWikilinks } = requireFresh('../src/wikilink-engine');
     const result = await suggestWikilinks('Some completely unrelated content about cooking recipes.', []);
     expect(result.section).toBe('');
     expect(result.links).toHaveLength(0);
-
-    jest.unmock('../src/pipeline-infra');
   });
 
   test('caps suggestions at maxSuggestions (5) from pipeline config', async () => {
@@ -385,47 +373,29 @@ describe('suggestWikilinks — core pipeline', () => {
     }));
     fs.writeFileSync(path.join(tmpCacheDir, 'vault-index.json'), JSON.stringify(largeIndex), 'utf8');
 
-    jest.mock('../src/pipeline-infra', () => ({
-      ...jest.requireActual('../src/pipeline-infra'),
-      createHaikuClient: () => ({
-        classify: async () => ({
-          success: true,
-          data: Array.from({ length: 25 }, (_, i) => ({
-            path: `memory/note-${i}.md`,
-            relevance: 0.9 - i * 0.01,
-            reason: `Connection reason ${i} words here`,
-          })),
-        }),
-      }),
+    const { suggestWikilinks } = mockHaikuAndRequire(async () => ({
+      success: true,
+      data: Array.from({ length: 25 }, (_, i) => ({
+        path: `memory/note-${i}.md`,
+        relevance: 0.9 - i * 0.01,
+        reason: `Connection reason ${i} words here`,
+      })),
     }));
-
-    const { suggestWikilinks } = requireFresh('../src/wikilink-engine');
     const result = await suggestWikilinks('AI artificial intelligence machine learning content.', ['ai']);
     expect(result.links.length).toBeLessThanOrEqual(5);
-
-    jest.unmock('../src/pipeline-infra');
   });
 
   test('formats links as [[Note Title]] — reason', async () => {
-    jest.mock('../src/pipeline-infra', () => ({
-      ...jest.requireActual('../src/pipeline-infra'),
-      createHaikuClient: () => ({
-        classify: async () => ({
-          success: true,
-          data: [
-            { path: 'memory/artificial-intelligence.md', relevance: 0.8, reason: 'AI systems directly related topic' },
-          ],
-        }),
-      }),
+    const { suggestWikilinks } = mockHaikuAndRequire(async () => ({
+      success: true,
+      data: [
+        { path: 'memory/artificial-intelligence.md', relevance: 0.8, reason: 'AI systems directly related topic' },
+      ],
     }));
-
-    const { suggestWikilinks } = requireFresh('../src/wikilink-engine');
     const result = await suggestWikilinks('Note about artificial intelligence AI systems.', ['ai']);
     expect(result.section).toContain('[[');
     expect(result.section).toContain(']]');
     expect(result.section).toContain('—');
-
-    jest.unmock('../src/pipeline-infra');
   });
 
   test('returns empty result gracefully when vault index is empty', async () => {
@@ -444,25 +414,16 @@ describe('suggestWikilinks — core pipeline', () => {
     ];
     fs.writeFileSync(path.join(tmpCacheDir, 'vault-index.json'), JSON.stringify(testIndex), 'utf8');
 
-    jest.mock('../src/pipeline-infra', () => ({
-      ...jest.requireActual('../src/pipeline-infra'),
-      createHaikuClient: () => ({
-        classify: async () => ({
-          success: false,
-          error: 'API error',
-          failureMode: 'api-error',
-        }),
-      }),
+    const { suggestWikilinks } = mockHaikuAndRequire(async () => ({
+      success: false,
+      error: 'API error',
+      failureMode: 'api-error',
     }));
-
-    const { suggestWikilinks } = requireFresh('../src/wikilink-engine');
     // Should not throw — enrichment failures never block per D-39
     const result = await suggestWikilinks('Content about artificial intelligence AI.', ['ai']);
     expect(result).toHaveProperty('section');
     expect(result).toHaveProperty('links');
     // On fallback, may return empty or filename-match results — must not throw
     expect(Array.isArray(result.links)).toBe(true);
-
-    jest.unmock('../src/pipeline-infra');
   });
 });
