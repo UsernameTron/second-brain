@@ -488,6 +488,182 @@ describe('promoteMemories - deduplication', () => {
   });
 });
 
+// ── In-batch deduplication (FIX-01) ─────────────────────────────────────────
+
+describe('promoteMemories - in-batch duplicate detection', () => {
+  test('batch with duplicate contentHashes promotes only first; second marked duplicate', async () => {
+    const sharedContent = 'This exact memory appears twice in the same batch run today.';
+
+    const candidates = [
+      {
+        candidateId: 'mem-20260422-001',
+        category: 'LEARNING',
+        confidence: 0.95,
+        content: sharedContent,
+        status: 'accepted',
+        sourceRef: 'session:abc12345',
+      },
+      {
+        candidateId: 'mem-20260422-002',
+        category: 'LEARNING',
+        confidence: 0.85,
+        content: sharedContent, // identical content → same hash
+        status: 'accepted',
+        sourceRef: 'session:def67890',
+      },
+    ];
+
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result.promoted).toBe(1);
+    expect(result.duplicates).toBe(1);
+
+    // Verify only one entry in memory.md (not two)
+    const memoryFile = path.join(memoryDir, 'memory.md');
+    const memoryContent = fs.readFileSync(memoryFile, 'utf8');
+    const headingCount = (memoryContent.match(/^### /gm) || []).length;
+    expect(headingCount).toBe(1);
+  });
+
+  test('within-batch Set is reset between separate promoteMemories invocations (no cross-batch leakage)', async () => {
+    // First invocation: promote candidate A
+    const candidates1 = [
+      {
+        candidateId: 'mem-20260422-001',
+        category: 'LEARNING',
+        confidence: 0.9,
+        content: 'Memory that should appear in first batch invocation independently.',
+        status: 'accepted',
+        sourceRef: 'session:abc12345',
+      },
+    ];
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates1), 'utf8');
+
+    const result1 = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result1.promoted).toBe(1);
+
+    // Reset module to simulate a fresh invocation (clears any module-level state)
+    jest.resetModules();
+    promoteMemories = require('../src/promote-memories');
+
+    // Second invocation with a different unique candidate
+    const candidates2 = [
+      {
+        candidateId: 'mem-20260422-002',
+        category: 'LEARNING',
+        confidence: 0.9,
+        content: 'Completely different memory entry that is new and unique here now.',
+        status: 'accepted',
+        sourceRef: 'session:xyz99999',
+      },
+    ];
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates2), 'utf8');
+
+    const result2 = await promoteMemories.promoteMemories({ max: 5 });
+    // Should promote without issue — in-batch Set from invocation 1 must not leak
+    expect(result2.promoted).toBe(1);
+    expect(result2.duplicates).toBe(0);
+  });
+
+  test('isDuplicateInMemory returns true when hash exists in memory-proposals.md', async () => {
+    const pendingContent = 'This memory is pending in proposals and must not be re-promoted today.';
+    const pendingHash = computeHash(pendingContent);
+
+    // Write proposals file with a PENDING candidate that already has this hash
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    const pendingSection = [
+      '### mem-20260101-001 · LEARNING · session:old',
+      '- [ ] accept',
+      '- [ ] reject',
+      '- [ ] edit-then-accept',
+      '- [ ] defer',
+      '',
+      `**Content:** ${pendingContent}`,
+      '**Proposed tags:** test',
+      '**Proposed related:** ',
+      '',
+      'session_id:: manual',
+      'source_ref:: session:old12345',
+      `captured_at:: ${new Date().toISOString()}`,
+      'source_file:: /path/to/file',
+      'category:: LEARNING',
+      'confidence:: 0.8',
+      `content_hash:: ${pendingHash}`,
+      'status:: pending',
+      'extraction_trigger:: wrap',
+      '',
+    ].join('\n');
+
+    // Also add the accepted candidate with the same hash (different ID)
+    const acceptedSection = [
+      '### mem-20260422-002 · LEARNING · session:new99',
+      '- [x] accept',
+      '- [ ] reject',
+      '- [ ] edit-then-accept',
+      '- [ ] defer',
+      '',
+      `**Content:** ${pendingContent}`,
+      '**Proposed tags:** test',
+      '**Proposed related:** ',
+      '',
+      'session_id:: manual',
+      'source_ref:: session:new99999',
+      `captured_at:: ${new Date().toISOString()}`,
+      'source_file:: /path/to/file',
+      'category:: LEARNING',
+      'confidence:: 0.9',
+      `content_hash:: ${pendingHash}`,
+      'status:: accepted',
+      'extraction_trigger:: wrap',
+      '',
+    ].join('\n');
+
+    const fullFile = [
+      '---',
+      `last_updated: ${new Date().toISOString()}`,
+      'total_pending: 1',
+      'total_processed: 0',
+      '---',
+      '',
+      pendingSection,
+      acceptedSection,
+    ].join('\n');
+    fs.writeFileSync(proposalsFile, fullFile, 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    // Accepted candidate should be detected as duplicate because its hash appears in proposals
+    expect(result.duplicates).toBe(1);
+    expect(result.promoted).toBe(0);
+  });
+
+  test('isDuplicateInMemory returns false (no crash) when proposals file does not exist separately', async () => {
+    // Write proposals with a single accepted candidate — no pre-existing proposals file issues
+    const candidates = [
+      {
+        candidateId: 'mem-20260422-001',
+        category: 'LEARNING',
+        confidence: 0.9,
+        content: 'Memory candidate when no pre-existing duplicate entries exist anywhere.',
+        status: 'accepted',
+        sourceRef: 'session:abc12345',
+      },
+    ];
+
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates), 'utf8');
+
+    // Remove the proposals archive dir entirely to test graceful path missing
+    fs.rmSync(path.join(tmpDir, 'memory-proposals-archive'), { recursive: true, force: true });
+
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result.error).toBeUndefined();
+    expect(result.promoted).toBe(1); // Should succeed, not crash on missing paths
+  });
+});
+
 // ── Proposal archive (D-57) ─────────────────────────────────────────────────
 
 describe('promoteMemories - proposal archive', () => {
