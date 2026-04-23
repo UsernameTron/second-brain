@@ -278,6 +278,27 @@ async function writeDeadLetter(inputBody, failureMode, correlationId, metadata =
   return { path: relativePath };
 }
 
+// ── Safe vault-paths loader ─────────────────────────────────────────────────
+
+/**
+ * Load vault-paths.json with guard against malformed or missing file.
+ * Returns a safe default on any read/parse error and logs via logDecision.
+ *
+ * @returns {{ left: string[], right: string[], haikuContextChars: number }}
+ */
+function safeLoadVaultPaths() {
+  const SAFE_DEFAULT = { left: [], right: [], haikuContextChars: 100 };
+  try {
+    const filePath = path.join(CONFIG_DIR, 'vault-paths.json');
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw);
+  } catch (err) {
+    const { logDecision } = require('./vault-gateway');
+    logDecision('CONFIG', 'vault-paths.json', 'LOAD_ERROR', err.message);
+    return SAFE_DEFAULT;
+  }
+}
+
 // ── Config overlay helpers ───────────────────────────────────────────────────
 
 /**
@@ -415,4 +436,5 @@ module.exports = {
   loadPipelineConfig,
   loadTemplatesConfig,
   loadConfigWithOverlay,
+  safeLoadVaultPaths,
 };

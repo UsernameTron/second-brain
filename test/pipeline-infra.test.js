@@ -727,3 +727,54 @@ describe('vault-gateway.js chokidar hot-reload', () => {
     }, 1000);
   }, 10000);
 });
+
+// ── safeLoadVaultPaths (T12.2) ──────────────────────────────────────────────
+
+describe('safeLoadVaultPaths', () => {
+  const SAFE_DEFAULT = { left: [], right: [], haikuContextChars: 100 };
+  let tmpDir, originalConfigDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-paths-test-'));
+    originalConfigDir = process.env.CONFIG_DIR_OVERRIDE;
+    process.env.CONFIG_DIR_OVERRIDE = tmpDir;
+    // Clear module cache so pipeline-infra picks up new CONFIG_DIR
+    jest.resetModules();
+  });
+
+  afterEach(() => {
+    if (originalConfigDir === undefined) {
+      delete process.env.CONFIG_DIR_OVERRIDE;
+    } else {
+      process.env.CONFIG_DIR_OVERRIDE = originalConfigDir;
+    }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('returns parsed content for valid vault-paths.json', () => {
+    const validConfig = { left: ['ABOUT ME'], right: ['memory'], haikuContextChars: 200 };
+    fs.writeFileSync(path.join(tmpDir, 'vault-paths.json'), JSON.stringify(validConfig));
+    const { safeLoadVaultPaths } = require('../src/pipeline-infra');
+    expect(safeLoadVaultPaths()).toEqual(validConfig);
+  });
+
+  test('returns safe default for missing vault-paths.json', () => {
+    const { safeLoadVaultPaths } = require('../src/pipeline-infra');
+    expect(safeLoadVaultPaths()).toEqual(SAFE_DEFAULT);
+  });
+
+  test('returns safe default for malformed vault-paths.json', () => {
+    fs.writeFileSync(path.join(tmpDir, 'vault-paths.json'), '{ broken json!!!');
+    const { safeLoadVaultPaths } = require('../src/pipeline-infra');
+    expect(safeLoadVaultPaths()).toEqual(SAFE_DEFAULT);
+  });
+
+  test('calls logDecision on error with LOAD_ERROR', () => {
+    // No vault-paths.json → triggers error path
+    const mockLogDecision = jest.fn();
+    jest.doMock('../src/vault-gateway', () => ({ logDecision: mockLogDecision }));
+    const { safeLoadVaultPaths } = require('../src/pipeline-infra');
+    safeLoadVaultPaths();
+    expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'vault-paths.json', 'LOAD_ERROR', expect.any(String));
+  });
+});
