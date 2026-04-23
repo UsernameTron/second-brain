@@ -270,7 +270,7 @@ function createSonnetClient(options = {}) {
  * @returns {Promise<{ path: string }>} Relative path to written dead-letter file
  */
 async function writeDeadLetter(inputBody, failureMode, correlationId, metadata = {}) {
-  const { vaultWrite } = require('./vault-gateway');
+  const { vaultWrite, logDecision } = require('./vault-gateway');
 
   const now = new Date();
 
@@ -296,13 +296,20 @@ async function writeDeadLetter(inputBody, failureMode, correlationId, metadata =
 
   const fileContent = `${frontmatter}\n${inputBody}`;
 
-  // Write via vault-gateway to enforce path guard and content policy
-  // Use a low-level write to avoid style lint for infrastructure files
-  const absolutePath = path.join(VAULT_ROOT, relativePath);
-  await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
-  await fs.promises.writeFile(absolutePath, fileContent, 'utf8');
-
-  return { path: relativePath };
+  // Write via vault-gateway, enforcing path guard and content policy.
+  // attemptCount: 1 tells Guard 3 to quarantine (not reject) on style violations —
+  // dead letters are infrastructure artifacts, not user-facing content.
+  try {
+    const result = await vaultWrite(relativePath, fileContent, { attemptCount: 1 });
+    if (result.decision === 'QUARANTINED') {
+      logDecision('DEAD_LETTER', relativePath, 'QUARANTINED', 'dead-letter quarantined by vault policy');
+      return { path: result.quarantinePath, quarantined: true };
+    }
+    return { path: relativePath };
+  } catch (err) {
+    logDecision('DEAD_LETTER', relativePath, 'WRITE_FAILED', err.message);
+    throw err;
+  }
 }
 
 // ── Safe vault-paths loader ─────────────────────────────────────────────────

@@ -220,48 +220,41 @@ describe('createSonnetClient', () => {
 
 describe('writeDeadLetter', () => {
   let writeDeadLetter;
-  let tmpVaultRoot;
+  let mockVaultWrite;
+  let mockLogDecision;
 
   beforeEach(() => {
     jest.resetModules();
     jest.unmock('@anthropic-ai/sdk');
-
-    // Create temp vault root with required directory structure
-    tmpVaultRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-letter-test-'));
-    fs.mkdirSync(path.join(tmpVaultRoot, 'proposals', 'unrouted'), { recursive: true });
-
-    // Set environment for gateway to use our temp root
-    process.env.VAULT_ROOT = tmpVaultRoot;
-
+    mockVaultWrite = jest.fn().mockResolvedValue({ decision: 'WRITTEN', path: 'proposals/unrouted/test.md' });
+    mockLogDecision = jest.fn();
+    jest.doMock('../src/vault-gateway', () => ({
+      vaultWrite: mockVaultWrite,
+      logDecision: mockLogDecision,
+    }));
     ({ writeDeadLetter } = require('../src/pipeline-infra'));
   });
 
   afterEach(() => {
-    delete process.env.VAULT_ROOT;
     jest.resetModules();
-    // Cleanup temp dir
-    try {
-      fs.rmSync(tmpVaultRoot, { recursive: true, force: true });
-    } catch (_) {}
   });
 
-  test('writes a file to proposals/unrouted/ directory', async () => {
+  test('calls vaultWrite with correct relative path and content', async () => {
     await writeDeadLetter('test body content', 'api-error', 'test-correlation-id-1234');
 
-    const files = fs.readdirSync(path.join(tmpVaultRoot, 'proposals', 'unrouted'));
-    expect(files.length).toBeGreaterThan(0);
+    expect(mockVaultWrite).toHaveBeenCalledTimes(1);
+    const [relPath, content, opts] = mockVaultWrite.mock.calls[0];
+    expect(relPath).toMatch(/^proposals\/unrouted\/unrouted-\d{8}-\d{6}-testcorr\.md$/);
+    expect(content).toContain('failure-mode: api-error');
+    expect(content).toContain('test body content');
+    expect(opts).toEqual({ attemptCount: 1 });
   });
 
-  test('written file has correct YAML frontmatter fields', async () => {
+  test('content has correct YAML frontmatter fields', async () => {
     const correlationId = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
     await writeDeadLetter('test body', 'api-error', correlationId);
 
-    const files = fs.readdirSync(path.join(tmpVaultRoot, 'proposals', 'unrouted'));
-    const content = fs.readFileSync(
-      path.join(tmpVaultRoot, 'proposals', 'unrouted', files[0]),
-      'utf8'
-    );
-
+    const content = mockVaultWrite.mock.calls[0][1];
     expect(content).toContain('failure-mode: api-error');
     expect(content).toContain(`correlation-id: ${correlationId}`);
     expect(content).toContain('status: unrouted');
@@ -269,55 +262,74 @@ describe('writeDeadLetter', () => {
     expect(content).toContain('created:');
   });
 
-  test('written file preserves original input body verbatim after frontmatter', async () => {
+  test('preserves original input body verbatim after frontmatter', async () => {
     const inputBody = 'This is the original input body.\nMultiple lines preserved verbatim.';
     await writeDeadLetter(inputBody, 'timeout', 'test-id-5678');
 
-    const files = fs.readdirSync(path.join(tmpVaultRoot, 'proposals', 'unrouted'));
-    const content = fs.readFileSync(
-      path.join(tmpVaultRoot, 'proposals', 'unrouted', files[0]),
-      'utf8'
-    );
-
-    // The body should appear after the closing --- of frontmatter
+    const content = mockVaultWrite.mock.calls[0][1];
     const afterFrontmatter = content.split('---\n').slice(2).join('---\n');
     expect(afterFrontmatter.trim()).toContain(inputBody);
   });
 
-  test('filename follows the expected pattern with date and correlation ID prefix', async () => {
+  test('relative path follows the expected pattern with date and correlation ID prefix', async () => {
     const correlationId = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
     await writeDeadLetter('body', 'parse-error', correlationId);
 
-    const files = fs.readdirSync(path.join(tmpVaultRoot, 'proposals', 'unrouted'));
-    const filename = files[0];
-
-    // Pattern: unrouted-YYYYMMDD-HHmmss-<first8ofCorrelationId>.md
-    expect(filename).toMatch(/^unrouted-\d{8}-\d{6}-[a-z0-9]+\.md$/);
-    expect(filename).toContain('bbbbbbbb');
+    const relPath = mockVaultWrite.mock.calls[0][0];
+    expect(relPath).toMatch(/^proposals\/unrouted\/unrouted-\d{8}-\d{6}-bbbbbbbb\.md$/);
   });
 
-  test('uses original-source from metadata or defaults to unknown', async () => {
+  test('uses original-source from metadata', async () => {
     await writeDeadLetter('body', 'api-error', 'test-corr-id-9999', { source: 'session:abc123' });
 
-    const files = fs.readdirSync(path.join(tmpVaultRoot, 'proposals', 'unrouted'));
-    const content = fs.readFileSync(
-      path.join(tmpVaultRoot, 'proposals', 'unrouted', files[0]),
-      'utf8'
-    );
-
+    const content = mockVaultWrite.mock.calls[0][1];
     expect(content).toContain('original-source: session:abc123');
   });
 
   test('defaults original-source to unknown when no metadata provided', async () => {
     await writeDeadLetter('body', 'timeout', 'test-corr-id-0000');
 
-    const files = fs.readdirSync(path.join(tmpVaultRoot, 'proposals', 'unrouted'));
-    const content = fs.readFileSync(
-      path.join(tmpVaultRoot, 'proposals', 'unrouted', files[0]),
-      'utf8'
-    );
-
+    const content = mockVaultWrite.mock.calls[0][1];
     expect(content).toContain('original-source: unknown');
+  });
+
+  test('passes attemptCount: 1 to vaultWrite', async () => {
+    await writeDeadLetter('body', 'api-error', 'test-id-1234');
+
+    const opts = mockVaultWrite.mock.calls[0][2];
+    expect(opts).toEqual({ attemptCount: 1 });
+  });
+
+  test('returns { path, quarantined: true } when vaultWrite returns QUARANTINED', async () => {
+    mockVaultWrite.mockResolvedValue({ decision: 'QUARANTINED', quarantinePath: 'quarantine/test.md' });
+    const result = await writeDeadLetter('body', 'api-error', 'test-id-quar');
+
+    expect(result.path).toBe('quarantine/test.md');
+    expect(result.quarantined).toBe(true);
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'DEAD_LETTER', expect.stringContaining('proposals/unrouted/'), 'QUARANTINED', expect.any(String)
+    );
+  });
+
+  test('propagates PATH_BLOCKED error from vaultWrite', async () => {
+    const pathErr = new Error('Path not in RIGHT allowlist');
+    pathErr.code = 'PATH_BLOCKED';
+    mockVaultWrite.mockRejectedValue(pathErr);
+
+    await expect(writeDeadLetter('body', 'api-error', 'test-id-block')).rejects.toThrow('Path not in RIGHT allowlist');
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'DEAD_LETTER', expect.stringContaining('proposals/unrouted/'), 'WRITE_FAILED', expect.any(String)
+    );
+  });
+
+  test('does NOT use fs.promises.writeFile', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'pipeline-infra.js'), 'utf8');
+    // Extract writeDeadLetter function body
+    const funcStart = source.indexOf('async function writeDeadLetter');
+    const funcEnd = source.indexOf('\n}', funcStart + 100) + 2;
+    const funcBody = source.slice(funcStart, funcEnd);
+    expect(funcBody).not.toContain('fs.promises.writeFile');
+    expect(funcBody).not.toContain('fs.promises.mkdir');
   });
 });
 
