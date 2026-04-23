@@ -4,15 +4,11 @@
 - [ ] `/gsd:new-milestone` — start next milestone cycle
 - [ ] Configure branch protection (repo is public, CI passes)
 
-## Session Handoff (Session 34 — 2026-04-23)
-- v1.1 Go Live milestone completed and archived
-- Git cleanup: 4 stale branches deleted, local/remote master synced, history reconciled
-- Archives: milestones/v1.1-ROADMAP.md, milestones/v1.1-REQUIREMENTS.md
-- RETROSPECTIVE.md updated with v1.1 section and cross-milestone trends
-- Tag v1.1 pushed to remote
-- PRs #14 (history reconciliation) and #15 (milestone completion) merged
-- Master clean, single branch, synced with origin
-- Next session: `/gsd:new-milestone` to start next cycle
+## Session Handoff (Session 35 — 2026-04-23)
+- Deployed 4 project-scoped agents: test-runner (haiku), docs-sync (sonnet), vault-guardian (sonnet), pipeline-reviewer (sonnet)
+- PR #16 merged to master — `.claude/agents/` + `.gitignore` exception
+- Local branch `chore/deploy-agents` needs deletion, local master needs sync to origin
+- Next session: `/gsd:new-milestone` to start next milestone cycle
 
 ## Followup
 - [ ] **DEFERRED: Config hot-reload (FIX-02)** — no real symptom observed. Revisit if a symptom surfaces.
@@ -51,3 +47,4 @@
 - [x] v1.0 milestone completed and archived (tag v1.0)
 - [x] v1.1 milestone completed and archived (tag v1.1, PRs #14-#15)
 - [x] Git cleanup: 4 stale branches deleted, history reconciled
+- [x] Deploy project-scoped agents (test-runner, docs-sync, vault-guardian, pipeline-reviewer) — PR #16

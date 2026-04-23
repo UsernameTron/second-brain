@@ -4,8 +4,8 @@ milestone: v1.1
 milestone_name: Go Live
 status: complete
 stopped_at: v1.1 milestone archived
-last_updated: "2026-04-23T18:00:00.000Z"
-last_activity: 2026-04-23 -- v1.1 milestone complete, archived, tagged
+last_updated: "2026-04-23T22:00:00.000Z"
+last_activity: 2026-04-23 -- 4 project-scoped agents deployed (PR #16 merged)
 progress:
   total_phases: 3
   completed_phases: 3
@@ -36,6 +36,8 @@ All decisions logged in PROJECT.md Key Decisions table (16 entries with outcomes
 ### Pending Todos
 
 - Configure branch protection (repo is now public, CI passes)
+- Sync local master to origin (chore/deploy-agents merged via PR #16)
+- Delete local chore/deploy-agents branch
 
 ### Blockers/Concerns
 
