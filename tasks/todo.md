@@ -4,6 +4,12 @@
 - Between milestones — `/gsd:new-milestone` when ready
 - [ ] Configure branch protection (repo is public, CI passes)
 
+## Session Handoff (Session 36 — 2026-04-23)
+- Todo cleanup: stale handoff removed, current state accurate
+- PR #17 merged, master synced, chore/deploy-agents branch deleted on remote
+- Health check: DEGRADED (expected — between milestones), 0 errors
+- Next session: `/gsd:new-milestone` when ready
+
 ## Followup
 - [ ] **DEFERRED: Config hot-reload (FIX-02)** — no real symptom observed. Revisit if a symptom surfaces.
 - [ ] Backlog 999.1: Wire Local LLM (LM Studio) into pipeline (spec at docs/second-brain-local-llm-backlog.md)
