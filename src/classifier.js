@@ -452,6 +452,21 @@ async function classifyInput(content, options = {}) {
 
   // Build the result. For LEFT content, the Stage 2 directory is advisory (suggestedLeftPath)
   // and the actual write target is always proposals/left-proposals/ per D-12.
+  //
+  // stage1 and stage2 nested objects expose per-stage detail so downstream
+  // consumers (e.g., note-formatter frontmatter) can report each stage's
+  // confidence separately. Additive since Phase 15 — prior callers that
+  // used only the flat top-level fields continue to work unchanged.
+  const stage1 = {
+    side: stage1Result.side,
+    confidence: stage1Result.confidence,
+  };
+  const stage2 = {
+    directory: stage2Result.directory,
+    confidence: stage2Result.confidence,
+    sonnetEscalated: stage2Result.sonnetEscalated || false,
+  };
+
   let result;
   if (stage1Result.side === 'LEFT') {
     const suggestedLeftPath = stage2Result.directory
@@ -469,6 +484,8 @@ async function classifyInput(content, options = {}) {
       needsInteractive: stage2Result.needsInteractive,
       topCandidates: stage2Result.topCandidates,
       sonnetEscalated: stage2Result.sonnetEscalated || false,
+      stage1,
+      stage2,
     };
   } else {
     instrumentation.destination = stage2Result.directory || 'unknown';
@@ -481,6 +498,8 @@ async function classifyInput(content, options = {}) {
       needsInteractive: stage2Result.needsInteractive,
       topCandidates: stage2Result.topCandidates,
       sonnetEscalated: stage2Result.sonnetEscalated || false,
+      stage1,
+      stage2,
     };
   }
 
