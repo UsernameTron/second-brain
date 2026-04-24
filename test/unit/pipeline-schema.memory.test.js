@@ -30,14 +30,14 @@ function configWith(memoryBlock) {
 }
 
 describe('pipeline.schema.json — memory.echoThreshold', () => {
-  test('Test 1: valid config with memory.echoThreshold 0.65 passes validation', () => {
+  test('valid config with memory.echoThreshold 0.65 passes validation', () => {
     const config = configWith({ echoThreshold: 0.65 });
     const valid = validate(config);
     expect(valid).toBe(true);
     expect(validate.errors).toBeNull();
   });
 
-  test('Test 2: memory.echoThreshold 1.5 fails validation (exceeds maximum 1)', () => {
+  test('memory.echoThreshold 1.5 fails validation (exceeds maximum 1)', () => {
     const config = configWith({ echoThreshold: 1.5 });
     const valid = validate(config);
     expect(valid).toBe(false);
@@ -45,7 +45,7 @@ describe('pipeline.schema.json — memory.echoThreshold', () => {
     expect(validate.errors.length).toBeGreaterThan(0);
   });
 
-  test('Test 3: memory.echoThreshold "high" fails validation (wrong type)', () => {
+  test('memory.echoThreshold "high" fails validation (wrong type)', () => {
     const config = configWith({ echoThreshold: 'high' });
     const valid = validate(config);
     expect(valid).toBe(false);
@@ -53,14 +53,14 @@ describe('pipeline.schema.json — memory.echoThreshold', () => {
     expect(validate.errors.length).toBeGreaterThan(0);
   });
 
-  test('Test 4: memory: {} (empty object, no echoThreshold) passes validation (echoThreshold is optional)', () => {
+  test('memory {} (empty object, no echoThreshold) passes validation (echoThreshold is optional)', () => {
     const config = configWith({});
     const valid = validate(config);
     expect(valid).toBe(true);
     expect(validate.errors).toBeNull();
   });
 
-  test('Test 5: unknown key under memory (memory.foo) fails validation (additionalProperties: false)', () => {
+  test('unknown key under memory (memory.foo) fails validation (additionalProperties: false)', () => {
     const config = configWith({ foo: 1 });
     const valid = validate(config);
     expect(valid).toBe(false);
@@ -68,7 +68,7 @@ describe('pipeline.schema.json — memory.echoThreshold', () => {
     expect(validate.errors.length).toBeGreaterThan(0);
   });
 
-  test('Test 6: live config/pipeline.json validates successfully against the current schema', () => {
+  test('live config/pipeline.json validates successfully against the current schema', () => {
     const config = JSON.parse(JSON.stringify(pipelineConfig));
     const valid = validate(config);
     expect(valid).toBe(true);
