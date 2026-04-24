@@ -1,20 +1,22 @@
 # Todo
 
 ## Current
-- [ ] `/gsd:ship` Phase 12 — shipping now
+- [x] `/gsd:ship` Phase 12 — SHIPPED (PR #22, merged as d65b0c6)
 - [x] Create UAT-BASELINE.md documenting UAT-01 pre-existing failure
 - [x] Annotate SEC-HOOK-01 as CLOSED in `.planning/backlog.md`
+- [ ] Execute Phase 13 on `feat/phase-13-schemas` (6 tasks, plan: 90a90f2)
+- [ ] Execute Phase 14 on `feat/phase-14-ci-hardening` (5 tasks, plan: b78bfb4)
 - [ ] Configure branch protection (repo is public, CI passes)
-- [ ] Merge `chore/commit-planning-artifacts` branch to master
 
-## Session Handoff (Session 50 — 2026-04-23)
-- Phase 12 Critical Safety Fixes: 6/6 tasks DONE, VERIFIED, GO verdict
-- 3 review agents dispatched and signed off: silent-failure-hunter (0 BLOCK, 9 FLAG), pr-test-analyzer (PASS), pipeline-reviewer (PASS after fixes)
-- Critical bug caught by pipeline-reviewer: missing `await` on `formatNote`/`generateFilename` in lifecycle.js — fixed in `143b17f`
-- 11 test isolation failures fixed by gsd-debugger via temp-config-dir pattern — `3d71ed4`
-- Test suite: 639/640 pass (UAT-01 pre-existing, needs live LLM)
-- Branch `chore/commit-planning-artifacts` has commits ready for PR
-- Next: `/gsd:ship` to create Phase 12 PR, then Phase 13 (Config Schema Gaps)
+## Session Handoff (Session 51 — 2026-04-23)
+- Phase 12 shipped: PR #22 merged, CI green (both CI + Claude Code Review passed)
+- Pre-ship housekeeping done: UAT-BASELINE.md created, SEC-HOOK-01 closed in backlog
+- STATE.md advanced: Phase 12 SHIPPED, Phases 13+14 PLANNED in parallel workstreams
+- Two workstream branches created from master (d65b0c6):
+  - `feat/phase-13-schemas` — PHASE-13-PLAN.md committed (90a90f2, 6 tasks: T13.1-T13.6)
+  - `feat/phase-14-ci-hardening` — PHASE-14-PLAN.md committed (b78bfb4, 5 tasks: T14.1-T14.5)
+- Gap flagged: T13.4 (memory-categories) needs consumer grep during execution
+- Next: user approves plans, then parallel `/gsd:execute-phase` on both workstreams
 
 ## Session Handoff (Session 45 — 2026-04-23)
 - Completed comprehensive 8-domain codebase review (76/100, CONDITIONAL GO)
