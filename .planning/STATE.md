@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Memory Activation & Final Closeout
 status: executing
-stopped_at: Phase 19 Plan 03 complete — promote-memories embed hook + recall --semantic/--hybrid wired
-last_updated: "2026-04-24T19:21:14.545Z"
+stopped_at: Completed 19-04-PLAN.md — all 5 tasks committed, coverage gates passed, lint clean
+last_updated: "2026-04-24T19:41:48.559Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 21
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 ## Current Position
 
 Phase: 19 (semantic-memory-search) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-04-24
 
@@ -77,6 +77,8 @@ Full log in PROJECT.md Key Decisions table. Summary:
 - [Phase 19]: checkContent() gate runs before every Voyage call in semanticSearch() — excluded terms never leave the process (Pattern 11, D-PRE-05)
 - [Phase 19]: Lazy require('./semantic-index') in promote-memories try/catch — embed-on-promotion is best-effort; promotion never blocked by embed failure
 - [Phase 19]: recall-command --semantic/--hybrid use lazy require per branch — keyword-only /recall never loads semantic-index
+- [Phase 19]: D-03 batch retry fires once on ANY failure independent of D-08 SDK-level 429 retry — total embed calls for any indexNewEntries failure = 2 minimum
+- [Phase 19]: pipeline.json schema uses additionalProperties:false preventing excludedTerms key — integration tests must inject terms via safeLoadPipelineConfig spy
 
 ### Open Blockers
 
@@ -88,6 +90,6 @@ None active.
 
 ## Session Continuity
 
-Last session: 2026-04-24T19:21:14.542Z
-Stopped at: Phase 19 Plan 03 complete — promote-memories embed hook + recall --semantic/--hybrid wired
+Last session: 2026-04-24T19:41:48.557Z
+Stopped at: Completed 19-04-PLAN.md — all 5 tasks committed, coverage gates passed, lint clean
 Ship log: PRs #1–#31 merged. Tags: v1.0, v1.1, v1.2.0, v1.3.0.
