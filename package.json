@@ -16,6 +16,9 @@
     "dotenv": "^17.4.2",
     "gray-matter": "^4.0.3"
   },
+  "jest": {
+    "testPathIgnorePatterns": ["/node_modules/", ".claude/worktrees"]
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "ajv": "^8.18.0",
