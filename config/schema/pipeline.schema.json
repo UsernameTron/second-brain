@@ -280,6 +280,71 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1
+        },
+        "semantic": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "enum": [
+                "voyage-4-lite"
+              ],
+              "default": "voyage-4-lite"
+            },
+            "threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.72
+            },
+            "recencyDecay": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.2
+            },
+            "rrfK": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 60
+            },
+            "candidatesPerSource": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 20
+            },
+            "embedBatchSize": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 128,
+              "default": 128
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "minimum": 100,
+              "default": 3000
+            },
+            "degradedModeMinutes": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 15
+            },
+            "embeddingDim": {
+              "type": "integer",
+              "enum": [
+                1024
+              ],
+              "default": 1024
+            }
+          },
+          "required": [
+            "model",
+            "threshold",
+            "recencyDecay",
+            "rrfK"
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
