@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Review Remediation
-status: Phase 16 EXECUTED — ready to ship
-stopped_at: Phase 16 executed — feat/phase-16-test-quality, branches 75.35% → 80.32%.
+status: v1.3 SHIPPED — between milestones
+stopped_at: v1.3 milestone complete. Tag v1.3.0 created. Ready for /gsd:new-milestone when next scope is defined.
 last_updated: "2026-04-24"
 progress:
   total_phases: 5
@@ -16,63 +16,48 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-23)
+See: .planning/PROJECT.md (updated 2026-04-24)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** v1.3 Review Remediation — all 5 phases complete, ready for milestone close.
+**Current focus:** Between milestones. v1.3 shipped; v1.4 scope TBD.
 
 ## Current Position
 
-Milestone: v1.3 Review Remediation
-Phase 12: Critical Safety Fixes — SHIPPED (PR #22, merge d65b0c6)
-Phase 13: Config Schema Gaps — SHIPPED (PR #24, squash 774140b)
-Phase 14: CI Hardening — MERGED (PR #26, a940280)
-Phase 15: Architecture Refactor — SHIPPED (PR #27, branch: feat/phase-15-architecture)
-Phase 16: Test Quality — EXECUTED (branch: feat/phase-16-test-quality, ready to ship)
+**Shipped milestones:** v1.0 (MVP, 2026-04-22), v1.1 (Go Live, 2026-04-23), v1.2 (Automation & Quality, 2026-04-23), v1.3 (Review Remediation, 2026-04-24).
 
-## Requirements Map
+**Tags:** v1.0, v1.1, v1.2.0, v1.3.0.
 
-v1.2 requirements: all 11 complete (archived with v1.2.0 tag).
+**Next milestone:** Not yet planned. Start with `/gsd:new-milestone` when ready.
 
-v1.3 scope defined in `.planning/milestones/v1.3/ROADMAP.md`:
-- Phase 12: 8 backlog items (B-01, B-02, B-03, B-04, B-05, B-06, B-09, SEC-HOOK-01)
-- Phase 13: 2 backlog items (B-12, B-14) + config centralization + overlay adoption
-- Phase 14: 1 backlog item (B-08) + SAST + license + jest config + UAT guard
-- Phase 15: 1 backlog item (B-07) + vault-gateway cleanup + privatization + dedup
-- Phase 16: 2 backlog items (B-13, B-16) + rejection tests + hook tests + branch lift
+## Backlog (forward to v1.4)
 
-## Corrections Applied
-
-v1.2 corrections archived with tag. v1.3 corrections will be logged here as they occur.
+| ID | Item | Priority |
+|----|------|----------|
+| B-15 | No Unicode-specific tests for exclusion terms / filename generation | LOW |
+| B-18 | No JSDoc on public API surface | LOW |
+| B-20 | 41 no-console warnings across src/ — decide: suppress / logger abstraction / accept | LOW |
+| F-01 | chokidar v3.6.0 (2 majors behind, CJS compat) | Accepted |
+| F-02 | docs-sync agent lacks scope_guard | Accepted |
 
 ## Accumulated Context
 
 ### Decisions
 
-v1.0/v1.1 decisions: PROJECT.md Key Decisions table (16 entries).
-v1.2 decisions: archived with v1.2.0 tag.
-v1.3 decisions: none yet.
+Full log in PROJECT.md Key Decisions table. Summary:
+- v1.0/v1.1: architectural + integration decisions (vault boundary, pipeline stages, connector topology)
+- v1.2: automation & quality decisions (hooks, agents, CI, local LLM)
+- v1.3: remediation decisions (config overlay, architecture decomposition, test quality focus)
 
-### Pending Todos
-
-- Configure branch protection (repo is now public, CI passes)
-
-### Blockers/Concerns
+### Open Blockers
 
 None active.
 
-## Workstreams
+### Pending Todos
 
-| Workstream | Phase | Branch | Status |
-|------------|-------|--------|--------|
-| schemas | 13 | feat/phase-13-schemas | SHIPPED (PR #24, 774140b) |
-| ci-hardening | 14 | feat/phase-14-ci-hardening | MERGED (PR #26, a940280) |
-| architecture | 15 | feat/phase-15-architecture | SHIPPED (PR #27) |
+- Configure branch protection (repo is public, all CI gates green)
 
 ## Session Continuity
 
-Last session: 2026-04-24 (Session 55)
-Stopped at: Phase 15 shipped — PR #27 on feat/phase-15-architecture. Watching CI.
-Resume with: Merge PR #27 when CI green, then `/gsd:discuss-phase 16`.
-Ship log: PRs #1-#26 merged, PR #27 open. Tags: v1.0, v1.1, v1.2.0.
-v1.3 dependency chain: 12 (SHIPPED) → {13 (SHIPPED), 14 (MERGED)} → 15 (SHIPPED) → 16
+Last session: 2026-04-24 (v1.3 milestone close)
+Stopped at: v1.3 shipped and tagged. Ready for `/gsd:new-milestone` when next scope is defined.
+Ship log: PRs #1-#29 merged. Tags: v1.0, v1.1, v1.2.0, v1.3.0.

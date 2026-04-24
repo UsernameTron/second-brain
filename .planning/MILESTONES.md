@@ -1,8 +1,30 @@
 # Milestones
 
-## v1.2 Automation & Quality (In Progress)
+## v1.3 Review Remediation (Shipped: 2026-04-24)
 
-**Phases:** 4 (08-11) | **Requirements:** 11 | **Backlog items promoted:** 12
+**Phases:** 5 (12-16) | **Commits:** 11 | **Files changed:** 90 (+9168 / −1452) | **Backlog items closed:** 15/18
+
+**Goal:** Close every HIGH finding from the 3-reviewer audit (Claude native, Gemini CLI, Opus 4.6) and every WARN from v1.2 MILESTONE-AUDIT. Bring overall health score from 76/100 to ≥ 88.
+
+**Key accomplishments:**
+
+- **Critical safety fixes (Phase 12)** — 7 HIGH/MEDIUM findings closed: vault-gateway bypass in writeDeadLetter, config crash paths made graceful via safeLoadPipelineConfig wrapper, classifyLocal fetch timeout, LLM fallback hardening, security-scan-gate hook repaired with tri-state exit codes and grep fallback
+- **Config schema gaps closed (Phase 13)** — 3 new schemas (vault-paths, excluded-terms, scheduling) + AJV removeSchema error handling fix + every config loader now uses loadConfigWithOverlay with schema validation
+- **CI hardening (Phase 14)** — ESLint, CodeQL SAST, and license-checker gates added to CI. 53 ESLint violations fixed across 24 source files in one pass. UAT tests guarded from running in CI
+- **Architecture refactor (Phase 15)** — today-command.js decomposed from 727 LOC god module to 230 LOC orchestrator + 4 single-responsibility modules (slippage-scanner, frog-identifier, llm-augmentation, briefing-renderer). new-command deduplicated against classifier.classifyInput. vault-gateway re-exports removed. memory-proposals locks privatized
+- **Test quality lift (Phase 16)** — 114 new tests added (662 → 776). Branch coverage lifted from 75.35% to 81.31% under CI env. CI threshold ratcheted 70% → 80%. Hook test harnesses added for auto-test.sh and protected-file-guard.sh. Classifier integration test suite proves Stage 0→1→2 wiring end-to-end
+
+**Timeline:** 2026-04-23 to 2026-04-24 (2 days)
+
+**Known gaps (deferred to v1.4):** B-15 Unicode-specific exclusion term tests, B-18 JSDoc on public API surface, B-20 41 no-console warnings. All non-blocking. 2 accepted flags (F-01 chokidar v3 CJS compat, F-02 docs-sync scope_guard) carry forward as accepted non-defects.
+
+**PRs merged:** #22, #24, #26, #27, #29
+
+---
+
+## v1.2 Automation & Quality (Shipped: 2026-04-23)
+
+**Phases:** 4 (08-11) | **Requirements:** 11 | **Backlog items promoted:** 12 | **Tag:** v1.2.0
 
 **Goal:** Close quality, security, and automation gaps. No new features.
 
@@ -12,7 +34,9 @@
 - Phase 10: Agent Hardening & Skills — roster improvements, pipeline health skill, context7 MCP
 - Phase 11: CI & LLM Infrastructure — CI coverage enforcement, local LLM routing
 
-**Started:** 2026-04-23
+**Timeline:** 2026-04-23 (1 day)
+
+**Known gaps:** Surfaced by v1.2 MILESTONE-AUDIT — 18 items migrated to v1.3 backlog.
 
 ---
 
