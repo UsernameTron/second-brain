@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Review Remediation
-status: Phase 14 EXECUTED, awaiting ship
-stopped_at: Phase 14 executed — 5/5 tasks complete on feat/phase-14-ci-hardening. Ready to ship.
-last_updated: "2026-04-24"
+status: Phase 14 SHIPPED — PR #26
+stopped_at: Phase 14 shipped — PR #26 on feat/phase-14-ci-hardening. Awaiting merge.
+last_updated: "2026-04-23"
 progress:
   total_phases: 5
   completed_phases: 3
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-23)
 Milestone: v1.3 Review Remediation
 Phase 12: Critical Safety Fixes — SHIPPED (PR #22, merge d65b0c6)
 Phase 13: Config Schema Gaps — SHIPPED (PR #24, squash 774140b)
-Phase 14: CI Hardening — EXECUTED (workstream: ci-hardening, branch: feat/phase-14-ci-hardening, 6 commits)
+Phase 14: CI Hardening — SHIPPED (PR #26, branch: feat/phase-14-ci-hardening)
 Phase 15: Architecture Refactor — PENDING (depends on 13)
 Phase 16: Test Quality — PENDING (depends on 15)
 
@@ -66,12 +66,12 @@ None active.
 | Workstream | Phase | Branch | Status |
 |------------|-------|--------|--------|
 | schemas | 13 | feat/phase-13-schemas | SHIPPED (PR #24, 774140b) |
-| ci-hardening | 14 | feat/phase-14-ci-hardening | EXECUTED (feeaac1) |
+| ci-hardening | 14 | feat/phase-14-ci-hardening | SHIPPED (PR #26) |
 
 ## Session Continuity
 
 Last session: 2026-04-24 (Session 53)
-Stopped at: Phase 14 executed — 5/5 tasks, 6 commits on feat/phase-14-ci-hardening. Ready to ship.
-Resume with: `/gsd:ship` to create PR for Phase 14, then `/gsd:discuss-phase 15`.
-Ship log: PRs #1-#25 merged. Tags: v1.0, v1.1, v1.2.0.
+Stopped at: Phase 14 shipped — PR #26, awaiting merge.
+Resume with: Merge PR #26, then `/gsd:discuss-phase 15`.
+Ship log: PRs #1-#25 merged, PR #26 open. Tags: v1.0, v1.1, v1.2.0.
 v1.3 dependency chain: 12 (SHIPPED) → {13 (SHIPPED), 14 (EXECUTED)} → 15 → 16
