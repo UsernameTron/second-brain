@@ -87,10 +87,8 @@ afterEach(() => {
  * @param {boolean} [opts.synthSuccess=true] - Whether synthesis classify succeeds
  */
 function makeMockHaikuClient({ frogSuccess = true, synthSuccess = true } = {}) {
-  let callIndex = 0;
   return {
     classify: jest.fn(async (systemPrompt) => {
-      callIndex++;
       // Synthesis call comes before frog call in the code flow
       // We distinguish by checking the system prompt content
       const isSynthesisCall = systemPrompt.includes('daily briefing synthesis');

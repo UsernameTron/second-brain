@@ -20,7 +20,7 @@ const { SOURCE } = require('../../src/connectors/types');
 const _validSources = new Set(Object.values(SOURCE));
 
 /** ISO 8601 regex matching the format produced by new Date().toISOString() */
-const ISO8601_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const _ISO8601_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 /**
  * Assert that a connector result matches the D-15 success shape.

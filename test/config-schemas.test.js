@@ -248,7 +248,7 @@ describe('config/templates.json', () => {
 
   test('each memory-category has description, example, and exclusions', () => {
     const cats = templates['memory-categories'];
-    for (const [name, cat] of Object.entries(cats)) {
+    for (const [_name, cat] of Object.entries(cats)) {
       expect(cat.description).toBeDefined();
       expect(typeof cat.description).toBe('string');
       expect(cat.example).toBeDefined();

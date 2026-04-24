@@ -207,13 +207,13 @@ function makeAllDayEvent(overrides = {}) {
 
 describe('getCalendarEvents', () => {
   let getCalendarEvents;
-  let getEvent;
+  let _getEvent;
   let mcpClient;
 
   beforeEach(() => {
     jest.resetModules();
     // Re-require with fresh module registry so cached config is reset
-    ({ getCalendarEvents, getEvent } = require('../../src/connectors/calendar'));
+    ({ getCalendarEvents, getEvent: _getEvent } = require('../../src/connectors/calendar'));
     mcpClient = { callTool: jest.fn() };
   });
 
@@ -428,13 +428,13 @@ describe('getCalendarEvents', () => {
 // ── getEvent tests ────────────────────────────────────────────────────────────
 
 describe('getEvent', () => {
-  let getCalendarEvents;
+  let _getCalendarEvents;
   let getEvent;
   let mcpClient;
 
   beforeEach(() => {
     jest.resetModules();
-    ({ getCalendarEvents, getEvent } = require('../../src/connectors/calendar'));
+    ({ getCalendarEvents: _getCalendarEvents, getEvent } = require('../../src/connectors/calendar'));
     mcpClient = { callTool: jest.fn() };
   });
 

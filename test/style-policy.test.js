@@ -44,7 +44,7 @@ const FIXTURE_BANNED_WORDS = [
 const {
   checkStyle,
   extractBannedWords,
-  getStyleGuideForPrompt,
+  getStyleGuideForPrompt: _getStyleGuideForPrompt,
   createVaultWriter,
 } = require('../src/style-policy');
 

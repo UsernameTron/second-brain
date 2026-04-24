@@ -37,6 +37,8 @@ Migrated from v1.2 MILESTONE-AUDIT.md (2026-04-23). Source: 7 verification warni
 | B-16 | Branch coverage threshold at 70% vs 90% for others | R8, Claude-unique |
 | B-17 | Config debounce timing not tested | R9, Both reviewers |
 | B-18 | No JSDoc on public API surface | R10, Claude-unique |
+| B-19 | ESLint config missing Node 18+ globals (fetch, AbortController) — blocked by config-protection hook, worked around with inline eslint-disable | Phase 14 T14.1 |
+| B-20 | 41 no-console warnings across src/ — decide: suppress with eslint-disable, add logger abstraction, or accept as-is | Phase 14 T14.1 |
 
 ### Accepted (non-blocking, carry forward for awareness)
 

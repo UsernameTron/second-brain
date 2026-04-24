@@ -27,7 +27,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const CONFIG_DIR = process.env.CONFIG_DIR_OVERRIDE
   || path.join(__dirname, '..', 'config');
 
-const VAULT_ROOT = process.env.VAULT_ROOT
+const _VAULT_ROOT = process.env.VAULT_ROOT
   || path.join(process.env.HOME, 'Claude Cowork');
 
 // ── Correlation ID ───────────────────────────────────────────────────────────
@@ -57,15 +57,14 @@ function createLlmClient(options = {}) {
   const model = options.model || 'claude-haiku-4-5';
 
   // Check for local LLM provider config
-  let llmConfig;
   const { config: pipelineConfig_ } = safeLoadPipelineConfig();
-  llmConfig = pipelineConfig_ && pipelineConfig_.classifier && pipelineConfig_.classifier.llm;
+  const llmConfig = pipelineConfig_ && pipelineConfig_.classifier && pipelineConfig_.classifier.llm;
   const useLocal = llmConfig && llmConfig.provider === 'local';
 
-  let Anthropic, sanitizeTermForPrompt, logDecision, anthropic;
+  let Anthropic, _sanitizeTermForPrompt, logDecision, anthropic;
   try {
     Anthropic = require('@anthropic-ai/sdk');
-    ({ sanitizeTermForPrompt } = require('./content-policy'));
+    ({ sanitizeTermForPrompt: _sanitizeTermForPrompt } = require('./content-policy'));
     ({ logDecision } = require('./vault-gateway'));
     anthropic = new Anthropic();
   } catch (initErr) {
@@ -87,14 +86,14 @@ function createLlmClient(options = {}) {
     const maxTokens = callOptions.maxTokens || 1024;
     const correlationId = callOptions.correlationId || 'none';
 
-    const controller = new AbortController();
+    const controller = new AbortController(); // eslint-disable-line no-undef
     const timeoutId = setTimeout(() => controller.abort(), 10_000);
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (process.env.LM_API_TOKEN) {
         headers['Authorization'] = `Bearer ${process.env.LM_API_TOKEN}`;
       }
-      const response = await fetch(`${llmConfig.localEndpoint}/v1/chat/completions`, {
+      const response = await fetch(`${llmConfig.localEndpoint}/v1/chat/completions`, { // eslint-disable-line no-undef
         method: 'POST',
         headers,
         signal: controller.signal,
@@ -342,7 +341,7 @@ function safeLoadVaultPaths() {
 function loadExcludedTerms() {
   try {
     return loadConfigWithOverlay('excluded-terms');
-  } catch (err) {
+  } catch (_err) {
     return [];
   }
 }

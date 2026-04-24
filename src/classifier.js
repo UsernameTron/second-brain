@@ -69,7 +69,7 @@ function logInstrumentation(data) {
  * @param {string} correlationId - Pipeline correlation ID
  * @returns {Promise<{ blocked: boolean, reason?: string, deadLetter?: boolean, failureMode?: string }>}
  */
-async function runStage0(content, correlationId) {
+async function runStage0(content, _correlationId) {
   // Load excluded terms via overlay-enabled loader (returns [] on error)
   const excludedTerms = loadExcludedTerms();
 
@@ -81,7 +81,7 @@ async function runStage0(content, correlationId) {
     }
 
     return { blocked: false };
-  } catch (err) {
+  } catch (_err) {
     // content-policy.js threw — fail-closed per D-36 / D-41
     // Dead-letter with 'exclusion-unavailable' — caller decides whether to call writeDeadLetter
     return {
@@ -110,7 +110,7 @@ async function runStage0(content, correlationId) {
  * @param {object} [options={}]
  * @returns {Promise<{ side: string|null, confidence: number, rationale?: string, failureMode?: string }>}
  */
-async function runStage1(content, correlationId, options = {}) {
+async function runStage1(content, correlationId, _options = {}) {
   const { config: pipelineConfig, error: configErr } = safeLoadPipelineConfig();
   if (configErr) return { side: null, confidence: 0, failureMode: 'config-error' };
   const { shortInputChars } = pipelineConfig.classifier;
@@ -211,7 +211,7 @@ function buildStage2Labels(side) {
  *   failureMode?: string
  * }>}
  */
-async function runStage2(content, stage1Result, correlationId, options = {}) {
+async function runStage2(content, stage1Result, correlationId, _options = {}) {
   const { config: pipelineConfig, error: configErr } = safeLoadPipelineConfig();
   if (configErr) return { directory: null, confidence: 0, failureMode: 'config-error' };
   const { sonnetEscalationThreshold, sonnetAcceptThreshold } = pipelineConfig.classifier;

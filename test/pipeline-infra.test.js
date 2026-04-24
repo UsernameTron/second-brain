@@ -419,7 +419,7 @@ describe('loadConfigWithOverlay', () => {
     delete process.env.CONFIG_DIR_OVERRIDE;
     jest.resetModules();
     if (tmpDir) {
-      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) { /* cleanup */ }
     }
   });
 
@@ -721,7 +721,7 @@ describe('vault-gateway.js chokidar hot-reload', () => {
     expect(typeof gateway.configEvents.on).toBe('function');
   });
 
-  test('chokidar watch fires config:reloaded event on file change', (done) => {
+  test('chokidar watch fires config:reloaded event on file change', async () => {
     jest.resetModules();
 
     // Create isolated temp config dir
@@ -740,13 +740,15 @@ describe('vault-gateway.js chokidar hot-reload', () => {
 
     const { configEvents, initGateway } = require('../src/vault-gateway');
 
-    configEvents.once('config:reloaded', () => {
-      delete process.env.CONFIG_DIR_OVERRIDE;
-      jest.resetModules();
-      try {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      } catch (_) {}
-      done();
+    const reloadPromise = new Promise((resolve) => {
+      configEvents.once('config:reloaded', () => {
+        delete process.env.CONFIG_DIR_OVERRIDE;
+        jest.resetModules();
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch (_) { /* cleanup */ }
+        resolve();
+      });
     });
 
     // Initialize gateway with chokidar watching
@@ -758,6 +760,8 @@ describe('vault-gateway.js chokidar hot-reload', () => {
       vaultPaths._testTimestamp = Date.now();
       fs.writeFileSync(path.join(configDir, 'vault-paths.json'), JSON.stringify(vaultPaths, null, 2));
     }, 1000);
+
+    await reloadPromise;
   }, 10000);
 });
 
@@ -936,7 +940,7 @@ describe('classifyLocal — LLM fallback hardening', () => {
     jest.unmock('../src/content-policy');
     jest.unmock('@anthropic-ai/sdk');
     jest.resetModules();
-    try { fs.rmSync(tmpConfigDir, { recursive: true, force: true }); } catch (_) {}
+    try { fs.rmSync(tmpConfigDir, { recursive: true, force: true }); } catch (_) { /* cleanup */ }
   });
 
   function loadClientIsolated(mockLogDecision, mockAnthropicCreate) {
@@ -1067,7 +1071,7 @@ describe('loadExcludedTerms overlay', () => {
     delete process.env.CONFIG_DIR_OVERRIDE;
     jest.resetModules();
     if (tmpDir) {
-      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) { /* cleanup */ }
     }
   });
 
@@ -1109,7 +1113,7 @@ describe('loadConnectorsConfig overlay', () => {
     delete process.env.CONFIG_DIR_OVERRIDE;
     jest.resetModules();
     if (tmpDir) {
-      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) { /* cleanup */ }
     }
   });
 
@@ -1136,7 +1140,7 @@ describe('loadSchedulingConfig overlay', () => {
     delete process.env.CONFIG_DIR_OVERRIDE;
     jest.resetModules();
     if (tmpDir) {
-      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) { /* cleanup */ }
     }
   });
 

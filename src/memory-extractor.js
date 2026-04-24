@@ -20,10 +20,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const readline = require('readline');
 const crypto = require('crypto');
 
-const { createHaikuClient, loadPipelineConfig, loadTemplatesConfig, loadMemoryCategoriesConfig } = require('./pipeline-infra');
+const { createHaikuClient, loadPipelineConfig, loadMemoryCategoriesConfig } = require('./pipeline-infra');
 const { writeCandidate } = require('./memory-proposals');
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -259,7 +258,7 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
   const systemPrompt = buildSystemPrompt();
 
   // Read transcript line-by-line
-  let messages = [];
+  const messages = [];
   try {
     const fileContent = fs.readFileSync(transcriptPath, 'utf8');
     const lines = fileContent.split('\n').filter((l) => l.trim());

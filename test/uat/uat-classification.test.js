@@ -146,13 +146,15 @@ const EDGE_CASES = [
 
 // ── Test suite ────────────────────────────────────────────────────────────────
 
-const describeFn = HAS_API_KEY ? describe : describe.skip;
+// UAT tests require live LLM endpoint — skip in CI, run locally via npm run test:uat
+const skipInCI = process.env.CI === 'true';
+const describeFn = (!skipInCI && HAS_API_KEY) ? describe : describe.skip;
 
 describeFn('UAT-01: Classification accuracy validation', () => {
   // Increase timeout for live LLM calls — each call can take 5-15 seconds
   jest.setTimeout(120000);
 
-  let results = [];
+  const results = [];
 
   afterAll(() => {
     // Print summary table for manual review
@@ -164,7 +166,7 @@ describeFn('UAT-01: Classification accuracy validation', () => {
     for (const r of results) {
       const correct = r.expected === null ? 'edge' : (r.correct ? 'YES' : 'NO');
       const actual = r.blocked ? 'BLOCKED' : (r.side || r.failureMode || 'ERROR');
-      const conf = r.confidence != null ? r.confidence.toFixed(2) : 'n/a';
+      const conf = r.confidence != null ? r.confidence.toFixed(2) : 'n/a'; // eslint-disable-line eqeqeq
       console.log([r.id, r.expected || 'n/a', actual, conf, correct, r.description].join(' | '));
     }
 

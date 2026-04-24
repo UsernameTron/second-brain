@@ -123,12 +123,12 @@ function isDuplicateInMemory(contentHash) {
   try {
     const archiveFiles = fs.readdirSync(ARCHIVE_DIR()).filter(f => f.endsWith('.md')).map(f => path.join(ARCHIVE_DIR(), f));
     filesToCheck.push(...archiveFiles);
-  } catch (_) {}
+  } catch (_) { /* file may not exist */ }
   for (const filePath of filesToCheck) {
     try {
       const content = fs.readFileSync(filePath, 'utf8');
       if (content.includes('content_hash:: ' + contentHash)) return true;
-    } catch (_) {}
+    } catch (_) { /* file may not exist */ }
   }
   return false;
 }
@@ -167,7 +167,7 @@ async function runProposalArchive(allCandidates, proposalArchiveThreshold) {
   for (const [month, candidates] of Object.entries(byMonth)) {
     const archiveFile = path.join(archiveDir, `${month}.md`);
     let existingContent = '';
-    try { existingContent = fs.readFileSync(archiveFile, 'utf8'); } catch (_) {}
+    try { existingContent = fs.readFileSync(archiveFile, 'utf8'); } catch (_) { /* file may not exist */ }
     fs.writeFileSync(archiveFile, existingContent + candidates.map(c => c.raw).join(''), 'utf8');
   }
 
@@ -187,7 +187,7 @@ async function appendToMemoryFile(promotedCandidates) {
   fs.mkdirSync(path.dirname(memoryFile), { recursive: true });
 
   let existingContent = '';
-  try { existingContent = fs.readFileSync(memoryFile, 'utf8'); } catch (_) {}
+  try { existingContent = fs.readFileSync(memoryFile, 'utf8'); } catch (_) { /* file may not exist */ }
 
   const newEntries = promotedCandidates.map(buildMemoryEntry).join('\n');
   const monthHeader = `## ${currentMonth}`;
@@ -245,7 +245,6 @@ function runMemoryArchive(archiveSizeThresholdKB, archiveEntriesThreshold) {
       if (currentYearKey && currentSectionLines.length > 0) {
         if (!yearGroups[currentYearKey]) yearGroups[currentYearKey] = [];
         yearGroups[currentYearKey].push(...currentSectionLines);
-        currentSectionLines = [];
       }
       currentYearKey = monthMatch[1];
       currentSectionLines = [line];
@@ -268,7 +267,7 @@ function runMemoryArchive(archiveSizeThresholdKB, archiveEntriesThreshold) {
     const archiveFile = path.join(archiveDir, `${year}.md`);
     const yearContent = yearGroups[year].join('\n');
     let existingArchive = '';
-    try { existingArchive = fs.readFileSync(archiveFile, 'utf8'); } catch (_) {}
+    try { existingArchive = fs.readFileSync(archiveFile, 'utf8'); } catch (_) { /* file may not exist */ }
     fs.writeFileSync(archiveFile, existingArchive + yearContent + '\n', 'utf8');
   }
 

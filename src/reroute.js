@@ -126,12 +126,12 @@ async function rerouteFile(filePath) {
   const { suggestWikilinks, refreshIndexEntry } = require('./wikilink-engine');
 
   const templatedDomains = ['briefings', 'job-hunt', 'interview-prep'];
-  let templateFields = {};
+  let _templateFields = {};
   const isRightSide = classifyResult.side === 'RIGHT';
   if (isRightSide && templatedDomains.includes(classifyResult.directory)) {
     try {
-      templateFields = await extractTemplateFields(inputBody, classifyResult.directory, correlationId);
-    } catch (_) {}
+      _templateFields = await extractTemplateFields(inputBody, classifyResult.directory, correlationId);
+    } catch (_) { /* enrichment non-fatal */ }
   }
 
   // ── (5) Generate wikilinks ─────────────────────────────────────────────────
@@ -203,7 +203,7 @@ async function rerouteFile(filePath) {
     if (classifyResult.side === 'RIGHT') {
       try {
         await refreshIndexEntry(targetPath);
-      } catch (_) {}
+      } catch (_) { /* index refresh non-fatal */ }
     }
 
     // ── (7) Move original to proposals/<origin>/rerouted/ with metadata ────────

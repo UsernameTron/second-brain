@@ -107,7 +107,7 @@ function logDecision(action, filePath, decision, reason) {
 let _config = null;
 
 /** Active chokidar watcher instance (kept for cleanup in tests) */
-let _watcher = null;
+const _watcher = null;
 
 /**
  * Validate config object structure and constraints.

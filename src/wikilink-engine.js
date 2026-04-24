@@ -28,7 +28,7 @@ const path = require('path');
 const VAULT_ROOT = process.env.VAULT_ROOT
   || path.join(process.env.HOME, 'Claude Cowork');
 
-const CONFIG_DIR = process.env.CONFIG_DIR_OVERRIDE
+const _CONFIG_DIR = process.env.CONFIG_DIR_OVERRIDE
   || path.join(__dirname, '..', 'config');
 
 /**
@@ -79,7 +79,6 @@ function parseFrontmatter(content) {
 
     if (inFrontmatter) {
       if (line.trim() === '---') {
-        inFrontmatter = false;
         frontmatterClosed = true;
         bodyStartIdx = i + 1;
         break;
