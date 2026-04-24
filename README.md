@@ -24,8 +24,10 @@ Built for a technical executive who directs AI. The project code lives in this r
 ```bash
 npm install
 npm run lint  # ESLint 10 (flat config)
-npm test      # Jest 30 — 799 total tests (775 pass, 24 UAT skipped in CI)
+npm test      # Jest 30 — 982 total tests (944 pass, 38 skipped in CI)
 ```
+
+**Optional: Semantic memory search** — Set `VOYAGE_API_KEY` in `.env` to enable `/recall --semantic` and `/recall --hybrid`. Without the key, `/recall` falls back to keyword search. See [docs/DEVOPS-HANDOFF.md](docs/DEVOPS-HANDOFF.md) for acquisition steps and configuration.
 
 ### Running Commands
 ```bash
@@ -71,7 +73,7 @@ src/                          # Core modules (27 .js files total)
     ├── github.js            # UsernameTron repo activity
     └── types.js             # Connector registry + SOURCE enum
 
-test/                         # 799 tests across 39 files
+test/                         # 982 tests across 52 files
 ├── unit/                    # Module-level tests
 ├── integration/             # Cross-module flow tests
 └── uat/                     # End-to-end command behavior (guarded from CI)
@@ -111,9 +113,9 @@ CLAUDE.md                    # Project governance, commands, conventions
 
 ## Status
 
-**Latest Release:** v1.3.0 Review Remediation (2026-04-24)
-- **799 total tests** across 39 test files (775 passing, 24 UAT skipped in CI)
-- **Branch coverage:** 81.31% (threshold: ≥80% enforced in CI)
+**Latest Release:** v1.3.0 Review Remediation (2026-04-24) | Phase 19 complete: Semantic Memory Search (2026-04-24)
+- **982 total tests** across 52 test files (944 passing, 38 skipped in CI)
+- **Branch coverage:** 81.28% (threshold: ≥80% enforced in CI)
 - **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 20+22 matrix, GitGuardian secrets scan
 - **Shipped milestones:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24)
 
@@ -134,7 +136,7 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 | **Config validation** | AJV 8 | JSON schema validation for all config files |
 | **File watching** | chokidar 3.6 | CJS-compatible file system events |
 
-**Key dependencies:** `@anthropic-ai/sdk` 0.90+, `gray-matter` 4.0 (YAML parsing), `dotenv` 17.4 (env vars)
+**Key dependencies:** `@anthropic-ai/sdk` 0.90+, `gray-matter` 4.0 (YAML parsing), `dotenv` 17.4 (env vars), `voyageai` 0.2.1 (Phase 19 semantic embeddings, MIT)
 
 **MCP integrations:** Gmail, Google Calendar, GitHub, Filesystem (all via Docker MCP Gateway)
 
@@ -187,6 +189,8 @@ For complete architecture details, see [.planning/PROJECT.md](.planning/PROJECT.
 | `/promote-memories` | Review daily | Human-approve memory candidates from staging to `memory.md` |
 | `/reroute` | Fix misclassified item | Re-route previously classified note to different location |
 | `/promote-unrouted` | Bulk-promote | Move all unrouted items from staging to workspace |
+| `/recall --semantic <query>` | Semantic search | Voyage AI embedding search with cosine similarity + recency decay (requires `VOYAGE_API_KEY`) |
+| `/recall --hybrid <query>` | Hybrid search | RRF fusion of keyword + semantic results; degrades gracefully to keyword if Voyage unavailable |
 
 ## Known Gaps (v1.4 Backlog)
 
