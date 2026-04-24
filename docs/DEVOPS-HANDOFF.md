@@ -69,7 +69,7 @@ The `memory.semantic` block in `config/pipeline.json` controls all Phase 19 beha
 | Key | Default | Range | Purpose |
 |---|---|---|---|
 | `memory.semantic.model` | `"voyage-4-lite"` | AJV enum | Voyage AI embedding model. Changing this invalidates the cache (triggers full re-embed on next `/recall --semantic`). |
-| `memory.semantic.threshold` | `0.72` | 0.0–1.0 | Cosine similarity cutoff. Results below this score are excluded. Applied at query time — does NOT invalidate embeddings. |
+| `memory.semantic.threshold` | `0.55` | 0.0–1.0 | Cosine similarity cutoff. Results below this score are excluded. Applied at query time — does NOT invalidate embeddings. Calibrated empirically against `voyage-4-lite`: top relevance hits land at 0.55–0.70 against typical query phrasings; spec'd 0.72 was empirically too strict and surfaced zero results during Phase 19 UAT. |
 | `memory.semantic.recencyDecay` | `0.2` | 0.0–1.0 | Temporal boost weight. Higher = stronger recency preference. Applied at query time — does NOT invalidate embeddings. |
 | `memory.semantic.rrfK` | `60` | ≥1 | RRF k constant for hybrid fusion. Controls how aggressively rank differences are penalized. |
 | `memory.semantic.candidatesPerSource` | `20` | 1–200 | Top-N candidates fetched from each source (keyword + semantic) before RRF merge. |
