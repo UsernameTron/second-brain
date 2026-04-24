@@ -12,8 +12,8 @@ All requirements are user-centric (or developer-centric where the "user" is the 
 
 ### CI / Infrastructure (Phase 17)
 
-- [ ] **UAT-CI-01**: A scheduled GitHub Actions workflow runs `npm run test:uat:ci` on a weekly cron and on manual `workflow_dispatch`, with the `ANTHROPIC_API_KEY` exposed via GitHub secrets to that job only.
-- [ ] **UAT-CI-02**: Each UAT run uploads the test accuracy report as a GitHub Actions artifact retained for 90 days, so accuracy trend can be inspected by opening the workflow run.
+- [x] **UAT-CI-01**: A scheduled GitHub Actions workflow runs `npm run test:uat:ci` on a weekly cron and on manual `workflow_dispatch`, with the `ANTHROPIC_API_KEY` exposed via GitHub secrets to that job only.
+- [x] **UAT-CI-02**: Each UAT run uploads the test accuracy report as a GitHub Actions artifact retained for 90 days, so accuracy trend can be inspected by opening the workflow run.
 - [ ] **BRANCH-PROT-01**: Branch protection on `master` enforces passing CI (lint, tests, coverage, CodeQL) and blocks force-push. UAT workflow is informational, not required.
 
 ### Memory Retrieval Foundation (Phase 18)
@@ -73,8 +73,8 @@ All requirements are user-centric (or developer-centric where the "user" is the 
 
 | REQ-ID | Phase | Status | Plan |
 |--------|-------|--------|------|
-| UAT-CI-01 | 17 — UAT CI Infrastructure | Pending | TBD |
-| UAT-CI-02 | 17 — UAT CI Infrastructure | Pending | TBD |
+| UAT-CI-01 | 17 — UAT CI Infrastructure | Complete | TBD |
+| UAT-CI-02 | 17 — UAT CI Infrastructure | Complete | TBD |
 | BRANCH-PROT-01 | 17 — UAT CI Infrastructure | Pending | TBD |
 | MEM-READ-01 | 18 — Memory Retrieval Foundation | Pending | TBD |
 | MEM-SEARCH-KW-01 | 18 — Memory Retrieval Foundation | Pending | TBD |
