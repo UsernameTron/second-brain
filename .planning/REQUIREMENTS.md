@@ -71,26 +71,24 @@ All requirements are user-centric (or developer-centric where the "user" is the 
 
 ## Traceability
 
-Filled by roadmap generation:
-
-| REQ-ID | Phase | Plan |
-|--------|-------|------|
-| UAT-CI-01 | 17 | (TBD) |
-| UAT-CI-02 | 17 | (TBD) |
-| BRANCH-PROT-01 | 17 | (TBD) |
-| MEM-READ-01 | 18 | (TBD) |
-| MEM-SEARCH-KW-01 | 18 | (TBD) |
-| RECALL-CMD-01 | 18 | (TBD) |
-| TODAY-ECHO-01 | 18 | (TBD) |
-| MEM-EMBED-01 | 19 | (TBD) |
-| MEM-SEMANTIC-01 | 19 | (TBD) |
-| MEM-INDEX-REFRESH-01 | 19 | (TBD) |
-| MEM-DEGRADE-01 | 19 | (TBD) |
-| STATS-DAILY-01 | 20 | (TBD) |
-| STATS-LATENCY-01 | 20 | (TBD) |
-| STATS-GROWTH-01 | 20 | (TBD) |
-| TODAY-SUMMARY-01 | 20 | (TBD) |
-| HYG-UNICODE-01 | 21 | (TBD) |
-| HYG-JSDOC-01 | 21 | (TBD) |
-| HYG-CONSOLE-01 | 21 | (TBD) |
-| DOCS-FINAL-01 | 21 | (TBD) |
+| REQ-ID | Phase | Status | Plan |
+|--------|-------|--------|------|
+| UAT-CI-01 | 17 — UAT CI Infrastructure | Pending | TBD |
+| UAT-CI-02 | 17 — UAT CI Infrastructure | Pending | TBD |
+| BRANCH-PROT-01 | 17 — UAT CI Infrastructure | Pending | TBD |
+| MEM-READ-01 | 18 — Memory Retrieval Foundation | Pending | TBD |
+| MEM-SEARCH-KW-01 | 18 — Memory Retrieval Foundation | Pending | TBD |
+| RECALL-CMD-01 | 18 — Memory Retrieval Foundation | Pending | TBD |
+| TODAY-ECHO-01 | 18 — Memory Retrieval Foundation | Pending | TBD |
+| MEM-EMBED-01 | 19 — Semantic Memory Search | Pending | TBD |
+| MEM-SEMANTIC-01 | 19 — Semantic Memory Search | Pending | TBD |
+| MEM-INDEX-REFRESH-01 | 19 — Semantic Memory Search | Pending | TBD |
+| MEM-DEGRADE-01 | 19 — Semantic Memory Search | Pending | TBD |
+| STATS-DAILY-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
+| STATS-LATENCY-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
+| STATS-GROWTH-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
+| TODAY-SUMMARY-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
+| HYG-UNICODE-01 | 21 — Closeout Hygiene | Pending | TBD |
+| HYG-JSDOC-01 | 21 — Closeout Hygiene | Pending | TBD |
+| HYG-CONSOLE-01 | 21 — Closeout Hygiene | Pending | TBD |
+| DOCS-FINAL-01 | 21 — Closeout Hygiene | Pending | TBD |

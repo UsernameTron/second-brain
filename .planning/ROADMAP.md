@@ -10,8 +10,20 @@ Transform an Obsidian vault into a personal operating system with compounding me
 - ✅ **v1.1 Go Live** — Phases 5-7 (shipped 2026-04-23)
 - ✅ **v1.2 Automation & Quality** — Phases 8-11 (shipped 2026-04-23, tag v1.2.0)
 - ✅ **v1.3 Review Remediation** — Phases 12-16 (shipped 2026-04-24, tag v1.3.0)
+- 🚧 **v1.4 Memory Activation & Final Closeout** — Phases 17-21 (in progress)
 
 ## Phases
+
+<details>
+<summary>🚧 v1.4 Memory Activation & Final Closeout (Phases 17-21) — IN PROGRESS</summary>
+
+- [ ] **Phase 17: UAT CI Infrastructure** — Close the UAT CI gap and enforce branch protection on master
+- [ ] **Phase 18: Memory Retrieval Foundation** — Activate the read path on the write-only memory layer with keyword search and `/recall`
+- [ ] **Phase 19: Semantic Memory Search** — Add Voyage AI semantic retrieval with RRF hybrid mode and graceful degradation
+- [ ] **Phase 20: Value Extraction Instrumentation** — Make the "memory compounds daily" promise visible and measurable
+- [ ] **Phase 21: Closeout Hygiene** — Clear every deferred hygiene item and produce final v1.4 documentation
+
+</details>
 
 <details>
 <summary>✅ v1.0 MVP (Phases 1-4) — SHIPPED 2026-04-22</summary>
@@ -103,3 +115,107 @@ Plans:
 
 All 12 items from v1.0/v1.1 backlog (999.1–999.12) promoted to v1.2 phases 8–11.
 No remaining backlog items. New items added here as discovered.
+
+---
+
+## v1.4 Memory Activation & Final Closeout (Phases 17-21)
+
+**Goal:** Activate the write-only memory layer (keyword + semantic retrieval), prove memory compounds daily via instrumentation, close the UAT CI gap, and clear every deferred hygiene item. This is the closing milestone.
+
+**Requirements:** 19 total — 100% mapped, no orphans.
+
+### Phase 17: UAT CI Infrastructure
+**Goal**: CI pipeline runs UAT tests on a reliable schedule with secret isolation, and master branch is protected against force-push and failing checks.
+**Depends on**: Nothing (independent of Phases 18–21)
+**Requirements**: UAT-CI-01, UAT-CI-02, BRANCH-PROT-01
+**Success Criteria** (what must be TRUE):
+  1. A GitHub Actions workflow runs `npm run test:uat:ci` automatically on a weekly cron and on manual `workflow_dispatch`, with both trigger modes passing.
+  2. After a UAT run, the workflow run page shows a downloadable artifact containing the accuracy report, retained for 90 days.
+  3. A direct push to master that would skip CI (or a force-push) is rejected by branch protection; only PRs with passing lint, tests, coverage, and CodeQL checks can merge.
+  4. The `ANTHROPIC_API_KEY` secret is scoped exclusively to the UAT job and does not appear in any other workflow step or log output.
+**Plans**: TBD
+
+### Phase 18: Memory Retrieval Foundation
+**Goal**: Users can query the compounding memory layer via `/recall` and see relevant memories surfaced automatically in the `/today` briefing.
+**Depends on**: Nothing (foundational; unblocks Phases 19 and 20)
+**Requirements**: MEM-READ-01, MEM-SEARCH-KW-01, RECALL-CMD-01, TODAY-ECHO-01
+**Success Criteria** (what must be TRUE):
+  1. Running `/recall "leadership"` returns a numbered list of up to 5 memory entries with category label, 100-character snippet, and source reference — or an empty result set with no error when no entry matches.
+  2. `/recall` supports `--category`, `--since`, and `--top N` flags that each narrow or expand results as documented.
+  3. Running `/recall` against a vault where `memory/memory.md` is absent returns an empty result set without throwing or crashing.
+  4. The `/today` briefing includes a "Memory Echo" section (between Frog and Pipeline) when at least one memory entry scores above the 0.65 relevance threshold against today's calendar topics or VIP email subjects; the section is absent entirely when no entry crosses the threshold.
+**Plans**: TBD
+
+### Phase 19: Semantic Memory Search
+**Goal**: `/recall` surfaces semantically relevant memories that keyword search misses, with automatic fallback to keyword mode when Voyage AI is unavailable.
+**Depends on**: Phase 18 (semantic-index.js calls readMemory() for hash-set comparison)
+**Requirements**: MEM-EMBED-01, MEM-SEMANTIC-01, MEM-INDEX-REFRESH-01, MEM-DEGRADE-01
+**Success Criteria** (what must be TRUE):
+  1. After running `/promote-memories`, each newly promoted entry is embedded via Voyage AI (`voyage-4-lite`) and appended to `~/.cache/second-brain/embeddings.jsonl`; running `/promote-memories` a second time with the same entries produces zero additional Voyage API calls (content-hash cache confirmed).
+  2. `/recall --semantic "emotional resilience"` returns entries ranked by cosine similarity with temporal decay, filtered at the 0.72 threshold, without surfacing entries that contain excluded terms.
+  3. `/recall --hybrid` returns results that combine keyword and semantic ranks via RRF fusion, producing a merged ranked list.
+  4. When `VOYAGE_API_KEY` is absent or Voyage returns a 5xx/timeout, `/recall --semantic` and `/recall --hybrid` fall back to keyword results and emit a single-line degradation notice; Memory Echo in `/today` continues using keyword match with no error in the briefing.
+  5. On startup, the index self-heals: entries present in `memory.md` but absent from `embeddings.jsonl` are re-embedded lazily; a `schema_version` mismatch in `index-metadata.json` triggers a full re-embed before results are served.
+**Plans**: TBD
+
+### Phase 20: Value Extraction Instrumentation
+**Goal**: Every `/today` run records measurable evidence that memory is compounding, and the briefing opens with a one-line summary of yesterday's growth.
+**Depends on**: Phase 18 (Memory Echo latency is meaningful to track); Phase 19 (semantic latency is the primary metric worth capturing)
+**Requirements**: STATS-DAILY-01, STATS-LATENCY-01, STATS-GROWTH-01, TODAY-SUMMARY-01
+**Success Criteria** (what must be TRUE):
+  1. After each `/today` run, `~/Claude Cowork/RIGHT/daily-stats.md` contains exactly one row for the current calendar day (local timezone `America/Los_Angeles`) with columns: date, proposals, promotions, total_entries, memory_kb, recall_count, avg_latency_ms, avg_confidence.
+  2. Running `/today` twice on the same day updates the existing row rather than appending a duplicate row.
+  3. The `/today` briefing opens with a one-line summary — e.g., "Yesterday: +3 proposals, +2 promotions, +1.4 KB memory" — drawn from the prior day's stats row; the line is omitted when no prior-day row exists (first run ever).
+  4. The stats row captures per-connector latency (calendar, Gmail, GitHub) and per-operation latency (semanticSearch, memoryEcho) alongside the end-to-end `/today` latency.
+**Plans**: TBD
+
+### Phase 21: Closeout Hygiene
+**Goal**: Every deferred hygiene item from v1.3 is closed, public API surface is documented, and all three living documents accurately describe v1.4.
+**Depends on**: Phase 18, Phase 19, Phase 20 complete (JSDoc requires stable public APIs from all three)
+**Requirements**: HYG-UNICODE-01, HYG-JSDOC-01, HYG-CONSOLE-01, DOCS-FINAL-01
+**Success Criteria** (what must be TRUE):
+  1. The `test/content-policy.test.js` suite includes at least one test per excluded term exercising Unicode variants (curly quotes, em-dashes, smart apostrophes, non-ASCII whitespace), and all new tests pass in CI.
+  2. Every public function exported from the ten named source files (`classifier.js`, `memory-extractor.js`, `memory-proposals.js`, `promote-memories.js`, `memory-reader.js`, `semantic-index.js`, `recall-command.js`, `daily-stats.js`, `today-command.js`, `vault-gateway.js`) has a JSDoc block with `@param`, `@returns`, and a one-line description.
+  3. The 41 `no-console` ESLint warnings are eliminated — either via a shared logger abstraction or via documented `eslint-disable` comments with per-call-site rationale — and `npm run lint` exits clean.
+  4. `CLAUDE.md`, `README.md`, and `docs/DEVOPS-HANDOFF.md` accurately document `/recall`, `VOYAGE_API_KEY`, the `memory.*` and `stats.*` config keys, `daily-stats.md`, and `~/.cache/second-brain/embeddings.jsonl`, with final test counts and coverage numbers filled in.
+**Plans**: TBD
+
+---
+
+## v1.4 Progress Table
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 17. UAT CI Infrastructure | 0/? | Not started | - |
+| 18. Memory Retrieval Foundation | 0/? | Not started | - |
+| 19. Semantic Memory Search | 0/? | Not started | - |
+| 20. Value Extraction Instrumentation | 0/? | Not started | - |
+| 21. Closeout Hygiene | 0/? | Not started | - |
+
+---
+
+## v1.4 Requirement Coverage
+
+| REQ-ID | Phase | Description (abbreviated) |
+|--------|-------|---------------------------|
+| UAT-CI-01 | 17 | Scheduled + workflow_dispatch UAT workflow with secret isolation |
+| UAT-CI-02 | 17 | UAT accuracy report artifact retained 90 days |
+| BRANCH-PROT-01 | 17 | Branch protection on master enforcing CI + blocking force-push |
+| MEM-READ-01 | 18 | `readMemory()` parses memory.md into structured entries, never throws |
+| MEM-SEARCH-KW-01 | 18 | Keyword search with AND, phrase, negation, category/date filters, snippets |
+| RECALL-CMD-01 | 18 | `/recall <query>` with `--category`, `--since`, `--top N` flags |
+| TODAY-ECHO-01 | 18 | Memory Echo section in `/today` with 0.65 threshold, omitted when empty |
+| MEM-EMBED-01 | 19 | Embed-on-promotion via Voyage AI with content-hash dedup |
+| MEM-SEMANTIC-01 | 19 | `semanticSearch()` with cosine + temporal decay + excluded-terms filter |
+| MEM-INDEX-REFRESH-01 | 19 | Startup hash-set comparison; schema_version triggers full re-embed |
+| MEM-DEGRADE-01 | 19 | Graceful fallback to keyword when Voyage unavailable |
+| STATS-DAILY-01 | 20 | `appendDailyStats()` idempotent append to `RIGHT/daily-stats.md` |
+| STATS-LATENCY-01 | 20 | Per-connector and per-operation latency captured in stats row |
+| STATS-GROWTH-01 | 20 | `memory_kb` + `total_entries` per day; timezone-safe date utility |
+| TODAY-SUMMARY-01 | 20 | One-line yesterday summary at top of `/today` briefing |
+| HYG-UNICODE-01 | 21 | Unicode-variant exclusion term tests in content-policy.test.js |
+| HYG-JSDOC-01 | 21 | JSDoc on all public exports across 10 named modules |
+| HYG-CONSOLE-01 | 21 | 41 no-console warnings resolved; lint exits clean |
+| DOCS-FINAL-01 | 21 | CLAUDE.md, README.md, DEVOPS-HANDOFF.md reflect v1.4 final state |
+
+**Coverage: 19/19 requirements mapped. No orphans.**
