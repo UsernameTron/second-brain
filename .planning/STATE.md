@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Review Remediation
-status: Phase 14 SHIPPED — PR #26
-stopped_at: Phase 14 shipped — PR #26 on feat/phase-14-ci-hardening. Awaiting merge.
-last_updated: "2026-04-23"
+status: Phase 15 SHIPPED — PR #27
+stopped_at: Phase 15 shipped — PR #27 on feat/phase-15-architecture. Watching CI.
+last_updated: "2026-04-24"
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 1
   completed_plans: 1
 ---
@@ -19,15 +19,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-23)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** v1.3 Review Remediation — Phases 12-14 complete, Phase 15 next.
+**Current focus:** v1.3 Review Remediation — Phases 12-15 complete, Phase 16 next.
 
 ## Current Position
 
 Milestone: v1.3 Review Remediation
 Phase 12: Critical Safety Fixes — SHIPPED (PR #22, merge d65b0c6)
 Phase 13: Config Schema Gaps — SHIPPED (PR #24, squash 774140b)
-Phase 14: CI Hardening — SHIPPED (PR #26, branch: feat/phase-14-ci-hardening)
-Phase 15: Architecture Refactor — PENDING (depends on 13)
+Phase 14: CI Hardening — MERGED (PR #26, a940280)
+Phase 15: Architecture Refactor — SHIPPED (PR #27, branch: feat/phase-15-architecture)
 Phase 16: Test Quality — PENDING (depends on 15)
 
 ## Requirements Map
@@ -66,12 +66,13 @@ None active.
 | Workstream | Phase | Branch | Status |
 |------------|-------|--------|--------|
 | schemas | 13 | feat/phase-13-schemas | SHIPPED (PR #24, 774140b) |
-| ci-hardening | 14 | feat/phase-14-ci-hardening | SHIPPED (PR #26) |
+| ci-hardening | 14 | feat/phase-14-ci-hardening | MERGED (PR #26, a940280) |
+| architecture | 15 | feat/phase-15-architecture | SHIPPED (PR #27) |
 
 ## Session Continuity
 
-Last session: 2026-04-24 (Session 53)
-Stopped at: Phase 14 shipped — PR #26, awaiting merge.
-Resume with: Merge PR #26, then `/gsd:discuss-phase 15`.
-Ship log: PRs #1-#25 merged, PR #26 open. Tags: v1.0, v1.1, v1.2.0.
-v1.3 dependency chain: 12 (SHIPPED) → {13 (SHIPPED), 14 (EXECUTED)} → 15 → 16
+Last session: 2026-04-24 (Session 55)
+Stopped at: Phase 15 shipped — PR #27 on feat/phase-15-architecture. Watching CI.
+Resume with: Merge PR #27 when CI green, then `/gsd:discuss-phase 16`.
+Ship log: PRs #1-#26 merged, PR #27 open. Tags: v1.0, v1.1, v1.2.0.
+v1.3 dependency chain: 12 (SHIPPED) → {13 (SHIPPED), 14 (MERGED)} → 15 (SHIPPED) → 16
