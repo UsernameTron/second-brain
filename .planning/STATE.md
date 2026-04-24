@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Memory Activation & Final Closeout
-status: executing
-stopped_at: "Completed 17-02-PLAN.md: test:uat:ci script + nock@14.0.13 devDependency"
-last_updated: "2026-04-24T15:24:42.394Z"
+status: verifying
+stopped_at: "Completed 17-03-PLAN.md: branch protection on master — SUMMARY, STATE, ROADMAP"
+last_updated: "2026-04-24T16:01:43.967Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 9
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 Phase: 17 (UAT CI Infrastructure) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-24
 
 **Shipped milestones:** v1.0 (MVP, 2026-04-22), v1.1 (Go Live, 2026-04-23), v1.2 (Automation & Quality, 2026-04-23), v1.3 (Review Remediation, 2026-04-24).
@@ -69,6 +69,8 @@ Full log in PROJECT.md Key Decisions table. Summary:
 - [Phase 17-uat-ci-infrastructure]: Monday 13:00 UTC cron for UAT workflow — 7 hours after CodeQL 06:00 UTC to prevent runner contention
 - [Phase 17-uat-ci-infrastructure]: test:uat:ci script is bare jest invocation — CI env owned by workflow step not the npm script
 - [Phase 17-uat-ci-infrastructure]: nock@14.0.13 pre-installed in Phase 17 infrastructure so Phase 19 semantic search planning stays architecture-focused
+- [Phase 17-uat-ci-infrastructure]: enforce_admins: false — repo owner retains emergency push bypass with explicit GitHub admin-bypass warning; non-admin contributors and force-push blocked; deliberate tradeoff for solo-developer repo
+- [Phase 17-uat-ci-infrastructure]: UAT Accuracy Tests intentionally NOT a required branch protection check — workflow runs on schedule/dispatch only, never on PRs; requiring it would permanently block all PR merges
 
 ### Open Blockers
 
@@ -80,6 +82,6 @@ None active.
 
 ## Session Continuity
 
-Last session: 2026-04-24T15:24:42.392Z
-Stopped at: Completed 17-02-PLAN.md: test:uat:ci script + nock@14.0.13 devDependency
+Last session: 2026-04-24T16:01:43.964Z
+Stopped at: Completed 17-03-PLAN.md: branch protection on master — SUMMARY, STATE, ROADMAP
 Ship log: PRs #1–#31 merged. Tags: v1.0, v1.1, v1.2.0, v1.3.0.
