@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Memory Activation & Final Closeout
 status: executing
-stopped_at: Phase 19 Plan 01 complete — voyageai dep, schema extension, pipeline.json defaults committed
-last_updated: "2026-04-24T19:07:40.229Z"
+stopped_at: Phase 19 Plan 02 complete — voyage-health.js + semantic-index.js committed
+last_updated: "2026-04-24T19:15:36.520Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 21
-  completed_plans: 17
+  completed_plans: 19
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 ## Current Position
 
 Phase: 19 (semantic-memory-search) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-04-24
 
@@ -73,6 +73,8 @@ Full log in PROJECT.md Key Decisions table. Summary:
 - [Phase 17-uat-ci-infrastructure]: UAT Accuracy Tests intentionally NOT a required branch protection check — workflow runs on schedule/dispatch only, never on PRs; requiring it would permanently block all PR merges
 - [Phase 19]: voyageai@0.2.1 pinned exact (no caret) per D-PRE-01 locked decision; MIT license passes allowlist
 - [Phase 19]: memory.semantic is optional sub-object in schema — pipeline.json without semantic block still validates; semantic is additive
+- [Phase 19]: voyage-health.js uses atomic .tmp rename + chmod 0600/0700 for cross-invocation state; computeSchemaVersion hashes model+dim only (D-14)
+- [Phase 19]: checkContent() gate runs before every Voyage call in semanticSearch() — excluded terms never leave the process (Pattern 11, D-PRE-05)
 
 ### Open Blockers
 
@@ -84,6 +86,6 @@ None active.
 
 ## Session Continuity
 
-Last session: 2026-04-24T19:07:36.827Z
-Stopped at: Phase 19 Plan 01 complete — voyageai dep, schema extension, pipeline.json defaults committed
+Last session: 2026-04-24T19:15:36.517Z
+Stopped at: Phase 19 Plan 02 complete — voyage-health.js + semantic-index.js committed
 Ship log: PRs #1–#31 merged. Tags: v1.0, v1.1, v1.2.0, v1.3.0.

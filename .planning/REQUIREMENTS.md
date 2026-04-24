@@ -25,10 +25,10 @@ All requirements are user-centric (or developer-centric where the "user" is the 
 
 ### Semantic Memory Search (Phase 19)
 
-- [ ] **MEM-EMBED-01**: `indexNewEntries(promoted)` runs inside `/promote-memories` after `appendToMemoryFile()`. For each new entry it calls Voyage AI (`voyage-4-lite`) via the `voyageai@0.2.1` SDK and appends `{ hash, embedding, addedAt, category }` to `~/.cache/second-brain/embeddings.jsonl`. Entries whose `contentHash` is already indexed are skipped (no re-embedding).
-- [ ] **MEM-SEMANTIC-01**: `semanticSearch(query, k=5)` embeds the query with `input_type: "query"`, scores against stored vectors via cosine similarity with temporal decay (`adjusted = base * (1 + 0.2 * recency)`), filters by the 0.72 threshold, returns top-k entries. Before embedding, the query is filtered through the existing excluded-terms policy to prevent ISPN/Genesys/Asana leakage to Voyage.
-- [ ] **MEM-INDEX-REFRESH-01**: On startup, `semantic-index.js` compares the set of `contentHash` values in `memory.md` against those in `embeddings.jsonl`. Mismatches trigger lazy re-embed for the missing/stale hashes only. A `schema_version` field in `~/.cache/second-brain/index-metadata.json` triggers a full re-embed when the stored version differs from the code version.
-- [ ] **MEM-DEGRADE-01**: When Voyage is unreachable (timeout, 429, 5xx, DNS failure) or `VOYAGE_API_KEY` is absent, `/recall --semantic` and `/recall --hybrid` fall back to keyword search and emit a one-line degradation notice. Memory Echo continues using keyword match with no error surfaced in the briefing.
+- [x] **MEM-EMBED-01**: `indexNewEntries(promoted)` runs inside `/promote-memories` after `appendToMemoryFile()`. For each new entry it calls Voyage AI (`voyage-4-lite`) via the `voyageai@0.2.1` SDK and appends `{ hash, embedding, addedAt, category }` to `~/.cache/second-brain/embeddings.jsonl`. Entries whose `contentHash` is already indexed are skipped (no re-embedding).
+- [x] **MEM-SEMANTIC-01**: `semanticSearch(query, k=5)` embeds the query with `input_type: "query"`, scores against stored vectors via cosine similarity with temporal decay (`adjusted = base * (1 + 0.2 * recency)`), filters by the 0.72 threshold, returns top-k entries. Before embedding, the query is filtered through the existing excluded-terms policy to prevent ISPN/Genesys/Asana leakage to Voyage.
+- [x] **MEM-INDEX-REFRESH-01**: On startup, `semantic-index.js` compares the set of `contentHash` values in `memory.md` against those in `embeddings.jsonl`. Mismatches trigger lazy re-embed for the missing/stale hashes only. A `schema_version` field in `~/.cache/second-brain/index-metadata.json` triggers a full re-embed when the stored version differs from the code version.
+- [x] **MEM-DEGRADE-01**: When Voyage is unreachable (timeout, 429, 5xx, DNS failure) or `VOYAGE_API_KEY` is absent, `/recall --semantic` and `/recall --hybrid` fall back to keyword search and emit a one-line degradation notice. Memory Echo continues using keyword match with no error surfaced in the briefing.
 
 ### Value Extraction Instrumentation (Phase 20)
 
@@ -80,10 +80,10 @@ All requirements are user-centric (or developer-centric where the "user" is the 
 | MEM-SEARCH-KW-01 | 18 — Memory Retrieval Foundation | Pending | TBD |
 | RECALL-CMD-01 | 18 — Memory Retrieval Foundation | Pending | TBD |
 | TODAY-ECHO-01 | 18 — Memory Retrieval Foundation | Pending | TBD |
-| MEM-EMBED-01 | 19 — Semantic Memory Search | Pending | TBD |
-| MEM-SEMANTIC-01 | 19 — Semantic Memory Search | Pending | TBD |
-| MEM-INDEX-REFRESH-01 | 19 — Semantic Memory Search | Pending | TBD |
-| MEM-DEGRADE-01 | 19 — Semantic Memory Search | Pending | TBD |
+| MEM-EMBED-01 | 19 — Semantic Memory Search | Complete | TBD |
+| MEM-SEMANTIC-01 | 19 — Semantic Memory Search | Complete | TBD |
+| MEM-INDEX-REFRESH-01 | 19 — Semantic Memory Search | Complete | TBD |
+| MEM-DEGRADE-01 | 19 — Semantic Memory Search | Complete | TBD |
 | STATS-DAILY-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
 | STATS-LATENCY-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
 | STATS-GROWTH-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
