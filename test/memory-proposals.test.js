@@ -267,31 +267,31 @@ describe('readProposals', () => {
 describe('acquireLock / releaseLock', () => {
   test('acquireLock creates .lock file', async () => {
     const lockFile = path.join(proposalsDir, 'memory-proposals.md.lock');
-    const result = await memProposals.acquireLock();
+    const result = await memProposals._testOnly.acquireLock();
     expect(result.acquired).toBe(true);
     expect(fs.existsSync(lockFile)).toBe(true);
-    await memProposals.releaseLock();
+    await memProposals._testOnly.releaseLock();
   });
 
   test('lock file contains pid, acquired, and holder fields', async () => {
     const lockFile = path.join(proposalsDir, 'memory-proposals.md.lock');
-    await memProposals.acquireLock();
+    await memProposals._testOnly.acquireLock();
     const lockData = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
     expect(lockData.pid).toBe(process.pid);
     expect(lockData.holder).toBe('memory-extractor');
     expect(typeof lockData.acquired).toBe('string');
-    await memProposals.releaseLock();
+    await memProposals._testOnly.releaseLock();
   });
 
   test('releaseLock removes .lock file', async () => {
     const lockFile = path.join(proposalsDir, 'memory-proposals.md.lock');
-    await memProposals.acquireLock();
-    await memProposals.releaseLock();
+    await memProposals._testOnly.acquireLock();
+    await memProposals._testOnly.releaseLock();
     expect(fs.existsSync(lockFile)).toBe(false);
   });
 
   test('releaseLock is idempotent (no error if lock file missing)', async () => {
-    await expect(memProposals.releaseLock()).resolves.not.toThrow();
+    await expect(memProposals._testOnly.releaseLock()).resolves.not.toThrow();
   });
 
   test('acquireLock on existing lock times out after ~5 seconds and returns { acquired: false }', async () => {
@@ -300,7 +300,7 @@ describe('acquireLock / releaseLock', () => {
     // Manually create a lock file to simulate a held lock
     fs.writeFileSync(lockFile, JSON.stringify({ pid: 99999, acquired: new Date().toISOString(), holder: 'other' }));
     const start = Date.now();
-    const result = await memProposals.acquireLock();
+    const result = await memProposals._testOnly.acquireLock();
     const elapsed = Date.now() - start;
     expect(result.acquired).toBe(false);
     expect(elapsed).toBeGreaterThanOrEqual(4500);

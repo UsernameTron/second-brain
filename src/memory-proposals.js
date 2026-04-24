@@ -378,12 +378,23 @@ async function readProposals() {
 }
 
 // ── Exports ──────────────────────────────────────────────────────────────────
+//
+// Phase 15 (B-07): acquireLock/releaseLock were privatized. They remain used
+// internally by writeCandidate and flushPendingBuffer, but are no longer part
+// of the module's public surface. Grep confirmed no src/ caller used them
+// directly. The dedicated test suite for lock semantics now exercises them
+// indirectly through writeCandidate with simulated lock contention.
 
 module.exports = {
   generateCandidateId,
   writeCandidate,
   readProposals,
+  flushPendingBuffer,
+};
+
+// Test-only surface: tests that need to exercise lock primitives directly
+// can opt in via this namespaced export. Production code must not use this.
+module.exports._testOnly = {
   acquireLock,
   releaseLock,
-  flushPendingBuffer,
 };
