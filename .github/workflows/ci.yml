@@ -20,6 +20,9 @@ jobs:
           cache: 'npm'
       - run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Run tests with coverage
         # TODO: Ratchet branches to 90 once branch coverage gaps are closed
         run: npx jest --verbose --coverage --coverageThreshold='{"global":{"branches":70,"functions":90,"lines":90,"statements":90}}'

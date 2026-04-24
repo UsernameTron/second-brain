@@ -4,7 +4,8 @@
   "description": "Obsidian vault operating system",
   "main": "src/vault-gateway.js",
   "scripts": {
-    "test": "jest --verbose"
+    "test": "jest --verbose",
+    "lint": "eslint src/ test/"
   },
   "keywords": [],
   "author": "C Pete Conner",
@@ -16,7 +17,11 @@
     "gray-matter": "^4.0.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "ajv": "^8.18.0",
+    "eslint": "^10.2.1",
+    "eslint-plugin-jest": "^29.15.2",
+    "eslint-plugin-n": "^17.24.0",
     "jest": "^30.3.0"
   }
 }
