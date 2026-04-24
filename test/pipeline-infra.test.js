@@ -684,7 +684,7 @@ describe('pipeline-infra module exports', () => {
     jest.unmock('@anthropic-ai/sdk');
   });
 
-  test('exports all 8 required functions', () => {
+  test('exports all 14 required functions', () => {
     const infra = require('../src/pipeline-infra');
     expect(typeof infra.generateCorrelationId).toBe('function');
     expect(typeof infra.createHaikuClient).toBe('function');
@@ -692,6 +692,11 @@ describe('pipeline-infra module exports', () => {
     expect(typeof infra.writeDeadLetter).toBe('function');
     expect(typeof infra.loadPipelineConfig).toBe('function');
     expect(typeof infra.loadTemplatesConfig).toBe('function');
+    expect(typeof infra.loadMemoryCategoriesConfig).toBe('function');
+    expect(typeof infra.loadExcludedTerms).toBe('function');
+    expect(typeof infra.loadConnectorsConfig).toBe('function');
+    expect(typeof infra.loadSchedulingConfig).toBe('function');
+    expect(typeof infra.loadConfigWithOverlay).toBe('function');
     expect(typeof infra.safeLoadPipelineConfig).toBe('function');
     expect(typeof infra.safeLoadVaultPaths).toBe('function');
   });
@@ -1049,5 +1054,103 @@ describe('classifyLocal — LLM fallback hardening', () => {
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual({ category: 'note', confidence: 0.95 });
+  });
+});
+
+// ── T13.6 overlay round-trip tests for new loaders ──────────────────────────
+
+describe('loadExcludedTerms overlay', () => {
+  let tmpDir;
+  const realConfigDir = path.join(__dirname, '..', 'config');
+
+  afterEach(() => {
+    delete process.env.CONFIG_DIR_OVERRIDE;
+    jest.resetModules();
+    if (tmpDir) {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+    }
+  });
+
+  test('returns base excluded terms when no overlay', () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'et-overlay-'));
+    fs.copyFileSync(
+      path.join(realConfigDir, 'excluded-terms.json'),
+      path.join(tmpDir, 'excluded-terms.json')
+    );
+    const schemaDir = path.join(tmpDir, 'schema');
+    fs.mkdirSync(schemaDir);
+    fs.copyFileSync(
+      path.join(realConfigDir, 'schema', 'excluded-terms.schema.json'),
+      path.join(schemaDir, 'excluded-terms.schema.json')
+    );
+    process.env.CONFIG_DIR_OVERRIDE = tmpDir;
+    jest.resetModules();
+    const { loadExcludedTerms } = require('../src/pipeline-infra');
+    const terms = loadExcludedTerms();
+    expect(Array.isArray(terms)).toBe(true);
+    expect(terms.length).toBeGreaterThan(0);
+  });
+
+  test('returns empty array on missing file', () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'et-missing-'));
+    process.env.CONFIG_DIR_OVERRIDE = tmpDir;
+    jest.resetModules();
+    const { loadExcludedTerms } = require('../src/pipeline-infra');
+    const terms = loadExcludedTerms();
+    expect(terms).toEqual([]);
+  });
+});
+
+describe('loadConnectorsConfig overlay', () => {
+  let tmpDir;
+  const realConfigDir = path.join(__dirname, '..', 'config');
+
+  afterEach(() => {
+    delete process.env.CONFIG_DIR_OVERRIDE;
+    jest.resetModules();
+    if (tmpDir) {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+    }
+  });
+
+  test('returns base connectors config when no overlay', () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'conn-overlay-'));
+    fs.copyFileSync(
+      path.join(realConfigDir, 'connectors.json'),
+      path.join(tmpDir, 'connectors.json')
+    );
+    process.env.CONFIG_DIR_OVERRIDE = tmpDir;
+    jest.resetModules();
+    const { loadConnectorsConfig } = require('../src/pipeline-infra');
+    const config = loadConnectorsConfig();
+    expect(config).toBeDefined();
+    expect(typeof config).toBe('object');
+  });
+});
+
+describe('loadSchedulingConfig overlay', () => {
+  let tmpDir;
+  const realConfigDir = path.join(__dirname, '..', 'config');
+
+  afterEach(() => {
+    delete process.env.CONFIG_DIR_OVERRIDE;
+    jest.resetModules();
+    if (tmpDir) {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+    }
+  });
+
+  test('returns base scheduling config when no overlay', () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sched-overlay-'));
+    fs.copyFileSync(
+      path.join(realConfigDir, 'scheduling.json'),
+      path.join(tmpDir, 'scheduling.json')
+    );
+    process.env.CONFIG_DIR_OVERRIDE = tmpDir;
+    jest.resetModules();
+    const { loadSchedulingConfig } = require('../src/pipeline-infra');
+    const config = loadSchedulingConfig();
+    expect(config).toBeDefined();
+    expect(config.trigger).toBeDefined();
   });
 });

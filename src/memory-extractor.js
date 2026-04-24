@@ -23,7 +23,7 @@ const path = require('path');
 const readline = require('readline');
 const crypto = require('crypto');
 
-const { createHaikuClient, loadPipelineConfig, loadTemplatesConfig } = require('./pipeline-infra');
+const { createHaikuClient, loadPipelineConfig, loadTemplatesConfig, loadMemoryCategoriesConfig } = require('./pipeline-infra');
 const { writeCandidate } = require('./memory-proposals');
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -94,8 +94,7 @@ function isHighSignal(content) {
 function buildSystemPrompt() {
   let categories;
   try {
-    const templatesConfig = loadTemplatesConfig();
-    categories = templatesConfig['memory-categories'];
+    categories = loadMemoryCategoriesConfig();
   } catch (_) {
     categories = {
       DECISION: { description: 'A deliberate choice.', example: '', exclusions: '' },

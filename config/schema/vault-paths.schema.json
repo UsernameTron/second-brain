@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "vault-paths",
+  "title": "Vault Paths Configuration",
+  "description": "Validates config/vault-paths.json — LEFT/RIGHT vault directory mapping and Haiku context window",
+  "type": "object",
+  "required": ["left", "right"],
+  "properties": {
+    "left": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!/)(?!.*\\.\\.)[^`]+$"
+      },
+      "minItems": 1
+    },
+    "right": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!/)(?!.*\\.\\.)[^`]+$"
+      },
+      "minItems": 1
+    },
+    "haikuContextChars": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 200000
+    }
+  },
+  "additionalProperties": false
+}

@@ -11,7 +11,7 @@
  *   - minLength (for string)
  *   - minItems, maxItems (for array)
  *   - items (for array element type)
- *   - additionalProperties: false
+ *   - additionalProperties: false | {schema}
  *
  * Returns { valid: boolean, errors: string[] } — never throws.
  *
@@ -58,12 +58,22 @@ function validateAgainstSchema(data, schema) {
         }
       }
 
-      // additionalProperties: false
+      // additionalProperties: false — reject unknown keys
       if (schemaNode.additionalProperties === false && schemaNode.properties) {
         const allowed = new Set(Object.keys(schemaNode.properties));
         for (const key of Object.keys(obj)) {
           if (!allowed.has(key)) {
             errors.push(`${pathPrefix}: additional property "${key}" not allowed`);
+          }
+        }
+      }
+
+      // additionalProperties: {schema} — validate unknown keys against sub-schema
+      if (schemaNode.additionalProperties && typeof schemaNode.additionalProperties === 'object') {
+        const defined = new Set(Object.keys(schemaNode.properties || {}));
+        for (const key of Object.keys(obj)) {
+          if (!defined.has(key)) {
+            check(obj[key], schemaNode.additionalProperties, `${pathPrefix}.${key}`);
           }
         }
       }

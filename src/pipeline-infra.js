@@ -317,7 +317,7 @@ async function writeDeadLetter(inputBody, failureMode, correlationId, metadata =
 // ── Safe vault-paths loader ─────────────────────────────────────────────────
 
 /**
- * Load vault-paths.json with guard against malformed or missing file.
+ * Load vault-paths.json with overlay support and guard against malformed or missing file.
  * Returns a safe default on any read/parse error and logs via logDecision.
  *
  * @returns {{ left: string[], right: string[], haikuContextChars: number }}
@@ -325,14 +325,46 @@ async function writeDeadLetter(inputBody, failureMode, correlationId, metadata =
 function safeLoadVaultPaths() {
   const SAFE_DEFAULT = { left: [], right: [], haikuContextChars: 100 };
   try {
-    const filePath = path.join(CONFIG_DIR, 'vault-paths.json');
-    const raw = fs.readFileSync(filePath, 'utf8');
-    return JSON.parse(raw);
+    return loadConfigWithOverlay('vault-paths');
   } catch (err) {
     const { logDecision } = require('./vault-gateway');
     logDecision('CONFIG', 'vault-paths.json', 'LOAD_ERROR', err.message);
     return SAFE_DEFAULT;
   }
+}
+
+/**
+ * Load excluded-terms.json with overlay support.
+ * Returns a safe default (empty array) on any read/parse error.
+ *
+ * @returns {string[]} Array of excluded terms
+ */
+function loadExcludedTerms() {
+  try {
+    return loadConfigWithOverlay('excluded-terms');
+  } catch (err) {
+    return [];
+  }
+}
+
+/**
+ * Load connectors.json with overlay support.
+ *
+ * @returns {object} Parsed connectors configuration
+ * @throws {Error} On file read or JSON parse failure
+ */
+function loadConnectorsConfig() {
+  return loadConfigWithOverlay('connectors');
+}
+
+/**
+ * Load scheduling.json with overlay support.
+ *
+ * @returns {object} Parsed scheduling configuration
+ * @throws {Error} On file read or JSON parse failure
+ */
+function loadSchedulingConfig() {
+  return loadConfigWithOverlay('scheduling');
 }
 
 // ── Config overlay helpers ───────────────────────────────────────────────────
@@ -372,11 +404,14 @@ let _overlayOrphanCheckDone = false;
 function loadConfigWithOverlay(name, opts = {}) {
   _overlayWiredConfigs.add(name);
 
-  const filePath = path.join(CONFIG_DIR, `${name}.json`);
+  // Resolve config dir lazily so CONFIG_DIR_OVERRIDE set at call time is respected
+  const configDir = process.env.CONFIG_DIR_OVERRIDE || CONFIG_DIR;
+
+  const filePath = path.join(configDir, `${name}.json`);
   const raw = fs.readFileSync(filePath, 'utf8');
   const config = JSON.parse(raw);
 
-  const localPath = path.join(CONFIG_DIR, `${name}.local.json`);
+  const localPath = path.join(configDir, `${name}.local.json`);
   if (fs.existsSync(localPath)) {
     const localRaw = fs.readFileSync(localPath, 'utf8');
     const localOverrides = JSON.parse(localRaw);
@@ -384,7 +419,7 @@ function loadConfigWithOverlay(name, opts = {}) {
   }
 
   if (opts.validate) {
-    const schemaPath = path.join(CONFIG_DIR, 'schema', `${name}.schema.json`);
+    const schemaPath = path.join(configDir, 'schema', `${name}.schema.json`);
     if (fs.existsSync(schemaPath)) {
       const Ajv = require('ajv');
       const ajv = new Ajv({ allErrors: true });
@@ -403,7 +438,7 @@ function loadConfigWithOverlay(name, opts = {}) {
   if (!_overlayOrphanCheckDone) {
     _overlayOrphanCheckDone = true;
     try {
-      const entries = fs.readdirSync(CONFIG_DIR);
+      const entries = fs.readdirSync(configDir);
       for (const entry of entries) {
         const match = entry.match(/^(.+)\.local\.json$/);
         if (match && !_overlayWiredConfigs.has(match[1])) {
@@ -462,6 +497,25 @@ function loadTemplatesConfig() {
   return config;
 }
 
+/**
+ * Load memory-categories.json (extracted from templates.json per T13.4).
+ * Reads from CONFIG_DIR. Falls back to templates.json['memory-categories'] for
+ * backward compatibility during transition.
+ *
+ * @returns {object} Parsed memory categories map
+ * @throws {Error} On file read or JSON parse failure
+ */
+function loadMemoryCategoriesConfig() {
+  const filePath = path.join(CONFIG_DIR, 'memory-categories.json');
+  if (fs.existsSync(filePath)) {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw);
+  }
+  // Backward-compat fallback: read from templates.json
+  const templatesConfig = loadTemplatesConfig();
+  return templatesConfig['memory-categories'];
+}
+
 // ── Safe config wrapper ─────────────────────────────────────────────────────
 
 /**
@@ -490,6 +544,10 @@ module.exports = {
   writeDeadLetter,
   loadPipelineConfig,
   loadTemplatesConfig,
+  loadMemoryCategoriesConfig,
+  loadExcludedTerms,
+  loadConnectorsConfig,
+  loadSchedulingConfig,
   loadConfigWithOverlay,
   safeLoadVaultPaths,
   safeLoadPipelineConfig,

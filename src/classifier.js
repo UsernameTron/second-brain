@@ -22,9 +22,6 @@
  * @module classifier
  */
 
-const path = require('path');
-const fs = require('fs');
-
 const {
   generateCorrelationId,
   createHaikuClient,
@@ -32,14 +29,10 @@ const {
   writeDeadLetter,
   safeLoadPipelineConfig,
   safeLoadVaultPaths,
+  loadExcludedTerms,
 } = require('./pipeline-infra');
 
 const { checkContent } = require('./content-policy');
-
-// ── Config ────────────────────────────────────────────────────────────────────
-
-const CONFIG_DIR = process.env.CONFIG_DIR_OVERRIDE
-  || path.join(__dirname, '..', 'config');
 
 // loadVaultPaths consolidated into pipeline-infra.js as safeLoadVaultPaths (T12.2)
 
@@ -77,18 +70,8 @@ function logInstrumentation(data) {
  * @returns {Promise<{ blocked: boolean, reason?: string, deadLetter?: boolean, failureMode?: string }>}
  */
 async function runStage0(content, correlationId) {
-  // Load excluded terms from config
-  let excludedTerms = [];
-  try {
-    const termsPath = path.join(CONFIG_DIR, 'excluded-terms.json');
-    const raw = fs.readFileSync(termsPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    excludedTerms = Array.isArray(parsed) ? parsed : (parsed.terms || []);
-  } catch (_) {
-    // Non-fatal: if terms can't be loaded, we still call checkContent with empty list
-    // The checkContent will pass (no terms to match), which is fail-open for exclusion-unavailable
-    // However, per D-41, if the entire checkContent call throws, we fail-closed.
-  }
+  // Load excluded terms via overlay-enabled loader (returns [] on error)
+  const excludedTerms = loadExcludedTerms();
 
   try {
     const result = await checkContent(content, excludedTerms);

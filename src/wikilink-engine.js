@@ -448,7 +448,8 @@ async function suggestWikilinks(noteBody, noteTags = [], options = {}) {
       candidateSummary,
     ].join('\n');
 
-    const result = await haiku.classify(systemPrompt, userContent, { correlationId, maxTokens: 1024 });
+    const wikilinkTokenBudget = (pipelineConfig.thresholds && pipelineConfig.thresholds.wikilinkTokenBudget) || 1024;
+    const result = await haiku.classify(systemPrompt, userContent, { correlationId, maxTokens: wikilinkTokenBudget });
 
     if (result.success && Array.isArray(result.data)) {
       // Filter by relevance threshold and take top maxSuggestions

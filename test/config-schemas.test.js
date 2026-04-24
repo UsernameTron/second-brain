@@ -10,6 +10,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const { validateAgainstSchema } = require('../src/utils/validate-schema');
+
 const CONFIG_DIR = path.join(__dirname, '..', 'config');
 const SCHEMA_DIR = path.join(CONFIG_DIR, 'schema');
 
@@ -17,57 +19,6 @@ const SCHEMA_DIR = path.join(CONFIG_DIR, 'schema');
 function loadJson(filePath) {
   const raw = fs.readFileSync(filePath, 'utf8');
   return JSON.parse(raw);
-}
-
-// Minimal AJV-style schema validator for required field checks (no external deps)
-// Returns { valid: boolean, errors: string[] }
-function validateAgainstSchema(data, schema) {
-  const errors = [];
-
-  function checkObject(obj, schemaNode, pathPrefix) {
-    if (schemaNode.type === 'object' && schemaNode.properties) {
-      if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
-        errors.push(`${pathPrefix}: expected object, got ${typeof obj}`);
-        return;
-      }
-      // Check required fields
-      const required = schemaNode.required || [];
-      for (const key of required) {
-        if (!(key in obj)) {
-          errors.push(`${pathPrefix}: missing required field "${key}"`);
-        } else {
-          checkObject(obj[key], schemaNode.properties[key] || {}, `${pathPrefix}.${key}`);
-        }
-      }
-      // Check present optional fields
-      for (const key of Object.keys(obj)) {
-        if (!required.includes(key) && schemaNode.properties[key]) {
-          checkObject(obj[key], schemaNode.properties[key], `${pathPrefix}.${key}`);
-        }
-      }
-    } else if (schemaNode.type === 'number') {
-      if (typeof obj !== 'number') {
-        errors.push(`${pathPrefix}: expected number, got ${typeof obj}`);
-      }
-    } else if (schemaNode.type === 'integer') {
-      if (!Number.isInteger(obj)) {
-        errors.push(`${pathPrefix}: expected integer, got ${typeof obj} (${obj})`);
-      }
-    } else if (schemaNode.type === 'string') {
-      if (typeof obj !== 'string') {
-        errors.push(`${pathPrefix}: expected string, got ${typeof obj}`);
-      }
-    } else if (schemaNode.type === 'array') {
-      if (!Array.isArray(obj)) {
-        errors.push(`${pathPrefix}: expected array, got ${typeof obj}`);
-      } else if (schemaNode.items) {
-        obj.forEach((item, i) => checkObject(item, schemaNode.items, `${pathPrefix}[${i}]`));
-      }
-    }
-  }
-
-  checkObject(data, schema, '$');
-  return { valid: errors.length === 0, errors };
 }
 
 // ── vault-paths.json tests ──────────────────────────────────────────────────
@@ -333,25 +284,29 @@ describe('config/schema/ files', () => {
     expect(() => loadJson(path.join(SCHEMA_DIR, 'memory-categories.schema.json'))).not.toThrow();
   });
 
-  test('memory-categories.schema.json validates a correct category object', () => {
+  test('memory-categories.schema.json validates a correct category map', () => {
     const schema = loadJson(path.join(SCHEMA_DIR, 'memory-categories.schema.json'));
-    const validCategory = {
-      description: 'A deliberate choice between alternatives',
-      example: 'Chose JWT over sessions for stateless auth',
-      exclusions: 'Routine actions, status updates'
+    const validMap = {
+      DECISION: {
+        description: 'A deliberate choice between alternatives',
+        example: 'Chose JWT over sessions for stateless auth',
+        exclusions: 'Routine actions, status updates'
+      }
     };
-    const result = validateAgainstSchema(validCategory, schema);
+    const result = validateAgainstSchema(validMap, schema);
     expect(result.valid).toBe(true);
   });
 
-  test('memory-categories.schema.json rejects missing description', () => {
+  test('memory-categories.schema.json rejects category missing description', () => {
     const schema = loadJson(path.join(SCHEMA_DIR, 'memory-categories.schema.json'));
-    const invalidCategory = {
-      example: 'An example',
-      exclusions: 'Some exclusions'
-      // missing description
+    const invalidMap = {
+      DECISION: {
+        example: 'An example',
+        exclusions: 'Some exclusions'
+        // missing description
+      }
     };
-    const result = validateAgainstSchema(invalidCategory, schema);
+    const result = validateAgainstSchema(invalidMap, schema);
     expect(result.valid).toBe(false);
   });
 });

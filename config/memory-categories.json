@@ -1,0 +1,37 @@
+{
+  "DECISION": {
+    "description": "A deliberate choice made between alternatives — includes rationale, what was chosen, and what was ruled out.",
+    "example": "Chose JWT over session cookies for the auth layer because the API is stateless and needs to support mobile clients.",
+    "exclusions": "Routine actions (closing a ticket, merging a PR), status updates with no choice made, observations without a decision point."
+  },
+  "LEARNING": {
+    "description": "A new understanding, technique, or fact acquired — something that changes how you would approach a problem.",
+    "example": "Discovered that chokidar's ignoreInitial option prevents spurious events on startup when watching config directories.",
+    "exclusions": "Restatements of already-known facts, unverified claims, debugging steps that led nowhere."
+  },
+  "PREFERENCE": {
+    "description": "A recurring aesthetic, stylistic, or workflow preference that should inform future work.",
+    "example": "Prefers plain-language commit messages in imperative mood; avoids jargon-heavy summaries that obscure intent.",
+    "exclusions": "One-time situational choices, preferences that contradict already-logged entries without explicit revision."
+  },
+  "RELATIONSHIP": {
+    "description": "Context about a person — how they work, what they value, communication style, or relationship dynamics.",
+    "example": "Sarah from recruiting responds quickly to concise bullets; prefers a headline summary before any detail.",
+    "exclusions": "ISPN, Genesys, or Asana personnel. Generic impressions with no actionable context. Third-party quotes without interpretation."
+  },
+  "CONSTRAINT": {
+    "description": "A hard boundary, rule, or non-negotiable requirement — architectural, organizational, legal, or personal.",
+    "example": "LEFT side of the vault is write-protected for agents; any file whose words should sound like Pete lives on the LEFT.",
+    "exclusions": "Soft preferences logged as PREFERENCE instead. Expired constraints (mark superseded before archiving)."
+  },
+  "PATTERN": {
+    "description": "A recurring solution or approach that has proven effective across multiple contexts.",
+    "example": "When routing ambiguous input through a confidence gate, always fail LEFT (to proposals queue) rather than fail RIGHT — recoverable over irrecoverable.",
+    "exclusions": "One-time solutions. Anti-patterns (log under CONSTRAINT instead). Patterns not yet validated across two or more occurrences."
+  },
+  "OTHER": {
+    "description": "Information that is genuinely worth retaining but does not fit DECISION, LEARNING, PREFERENCE, RELATIONSHIP, CONSTRAINT, or PATTERN. Requires a one-sentence justification explaining why it is memorable and what future use it serves.",
+    "example": "The Obsidian Local REST API plugin listens on port 27123 by default. (Justification: saves a config lookup on every new MCP setup.)",
+    "exclusions": "Anything that clearly fits another category — use OTHER only after ruling out all six named categories. Do not use OTHER to avoid categorization effort. Justification is mandatory."
+  }
+}

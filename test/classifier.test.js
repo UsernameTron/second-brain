@@ -28,6 +28,7 @@ jest.mock('../src/pipeline-infra', () => ({
   createHaikuClient: jest.fn(),
   createSonnetClient: jest.fn(),
   writeDeadLetter: jest.fn().mockResolvedValue({ path: 'proposals/unrouted/test.md' }),
+  loadExcludedTerms: jest.fn(() => []),
   loadPipelineConfig: jest.fn(() => ({
     classifier: {
       stage1ConfidenceThreshold: 0.8,
@@ -94,6 +95,7 @@ describe('runStage0', () => {
       createHaikuClient: jest.fn(),
       createSonnetClient: jest.fn(),
       writeDeadLetter: jest.fn().mockResolvedValue({ path: 'proposals/unrouted/test.md' }),
+      loadExcludedTerms: jest.fn(() => []),
       safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
       loadPipelineConfig: jest.fn(() => ({
         classifier: {
@@ -176,6 +178,7 @@ describe('runStage1', () => {
       createHaikuClient: jest.fn(() => mockHaikuClient),
       createSonnetClient: jest.fn(),
       writeDeadLetter: jest.fn().mockResolvedValue({ path: 'proposals/unrouted/test.md' }),
+      loadExcludedTerms: jest.fn(() => []),
       safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
       loadPipelineConfig: jest.fn(() => ({
         classifier: {
@@ -279,6 +282,7 @@ describe('runStage2', () => {
       createHaikuClient: jest.fn(() => mockHaikuClient),
       createSonnetClient: jest.fn(() => mockSonnetClient),
       writeDeadLetter: jest.fn().mockResolvedValue({ path: 'proposals/unrouted/test.md' }),
+      loadExcludedTerms: jest.fn(() => []),
       safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
       loadPipelineConfig: jest.fn(() => ({
         classifier: {
@@ -414,6 +418,7 @@ describe('classifyInput', () => {
       createHaikuClient: jest.fn(() => mockHaikuClient),
       createSonnetClient: jest.fn(() => mockSonnetClient),
       writeDeadLetter: mockWriteDeadLetter,
+      loadExcludedTerms: jest.fn(() => []),
       safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
       loadPipelineConfig: jest.fn(() => ({
         classifier: {
