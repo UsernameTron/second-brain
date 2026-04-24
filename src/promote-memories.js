@@ -11,7 +11,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+
+const { computeHash, sourceRefShort } = require('./utils/memory-utils');
 
 const VAULT_ROOT = () => process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude Cowork');
 const PROPOSALS_FILE = () => path.join(VAULT_ROOT(), 'proposals', 'memory-proposals.md');
@@ -23,11 +24,6 @@ function loadPromotionConfig() {
   const CONFIG_DIR = process.env.CONFIG_DIR_OVERRIDE || path.join(__dirname, '..', 'config');
   const raw = fs.readFileSync(path.join(CONFIG_DIR, 'pipeline.json'), 'utf8');
   return JSON.parse(raw).promotion;
-}
-
-function computeHash(content) {
-  const normalized = (content || '').trim().toLowerCase();
-  return crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 12);
 }
 
 function todayString() {
@@ -133,18 +129,6 @@ function isDuplicateInMemory(contentHash) {
   return false;
 }
 
-
-function sourceRefShort(sourceRef) {
-  if (!sourceRef) return 'unknown';
-  if (sourceRef.startsWith('session:')) return 'session:' + sourceRef.slice(8, 16);
-  if (sourceRef.startsWith('file:')) {
-    const base = path.basename(sourceRef.slice(5));
-    const ext = path.extname(base);
-    return 'file:' + base.slice(0, base.length - ext.length);
-  }
-  if (sourceRef.startsWith('daily:')) return sourceRef;
-  return sourceRef.slice(0, 20);
-}
 
 async function runProposalArchive(allCandidates, proposalArchiveThreshold) {
   if (allCandidates.length <= proposalArchiveThreshold) {
