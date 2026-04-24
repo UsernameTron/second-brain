@@ -151,7 +151,7 @@ Plans:
   3. Running `/recall` against a vault where `memory/memory.md` is absent returns an empty result set without throwing or crashing.
   4. The `/today` briefing includes a "Memory Echo" section (between Frog and Pipeline) when at least one memory entry scores above the 0.65 relevance threshold against today's calendar topics or VIP email subjects; the section is absent entirely when no entry crosses the threshold.
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 - [x] 18-01-PLAN.md — Extract shared memory utilities (computeHash, sourceRefShort) to src/utils/memory-utils.js
@@ -159,7 +159,7 @@ Plans:
 - [x] 18-03-PLAN.md — src/memory-reader.js (readMemory, searchMemoryKeyword, getMemoryEcho) — MEM-READ-01, MEM-SEARCH-KW-01
 - [x] 18-04-PLAN.md — src/recall-command.js (runRecall, parseRecallArgs) — RECALL-CMD-01
 - [x] 18-05-PLAN.md — Memory Echo integration in today-command.js + briefing-renderer.js — TODAY-ECHO-01
-- [ ] 18-06-PLAN.md — Integration + UAT tests covering all 4 Phase 18 ROADMAP success criteria
+- [x] 18-06-PLAN.md — Integration + UAT tests covering all 4 Phase 18 ROADMAP success criteria (completed 2026-04-24)
 
 ### Phase 19: Semantic Memory Search
 **Goal**: `/recall` surfaces semantically relevant memories that keyword search misses, with automatic fallback to keyword mode when Voyage AI is unavailable.
@@ -202,7 +202,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 17. UAT CI Infrastructure | 3/3 | Complete    | 2026-04-24 |
-| 18. Memory Retrieval Foundation | 5/6 | In Progress|  |
+| 18. Memory Retrieval Foundation | 6/6 | Complete   | 2026-04-24 |
 | 19. Semantic Memory Search | 0/? | Not started | - |
 | 20. Value Extraction Instrumentation | 0/? | Not started | - |
 | 21. Closeout Hygiene | 0/? | Not started | - |
