@@ -543,10 +543,12 @@ function toQualifiedWikilink(folder, noteName, displayText) {
 }
 
 // ── Exports ──────────────────────────────────────────────────────────────────
-
-// Re-export policy modules (Plan 02 addition)
-const contentPolicy = require('./content-policy');
-const stylePolicy = require('./style-policy');
+//
+// Phase 15 (B-07): content-policy and style-policy re-exports were removed.
+// Callers import those modules directly. Grep verified no src/ caller used
+// the re-export path before removal — checkContent, sanitizeContent,
+// checkStyle, getBannedWords, and loadStyleGuide are all required directly
+// from their source modules wherever needed.
 
 module.exports = {
   // Core write/read
@@ -584,10 +586,4 @@ module.exports = {
 
   // Config events (hot-reload)
   configEvents,
-
-  // Content policy exports (Plan 02)
-  ...contentPolicy,
-
-  // Style policy exports (Plan 02)
-  ...stylePolicy,
 };

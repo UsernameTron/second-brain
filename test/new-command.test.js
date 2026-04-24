@@ -3,18 +3,66 @@
 /**
  * new-command.test.js
  *
- * Tests for src/new-command.js (/new command orchestration)
+ * Tests for src/new-command.js (/new command orchestration).
+ *
+ * Phase 15 (B-07) migrated these tests from mocking individual Stage 0/1/2
+ * entry points to mocking classifier.classifyInput directly, matching the
+ * refactor that dedups stage orchestration in new-command.js.
+ *
  * All LLM calls, vault writes, and classifier calls are mocked.
  */
 
 const path = require('path');
 
+// ── Mock factory helpers ─────────────────────────────────────────────────────
+
+function successRight(directory = 'research', confidence = 0.88) {
+  return {
+    correlationId: 'test-corr-id-new',
+    blocked: false,
+    side: 'RIGHT',
+    directory,
+    confidence,
+    sonnetEscalated: false,
+    stage1: { side: 'RIGHT', confidence: 0.9 },
+    stage2: { directory, confidence, sonnetEscalated: false },
+  };
+}
+
+function successLeft(stage2Directory = 'Daily', confidence = 0.88) {
+  return {
+    correlationId: 'test-corr-id-new',
+    blocked: false,
+    side: 'LEFT',
+    directory: 'proposals/left-proposals',
+    suggestedLeftPath: stage2Directory ? `${stage2Directory}/` : 'Drafts/',
+    confidence,
+    sonnetEscalated: false,
+    stage1: { side: 'LEFT', confidence: 0.92 },
+    stage2: { directory: stage2Directory, confidence, sonnetEscalated: false },
+  };
+}
+
+function blocked(reason = 'Excluded content detected (term: ISPN)') {
+  return {
+    correlationId: 'test-corr-id-new',
+    blocked: true,
+    reason,
+  };
+}
+
+function deadLettered(failureMode) {
+  return {
+    correlationId: 'test-corr-id-new',
+    blocked: false,
+    deadLettered: true,
+    failureMode,
+  };
+}
+
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 jest.mock('../src/classifier', () => ({
-  runStage0: jest.fn(),
-  runStage1: jest.fn(),
-  runStage2: jest.fn(),
   classifyInput: jest.fn(),
 }));
 
@@ -37,36 +85,6 @@ jest.mock('../src/pipeline-infra', () => ({
   generateCorrelationId: jest.fn(() => 'test-corr-id-new'),
   createHaikuClient: jest.fn(() => ({ classify: jest.fn() })),
   writeDeadLetter: jest.fn().mockResolvedValue({ path: 'proposals/unrouted/test.md' }),
-  loadPipelineConfig: jest.fn(() => ({
-    classifier: {
-      stage1ConfidenceThreshold: 0.8,
-      stage2ConfidenceThreshold: 0.7,
-      sonnetEscalationThreshold: 0.8,
-      sonnetAcceptThreshold: 0.7,
-      shortInputChars: 50,
-    },
-    filename: { maxLength: 60, haikuWordRange: [4, 8] },
-  })),
-  safeLoadPipelineConfig: jest.fn(() => ({
-    config: {
-      classifier: {
-        stage1ConfidenceThreshold: 0.8,
-        stage2ConfidenceThreshold: 0.7,
-        sonnetEscalationThreshold: 0.8,
-        sonnetAcceptThreshold: 0.7,
-        shortInputChars: 50,
-      },
-      filename: { maxLength: 60, haikuWordRange: [4, 8] },
-    },
-    error: null,
-  })),
-  loadTemplatesConfig: jest.fn(() => ({
-    'domain-templates': {
-      briefings: { fields: ['attendees', 'meeting-date', 'decisions', 'follow-ups'] },
-      'job-hunt': { fields: ['company', 'role-title'] },
-    },
-    'memory-categories': {},
-  })),
 }));
 
 jest.mock('../src/wikilink-engine', () => ({
@@ -82,9 +100,7 @@ process.env.VAULT_ROOT = '/tmp/test-vault';
 
 describe('runNew', () => {
   let runNew;
-  let mockRunStage0;
-  let mockRunStage1;
-  let mockRunStage2;
+  let mockClassifyInput;
   let mockVaultWrite;
   let mockFormatNote;
   let mockFormatLeftProposal;
@@ -95,11 +111,7 @@ describe('runNew', () => {
   beforeEach(() => {
     jest.resetModules();
 
-    // Re-declare mocks after resetModules
     jest.mock('../src/classifier', () => ({
-      runStage0: jest.fn(),
-      runStage1: jest.fn(),
-      runStage2: jest.fn(),
       classifyInput: jest.fn(),
     }));
 
@@ -122,36 +134,6 @@ describe('runNew', () => {
       generateCorrelationId: jest.fn(() => 'test-corr-id-new'),
       createHaikuClient: jest.fn(() => ({ classify: jest.fn() })),
       writeDeadLetter: jest.fn().mockResolvedValue({ path: 'proposals/unrouted/test.md' }),
-      loadPipelineConfig: jest.fn(() => ({
-        classifier: {
-          stage1ConfidenceThreshold: 0.8,
-          stage2ConfidenceThreshold: 0.7,
-          sonnetEscalationThreshold: 0.8,
-          sonnetAcceptThreshold: 0.7,
-          shortInputChars: 50,
-        },
-        filename: { maxLength: 60, haikuWordRange: [4, 8] },
-      })),
-      safeLoadPipelineConfig: jest.fn(() => ({
-        config: {
-          classifier: {
-            stage1ConfidenceThreshold: 0.8,
-            stage2ConfidenceThreshold: 0.7,
-            sonnetEscalationThreshold: 0.8,
-            sonnetAcceptThreshold: 0.7,
-            shortInputChars: 50,
-          },
-          filename: { maxLength: 60, haikuWordRange: [4, 8] },
-        },
-        error: null,
-      })),
-      loadTemplatesConfig: jest.fn(() => ({
-        'domain-templates': {
-          briefings: { fields: ['attendees', 'meeting-date', 'decisions', 'follow-ups'] },
-          'job-hunt': { fields: ['company', 'role-title'] },
-        },
-        'memory-categories': {},
-      })),
     }));
 
     jest.mock('../src/wikilink-engine', () => ({
@@ -161,23 +143,17 @@ describe('runNew', () => {
     }));
 
     ({ runNew } = require('../src/new-command'));
-    ({ runStage0: mockRunStage0, runStage1: mockRunStage1, runStage2: mockRunStage2 } = require('../src/classifier'));
+    ({ classifyInput: mockClassifyInput } = require('../src/classifier'));
     ({ vaultWrite: mockVaultWrite } = require('../src/vault-gateway'));
     ({ formatNote: mockFormatNote, formatLeftProposal: mockFormatLeftProposal, generateFilename: mockGenerateFilename } = require('../src/note-formatter'));
     ({ writeDeadLetter: mockWriteDeadLetter } = require('../src/pipeline-infra'));
     ({ suggestWikilinks: mockSuggestWikilinks } = require('../src/wikilink-engine'));
   });
 
-  // ── Original tests ────────────────────────────────────────────────────────
+  // ── Happy path ───────────────────────────────────────────────────────────
 
   test('with clean RIGHT input writes to classified directory', async () => {
-    mockRunStage0.mockResolvedValue({ blocked: false });
-    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9, rationale: 'structured data' });
-    mockRunStage2.mockResolvedValue({
-      directory: 'research',
-      confidence: 0.88,
-      sonnetEscalated: false,
-    });
+    mockClassifyInput.mockResolvedValue(successRight('research', 0.88));
 
     const result = await runNew('An analysis of AI market trends.', {
       interactive: false,
@@ -185,20 +161,14 @@ describe('runNew', () => {
     });
 
     expect(mockVaultWrite).toHaveBeenCalled();
-    // The path argument should contain 'research'
     const callArg = mockVaultWrite.mock.calls[0][0];
     expect(callArg).toContain('research');
     expect(result.deadLettered).toBeFalsy();
+    expect(result.side).toBe('RIGHT');
   });
 
   test('with LEFT input writes to proposals/left-proposals/', async () => {
-    mockRunStage0.mockResolvedValue({ blocked: false });
-    mockRunStage1.mockResolvedValue({ side: 'LEFT', confidence: 0.92, rationale: 'first-person voice' });
-    mockRunStage2.mockResolvedValue({
-      directory: 'Daily',
-      confidence: 0.88,
-      sonnetEscalated: false,
-    });
+    mockClassifyInput.mockResolvedValue(successLeft('Daily', 0.88));
 
     const result = await runNew(
       'I reflected on my leadership style and realized I need to listen more.',
@@ -211,26 +181,8 @@ describe('runNew', () => {
     expect(result.deadLettered).toBeFalsy();
   });
 
-  test('with excluded content exits immediately with BLOCK — no vaultWrite', async () => {
-    mockRunStage0.mockResolvedValue({
-      blocked: true,
-      reason: 'Excluded content detected (term: ISPN)',
-    });
-
-    const result = await runNew('ISPN queue routing configuration details.', {
-      interactive: false,
-      source: 'cli',
-    });
-
-    expect(result.blocked).toBe(true);
-    expect(mockVaultWrite).not.toHaveBeenCalled();
-    expect(mockRunStage1).not.toHaveBeenCalled();
-  });
-
   test('returns correlation ID and destination path in output', async () => {
-    mockRunStage0.mockResolvedValue({ blocked: false });
-    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9 });
-    mockRunStage2.mockResolvedValue({ directory: 'ideas', confidence: 0.85, sonnetEscalated: false });
+    mockClassifyInput.mockResolvedValue(successRight('ideas', 0.85));
 
     const result = await runNew('A cool new idea about distributed systems.', {
       interactive: false,
@@ -241,30 +193,65 @@ describe('runNew', () => {
     expect(result.destination).toBeDefined();
   });
 
-  test('with Stage 0 internal failure dead-letters (exclusion-unavailable)', async () => {
-    mockRunStage0.mockResolvedValue({
-      blocked: false,
-      deadLetter: true,
-      failureMode: 'exclusion-unavailable',
+  // ── Blocked path ─────────────────────────────────────────────────────────
+
+  test('with excluded content exits immediately with BLOCK — no vaultWrite', async () => {
+    mockClassifyInput.mockResolvedValue(blocked('Excluded content detected (term: ISPN)'));
+
+    const result = await runNew('ISPN queue routing configuration details.', {
+      interactive: false,
+      source: 'cli',
     });
+
+    expect(result.blocked).toBe(true);
+    expect(result.reason).toContain('ISPN');
+    expect(mockVaultWrite).not.toHaveBeenCalled();
+  });
+
+  // ── Dead-letter paths surfaced from classifyInput ────────────────────────
+  // classifyInput owns the actual writeDeadLetter call for Stage 0-2 failures;
+  // new-command just surfaces the envelope. writeDeadLetter coverage for those
+  // modes lives in classifier.test.js.
+
+  test('Stage 0 internal failure surfaces deadLettered + exclusion-unavailable', async () => {
+    mockClassifyInput.mockResolvedValue(deadLettered('exclusion-unavailable'));
 
     const result = await runNew('Some content that triggers policy failure.', {
       interactive: false,
       source: 'cli',
     });
 
-    expect(mockWriteDeadLetter).toHaveBeenCalledWith(
-      expect.any(String),
-      'exclusion-unavailable',
-      expect.any(String),
-      expect.any(Object)
-    );
     expect(result.deadLettered).toBe(true);
     expect(result.failureMode).toBe('exclusion-unavailable');
     expect(mockVaultWrite).not.toHaveBeenCalled();
   });
 
-  // ── Gap tests: empty input ─────────────────────────────────────────────────
+  test('Stage 2 failure surfaces deadLettered + api-error', async () => {
+    mockClassifyInput.mockResolvedValue(deadLettered('api-error'));
+
+    const result = await runNew('Some perfectly good content.', {
+      interactive: false,
+      source: 'cli',
+    });
+
+    expect(result.deadLettered).toBe(true);
+    expect(result.failureMode).toBe('api-error');
+    expect(mockVaultWrite).not.toHaveBeenCalled();
+  });
+
+  test('config-error is surfaced with error envelope', async () => {
+    mockClassifyInput.mockResolvedValue({
+      correlationId: 'test-corr-id-new',
+      success: false,
+      failureMode: 'config-error',
+    });
+
+    const result = await runNew('Any content', { interactive: false });
+
+    expect(result.error).toMatch(/Config load failed/);
+  });
+
+  // ── Empty input handled by new-command, not classifier ───────────────────
 
   test('empty input in non-interactive mode returns failureMode empty-input', async () => {
     const result = await runNew('', { interactive: false });
@@ -272,6 +259,7 @@ describe('runNew', () => {
     expect(result.deadLettered).toBe(false);
     expect(result.blocked).toBe(false);
     expect(result.correlationId).toBeDefined();
+    expect(mockClassifyInput).not.toHaveBeenCalled();
   });
 
   test('whitespace-only input in non-interactive mode returns failureMode empty-input', async () => {
@@ -286,36 +274,10 @@ describe('runNew', () => {
     expect(result.correlationId).toBeDefined();
   });
 
-  // ── Gap tests: Stage 2 failure path ───────────────────────────────────────
-
-  test('Stage 2 failure dead-letters the input', async () => {
-    mockRunStage0.mockResolvedValue({ blocked: false });
-    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9 });
-    mockRunStage2.mockResolvedValue({ failureMode: 'api-error', directory: null });
-
-    const result = await runNew('Some perfectly good content.', {
-      interactive: false,
-      source: 'cli',
-    });
-
-    expect(mockWriteDeadLetter).toHaveBeenCalledWith(
-      expect.any(String),
-      'api-error',
-      expect.any(String),
-      expect.any(Object)
-    );
-    expect(result.deadLettered).toBe(true);
-    expect(result.failureMode).toBe('api-error');
-    expect(mockVaultWrite).not.toHaveBeenCalled();
-  });
-
-  // ── Gap tests: Stage 3-5 catch block error codes ───────────────────────────
+  // ── Stage 3-5 catch block still owned by new-command ─────────────────────
 
   test('Stage 3-5 catch with STYLE_VIOLATION error code returns gate-rejection failureMode', async () => {
-    mockRunStage0.mockResolvedValue({ blocked: false });
-    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9 });
-    mockRunStage2.mockResolvedValue({ directory: 'research', confidence: 0.85, sonnetEscalated: false });
-
+    mockClassifyInput.mockResolvedValue(successRight('research'));
     const err = Object.assign(new Error('style violation'), { code: 'STYLE_VIOLATION' });
     mockGenerateFilename.mockRejectedValue(err);
 
@@ -335,10 +297,7 @@ describe('runNew', () => {
   });
 
   test('Stage 3-5 catch with PATH_BLOCKED error code returns gate-rejection failureMode', async () => {
-    mockRunStage0.mockResolvedValue({ blocked: false });
-    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9 });
-    mockRunStage2.mockResolvedValue({ directory: 'research', confidence: 0.85, sonnetEscalated: false });
-
+    mockClassifyInput.mockResolvedValue(successRight('research'));
     const err = Object.assign(new Error('path blocked'), { code: 'PATH_BLOCKED' });
     mockGenerateFilename.mockRejectedValue(err);
 
@@ -352,10 +311,7 @@ describe('runNew', () => {
   });
 
   test('Stage 3-5 catch with generic error returns api-error failureMode', async () => {
-    mockRunStage0.mockResolvedValue({ blocked: false });
-    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9 });
-    mockRunStage2.mockResolvedValue({ directory: 'research', confidence: 0.85, sonnetEscalated: false });
-
+    mockClassifyInput.mockResolvedValue(successRight('research'));
     mockGenerateFilename.mockRejectedValue(new Error('unexpected failure'));
 
     const result = await runNew('Content that hits an unexpected error.', {
@@ -367,12 +323,10 @@ describe('runNew', () => {
     expect(result.failureMode).toBe('api-error');
   });
 
-  // ── Gap tests: wikilink enrichment non-blocking ───────────────────────────
+  // ── Wikilink enrichment non-blocking ─────────────────────────────────────
 
   test('wikilink enrichment failure is non-blocking — pipeline still succeeds', async () => {
-    mockRunStage0.mockResolvedValue({ blocked: false });
-    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9 });
-    mockRunStage2.mockResolvedValue({ directory: 'research', confidence: 0.85, sonnetEscalated: false });
+    mockClassifyInput.mockResolvedValue(successRight('research'));
     mockSuggestWikilinks.mockRejectedValue(new Error('wikilink service unavailable'));
 
     const result = await runNew('Valid content that succeeds all stages.', {
@@ -386,16 +340,10 @@ describe('runNew', () => {
     expect(result.side).toBe('RIGHT');
   });
 
-  // ── Gap tests: LEFT side full routing path ────────────────────────────────
+  // ── LEFT side full routing path ──────────────────────────────────────────
 
   test('LEFT side routing uses formatLeftProposal and writes to proposals/left-proposals/', async () => {
-    mockRunStage0.mockResolvedValue({ blocked: false });
-    mockRunStage1.mockResolvedValue({ side: 'LEFT', confidence: 0.95, rationale: 'first-person reflection' });
-    mockRunStage2.mockResolvedValue({
-      directory: 'Reflections',
-      confidence: 0.9,
-      sonnetEscalated: false,
-    });
+    mockClassifyInput.mockResolvedValue(successLeft('Reflections', 0.9));
 
     const result = await runNew(
       'I realized today that I need to invest more in deep work practices.',

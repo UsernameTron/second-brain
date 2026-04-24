@@ -1,28 +1,21 @@
 'use strict';
 
 /**
- * new-command.js
+ * new-command.js — /new command entry point.
  *
- * /new command entry point — full pipeline orchestration for input routing.
- *
- * Pipeline (D-40):
- *   Stage 0: Exclusion gate (content-policy.js via classifier.runStage0)
- *   Stage 1: Voice gate (LEFT vs RIGHT via classifier.runStage1)
- *   Stage 2: Subdirectory pick (via classifier.runStage2)
- *   Stage 3: Template extraction (conditional on domain, via note-formatter)
- *   Stage 4: Note formatting (note-formatter.formatNote / formatLeftProposal)
- *   Stage 5: Vault write (vault-gateway.vaultWrite)
- *   Stage 4 (post-write): Wikilink enrichment (wikilink-engine.suggestWikilinks) — non-blocking (D-39)
- *   Stage 4 (post-write): Index update (wikilink-engine.refreshIndexEntry) per D-18
+ * Classifies input via classifier.classifyInput() (Stages 0/1/2 including
+ * dead-lettering) then owns Stages 3-5: template extraction, note formatting,
+ * vault write, and non-blocking wikilink enrichment.
  *
  * Routing:
- *   - LEFT → proposals/left-proposals/<filename>
+ *   - LEFT  → proposals/left-proposals/<filename>
  *   - RIGHT → <directory>/<filename>
- *   - Any Stage 1-5 failure → dead-letter via writeDeadLetter (D-35)
+ *   - Any Stage 0-2 failure → dead-lettered inside classifyInput (D-35/D-36/D-41)
+ *   - Any Stage 3-5 failure → dead-lettered here via writeDeadLetter (D-35)
  *
- * Interactive vs non-interactive:
- *   - Interactive: low-confidence prompts user for confirmation
- *   - Non-interactive: ambiguous → dead-letter 'non-interactive-ambiguous' (D-03)
+ * Phase 15 (B-07) refactor: Stage 0/1/2 orchestration was previously inlined
+ * here and duplicated classifier.classifyInput(). Now delegates to the single
+ * canonical classifier pipeline.
  *
  * @module new-command
  */
@@ -30,14 +23,9 @@
 const {
   generateCorrelationId,
   writeDeadLetter,
-  safeLoadPipelineConfig,
 } = require('./pipeline-infra');
 
-const {
-  runStage0,
-  runStage1,
-  runStage2,
-} = require('./classifier');
+const { classifyInput } = require('./classifier');
 
 const {
   formatNote,
@@ -45,9 +33,7 @@ const {
   generateFilename,
 } = require('./note-formatter');
 
-const {
-  vaultWrite,
-} = require('./vault-gateway');
+const { vaultWrite } = require('./vault-gateway');
 
 const {
   suggestWikilinks,
@@ -59,11 +45,11 @@ const {
 /**
  * Run the /new command: classify input and route to the correct vault location.
  *
- * @param {string} input - Raw input text (or empty if interactive prompt needed)
+ * @param {string} input - Raw input text
  * @param {object} [options={}]
- * @param {boolean} [options.interactive=true] - Whether interactive prompts are allowed
- * @param {string} [options.name] - User-provided filename override (--name flag)
- * @param {string} [options.source='cli'] - Source identifier
+ * @param {boolean} [options.interactive=true]
+ * @param {string} [options.name] - User-provided filename override
+ * @param {string} [options.source='cli']
  * @returns {Promise<{
  *   correlationId: string,
  *   blocked?: boolean,
@@ -76,16 +62,12 @@ const {
  */
 async function runNew(input, options = {}) {
   const { interactive = true, source = 'cli' } = options;
-  const correlationId = generateCorrelationId();
 
-  const { config: pipelineConfig, error: configErr } = safeLoadPipelineConfig();
-  if (configErr) {
-    return { correlationId, blocked: false, routed: false, error: `Config load failed: ${configErr.message}` };
-  }
-  const { stage1ConfidenceThreshold } = pipelineConfig.classifier;
-
-  // Validate input
+  // ── Input validation ─────────────────────────────────────────────────────
+  // Empty-input handling stays here (not classifier's responsibility —
+  // classifier would otherwise run Stage 0 on an empty string).
   if (!input || !input.trim()) {
+    const correlationId = generateCorrelationId();
     if (!interactive) {
       return {
         correlationId,
@@ -94,143 +76,77 @@ async function runNew(input, options = {}) {
         deadLettered: false,
       };
     }
-    // In interactive mode, we would prompt — for now return an error
-    // (readline prompt is handled by the CLI wrapper, not this function)
+    // In interactive mode, the readline prompt lives in the CLI wrapper,
+    // not here. Return an error envelope so the wrapper can prompt.
     return { correlationId, error: 'No input provided' };
   }
 
-  // ── Stage 0: Exclusion gate ──────────────────────────────────────────────
-  const stage0Result = await runStage0(input, correlationId);
+  // ── Stages 0-2: delegate to classifier.classifyInput ─────────────────────
+  // classifyInput owns config load, Stage 0 exclusion, Stage 1 voice gate,
+  // Stage 2 subdirectory pick, and dead-lettering for all three stages.
+  const classification = await classifyInput(input, { interactive, source });
+  const { correlationId } = classification;
 
-  if (stage0Result.blocked) {
-    // Hard BLOCK — exit immediately per D-41. No dead-letter.
+  // Config load failure (handled by classifyInput)
+  if (classification.failureMode === 'config-error') {
+    return { correlationId, blocked: false, routed: false, error: 'Config load failed' };
+  }
+
+  // Hard BLOCK — already logged by classifyInput, no dead-letter per D-41
+  if (classification.blocked) {
     return {
       correlationId,
       blocked: true,
-      reason: stage0Result.reason,
+      reason: classification.reason,
     };
   }
 
-  if (stage0Result.deadLetter) {
-    // Stage 0 internal failure — dead-letter per D-36
-    const dlResult = await writeDeadLetter(input, 'exclusion-unavailable', correlationId, {
-      source,
-    });
+  // Dead-lettered by classifyInput (Stage 0/1/2 failure)
+  if (classification.deadLettered) {
     return {
       correlationId,
       blocked: false,
       deadLettered: true,
-      failureMode: 'exclusion-unavailable',
-      deadLetterPath: dlResult.path,
+      failureMode: classification.failureMode,
     };
   }
 
-  // ── Stage 1: Voice gate ──────────────────────────────────────────────────
-  const stage1Result = await runStage1(input, correlationId, { interactive });
-
-  if (stage1Result.side === null) {
-    // Stage 1 API failure — dead-letter per D-35
-    const failureMode = stage1Result.failureMode || 'api-error';
-    const dlResult = await writeDeadLetter(input, failureMode, correlationId, { source });
-    return {
-      correlationId,
-      blocked: false,
-      deadLettered: true,
-      failureMode,
-      deadLetterPath: dlResult.path,
-    };
-  }
-
-  // Low Stage 1 confidence in non-interactive mode → dead-letter per D-03
-  if (stage1Result.confidence < stage1ConfidenceThreshold && !interactive) {
-    const dlResult = await writeDeadLetter(input, 'non-interactive-ambiguous', correlationId, {
-      source,
-    });
-    return {
-      correlationId,
-      blocked: false,
-      deadLettered: true,
-      failureMode: 'non-interactive-ambiguous',
-      deadLetterPath: dlResult.path,
-    };
-  }
-
-  // ── Stage 2: Subdirectory pick ───────────────────────────────────────────
-  const stage2Result = await runStage2(input, stage1Result, correlationId, { interactive });
-
-  if (stage2Result.failureMode && !stage2Result.directory) {
-    // Stage 2 API failure
-    const failureMode = stage2Result.failureMode;
-    const dlResult = await writeDeadLetter(input, failureMode, correlationId, { source });
-    return {
-      correlationId,
-      blocked: false,
-      deadLettered: true,
-      failureMode,
-      deadLetterPath: dlResult.path,
-    };
-  }
-
-  // ── Stage 3: Build classification context for formatter ──────────────────
-  const classificationResult = {
-    side: stage1Result.side,
-    directory: stage1Result.side === 'LEFT'
-      ? 'proposals/left-proposals'
-      : stage2Result.directory,
-    suggestedLeftPath: stage1Result.side === 'LEFT'
-      ? (stage2Result.directory ? `${stage2Result.directory}/` : 'Drafts/')
-      : undefined,
-    confidence: stage2Result.confidence,
-    stage1: {
-      side: stage1Result.side,
-      confidence: stage1Result.confidence,
-    },
-    stage2: {
-      directory: stage2Result.directory,
-      confidence: stage2Result.confidence,
-      sonnetEscalated: stage2Result.sonnetEscalated || false,
-    },
-  };
-
-  // ── Stage 4: Format note ─────────────────────────────────────────────────
-  let formattedContent;
-  let filenameBasis;
-
+  // ── Stages 3-5: format, write, enrich ────────────────────────────────────
   try {
-    // Generate filename first to know filenameBasis for frontmatter
+    // Stage 3: Filename generation
     const filenameResult = await generateFilename(input, {
       name: options.name,
       correlationId,
     });
-    filenameBasis = filenameResult.filenameBasis;
-    const filename = filenameResult.filename;
+    const { filenameBasis, filename } = filenameResult;
 
-    // Format based on side
-    if (stage1Result.side === 'LEFT') {
-      formattedContent = await formatLeftProposal(input, classificationResult, {
+    // Stage 4: Format note based on side. classifyInput already shaped the
+    // result with side/directory/suggestedLeftPath/stage1/stage2, so the
+    // formatter receives it directly.
+    let formattedContent;
+    if (classification.side === 'LEFT') {
+      formattedContent = await formatLeftProposal(input, classification, {
         source,
         correlationId,
       });
     } else {
-      formattedContent = await formatNote(input, classificationResult, {
+      formattedContent = await formatNote(input, classification, {
         source,
         filenameBasis,
-        domain: stage2Result.directory,
+        domain: classification.stage2.directory,
         correlationId,
       });
     }
 
-    // ── Stage 5: Vault write ───────────────────────────────────────────────
-    const targetDir = stage1Result.side === 'LEFT'
+    // Stage 5: Vault write
+    const targetDir = classification.side === 'LEFT'
       ? 'proposals/left-proposals'
-      : stage2Result.directory;
-
+      : classification.stage2.directory;
     const targetPath = `${targetDir}/${filename}`;
 
     await vaultWrite(targetPath, formattedContent);
 
-    // ── Stage 4 (post-write): Wikilink enrichment ────────────────────────
-    // Non-blocking per D-39: failures logged but never block the pipeline
+    // Stage 4 (post-write): wikilink enrichment — non-blocking per D-39
     try {
       const wikiResult = await suggestWikilinks(formattedContent, { correlationId });
       if (wikiResult.section && wikiResult.links && wikiResult.links.length > 0) {
@@ -242,22 +158,21 @@ async function runNew(input, options = {}) {
       console.error(`[wikilinks] Non-blocking failure: ${wikiErr.message} (correlation-id: ${correlationId})`);
     }
 
-    const destination = targetPath;
-    console.log(`Routed to ${destination} (correlation-id: ${correlationId})`);
+    console.log(`Routed to ${targetPath} (correlation-id: ${correlationId})`);
 
     return {
       correlationId,
       blocked: false,
-      side: stage1Result.side,
-      destination,
-      directory: stage2Result.directory,
-      suggestedLeftPath: classificationResult.suggestedLeftPath,
-      sonnetEscalated: stage2Result.sonnetEscalated,
+      side: classification.side,
+      destination: targetPath,
+      directory: classification.stage2.directory,
+      suggestedLeftPath: classification.suggestedLeftPath,
+      sonnetEscalated: classification.sonnetEscalated,
     };
 
   } catch (err) {
-    // Any Stage 3-5 failure → dead-letter per D-35
-    // Never lose captures that cleared Stage 0
+    // Any Stage 3-5 failure → dead-letter per D-35.
+    // Never lose captures that cleared Stage 0.
     let failureMode = 'api-error';
     if (err.code === 'STYLE_VIOLATION') failureMode = 'gate-rejection';
     if (err.code === 'PATH_BLOCKED') failureMode = 'gate-rejection';
@@ -274,8 +189,6 @@ async function runNew(input, options = {}) {
     };
   }
 }
-
-// ── Exports ───────────────────────────────────────────────────────────────────
 
 module.exports = {
   runNew,

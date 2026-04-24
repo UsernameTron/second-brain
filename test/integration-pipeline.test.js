@@ -5,16 +5,62 @@
  *
  * End-to-end integration tests for the /new pipeline.
  * Tests: input → classify → format → write → wikilinks → index update
+ *
+ * Phase 15 (B-07): migrated from mocking individual Stage 0/1/2 to mocking
+ * classifier.classifyInput, matching the new-command refactor.
  */
 
 const path = require('path');
 
+// ── Mock factory helpers ─────────────────────────────────────────────────────
+
+function successRight(directory = 'research', confidence = 0.9) {
+  return {
+    correlationId: 'integration-corr-id',
+    blocked: false,
+    side: 'RIGHT',
+    directory,
+    confidence,
+    sonnetEscalated: false,
+    stage1: { side: 'RIGHT', confidence: 0.9 },
+    stage2: { directory, confidence, sonnetEscalated: false },
+  };
+}
+
+function successLeft(stage2Directory = 'Daily', confidence = 0.87) {
+  return {
+    correlationId: 'integration-corr-id',
+    blocked: false,
+    side: 'LEFT',
+    directory: 'proposals/left-proposals',
+    suggestedLeftPath: `${stage2Directory}/`,
+    confidence,
+    sonnetEscalated: false,
+    stage1: { side: 'LEFT', confidence: 0.92 },
+    stage2: { directory: stage2Directory, confidence, sonnetEscalated: false },
+  };
+}
+
+function blocked(reason) {
+  return {
+    correlationId: 'integration-corr-id',
+    blocked: true,
+    reason,
+  };
+}
+
+function deadLettered(failureMode) {
+  return {
+    correlationId: 'integration-corr-id',
+    blocked: false,
+    deadLettered: true,
+    failureMode,
+  };
+}
+
 // ── Module-level mocks ────────────────────────────────────────────────────────
 
 jest.mock('../src/classifier', () => ({
-  runStage0: jest.fn(),
-  runStage1: jest.fn(),
-  runStage2: jest.fn(),
   classifyInput: jest.fn(),
 }));
 
@@ -37,34 +83,6 @@ jest.mock('../src/pipeline-infra', () => ({
   generateCorrelationId: jest.fn(() => 'integration-corr-id'),
   createHaikuClient: jest.fn(() => ({ classify: jest.fn() })),
   writeDeadLetter: jest.fn(),
-  loadPipelineConfig: jest.fn(() => ({
-    classifier: {
-      stage1ConfidenceThreshold: 0.8,
-      stage2ConfidenceThreshold: 0.7,
-      sonnetEscalationThreshold: 0.8,
-      sonnetAcceptThreshold: 0.7,
-      shortInputChars: 50,
-    },
-    filename: { maxLength: 60, haikuWordRange: [4, 8] },
-  })),
-  safeLoadPipelineConfig: jest.fn(() => ({
-    config: {
-      classifier: {
-        stage1ConfidenceThreshold: 0.8,
-        stage2ConfidenceThreshold: 0.7,
-        sonnetEscalationThreshold: 0.8,
-        sonnetAcceptThreshold: 0.7,
-        shortInputChars: 50,
-      },
-      filename: { maxLength: 60, haikuWordRange: [4, 8] },
-    },
-    error: null,
-  })),
-  safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
-  loadTemplatesConfig: jest.fn(() => ({
-    'domain-templates': {},
-    'memory-categories': {},
-  })),
 }));
 
 jest.mock('../src/wikilink-engine', () => ({
@@ -81,7 +99,7 @@ process.env.VAULT_ROOT = '/tmp/test-vault-integration';
 
 describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
   let runNew;
-  let mockRunStage0, mockRunStage1, mockRunStage2;
+  let mockClassifyInput;
   let mockVaultWrite;
   let mockFormatNote, mockFormatLeftProposal, mockGenerateFilename;
   let mockSuggestWikilinks, mockRefreshIndexEntry;
@@ -90,11 +108,7 @@ describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
   beforeEach(() => {
     jest.resetModules();
 
-    // Re-wire all mocks after resetModules
     jest.mock('../src/classifier', () => ({
-      runStage0: jest.fn(),
-      runStage1: jest.fn(),
-      runStage2: jest.fn(),
       classifyInput: jest.fn(),
     }));
 
@@ -117,31 +131,6 @@ describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
       generateCorrelationId: jest.fn(() => 'integration-corr-id'),
       createHaikuClient: jest.fn(() => ({ classify: jest.fn() })),
       writeDeadLetter: jest.fn(),
-      loadPipelineConfig: jest.fn(() => ({
-        classifier: {
-          stage1ConfidenceThreshold: 0.8,
-          stage2ConfidenceThreshold: 0.7,
-          sonnetEscalationThreshold: 0.8,
-          sonnetAcceptThreshold: 0.7,
-          shortInputChars: 50,
-        },
-        filename: { maxLength: 60, haikuWordRange: [4, 8] },
-      })),
-      safeLoadPipelineConfig: jest.fn(() => ({
-        config: {
-          classifier: {
-            stage1ConfidenceThreshold: 0.8,
-            stage2ConfidenceThreshold: 0.7,
-            sonnetEscalationThreshold: 0.8,
-            sonnetAcceptThreshold: 0.7,
-            shortInputChars: 50,
-          },
-          filename: { maxLength: 60, haikuWordRange: [4, 8] },
-        },
-        error: null,
-      })),
-      safeLoadVaultPaths: jest.fn(() => ({ left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings'], haikuContextChars: 100 })),
-      loadTemplatesConfig: jest.fn(() => ({ 'domain-templates': {}, 'memory-categories': {} })),
     }));
 
     jest.mock('../src/wikilink-engine', () => ({
@@ -151,16 +140,13 @@ describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
       loadVaultIndex: jest.fn(),
     }));
 
-    // Get references to mocked functions
     const classifier = require('../src/classifier');
     const vaultGateway = require('../src/vault-gateway');
     const noteFormatter = require('../src/note-formatter');
     const pipelineInfra = require('../src/pipeline-infra');
     const wikilinkEngine = require('../src/wikilink-engine');
 
-    mockRunStage0 = classifier.runStage0;
-    mockRunStage1 = classifier.runStage1;
-    mockRunStage2 = classifier.runStage2;
+    mockClassifyInput = classifier.classifyInput;
     mockVaultWrite = vaultGateway.vaultWrite;
     mockFormatNote = noteFormatter.formatNote;
     mockFormatLeftProposal = noteFormatter.formatLeftProposal;
@@ -169,15 +155,16 @@ describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
     mockRefreshIndexEntry = wikilinkEngine.refreshIndexEntry;
     mockWriteDeadLetter = pipelineInfra.writeDeadLetter;
 
-    // Default mock implementations
-    mockRunStage0.mockResolvedValue({ blocked: false });
-    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.9, rationale: 'research content' });
-    mockRunStage2.mockResolvedValue({ directory: 'research', confidence: 0.9, sonnetEscalated: false });
+    // Default: successful RIGHT classification
+    mockClassifyInput.mockResolvedValue(successRight('research', 0.9));
     mockVaultWrite.mockResolvedValue({ path: 'research/test-note.md' });
     mockFormatNote.mockResolvedValue('---\ncreated: 2026-04-22\ndomain: research\n---\nResearch content here');
     mockFormatLeftProposal.mockResolvedValue('---\ntype: left-proposal\nstatus: pending\n---\nPersonal content');
     mockGenerateFilename.mockResolvedValue({ filename: 'test-note.md', filenameBasis: 'first-line' });
-    mockSuggestWikilinks.mockResolvedValue({ section: '## Related\n- [[Related Note]]', links: [{ path: 'research/related.md', title: 'Related Note', relevance: 0.8 }] });
+    mockSuggestWikilinks.mockResolvedValue({
+      section: '## Related\n- [[Related Note]]',
+      links: [{ path: 'research/related.md', title: 'Related Note', relevance: 0.8 }],
+    });
     mockRefreshIndexEntry.mockResolvedValue(undefined);
     mockWriteDeadLetter.mockResolvedValue({ path: 'proposals/unrouted/test.md' });
 
@@ -194,15 +181,12 @@ describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
       source: 'cli',
     });
 
-    // Pipeline succeeds
     expect(result.blocked).toBeFalsy();
     expect(result.deadLettered).toBeFalsy();
     expect(result.destination).toBeDefined();
 
-    // All pipeline stages were called
-    expect(mockRunStage0).toHaveBeenCalled();
-    expect(mockRunStage1).toHaveBeenCalled();
-    expect(mockRunStage2).toHaveBeenCalled();
+    // Classifier delegated via single entry point
+    expect(mockClassifyInput).toHaveBeenCalled();
     expect(mockFormatNote).toHaveBeenCalled();
     expect(mockVaultWrite).toHaveBeenCalled();
 
@@ -214,8 +198,7 @@ describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
   });
 
   test('LEFT classification: routes to proposals/left-proposals/', async () => {
-    mockRunStage1.mockResolvedValue({ side: 'LEFT', confidence: 0.92, rationale: 'personal voice' });
-    mockRunStage2.mockResolvedValue({ directory: 'Daily', confidence: 0.87, sonnetEscalated: false });
+    mockClassifyInput.mockResolvedValue(successLeft('Daily', 0.87));
 
     const result = await runNew('I feel like today was particularly productive.', {
       interactive: true,
@@ -226,21 +209,21 @@ describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
     expect(result.deadLettered).toBeFalsy();
     expect(result.side).toBe('LEFT');
 
-    // Should write to proposals/left-proposals/
     const writeCall = mockVaultWrite.mock.calls[0];
     expect(writeCall[0]).toMatch(/proposals\/left-proposals\//);
 
-    // Format left-proposal was called
     expect(mockFormatLeftProposal).toHaveBeenCalled();
   });
 
   test('Stage 0 BLOCK: no dead-letter, no write, immediately returns blocked', async () => {
-    mockRunStage0.mockResolvedValue({ blocked: true, reason: 'ISPN content' });
+    mockClassifyInput.mockResolvedValue(blocked('ISPN content'));
 
     const result = await runNew('Blocked content example here.', { interactive: true });
 
     expect(result.blocked).toBe(true);
     expect(mockVaultWrite).not.toHaveBeenCalled();
+    // classifyInput handles Stage 0 BLOCK; new-command never calls writeDeadLetter
+    // for Stage 0 internals (the dead-letter stays inside classifyInput for non-BLOCK modes).
     expect(mockWriteDeadLetter).not.toHaveBeenCalled();
   });
 
@@ -249,14 +232,12 @@ describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
 
     const result = await runNew('Research content that has wikilink issues.', { interactive: true });
 
-    // Write should still succeed despite wikilink failure
     expect(result.blocked).toBeFalsy();
     expect(result.deadLettered).toBeFalsy();
     expect(mockVaultWrite).toHaveBeenCalled();
   });
 
   test('wikilink section with links appended to note before write', async () => {
-    // Wikilinks return a section
     mockSuggestWikilinks.mockResolvedValue({
       section: '## Related\n- [[Related Note]] — relevant concept here',
       links: [{ path: 'research/related.md', title: 'Related Note', relevance: 0.8, reason: 'relevant concept here' }],
@@ -264,11 +245,7 @@ describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
 
     await runNew('Research about AI systems and memory architectures.', { interactive: true });
 
-    // When wikilinks have links, the note should be re-written with the section appended
-    // The second vaultWrite call (if any) should include the wikilinks section
-    // OR the first write is updated (implementation-specific)
     expect(mockSuggestWikilinks).toHaveBeenCalled();
-    // At minimum, vault write was called
     expect(mockVaultWrite).toHaveBeenCalled();
   });
 
@@ -280,13 +257,17 @@ describe('Integration: /new pipeline (Stage 4 wikilink wiring)', () => {
     expect(mockRefreshIndexEntry).toHaveBeenCalledWith(expect.stringContaining('research'));
   });
 
-  test('non-interactive mode with ambiguous Stage 1 → dead-letter', async () => {
-    mockRunStage1.mockResolvedValue({ side: 'RIGHT', confidence: 0.5, rationale: 'ambiguous' });
+  test('non-interactive ambiguous classification surfaces dead-letter envelope', async () => {
+    // classifyInput owns the actual writeDeadLetter call for ambiguous Stage 1;
+    // new-command just surfaces the envelope.
+    mockClassifyInput.mockResolvedValue(deadLettered('non-interactive-ambiguous'));
 
     const result = await runNew('Ambiguous content that is hard to classify.', { interactive: false });
 
     expect(result.deadLettered).toBe(true);
     expect(result.failureMode).toBe('non-interactive-ambiguous');
-    expect(mockWriteDeadLetter).toHaveBeenCalled();
+    // writeDeadLetter for ambiguous mode lives inside classifyInput (mocked out
+    // here); new-command does not double-dead-letter.
+    expect(mockWriteDeadLetter).not.toHaveBeenCalled();
   });
 });
