@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "scheduling",
+  "title": "Scheduling Configuration",
+  "description": "Validates config/scheduling.json — RemoteTrigger scheduling and DST operations",
+  "type": "object",
+  "required": ["trigger"],
+  "properties": {
+    "trigger": {
+      "type": "object",
+      "required": ["name", "id", "schedule", "model"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "minLength": 1 },
+        "schedule": { "type": "string", "pattern": "^(\\S+\\s+){4}\\S+$" },
+        "timezone_note": { "type": "string" },
+        "model": { "type": "string", "minLength": 1 },
+        "environment_id": { "type": "string" },
+        "sources": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "mcp_connections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["connector_uuid", "name", "url"],
+            "properties": {
+              "connector_uuid": { "type": "string" },
+              "name": { "type": "string" },
+              "url": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "persist_session": { "type": "boolean" },
+        "enabled": { "type": "boolean" },
+        "prompt": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "dst_ops": {
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "cdt_schedule": { "type": "string", "pattern": "^(\\S+\\s+){4}\\S+$" },
+        "cdt_note": { "type": "string" },
+        "cst_schedule": { "type": "string", "pattern": "^(\\S+\\s+){4}\\S+$" },
+        "cst_note": { "type": "string" },
+        "action": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "fallback_chain": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "notes": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

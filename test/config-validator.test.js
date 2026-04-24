@@ -71,6 +71,13 @@ describe('config-validator', () => {
       expect(r.status).toBe('PASS');
       expect(r.errors).toHaveLength(0);
     });
+
+    test('Test 6: scheduling.json validates as PASS', () => {
+      const r = results.find(r => path.basename(r.file) === 'scheduling.json');
+      expect(r).toBeDefined();
+      expect(r.status).toBe('PASS');
+      expect(r.errors).toHaveLength(0);
+    });
   });
 
   // ------------------------------------------------------------------ //
@@ -181,8 +188,50 @@ describe('config-validator', () => {
   });
 
   // ------------------------------------------------------------------ //
-  // Schema-specific validation tests (T13.1-T13.3)
+  // Schema-specific validation tests (T13.1-T13.3, T13.5)
   // ------------------------------------------------------------------ //
+
+  describe('scheduling schema validation', () => {
+    function writeTmp(filename, content) {
+      const filePath = path.join(tmpDir, filename);
+      fs.writeFileSync(filePath, typeof content === 'string' ? content : JSON.stringify(content, null, 2));
+      return filePath;
+    }
+
+    const schemaPath = path.join(SCHEMA_DIR, 'scheduling.schema.json');
+
+    test('bad cron (6 fields) fails', async () => {
+      const configPath = writeTmp('bad-cron.json', {
+        trigger: { name: 'test', id: 'trig_x', schedule: '0 0 * * * *', model: 'claude-sonnet-4-6' },
+      });
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('missing trigger.id fails', async () => {
+      const configPath = writeTmp('no-id.json', {
+        trigger: { name: 'test', schedule: '0 0 * * *', model: 'claude-sonnet-4-6' },
+      });
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('number for schedule fails', async () => {
+      const configPath = writeTmp('bad-type.json', {
+        trigger: { name: 'test', id: 'trig_x', schedule: 12345, model: 'claude-sonnet-4-6' },
+      });
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('valid minimal trigger passes', async () => {
+      const configPath = writeTmp('valid-sched.json', {
+        trigger: { name: 'test', id: 'trig_x', schedule: '45 11 * * 1-5', model: 'claude-sonnet-4-6' },
+      });
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('PASS');
+    });
+  });
 
   describe('excluded-terms schema validation', () => {
     function writeTmp(filename, content) {
