@@ -4,9 +4,20 @@
 - [x] `/gsd:ship` Phase 12 — SHIPPED (PR #22, merged as d65b0c6)
 - [x] Create UAT-BASELINE.md documenting UAT-01 pre-existing failure
 - [x] Annotate SEC-HOOK-01 as CLOSED in `.planning/backlog.md`
-- [ ] Execute Phase 13 on `feat/phase-13-schemas` (6 tasks, plan: 90a90f2)
-- [ ] Execute Phase 14 on `feat/phase-14-ci-hardening` (5 tasks, plan: b78bfb4)
+- [x] Execute Phase 13 on `feat/phase-13-schemas` — SHIPPED (PR #24)
+- [x] Execute Phase 14 on `feat/phase-14-ci-hardening` — 5/5 tasks, 8 commits, awaiting ship
+- [ ] `/gsd:ship` Phase 14 — create PR from feat/phase-14-ci-hardening
+- [ ] `/gsd:discuss-phase 15` — Architecture Refactor (unblocked by Phase 13)
 - [ ] Configure branch protection (repo is public, CI passes)
+
+## Session Handoff (Session 53 — 2026-04-24)
+- Phase 14 (CI Hardening) executed: 5/5 tasks, 8 commits on `feat/phase-14-ci-hardening`
+- Tasks completed: ESLint 10 flat config (T14.1), Jest worktree exclusion (T14.4), UAT CI skip (T14.5), CodeQL SAST (T14.2), license compliance (T14.3)
+- CI pipeline now has 3 new gates: lint, SAST, license
+- Test results: 637 pass, 24 skip (UAT in CI), 0 fail; lint: 0 errors, 41 warnings
+- Two issues added to backlog: B-19 (ESLint globals blocked by config-protection hook), B-20 (no-console strategy)
+- STATE.md updated, SUMMARY.md created, backlog updated
+- Next: `/gsd:ship` Phase 14, then `/gsd:discuss-phase 15` (Architecture Refactor)
 
 ## Session Handoff (Session 51 — 2026-04-23)
 - Phase 12 shipped: PR #22 merged, CI green (both CI + Claude Code Review passed)
