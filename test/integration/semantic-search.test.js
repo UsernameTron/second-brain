@@ -250,7 +250,6 @@ describe('Scenario 3: incremental embed (self-heal)', () => {
 describe('Scenario 4: hybrid cross-source overlap RRF score', () => {
   test('doc at kw rank 3 and sem rank 5 gets RRF = 1/(60+3) + 1/(60+5)', async () => {
     const { hybridSearch, indexNewEntries } = require('../../src/semantic-index');
-    const { searchMemoryKeyword } = require('../../src/memory-reader');
 
     seedMemoryMd(ENTRIES);
 
@@ -310,15 +309,15 @@ describe('Scenario 4: hybrid cross-source overlap RRF score', () => {
     expect(result.degraded).toBe(false);
     expect(result.results.length).toBeGreaterThan(0);
 
-    // docA should appear in results (it's the closest semantic match and likely keyword match)
+    // docA is the closest semantic match (vA ≈ queryVec) and keyword match for 'leadership'
+    // It must appear in results
     const docA = result.results.find(r => r.id && r.id.includes('rH1'));
-    if (docA) {
-      // RRF score must be positive and = sum of 1/(k+rank) across sources it appears in
-      expect(docA.rrfScore).toBeGreaterThan(0);
-      // If in both kw rank 1 + sem rank 1: 1/61 + 1/61 ≈ 0.0328
-      // Maximum possible RRF for a doc in both at rank 1 each
-      expect(docA.rrfScore).toBeLessThanOrEqual(2 / 61 + 0.001);
-    }
+    expect(docA).toBeDefined();
+    // RRF score must be positive and = sum of 1/(k+rank) across sources it appears in
+    expect(docA.rrfScore).toBeGreaterThan(0);
+    // If in both kw rank 1 + sem rank 1: 1/61 + 1/61 ≈ 0.0328
+    // Maximum possible RRF for a doc in both at rank 1 each
+    expect(docA.rrfScore).toBeLessThanOrEqual(2 / 61 + 0.001);
   });
 });
 

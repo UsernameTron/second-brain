@@ -341,9 +341,10 @@ describe('semanticSearch', () => {
     const result = await semanticSearch('leadership', { top: 5 });
     const recentResult = result.results.find(r => r.id === 'recent');
     const oldResult    = result.results.find(r => r.id === 'old');
-    if (recentResult && oldResult) {
-      expect(recentResult.score).toBeGreaterThan(oldResult.score);
-    }
+    // Both entries should be present (they were indexed with different addedAt)
+    expect(recentResult).toBeDefined();
+    expect(oldResult).toBeDefined();
+    expect(recentResult.score).toBeGreaterThan(oldResult.score);
   });
 });
 
@@ -415,11 +416,10 @@ describe('hybridSearch', () => {
     expect(Array.isArray(result.results)).toBe(true);
 
     // docA appears in keyword list so should be in results
+    // docA appears in keyword list so should be in results with a positive RRF score
     const docAResult = result.results.find(r => r.id === 'docA');
-    if (docAResult) {
-      // Should have a positive RRF score
-      expect(docAResult.rrfScore).toBeGreaterThan(0);
-    }
+    expect(docAResult).toBeDefined();
+    expect(docAResult.rrfScore).toBeGreaterThan(0);
   });
 
   test('doc appearing only in keyword list gets RRF from keyword rank alone', async () => {
@@ -435,9 +435,7 @@ describe('hybridSearch', () => {
     const kw = result.results.find(r => r.id === 'uniqueKW');
     expect(kw).toBeDefined();
     // Its RRF should be 1/(60+1) from rank=1 keyword
-    if (kw) {
-      expect(kw.rrfScore).toBeCloseTo(1 / 61, 10);
-    }
+    expect(kw.rrfScore).toBeCloseTo(1 / 61, 10);
   });
 
   test('dedupe by entry id works when doc appears in both sources', async () => {
@@ -483,12 +481,10 @@ describe('hybridSearch', () => {
 
 describe('selfHealIfNeeded', () => {
   let selfHealIfNeeded;
-  let computeSchemaVersion;
 
   beforeEach(() => {
     const mod = require('../src/semantic-index');
     selfHealIfNeeded = mod.selfHealIfNeeded;
-    computeSchemaVersion = mod.computeSchemaVersion;
   });
 
   test('all hashes present → no Voyage call, {healed:false, embedded:0}', async () => {

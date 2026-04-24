@@ -457,10 +457,10 @@ describe('voyage-health file persistence', () => {
   });
 
   test('isDegraded returns false when degraded_until has passed', () => {
-    const { recordFailure, isDegraded } = require('../src/utils/voyage-health');
+    const { isDegraded } = require('../src/utils/voyage-health');
     // Create a degraded_until in the past by tripping with 0-minute window equivalent
     // We do this by directly writing to the health file
-    const { getHealthPath, getSemanticCacheDir, readHealth } = require('../src/utils/voyage-health');
+    const { getHealthPath, getSemanticCacheDir } = require('../src/utils/voyage-health');
     const cacheDir = getSemanticCacheDir();
     const { mkdirSync, writeFileSync } = require('fs');
     mkdirSync(cacheDir, { recursive: true });
