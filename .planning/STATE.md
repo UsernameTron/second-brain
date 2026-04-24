@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Memory Activation & Final Closeout
 status: executing
-stopped_at: Completed 17-01-PLAN.md — uat.yml created, B-21 UAT CI gap closed
-last_updated: "2026-04-24T15:23:39.192Z"
+stopped_at: "Completed 17-02-PLAN.md: test:uat:ci script + nock@14.0.13 devDependency"
+last_updated: "2026-04-24T15:24:42.394Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 9
   completed_phases: 3
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 ## Current Position
 
 Phase: 17 (UAT CI Infrastructure) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-04-24
 
@@ -67,6 +67,8 @@ Full log in PROJECT.md Key Decisions table. Summary:
 - v1.4: memory activation decisions (Voyage embeddings, `/new` untouched, keyword+semantic both ship)
 - [Phase 17-uat-ci-infrastructure]: ANTHROPIC_API_KEY scoped at step-level env only in uat.yml — never job-level or workflow-level (P11 prevention)
 - [Phase 17-uat-ci-infrastructure]: Monday 13:00 UTC cron for UAT workflow — 7 hours after CodeQL 06:00 UTC to prevent runner contention
+- [Phase 17-uat-ci-infrastructure]: test:uat:ci script is bare jest invocation — CI env owned by workflow step not the npm script
+- [Phase 17-uat-ci-infrastructure]: nock@14.0.13 pre-installed in Phase 17 infrastructure so Phase 19 semantic search planning stays architecture-focused
 
 ### Open Blockers
 
@@ -78,6 +80,6 @@ None active.
 
 ## Session Continuity
 
-Last session: 2026-04-24T15:23:39.190Z
-Stopped at: Completed 17-01-PLAN.md — uat.yml created, B-21 UAT CI gap closed
+Last session: 2026-04-24T15:24:42.392Z
+Stopped at: Completed 17-02-PLAN.md: test:uat:ci script + nock@14.0.13 devDependency
 Ship log: PRs #1–#31 merged. Tags: v1.0, v1.1, v1.2.0, v1.3.0.
