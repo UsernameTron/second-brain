@@ -8,7 +8,8 @@ Transform an Obsidian vault into a personal operating system with compounding me
 
 - ✅ **v1.0 MVP** — Phases 1-4 (shipped 2026-04-22)
 - ✅ **v1.1 Go Live** — Phases 5-7 (shipped 2026-04-23)
-- **v1.2 Automation & Quality** — Phases 8-11 (in progress)
+- ✅ **v1.2 Automation & Quality** — Phases 8-11 (shipped 2026-04-23, tag v1.2.0)
+- ✅ **v1.3 Review Remediation** — Phases 12-16 (shipped 2026-04-24, tag v1.3.0)
 
 ## Phases
 
@@ -49,7 +50,12 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 8. Hook Infrastructure | v1.2 | 3/3 | Complete | 2026-04-23 |
 | 9. Security & Verification | v1.2 | 3/3 | Complete | 2026-04-23 |
 | 10. Agent Hardening & Skills | v1.2 | 2/2 | Complete | 2026-04-23 |
-| 11. CI & LLM Infrastructure | v1.2 | 0/2 | Complete    | 2026-04-23 |
+| 11. CI & LLM Infrastructure | v1.2 | 2/2 | Complete | 2026-04-23 |
+| 12. Critical Safety Fixes | v1.3 | 6/6 | Complete | 2026-04-23 |
+| 13. Config Schema Gaps | v1.3 | — | Complete | 2026-04-23 |
+| 14. CI Hardening | v1.3 | 5/5 | Complete | 2026-04-24 |
+| 15. Architecture Refactor | v1.3 | — | Complete | 2026-04-24 |
+| 16. Test Quality | v1.3 | — | Complete | 2026-04-24 |
 
 ## v1.2 Automation & Quality (Phases 8-11)
 
