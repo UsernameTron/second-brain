@@ -114,7 +114,9 @@ function checkWikilinkTarget(vaultRoot, targetPath) {
 
 // ── Test suite ────────────────────────────────────────────────────────────────
 
-const describeFn = SHOULD_RUN ? describe : describe.skip;
+// UAT tests require live LLM endpoint — skip in CI, run locally via npm run test:uat
+const skipInCI = process.env.CI === 'true';
+const describeFn = (!skipInCI && SHOULD_RUN) ? describe : describe.skip;
 
 describeFn('UAT-02: Wikilink relevance validation', () => {
   // Wikilink generation requires live vault index scan + Haiku API call

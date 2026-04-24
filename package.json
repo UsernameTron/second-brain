@@ -5,7 +5,8 @@
   "main": "src/vault-gateway.js",
   "scripts": {
     "test": "jest --verbose",
-    "lint": "eslint src/ test/"
+    "lint": "eslint src/ test/",
+    "test:uat": "CI= npx jest --forceExit test/uat/"
   },
   "keywords": [],
   "author": "C Pete Conner",
