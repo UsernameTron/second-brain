@@ -69,33 +69,56 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ Local LLM routing (configurable provider, Anthropic fallback with logging) — v1.2
 
 ### Active
-(none — v1.2 milestone complete)
+(v1.4 milestone — requirements to be defined after research phase)
 
-## Current Milestone
+## Current Milestone: v1.4 Memory Activation & Final Closeout
 
-**v1.2 Automation & Quality** — 4 phases (8-11), 11 requirements, 12 backlog items promoted.
+**Goal:** Activate the write-only memory layer (keyword + semantic retrieval), prove memory compounds daily via instrumentation, close the UAT CI gap, and clear every low-priority hygiene item. No changes to existing working behavior — all additions. This is the closing milestone.
 
-**Goal:** Close quality, security, and automation gaps identified by agent-teams assessment, crew analysis, and automation recommender. No new features — hardening the development workflow and CI pipeline.
+**Target features:**
+- UAT CI infrastructure (scheduled workflow + workflow_dispatch with ANTHROPIC_API_KEY secret, branch protection on master)
+- Memory retrieval foundation (`readMemory()`, `/recall` command, Memory Echo section in `/today`)
+- Semantic memory search (Voyage AI embeddings, local vector index, graceful degradation to keyword)
+- Value extraction instrumentation (daily-stats.md append-only table, memory growth + latency + velocity)
+- Closeout hygiene (B-15 Unicode tests, B-18 JSDoc on public API, B-20 no-console policy, final docs sweep)
 
-**Phases:**
-- Phase 8: Hook Infrastructure (HOOK-01, HOOK-02, HOOK-03)
-- Phase 9: Security & Verification (SEC-01, SEC-02, SEC-03)
-- Phase 10: Agent Hardening & Skills (SKILL-01, SKILL-02, SKILL-03)
-- Phase 11: CI & LLM Infrastructure (CI-01, CI-02)
+**Key context:**
+- Memory pipeline has been write-only across v1.0–v1.3; v1.4 activates the read path
+- Voyage AI chosen as embedding provider (matches Anthropic cloud posture, generous free tier)
+- `/new` stays behaviorally untouched — memory retrieval surfaces only via `/recall` and `/today` Memory Echo
+- 4 parallel research agents (Stack, Features, Architecture, Pitfalls) run before requirements scoping
+
+**Phases (continued numbering from Phase 16):**
+- Phase 17: UAT CI Infrastructure (UAT-CI-01, UAT-CI-02, BRANCH-PROT-01)
+- Phase 18: Memory Retrieval Foundation (MEM-READ-01, MEM-SEARCH-KW-01, RECALL-CMD-01, TODAY-ECHO-01)
+- Phase 19: Semantic Memory Search (MEM-EMBED-01, MEM-SEMANTIC-01, MEM-INDEX-REFRESH-01, MEM-DEGRADE-01)
+- Phase 20: Value Extraction Instrumentation (STATS-DAILY-01, STATS-LATENCY-01, STATS-GROWTH-01, TODAY-SUMMARY-01)
+- Phase 21: Closeout Hygiene (HYG-UNICODE-01, HYG-JSDOC-01, HYG-CONSOLE-01, DOCS-FINAL-01)
+
+<details>
+<summary>v1.3 Review Remediation (shipped 2026-04-24)</summary>
+
+**Goal:** Close every HIGH finding from the 3-reviewer audit and every WARN from v1.2 milestone audit. Health score 76/100 → ≥88.
+
+**Delivered:** 5 phases (12–16). Critical safety fixes (vault-gateway bypass, config crash paths, hook repair). Config schema gaps closed. CI hardening (ESLint, CodeQL SAST, license-checker). Architecture refactor (today-command decomposed 727→230 LOC). Test quality lift (+114 tests, branch coverage 75%→81%, threshold ratcheted 70%→80%). 15/18 backlog items closed.
+
+**Deferred to v1.4:** B-15, B-18, B-20, B-21, branch protection.
+</details>
+
+<details>
+<summary>v1.2 Automation & Quality (shipped 2026-04-23)</summary>
+
+**Goal:** Close quality, security, and automation gaps. No new features — hardening the development workflow and CI pipeline.
+
+**Delivered:** 4 phases (8–11). Hook infrastructure (auto-test, protected-file-guard, security-scan-gate). Security & verification agents. Agent roster hardened. Pipeline health skill. context7 MCP integration. CI coverage enforcement (90% stmts/funcs/lines). Local LLM routing.
+</details>
 
 <details>
 <summary>v1.1 Go Live (shipped 2026-04-23)</summary>
 
 **Goal:** Close the gap between "works in tests" and "works on my desk at 6:45 AM."
 
-**Delivered:**
-- Gmail OAuth wired with real credentials
-- RemoteTrigger on weekday cron schedule
-- Excluded terms expanded to 15 with substring matching
-- In-batch dedup fixed (3 sub-bugs)
-- Remote execution hardened (calendar MCP, path resolution, Haiku graceful degradation)
-- UAT pass (LLM accuracy, wikilink relevance, Obsidian UX)
-- GitHub Actions CI pipeline (Node 20+22)
+**Delivered:** Gmail OAuth wired. RemoteTrigger on weekday cron. Excluded terms expanded to 15 with substring matching. In-batch dedup fixed. Remote execution hardened. UAT pass. GitHub Actions CI pipeline (Node 20+22).
 
 **Deferred:** FIX-02 (config hot-reload) — restart workaround sufficient.
 </details>
@@ -194,4 +217,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-23 after v1.1 milestone completion*
+*Last updated: 2026-04-24 on v1.4 milestone start*
