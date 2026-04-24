@@ -14,20 +14,30 @@
 const fs = require('fs');
 const path = require('path');
 
-// Fixture path
 const FIXTURE_PATH = path.join(__dirname, '..', 'fixtures', 'memory-sample.md');
+const MODULE_PATH = path.resolve(__dirname, '..', '..', 'src', 'memory-reader');
 
-// Temp vault root — unique per test run to prevent conflicts
 let tmpRoot;
 let originalVaultRoot;
+let readMemory;
+let searchMemoryKeyword;
+let getMemoryEcho;
 
 beforeAll(() => {
+  // Save original env
   originalVaultRoot = process.env.VAULT_ROOT;
+
+  // Create isolated tmp vault with the fixture
   tmpRoot = path.join(__dirname, '..', 'fixtures', `_memory-reader-tmp-${Date.now()}`);
-  // Create tmp vault memory directory and copy fixture
   fs.mkdirSync(path.join(tmpRoot, 'memory'), { recursive: true });
   fs.copyFileSync(FIXTURE_PATH, path.join(tmpRoot, 'memory', 'memory.md'));
+
+  // Set VAULT_ROOT before loading the module
   process.env.VAULT_ROOT = tmpRoot;
+
+  // Load module fresh with correct env
+  jest.resetModules();
+  ({ readMemory, searchMemoryKeyword, getMemoryEcho } = require(MODULE_PATH));
 });
 
 afterAll(() => {
@@ -45,16 +55,6 @@ afterAll(() => {
   }
 });
 
-// Require after env is set — but module is cached; we'll reload after beforeAll via jest.resetModules
-// Actually, we need to require AFTER env is set, so we use beforeAll + requireInTest pattern
-let readMemory, searchMemoryKeyword, getMemoryEcho;
-
-beforeAll(() => {
-  // Re-require after env is set so VAULT_ROOT is picked up
-  jest.resetModules();
-  ({ readMemory, searchMemoryKeyword, getMemoryEcho } = require('../../src/memory-reader'));
-});
-
 // ── readMemory() ──────────────────────────────────────────────────────────────
 
 describe('readMemory()', () => {
@@ -66,9 +66,9 @@ describe('readMemory()', () => {
 
   test('R2: each entry has all required fields', async () => {
     const entries = await readMemory();
-    const REQUIRED_FIELDS = ['id', 'category', 'content', 'date', 'sourceRef', 'contentHash', 'tags', 'related', 'addedAt'];
+    const REQUIRED = ['id', 'category', 'content', 'date', 'sourceRef', 'contentHash', 'tags', 'related', 'addedAt'];
     for (const entry of entries) {
-      for (const field of REQUIRED_FIELDS) {
+      for (const field of REQUIRED) {
         expect(entry).toHaveProperty(field);
       }
     }
@@ -76,40 +76,42 @@ describe('readMemory()', () => {
 
   test('R3: entry date matches the YYYY-MM-DD in its ### header', async () => {
     const entries = await readMemory();
-    // The first entry should be 2026-03-15
-    const first = entries.find(e => e.date === '2026-03-15');
-    expect(first).toBeDefined();
-    expect(first.date).toBe('2026-03-15');
+    const found = entries.find(e => e.date === '2026-03-15');
+    expect(found).toBeDefined();
+    expect(found.date).toBe('2026-03-15');
   });
 
   test('R4: contentHash matches the content_hash:: field value', async () => {
     const entries = await readMemory();
-    // vault-architecture entry has content_hash:: aaaa11112222
     const archEntry = entries.find(e => e.contentHash === 'aaaa11112222');
     expect(archEntry).toBeDefined();
-    expect(archEntry.contentHash).toBe('aaaa11112222');
   });
 
   test('R5: returns [] when memory.md does not exist (ENOENT, no throw)', async () => {
+    // Use the same module but point VAULT_ROOT to nonexistent path temporarily
+    // VAULT_ROOT is a dynamic function in memory-reader — reads env at call time
     const savedVaultRoot = process.env.VAULT_ROOT;
     process.env.VAULT_ROOT = `/tmp/nonexistent-vault-${Date.now()}`;
-    // Reset module cache to pick up new VAULT_ROOT
-    jest.resetModules();
-    const { readMemory: readMemoryFresh } = require('../../src/memory-reader');
+
     let result;
-    await expect(async () => {
-      result = await readMemoryFresh();
-    }).not.toThrow();
+    let threw = false;
+    try {
+      result = await readMemory();
+    } catch (_) {
+      threw = true;
+    }
+
+    expect(threw).toBe(false);
     expect(result).toEqual([]);
+
+    // Restore VAULT_ROOT for subsequent tests
     process.env.VAULT_ROOT = savedVaultRoot;
   });
 
   test('R6: malformed entry writes warning to stderr but does NOT throw', async () => {
     const stderrSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const entries = await readMemory();
-    // At least one warning was written for the malformed entry
     expect(stderrSpy).toHaveBeenCalled();
-    // Still returns valid entries (5 well-formed)
     expect(entries.length).toBe(5);
     stderrSpy.mockRestore();
   });
@@ -125,7 +127,6 @@ describe('searchMemoryKeyword()', () => {
 
   test('S2: AND semantics — "leadership communication" returns only entries with BOTH terms', async () => {
     const results = await searchMemoryKeyword('leadership communication');
-    // Only the "Strong leadership requires transparent communication..." entry has both
     expect(results.length).toBeGreaterThanOrEqual(1);
     for (const r of results) {
       const lc = r.content.toLowerCase();
@@ -181,10 +182,9 @@ describe('searchMemoryKeyword()', () => {
 
   test('S9: results are ordered by score descending', async () => {
     const results = await searchMemoryKeyword('leadership');
-    if (results.length > 1) {
-      for (let i = 0; i < results.length - 1; i++) {
-        expect(results[i].score).toBeGreaterThanOrEqual(results[i + 1].score);
-      }
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    for (let i = 0; i < results.length - 1; i++) {
+      expect(results[i].score).toBeGreaterThanOrEqual(results[i + 1].score);
     }
   });
 });
@@ -197,10 +197,11 @@ describe('getMemoryEcho()', () => {
       calendar: { success: true, data: [{ summary: 'Leadership sync meeting' }] },
       gmail: { success: true, data: [] },
     };
+    // Use a low threshold (0.1) to ensure leadership entries are found
+    // "leadership" is 1 of 3 topic tokens, score = 0.33 which is >= 0.1
     const result = await getMemoryEcho(connectorResults, { threshold: 0.1 });
     expect(result).toHaveProperty('entries');
     expect(Array.isArray(result.entries)).toBe(true);
-    // With a low threshold (0.1), should find leadership-related entries
     expect(result.entries.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -227,6 +228,7 @@ describe('getMemoryEcho()', () => {
       calendar: { success: true, data: [{ summary: 'Leadership review' }] },
       gmail: { success: false, data: [] },
     };
+    // "leadership" = 1 of 2 tokens, score = 0.5 which is >= 0.1
     const result = await getMemoryEcho(connectorResults, { threshold: 0.1 });
     expect(result).toHaveProperty('entries');
     expect(result.entries.length).toBeGreaterThanOrEqual(1);
