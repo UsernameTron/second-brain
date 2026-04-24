@@ -65,11 +65,11 @@ describe('config-validator', () => {
       expect(r.errors[0].message).toMatch(/not found/i);
     });
 
-    test('configs without schemas (excluded-terms, scheduling, vault-paths) are not in results', () => {
-      const names = results.map(r => path.basename(r.file));
-      expect(names).not.toContain('excluded-terms.json');
-      expect(names).not.toContain('scheduling.json');
-      expect(names).not.toContain('vault-paths.json');
+    test('Test 5: excluded-terms.json validates as PASS', () => {
+      const r = results.find(r => path.basename(r.file) === 'excluded-terms.json');
+      expect(r).toBeDefined();
+      expect(r.status).toBe('PASS');
+      expect(r.errors).toHaveLength(0);
     });
   });
 
@@ -151,7 +151,7 @@ describe('config-validator', () => {
       consoleSpy.mockRestore();
     });
 
-    test('exit code 1 when any result is FAIL or ERROR', async () => {
+    test('exit code 1 when any result is FAIL or ERROR (memory-categories WARNING does not trigger)', async () => {
       const schemaDir = path.join(tmpDir, 'schema');
       fs.mkdirSync(schemaDir);
       const configDir = path.join(tmpDir, 'config');
@@ -177,6 +177,51 @@ describe('config-validator', () => {
       expect(exitSpy).toHaveBeenCalledWith(1);
       exitSpy.mockRestore();
       consoleSpy.mockRestore();
+    });
+  });
+
+  // ------------------------------------------------------------------ //
+  // Schema-specific validation tests (T13.1-T13.3)
+  // ------------------------------------------------------------------ //
+
+  describe('excluded-terms schema validation', () => {
+    function writeTmp(filename, content) {
+      const filePath = path.join(tmpDir, filename);
+      fs.writeFileSync(filePath, typeof content === 'string' ? content : JSON.stringify(content, null, 2));
+      return filePath;
+    }
+
+    const schemaPath = path.join(SCHEMA_DIR, 'excluded-terms.schema.json');
+
+    test('empty array fails (minItems: 1)', async () => {
+      const configPath = writeTmp('empty.json', []);
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('item with backtick fails', async () => {
+      const configPath = writeTmp('backtick.json', ['valid', 'bad`term']);
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('item under 2 chars fails', async () => {
+      const configPath = writeTmp('short.json', ['A']);
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('array over 100 items fails', async () => {
+      const items = Array.from({ length: 101 }, (_, i) => `term-${i}`);
+      const configPath = writeTmp('toomany.json', items);
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('valid array of strings passes', async () => {
+      const configPath = writeTmp('valid-terms.json', ['Genesys', 'ISPN', 'Asana']);
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('PASS');
     });
   });
 });

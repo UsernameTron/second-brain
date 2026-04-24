@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "excluded-terms",
+  "title": "Excluded Terms Configuration",
+  "description": "Validates config/excluded-terms.json — list of terms to filter from ingress pipeline",
+  "type": "array",
+  "items": {
+    "type": "string",
+    "minLength": 2,
+    "maxLength": 80,
+    "pattern": "^[^`]+$"
+  },
+  "minItems": 1,
+  "maxItems": 100
+}
