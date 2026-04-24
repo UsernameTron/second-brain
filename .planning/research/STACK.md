@@ -1,8 +1,14 @@
-# Stack Research
+# Stack Research — v1.4 Memory Activation
 
-**Domain:** AI-orchestrated Obsidian second brain with MCP integration
-**Researched:** 2026-04-21
-**Confidence:** MEDIUM — web search unavailable; recommendations based on PROJECT.md, verified local config, and training-data knowledge of MCP ecosystem. Version numbers should be re-verified before implementation.
+**Domain:** Keyword + semantic memory search over a personal Obsidian vault (one user, one markdown file)
+**Researched:** 2026-04-24
+**Confidence:** HIGH — all package versions registry-verified, Voyage API confirmed from live docs, module formats confirmed by install inspection
+
+## Scope
+
+This document covers only the NEW stack additions for v1.4 (Phases 18–19). The existing stack (Node.js 20+22, @anthropic-ai/sdk 0.90, Jest 30, AJV 8, chokidar 3.6, gray-matter 4, dotenv 17.4) is validated and not re-researched here.
+
+---
 
 ## Recommended Stack
 
@@ -10,231 +16,231 @@
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| Obsidian | 1.7+ | Vault substrate — markdown knowledge base | Already chosen. Local-first, plugin ecosystem, no vendor lock-in. Vault at `~/Claude Cowork/` |
-| Claude Code | Current | Orchestration engine — runs commands, spawns agents, executes workflows | Already deployed. GSD framework provides phase management. `ccdScheduledTasksEnabled: true` confirmed in `claude_desktop_config.json` |
-| Docker MCP Gateway | Current | MCP server routing for Claude Desktop | Already configured (`MCP_DOCKER` in claude_desktop_config.json). Single entry point for all Docker-hosted MCP servers |
-| Obsidian Local REST API plugin | 3.x | HTTP bridge between Claude and vault | Verified integration path per PROJECT.md ("Docker MCP gateway > Local REST API plugin"). Exposes vault read/write over localhost |
-| Node.js | 22 LTS | Script runtime for scheduling, connectors, utility scripts | Project code lives at `~/projects/second-brain/`. Node is the natural runtime for MCP server authoring and cron orchestration |
+| `voyageai` | 0.2.1 | Voyage AI embeddings client | Official SDK, ships CJS build at `./dist/cjs/`, 3.5 MB install, zero native deps |
+| `minisearch` | 7.2.0 | Keyword full-text search | Inverted-index, CJS build at `./dist/cjs/index.cjs`, 876 KB install, zero deps, handles markdown well |
+| `nock` | 14.0.13 | HTTP mock for Voyage API in Jest | Intercepts node-fetch/http at socket level; no ESM wrapper needed in CJS Jest |
 
-### MCP Server Ecosystem
+**Vector store: in-memory Float32Array with cosine similarity — no new dependency.**
 
-| Server | Source | Purpose | Permission Model | Confidence |
-|--------|--------|---------|------------------|------------|
-| `obsidian-mcp` (via Docker) | `mcp/obsidian` Docker image | Read/write vault through Local REST API plugin | Read everywhere, write only RIGHT side | HIGH — already wired per PROJECT.md |
-| `github-official` (via Docker) | Docker MCP gateway | GitHub activity for `/today` briefing, issue tracking | Read + issue-write on UsernameTron repos only | HIGH — OAuth done per PROJECT.md |
-| `@modelcontextprotocol/server-filesystem` | npm (stdio) | Direct filesystem access to project directory | Read/write within `/Users/cpconnor/projects/` | HIGH — already configured in claude_desktop_config.json |
-| Gmail MCP connector | See "Gmail Integration" below | VIP-filtered email for `/today`, draft creation | Draft-only, never send | MEDIUM — connector choice pending |
-| Google Calendar MCP connector | See "Calendar Integration" below | Meeting schedule for `/today` briefing | Read-only | MEDIUM — connector choice pending |
-
-### Gmail Integration
-
-**Recommended: Google Workspace MCP server via Docker gateway**
-
-| Option | Approach | Tradeoffs | Recommendation |
-|--------|----------|-----------|----------------|
-| Docker MCP `google-drive` + Gmail scope | Official Docker MCP catalog server with Gmail API scopes | Best permission scoping; draft-only enforceable via OAuth scope `gmail.compose` (excludes `gmail.send`). Requires Google Cloud OAuth consent screen setup. | **Use this** |
-| `@anthropic/mcp-gmail` (if available in Docker catalog) | Purpose-built Gmail MCP | Simpler if it exists in the Docker MCP catalog at implementation time. Check `docker mcp catalog` for availability. | Check first; fall back to custom |
-| Custom Node.js MCP server | Hand-rolled using googleapis npm package | Full control over permission model. More code to maintain. | Fall back if Docker catalog lacks Gmail |
-| Cowork native connector | Claude Desktop built-in | PROJECT.md lists as "preferred." Availability depends on Anthropic's connector roadmap. | Use if available at implementation time; do not block on it |
-
-**Gmail OAuth scopes (zero-trust):**
-- `gmail.readonly` — read VIP-filtered messages for `/today`
-- `gmail.compose` — create drafts only (excludes `gmail.send`)
-- Never request `gmail.send` or `gmail.modify`
-
-**VIP filtering:** Implement in the orchestration layer (Claude Code skill or `/today` command logic), not in the MCP server. The MCP server provides raw access; filtering is business logic.
-
-### Google Calendar Integration
-
-**Recommended: Google Calendar MCP server via Docker gateway**
-
-| Option | Approach | Tradeoffs | Recommendation |
-|--------|----------|-----------|----------------|
-| Docker MCP `google-calendar` | Official or community Docker MCP image | Clean read-only scope via `calendar.events.readonly`. Consistent with Docker gateway pattern. | **Use this** |
-| Custom Node.js MCP server | Hand-rolled using googleapis npm package | Same tradeoff as Gmail custom — full control, more maintenance. | Fall back if Docker catalog lacks Calendar |
-| Cowork native connector | Claude Desktop built-in | Same as Gmail — preferred if available. | Use if available; do not block |
-
-**Calendar OAuth scope (zero-trust):**
-- `calendar.events.readonly` — read today's meetings
-- Never request write scopes
-
-### Scheduling and Cron
-
-| Technology | Purpose | Why Recommended |
-|------------|---------|-----------------|
-| `ccdScheduledTasksEnabled` (Claude Desktop) | Scheduled `/today` execution | Already enabled in config. Native Claude Desktop scheduling — no external cron daemon needed |
-| Claude Desktop Scheduled Tasks | Define recurring task that invokes `/today` command pre-morning | First-class integration. Task runs in Claude Desktop context with full MCP access |
-| macOS `launchd` (fallback) | System-level scheduling if Claude Desktop scheduling is insufficient | Use only if Claude Desktop tasks lack cron-style recurrence or reliability. More complex, requires plist management |
-
-**Do NOT use:**
-- Raw `crontab` — inferior to launchd on macOS, no process lifecycle management
-- Third-party schedulers (n8n, Temporal) — overengineered for single-user vault automation
-- pm2 cron — adds Node process manager dependency for a single scheduled task
-
-### Memory Compounding
-
-| Component | Implementation | Purpose |
-|-----------|---------------|---------|
-| `memory.md` | RIGHT side of vault | Agent-maintained long-term memory. Compounding knowledge base updated after sessions |
-| `memory-proposals.md` | RIGHT side of vault | Staging area for memory candidates. Human-in-the-loop approval before promotion |
-| Memory extraction logic | Claude Code skill or `/wrap` hook | Auto-extract learnings, decisions, patterns from session transcripts |
-| Memory promotion logic | `/new` command or dedicated skill | Move approved proposals from staging to `memory.md` with wikilink back-references |
-
-**Pattern (Cole Medin inspired):**
-1. Session ends -> extraction hook scans transcript for promotable knowledge
-2. Candidates appended to `memory-proposals.md` with source context
-3. User reviews during next `/today` or on-demand
-4. Approved items promoted to `memory.md` with date, source link, and category
-5. `/today` reads `memory.md` for context-aware briefing
-
-**Memory schema (recommended):**
-```markdown
-## [Category]
-
-### [Date] — [One-line summary]
-[2-3 sentences of extracted knowledge]
-Source: [session ID, conversation topic, or file reference]
-```
+See "Vector Store Decision" below for full rationale.
 
 ### Supporting Libraries
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| `googleapis` | 144+ | Google API client (Gmail, Calendar) | Only if building custom MCP servers (fallback path) |
-| `@modelcontextprotocol/sdk` | 1.x | MCP server SDK for Node.js | Only if building custom MCP servers |
-| `gray-matter` | 4.x | YAML frontmatter parsing for vault files | Parsing Obsidian note metadata in scripts |
-| `date-fns` | 3.x | Date manipulation for `/today` scheduling logic | Timezone-aware date formatting in briefing scripts |
+No additional production dependencies beyond the three above. All other capabilities are covered by native Node.js (`fs`, `readline`) or existing deps (`gray-matter` for frontmatter parsing).
 
-### Obsidian Plugin Requirements
+---
 
-| Plugin | Purpose | Required | Notes |
-|--------|---------|----------|-------|
-| Local REST API | MCP gateway bridge to vault | YES | Core integration path. Must be running for any agent vault access |
-| Dataview | Structured queries across vault | RECOMMENDED | Enables dynamic note aggregation for `/today` data gathering |
-| Templater | Template execution for new notes | RECOMMENDED | Powers `/new` routing — creates notes from templates in correct LEFT/RIGHT location |
-| Calendar (Community) | Visual calendar in vault | OPTIONAL | Nice for daily note navigation but not required for `/today` |
+## Vector Store Decision
 
-### Development Tools
+### Scale reality for this project
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| Docker Desktop | MCP gateway host | Already installed per config. Runs obsidian-mcp, github-official, and Google connectors |
-| GSD Framework | Phase management, planning, execution | Already deployed at `~/.claude/get-shit-done/` |
-| Claude Code hooks | Lifecycle automation (session start, stop, pre-commit) | Already configured per `.claude/settings.json` |
+Pete is one user. `memory.md` is one file, append-only, human-curated. Realistic entry counts:
+
+| Phase | Expected entries | Embedding RAM at 1024 dims |
+|-------|-----------------|---------------------------|
+| Phase 19 launch | 50–200 | 0.2–0.8 MB |
+| 6 months | 200–1000 | 0.8–3.9 MB |
+| Maximum realistic | 2000–5000 | 7.8–19.5 MB |
+
+At 2000 entries with 1024-dim Float32Array: **7.8 MB RAM, ~2 ms exhaustive cosine search** in Node.js.
+
+### Recommendation: In-memory Float32Array with cosine similarity
+
+Zero new production dependencies. Load the JSONL index file at search time, run exhaustive cosine similarity, return top-k. Persist the index as JSONL (one JSON object per line) in `~/Claude Cowork/memory/.index/embeddings.jsonl`.
+
+```javascript
+// Pattern — no library needed
+const { cosineSimilarity } = require('./src/search/cosine');
+// cosineSimilarity(a, b) = dot(a,b) / (|a| * |b|)
+// ~10 lines of vanilla JS, trivially testable
+```
+
+### Why not sqlite-vec
+
+`sqlite-vec` 0.1.9 is stable but requires `better-sqlite3` as the SQLite host. `better-sqlite3`'s install script is `prebuild-install || node-gyp rebuild` — native compilation that breaks on CI runners without Python and node-gyp installed. The WebAssembly variant exists but adds config complexity. For < 5K vectors this is pure overhead with no performance benefit.
+
+### Why not @lancedb/lancedb
+
+111 MB install (Rust prebuilt binary + apache-arrow 18.1.0). The peer dep pins arrow to `>=15.0.0 <=18.1.0` — the current registry version is 21.1.0, so lancedb actively pulls back an older major. This creates a conflict risk if any future dep needs arrow. Rejected on install size and peer dep interference alone.
+
+### Why not hnswlib-node
+
+Last published March 2024 (over a year stale). Uses native bindings. No meaningful performance advantage over exhaustive search at < 5K entries.
+
+### Break-even trigger
+
+Revisit if entries exceed ~20K or search latency in practice exceeds 50 ms. Log this threshold in `.planning/STATE.md`. At current growth rate for a single-user vault, this is not a 2026 concern.
+
+---
+
+## Voyage AI Integration
+
+### SDK vs raw fetch
+
+Use the `voyageai` npm package — not raw `fetch`. The exports field confirms a CJS build:
+
+```
+exports['.'].require → ./dist/cjs/extended/index.js   ("use strict" confirmed by install inspection)
+```
+
+The package depends on `node-fetch ^2.7.0` internally, so it works on Node.js 18+ without the global `--experimental-fetch` flag. Install footprint: 3.5 MB.
+
+### Model selection: voyage-4-lite
+
+| Model | Dims | Free TPM | $/M tokens | Rec |
+|-------|------|----------|------------|-----|
+| voyage-4-large | 1024 | 3M | $0.12 | Future upgrade path, not for v1.4 |
+| voyage-4 | 1024 | 8M | $0.06 | Good but 3x cost of lite for identical use case |
+| **voyage-4-lite** | **1024** | **16M** | **$0.02** | **Use this** |
+| voyage-code-3 | 1024 | 3M | $0.02 | Only if memory entries are predominantly code |
+
+**Use `voyage-4-lite`.** Memory entries are short general text (100–500 tokens each). At $0.02/M tokens with a 200M token/month free tier, the entire realistic lifetime index (5000 entries × 300 tokens avg = 1.5M tokens) consumes less than 1% of the monthly free allowance.
+
+The Voyage 4 family shares an embedding space — embeddings from voyage-4-lite and voyage-4-large are interchangeable. If quality needs to improve later, re-embed documents with voyage-4-large and continue querying with voyage-4-lite without restructuring the index.
+
+**Do not use voyage-3-lite or voyage-3.** They live in a different embedding space. Upgrading to voyage-4 later requires full re-embedding of all stored vectors.
+
+### Rate limits (free tier)
+
+- RPM: 2,000 (not a constraint for batch index builds)
+- TPM: 16M/min for voyage-4-lite (not a constraint at this scale)
+- No daily limits; 429 errors trigger exponential backoff
+
+### Embedding dimensions
+
+Use 1024 (the default). Voyage 4 supports Matryoshka dimensions (256, 512, 1024, 2048) but 1024 is the best accuracy/size tradeoff. At < 5K entries the storage difference between 256 and 1024 dims is under 10 MB — not worth the accuracy loss.
+
+---
+
+## Index Persistence Format: JSONL
+
+Store the embedding index at `~/Claude Cowork/memory/.index/embeddings.jsonl`. One JSON object per line:
+
+```jsonl
+{"id":"mem-001","text":"Pete prefers direct communication without preamble","embedding":[0.023,...1024 floats...],"ts":"2026-04-24","source":"memory.md#L42"}
+```
+
+**Why JSONL over SQLite:** Zero native deps. Human-readable and git-diffable. `readline` streaming means you never load the full file in one shot — metadata-only pass for keyword search, full float array load only for semantic search. Portable across machines with no binary format lock-in.
+
+**Why JSONL over binary (Float32Array .bin + sidecar JSON):** Binary deserializes ~10x faster but the absolute difference at < 5K entries is under 5 ms — not meaningful. Binary files cannot be inspected or diffed, which matters for a memory system Pete reviews manually.
+
+**Rebuild strategy:** Index is rebuilt on-demand (not incrementally) when `memory.md` changes. At < 5K entries and 16M TPM rate limit, a full rebuild takes < 1 second of API time and < 1 second of local processing. No incremental merge complexity needed.
+
+---
+
+## Keyword Search: minisearch
+
+Use `minisearch` 7.2.0 for Phase 18 keyword search path.
+
+**Why not `fs.readFile + String.includes`:** No ranking, no fuzzy tolerance, no field weighting. Acceptable for a one-off grep, not for a `/recall` command.
+
+**Why not fuse.js:** Bitap algorithm iterates the full collection per query — O(n) with no index. Fine for < 500 items, degrades linearly. No inverted index means no prefix search or phrase matching.
+
+**Why minisearch:** Inverted index gives O(log n) lookup. CJS build confirmed (`./dist/cjs/index.cjs`). 876 KB install, zero runtime dependencies. Supports fuzzy search, prefix search, field boosting, and stop words — all useful for memory retrieval over a markdown corpus.
+
+```javascript
+const MiniSearch = require('minisearch');
+const index = new MiniSearch({
+  fields: ['text', 'source'],
+  storeFields: ['id', 'text', 'ts', 'source']
+});
+```
+
+The keyword index and the JSONL embedding index both derive from the same parsed `memory.md` — one source of truth, two search modes.
+
+---
+
+## New Dev Dependencies
+
+One addition to `devDependencies`:
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `nock` | ^14.0.13 | Mock Voyage AI HTTP calls in Jest unit tests |
+
+**Jest mocking strategy for Voyage API:**
+
+```javascript
+const nock = require('nock');
+
+nock('https://api.voyageai.com')
+  .post('/v1/embeddings')
+  .reply(200, {
+    data: [{ embedding: new Array(1024).fill(0.1), index: 0 }],
+    model: 'voyage-4-lite',
+    usage: { total_tokens: 12 }
+  });
+```
+
+`nock` intercepts at the `http` module level and works with `voyageai`'s internal `node-fetch` dependency without any Jest transform config changes. This covers the graceful-degradation path (MEM-DEGRADE-01) without a real API key in CI. `nock@14` requires Node >=18.20.0 — compatible with the project's Node 20+22 matrix.
+
+---
 
 ## Installation
 
-No bulk `npm install` needed upfront. This is an orchestration project, not a package-based app.
-
-**Phase-specific installs:**
-
 ```bash
-# If building custom Google MCP servers (fallback path only):
-npm init -y
-npm install googleapis @modelcontextprotocol/sdk
+# Production
+npm install voyageai minisearch
 
-# If parsing vault frontmatter in scripts:
-npm install gray-matter date-fns
-
-# Docker MCP servers (no npm — pulled as Docker images):
-docker mcp catalog  # Check available servers
-# Configured in claude_desktop_config.json or .docker/mcp.json
+# Dev
+npm install -D nock
 ```
 
-**Obsidian plugins (install via Obsidian Settings > Community Plugins):**
-1. Local REST API — enable and note the API key/port
-2. Dataview — enable
-3. Templater — enable, configure template folder
+---
 
-## Alternatives Considered
-
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| Docker MCP gateway for Google services | Direct stdio MCP servers | If Docker overhead is unacceptable for a lightweight vault. Unlikely given Docker already deployed. |
-| Claude Desktop scheduled tasks | macOS launchd | If scheduled tasks need to run when Claude Desktop is closed. Launchd runs at OS level. |
-| Obsidian Local REST API | Obsidian CLI / direct file writes | If REST API plugin becomes unreliable. Direct file writes lose Obsidian indexing/sync. |
-| `memory-proposals.md` staging | Direct-write to `memory.md` | Never — violates human-in-the-loop constraint from PROJECT.md |
-| Node.js for MCP servers | Python for MCP servers | If team prefers Python. MCP SDK exists for both. Node is more natural for this project given Claude Code ecosystem. |
-| Single `memory.md` | Database-backed memory (ChromaDB, Mem0) | If memory exceeds ~500 entries and search becomes slow. Markdown-first is correct for <500 entries in a personal vault. |
-
-## What NOT to Use
+## What NOT to Add
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| n8n / Temporal / Airflow | Overengineered for single-user vault automation. Adds infrastructure, monitoring, and failure modes that exceed the problem scope. | Claude Desktop scheduled tasks + Claude Code skills |
-| ChromaDB / vector stores for memory | Premature optimization. Markdown search with grep/Dataview handles personal knowledge scale. Vector stores add embedding pipelines and infrastructure. | `memory.md` + Obsidian search + Dataview queries |
-| Obsidian Git plugin for sync | Conflates vault versioning with project versioning. Vault and project have different lifecycles (per KEY DECISIONS in PROJECT.md). | Git only in `~/projects/second-brain/`. Vault syncs via Obsidian Sync or iCloud. |
-| Gmail API `gmail.send` scope | Violates zero-trust posture. Once granted, any MCP server bug could send email as user. | `gmail.compose` (draft-only) + `gmail.readonly` |
-| Custom scheduling daemons | Adds process management, logging, and failure recovery for a single daily task. | Built-in `ccdScheduledTasksEnabled` |
-| Electron/web UI for memory review | Overbuilds the interface. Obsidian IS the UI. | Review `memory-proposals.md` directly in Obsidian |
-| LangChain / LlamaIndex | Orchestration framework overhead for a system that already has Claude Code as its orchestrator. Adds abstraction layers without value. | Direct Claude Code skills and MCP tool composition |
+| `@lancedb/lancedb` | 111 MB install, Rust binaries, apache-arrow peer dep pins to <=18.1.0 (current registry is 21.1.0) | In-memory Float32Array cosine similarity |
+| `faiss-node` | Wraps Facebook FAISS, requires Python + native build, designed for millions of vectors | In-memory cosine similarity |
+| `hnswlib-node` | Last published March 2024, native bindings, no advantage at this scale | In-memory cosine similarity |
+| `sqlite-vec` + `better-sqlite3` | `better-sqlite3` requires `node-gyp rebuild` on CI; sqlite-vec docs are ESM-only | JSONL + `fs`/`readline` |
+| `openai` or any other embedding provider | Project locked to Anthropic + Voyage AI | `voyageai` SDK |
+| `langchain` / `llamaindex` | Framework abstraction over a system already orchestrated by Claude Code | Direct `voyageai` SDK calls |
+| `fuse.js` | O(n) per query, no inverted index, degrades at 1K+ entries | `minisearch` |
+| `voyage-3-lite` / `voyage-3` model | Different embedding space — requires full re-embed to upgrade to voyage-4 | `voyage-4-lite` |
+| `msw` (Mock Service Worker) | Adds fetch interception at browser/service-worker layer; overkill for Node.js HTTP mocking | `nock` |
 
-## Architecture Pattern: MCP Gateway Topology
-
-```
-Claude Desktop
-  |
-  +-- MCP_DOCKER (Docker MCP Gateway)
-  |     +-- obsidian-mcp --> Local REST API plugin --> Vault (~/Claude Cowork/)
-  |     +-- github-official --> GitHub API (OAuth)
-  |     +-- google-gmail --> Gmail API (draft-only)
-  |     +-- google-calendar --> Calendar API (read-only)
-  |
-  +-- skills-filesystem --> ~/projects/second-brain/ (project code)
-  |
-  +-- Claude Code (orchestration)
-        +-- /today command (scheduled task)
-        +-- /new command (input router)
-        +-- memory extraction (session hooks)
-        +-- GSD framework (phase management)
-```
-
-All Google connectors route through Docker MCP gateway for consistent auth management. Filesystem MCP stays as stdio for lowest-latency project file access.
-
-## Permission Enforcement Matrix
-
-| Integration | Read Scope | Write Scope | Enforcement Point |
-|-------------|------------|-------------|-------------------|
-| Obsidian vault | All files | RIGHT side only | MCP server config (path allowlist) |
-| Gmail | VIP-filtered inbox | Drafts only | OAuth scope (`gmail.compose`, not `gmail.send`) |
-| Google Calendar | All events | None | OAuth scope (`calendar.events.readonly`) |
-| GitHub | All UsernameTron repos | Issues only | OAuth scope + repo allowlist |
-| Filesystem | `/Users/cpconnor/projects/` | Same | MCP server path config |
+---
 
 ## Version Compatibility
 
-| Component | Compatible With | Notes |
-|-----------|-----------------|-------|
-| Docker MCP Gateway | Docker Desktop 4.x+ | Requires Docker Desktop running. `docker mcp` CLI subcommand. |
-| Obsidian Local REST API | Obsidian 1.4+ | API port defaults to 27123. Ensure no firewall blocks. |
-| Claude Desktop scheduled tasks | `ccdScheduledTasksEnabled: true` | Feature flag already enabled. Recurrence configuration TBD at implementation. |
-| `@modelcontextprotocol/sdk` 1.x | Node.js 18+ | LTS Node recommended for MCP server stability |
+| Package | Requires | Notes |
+|---------|---------|-------|
+| `voyageai@0.2.1` | Node.js 18+ | CJS build confirmed. node-fetch 2.x bundled internally. Works in Jest 30 without transform config. |
+| `minisearch@7.2.0` | Node.js 14+ | CJS at `./dist/cjs/index.cjs`. Zero deps. |
+| `nock@14.0.13` | Node >=18.20.0 | Compatible with project Node 20+22 CI matrix. |
+| In-memory cosine | None | Vanilla JS, Float32Array (built-in). |
+| JSONL index | None | `fs` + `readline` (built-in). |
 
-## Open Questions (flag for phase research)
-
-1. **Docker MCP catalog availability for Gmail/Calendar** — Need to run `docker mcp catalog` at implementation time to check if purpose-built Google connectors exist. If not, custom MCP server build is needed.
-2. **Claude Desktop scheduled task recurrence syntax** — `ccdScheduledTasksEnabled` is on, but the exact recurrence configuration format (cron-style? UI-based? config file?) needs verification during implementation.
-3. **Cowork native connectors timeline** — PROJECT.md prefers "Cowork native connector" for Gmail/Calendar. If Anthropic ships these before implementation, they supersede Docker MCP approach.
-4. **Obsidian MCP write-scope enforcement** — How exactly to restrict writes to RIGHT side only via MCP config (path-based allowlist in the obsidian-mcp Docker image? Or enforced in orchestration logic?).
-5. **VIP filter definition** — Which senders qualify as VIP for `/today` email filtering. Business logic, not stack decision, but needs definition before Gmail connector is useful.
+---
 
 ## Sources
 
-### Primary (HIGH confidence)
-- `/Users/cpconnor/projects/second-brain/.planning/PROJECT.md` — project requirements, constraints, key decisions, integration status
-- `/Users/cpconnor/Library/Application Support/Claude/claude_desktop_config.json` — verified MCP_DOCKER gateway, skills-filesystem, ccdScheduledTasksEnabled
-- `/Users/cpconnor/.claude/settings.json` — verified Claude Code hooks, plugin ecosystem, permission model
+### Primary — registry-verified (HIGH confidence)
 
-### Secondary (MEDIUM confidence)
-- MCP ecosystem knowledge from training data (pre-May 2025) — Docker MCP gateway pattern, `@modelcontextprotocol/sdk`, Google API scoping
-- Obsidian Local REST API plugin knowledge from training data — API surface, port defaults
+- `npm view voyageai` + install inspection — v0.2.1, CJS at `./dist/cjs/extended/index.js` (`"use strict"` confirmed), 3.5 MB
+- `npm view minisearch` + install inspection — v7.2.0, CJS at `./dist/cjs/index.cjs` confirmed, 876 KB, zero deps
+- `npm view nock` — v14.0.13, Node >=18.20.0
+- `npm install @lancedb/lancedb` (temp) — 111 MB, apache-arrow 18.1.0 pulled, `type` field absent (CJS default), prebuilt binary at `lancedb.darwin-arm64.node`
+- `npm view better-sqlite3` — install script: `prebuild-install || node-gyp rebuild` (native build confirmed)
+- `npm view sqlite-vec` — v0.1.9 stable, ESM-only import examples in official docs
+- `npm view hnswlib-node` — v3.0.0, last published March 2024
 
-### Tertiary (LOW confidence)
-- Gmail/Calendar MCP server availability in Docker catalog — needs runtime verification
-- Claude Desktop scheduled task configuration syntax — needs documentation check
-- Cowork native connector availability — depends on Anthropic's product roadmap
-- Specific npm package versions — stated versions are training-data estimates, verify with `npm view [package] version` before installing
+### Primary — live Voyage AI docs (HIGH confidence)
+
+- [docs.voyageai.com/docs/pricing](https://docs.voyageai.com/docs/pricing) — 200M tokens/month free for voyage-4-lite; $0.02/M tokens confirmed
+- [docs.voyageai.com/docs/rate-limits](https://docs.voyageai.com/docs/rate-limits) — 16M TPM, 2K RPM free tier confirmed
+- [docs.voyageai.com/docs/embeddings](https://docs.voyageai.com/docs/embeddings) — voyage-4-lite: 1024 dims (default), 32K context, recommended for latency/cost
+- [blog.voyageai.com/2026/01/15/voyage-4](https://blog.voyageai.com/2026/01/15/voyage-4/) — shared embedding space across voyage-4 family; voyage-4-lite outperforms voyage-3.5 by ~4.80% on retrieval benchmarks
+
+### Secondary — arithmetic (HIGH confidence, no external source needed)
+
+- In-memory feasibility: 1024 dims × 4 bytes × 5000 entries = 19.5 MB RAM; exhaustive search ~5 ms at 10M float ops/sec — well within interactive latency budget
 
 ---
-*Stack research for: AI-orchestrated Obsidian second brain*
-*Researched: 2026-04-21*
+
+*Stack research for: v1.4 Memory Activation — keyword + semantic search additions only*
+*Researched: 2026-04-24*
+*Valid until: 2026-07-24 (voyage-4 model lineup and voyageai SDK are stable; re-verify if lancedb or sqlite-vec ship major versions)*
