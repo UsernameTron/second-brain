@@ -21,9 +21,10 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 ## Project Status
 
 **Latest Release:** v1.3.0 Review Remediation (2026-04-24)
+**Phase 19 complete:** Semantic Memory Search (2026-04-24)
 
-- **Test count:** 799 total across 39 test files (775 passing, 24 UAT tests skipped in CI via `CI=true` skip guard)
-- **Coverage:** Branch 81.31%, Statements 94.44%, Functions 96.85%, Lines 95.50%
+- **Test count:** 982 total across 52 test files (944 passing, 38 skipped — 24 UAT CI-guarded + 13 API-key guards + 1 uat-classification)
+- **Coverage:** Branch 81.28%, Statements 94.62%, Functions 96.94%, Lines 95.53%
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 20+22 matrix, coverage ≥80%, GitGuardian secrets scan
 - **Milestones shipped:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24)
 
@@ -39,6 +40,8 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 | `/promote-memories` | Human-in-the-loop memory promotion from staging to `memory.md` |
 | `/reroute` | Re-route previously classified item to different vault location |
 | `/promote-unrouted` | Bulk-promote unrouted items from staging |
+| `/recall --semantic <query>` | Semantic search via Voyage AI embeddings with cosine similarity + recency decay |
+| `/recall --hybrid <query>` | RRF fusion of keyword + semantic results; falls back to keyword if Voyage unavailable |
 
 ## Tech Stack
 
@@ -50,7 +53,7 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 - **Testing:** Jest 30 (unit + integration), UAT tests guarded from CI via skip logic
 - **Quality gates:** ESLint 10, CodeQL SAST, AJV schema validation, coverage ≥80%
 
-**Key dependencies:** @anthropic-ai/sdk 0.90+, chokidar 3.6 (CJS compat), gray-matter 4.0, dotenv 17.4, AJV 8.18
+**Key dependencies:** @anthropic-ai/sdk 0.90+, chokidar 3.6 (CJS compat), gray-matter 4.0, dotenv 17.4, AJV 8.18, voyageai 0.2.1 (Phase 19 semantic embeddings, exact pin, MIT)
 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
@@ -87,6 +90,8 @@ The system is deployed across five integration points:
 - `today-command.js` — orchestrator that chains slippage-scanner, frog-identifier, llm-augmentation, briefing-renderer
 - `classifier.js` — two-stage LLM classifier for `/new` command domain routing
 - `memory-pipeline.js` — session extraction, proposal staging, human-in-the-loop promotion
+- `semantic-index.js` — Phase 19 core: Voyage AI embeddings, cosine search, RRF hybrid fusion, embed-on-promotion
+- `utils/voyage-health.js` — Phase 19 Pattern 7 adaptive denial tracker; persists degraded-mode state to `~/.cache/second-brain/voyage-health.json`
 - Config loaders (`loadConfigWithOverlay`, schema validation via AJV)
 - Hook infrastructure (auto-test, protected-file-guard, security-scan-gate, memory-extraction)
 
