@@ -6,6 +6,7 @@
   "scripts": {
     "test": "jest --verbose",
     "lint": "eslint src/ test/",
+    "test:integration:voyage": "node -e \"if(!process.env.VOYAGE_API_KEY){console.log('SKIP: VOYAGE_API_KEY not set');process.exit(0)}\" && jest --forceExit test/uat/semantic-search.uat.test.js",
     "test:uat": "CI= npx jest --forceExit test/uat/",
     "test:uat:ci": "jest --forceExit test/uat/",
     "license-check": "license-checker --production --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;CC0-1.0'"
@@ -18,7 +19,8 @@
     "chokidar": "^3.6.0",
     "dotenv": "^17.4.2",
     "gray-matter": "^4.0.3",
-    "minisearch": "^7.2.0"
+    "minisearch": "^7.2.0",
+    "voyageai": "0.2.1"
   },
   "jest": {
     "testPathIgnorePatterns": [
