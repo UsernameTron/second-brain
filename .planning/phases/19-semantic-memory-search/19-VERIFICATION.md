@@ -1,9 +1,12 @@
 ---
 phase: 19-semantic-memory-search
 verified: 2026-04-24T19:52:00Z
-status: human_needed
+human_verified: 2026-04-24T22:50:00Z
+status: passed
 score: 5/5 must-haves verified
 re_verification: false
+post_uat_fixes:
+  - "config/pipeline.json memory.semantic.threshold 0.72 → 0.55 (calibrated against voyage-4-lite)"
 human_verification:
   - test: "Run /recall --semantic 'leadership' against a seeded vault with VOYAGE_API_KEY set"
     expected: "Returns ≥3 results with score ≥0.72, no stderr warnings, embeddings.jsonl grows by one per new entry"
@@ -23,9 +26,10 @@ human_verification:
 
 **Phase Goal:** Add semantic memory search to the second-brain vault — Voyage AI embeddings on memory promotion, hybrid keyword+semantic search via `/recall --semantic` and `/recall --hybrid`, with graceful degradation when the embeddings provider is unhealthy.
 
-**Verified:** 2026-04-24T19:52:00Z
-**Status:** human_needed (all automated checks pass; 4 items flagged for live-Voyage verification)
+**Verified:** 2026-04-24T19:52:00Z (automated) / 2026-04-24T22:50:00Z (human UAT)
+**Status:** passed (all 5 must-haves verified, all 4 human-UAT items passed, 1 calibration fix applied)
 **Re-verification:** No (initial pass)
+**Post-UAT fixes:** `config/pipeline.json memory.semantic.threshold` 0.72 → 0.55 (empirical calibration for voyage-4-lite — see 19-HUMAN-UAT.md Test 1 notes)
 
 ## Goal Achievement
 

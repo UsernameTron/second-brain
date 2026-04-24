@@ -59,7 +59,7 @@
     "echoThreshold": 0.65,
     "semantic": {
       "model": "voyage-4-lite",
-      "threshold": 0.72,
+      "threshold": 0.55,
       "recencyDecay": 0.2,
       "rrfK": 60,
       "candidatesPerSource": 20,
