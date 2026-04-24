@@ -1,8 +1,10 @@
 name: CI
 
-# Disabled: change 'on' back to push/pull_request triggers when ready to activate
 on:
-  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 jobs:
   test:
