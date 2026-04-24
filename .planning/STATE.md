@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Memory Activation & Final Closeout
 status: executing
-stopped_at: "Phase 19 planned: 5 PLAN.md files (waves 1-5), verifier PASS with 2 FLAGs fixed, all 4 REQ-IDs covered"
-last_updated: "2026-04-24T19:00:41.303Z"
-last_activity: 2026-04-24 -- Phase 19 execution started
+stopped_at: Phase 19 Plan 01 complete — voyageai dep, schema extension, pipeline.json defaults committed
+last_updated: "2026-04-24T19:07:40.229Z"
+last_activity: 2026-04-24
 progress:
   total_phases: 9
   completed_phases: 5
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 ## Current Position
 
 Phase: 19 (semantic-memory-search) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 19
-Last activity: 2026-04-24 -- Phase 19 execution started
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-04-24
 
 **Shipped milestones:** v1.0 (MVP, 2026-04-22), v1.1 (Go Live, 2026-04-23), v1.2 (Automation & Quality, 2026-04-23), v1.3 (Review Remediation, 2026-04-24).
 
@@ -71,6 +71,8 @@ Full log in PROJECT.md Key Decisions table. Summary:
 - [Phase 17-uat-ci-infrastructure]: nock@14.0.13 pre-installed in Phase 17 infrastructure so Phase 19 semantic search planning stays architecture-focused
 - [Phase 17-uat-ci-infrastructure]: enforce_admins: false — repo owner retains emergency push bypass with explicit GitHub admin-bypass warning; non-admin contributors and force-push blocked; deliberate tradeoff for solo-developer repo
 - [Phase 17-uat-ci-infrastructure]: UAT Accuracy Tests intentionally NOT a required branch protection check — workflow runs on schedule/dispatch only, never on PRs; requiring it would permanently block all PR merges
+- [Phase 19]: voyageai@0.2.1 pinned exact (no caret) per D-PRE-01 locked decision; MIT license passes allowlist
+- [Phase 19]: memory.semantic is optional sub-object in schema — pipeline.json without semantic block still validates; semantic is additive
 
 ### Open Blockers
 
@@ -82,6 +84,6 @@ None active.
 
 ## Session Continuity
 
-Last session: 2026-04-24T18:56:25.116Z
-Stopped at: Phase 19 planned: 5 PLAN.md files (waves 1-5), verifier PASS with 2 FLAGs fixed, all 4 REQ-IDs covered
+Last session: 2026-04-24T19:07:36.827Z
+Stopped at: Phase 19 Plan 01 complete — voyageai dep, schema extension, pipeline.json defaults committed
 Ship log: PRs #1–#31 merged. Tags: v1.0, v1.1, v1.2.0, v1.3.0.
