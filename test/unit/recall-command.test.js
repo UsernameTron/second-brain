@@ -53,7 +53,11 @@ describe('parseRecallArgs()', () => {
   test('P1: single positional sets query, defaults flags', () => {
     const { query, flags } = parseRecallArgs(['leadership']);
     expect(query).toBe('leadership');
-    expect(flags).toEqual({ category: null, since: null, top: 5 });
+    // Phase 19: flags object includes new semantic/hybrid boolean fields; use objectContaining
+    // to verify existing defaults without breaking on additive new fields (MEM-SEMANTIC-01)
+    expect(flags).toEqual(expect.objectContaining({ category: null, since: null, top: 5 }));
+    expect(flags.semantic).toBe(false);
+    expect(flags.hybrid).toBe(false);
   });
 
   test('P2: --top N sets flags.top', () => {
@@ -85,7 +89,11 @@ describe('parseRecallArgs()', () => {
   test('P7: empty argv returns empty query and defaults', () => {
     const { query, flags } = parseRecallArgs([]);
     expect(query).toBe('');
-    expect(flags).toEqual({ category: null, since: null, top: 5 });
+    // Phase 19: flags object includes new semantic/hybrid boolean fields; use objectContaining
+    // to verify existing defaults without breaking on additive new fields (MEM-SEMANTIC-01)
+    expect(flags).toEqual(expect.objectContaining({ category: null, since: null, top: 5 }));
+    expect(flags.semantic).toBe(false);
+    expect(flags.hybrid).toBe(false);
   });
 
   test('P8: non-numeric --top falls back to default 5', () => {
