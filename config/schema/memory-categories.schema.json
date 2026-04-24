@@ -1,25 +1,30 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Memory Category Schema",
-  "description": "Validates a single memory category entry in config/templates.json. Each category requires description, example, and exclusions per D-23.",
+  "$id": "memory-categories",
+  "title": "Memory Categories Configuration",
+  "description": "Validates config/memory-categories.json — category taxonomy for memory extraction per D-23",
   "type": "object",
-  "required": ["description", "example", "exclusions"],
-  "properties": {
-    "description": {
-      "type": "string",
-      "minLength": 1,
-      "description": "One-line inclusion shape — what belongs in this category"
+  "minProperties": 1,
+  "additionalProperties": {
+    "type": "object",
+    "required": ["description", "example", "exclusions"],
+    "properties": {
+      "description": {
+        "type": "string",
+        "minLength": 1,
+        "description": "One-line inclusion shape — what belongs in this category"
+      },
+      "example": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Concrete example of a memory entry in this category"
+      },
+      "exclusions": {
+        "type": "string",
+        "minLength": 1,
+        "description": "What does NOT belong in this category"
+      }
     },
-    "example": {
-      "type": "string",
-      "minLength": 1,
-      "description": "Concrete example of a memory entry in this category"
-    },
-    "exclusions": {
-      "type": "string",
-      "minLength": 1,
-      "description": "What does NOT belong in this category"
-    }
-  },
-  "additionalProperties": false
+    "additionalProperties": false
+  }
 }

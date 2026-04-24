@@ -57,12 +57,11 @@ describe('config-validator', () => {
       expect(r.errors).toHaveLength(0);
     });
 
-    test('Test 4: memory-categories.json missing — returns WARNING (not error)', () => {
+    test('Test 4: memory-categories.json validates as PASS', () => {
       const r = results.find(r => path.basename(r.file) === 'memory-categories.json');
       expect(r).toBeDefined();
-      expect(r.status).toBe('WARNING');
-      expect(r.errors.length).toBeGreaterThan(0);
-      expect(r.errors[0].message).toMatch(/not found/i);
+      expect(r.status).toBe('PASS');
+      expect(r.errors).toHaveLength(0);
     });
 
     test('Test 5: excluded-terms.json validates as PASS', () => {

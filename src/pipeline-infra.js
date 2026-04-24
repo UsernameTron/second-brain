@@ -460,6 +460,25 @@ function loadTemplatesConfig() {
   return config;
 }
 
+/**
+ * Load memory-categories.json (extracted from templates.json per T13.4).
+ * Reads from CONFIG_DIR. Falls back to templates.json['memory-categories'] for
+ * backward compatibility during transition.
+ *
+ * @returns {object} Parsed memory categories map
+ * @throws {Error} On file read or JSON parse failure
+ */
+function loadMemoryCategoriesConfig() {
+  const filePath = path.join(CONFIG_DIR, 'memory-categories.json');
+  if (fs.existsSync(filePath)) {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw);
+  }
+  // Backward-compat fallback: read from templates.json
+  const templatesConfig = loadTemplatesConfig();
+  return templatesConfig['memory-categories'];
+}
+
 // ── Safe config wrapper ─────────────────────────────────────────────────────
 
 /**
@@ -488,6 +507,7 @@ module.exports = {
   writeDeadLetter,
   loadPipelineConfig,
   loadTemplatesConfig,
+  loadMemoryCategoriesConfig,
   loadConfigWithOverlay,
   safeLoadVaultPaths,
   safeLoadPipelineConfig,
