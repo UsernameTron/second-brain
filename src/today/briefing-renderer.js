@@ -162,6 +162,28 @@ function _renderFrogSection(frog) {
   return `**${frog.frog}**\n\n${frog.reasoning}`;
 }
 
+/**
+ * Render Memory Echo section body. Returns `null` when there are no entries —
+ * callers MUST spread the heading+body only when this returns a string, so the
+ * Memory Echo heading is entirely absent when no memory crosses the threshold
+ * (Phase 18 TODAY-ECHO-01).
+ *
+ * @param {{ entries: Array, score?: number, skipped?: boolean }} memoryEcho
+ * @returns {string|null}
+ */
+function _renderMemoryEchoSection(memoryEcho) {
+  if (!memoryEcho || !Array.isArray(memoryEcho.entries) || memoryEcho.entries.length === 0) {
+    return null;
+  }
+  return memoryEcho.entries.map((entry, idx) => {
+    const rank = idx + 1;
+    const cat = entry.category || 'UNKNOWN';
+    const snippet = entry.snippet || '';
+    const ref = entry.sourceRef || 'unknown';
+    return `${rank}. [${cat}] ${snippet} (${ref})`;
+  }).join('\n');
+}
+
 function _renderGitHubSection(githubResult) {
   if (!githubResult.success) {
     return renderDegradedSection('github', githubResult.error);
@@ -244,7 +266,7 @@ function _renderFrontmatter(date, sources, degradedCount, mode) {
  * @returns {string} Full markdown string
  */
 function renderBriefing(data) {
-  const { date, sourceHealth, connectorResults, pipelineState, slippage, frog, mode, synthesis } = data;
+  const { date, sourceHealth, connectorResults, pipelineState, slippage, frog, memoryEcho, mode, synthesis } = data;
   const { sources, degradedCount } = sourceHealth;
 
   const frontmatter = _renderFrontmatter(date, sources, degradedCount, mode);
@@ -254,6 +276,7 @@ function renderBriefing(data) {
   const emailsSection = _renderEmailsSection(connectorResults.gmail);
   const slippageSection = _renderSlippageSection(slippage);
   const frogSection = _renderFrogSection(frog);
+  const memoryEchoBody = _renderMemoryEchoSection(memoryEcho);
   const githubSection = _renderGitHubSection(connectorResults.github);
   const pipelineSection = _renderPipelineSection(pipelineState);
 
@@ -282,6 +305,9 @@ function renderBriefing(data) {
     '',
     frogSection,
     '',
+    // Memory Echo (Phase 18, TODAY-ECHO-01) — heading and body absent when no
+    // memory entries crossed the threshold.
+    ...(memoryEchoBody !== null ? ['## Memory Echo', '', memoryEchoBody, ''] : []),
     '## GitHub',
     '',
     githubSection,
