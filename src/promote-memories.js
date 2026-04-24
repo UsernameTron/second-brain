@@ -186,6 +186,15 @@ async function appendToMemoryFile(promotedCandidates) {
   }
 
   fs.writeFileSync(memoryFile, newContent, 'utf8');
+
+  // Phase 19 (MEM-EMBED-01): non-fatal embed-on-promotion; failure tracked in voyage-health.json
+  try {
+    const { indexNewEntries } = require('./semantic-index');
+    await indexNewEntries(promotedCandidates);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(`[promote-memories] Semantic indexing failed (non-fatal): ${err && err.message ? err.message : err}`);
+  }
 }
 
 function updateProposalsFile(body, replacements) {
