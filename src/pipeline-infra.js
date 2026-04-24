@@ -373,14 +373,22 @@ function loadSchedulingConfig() {
  * Mutates target in place.
  */
 function deepMerge(target, source) {
+  const blockedKeys = new Set(['__proto__', 'constructor', 'prototype']);
   for (const key of Object.keys(source)) {
+    if (blockedKeys.has(key)) {
+      continue;
+    }
+
+    const sourceValue = source[key];
+    const targetValue = target[key];
     if (
-      source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])
-      && target[key] && typeof target[key] === 'object' && !Array.isArray(target[key])
+      sourceValue && typeof sourceValue === 'object' && !Array.isArray(sourceValue)
+      && Object.prototype.hasOwnProperty.call(target, key)
+      && targetValue && typeof targetValue === 'object' && !Array.isArray(targetValue)
     ) {
-      deepMerge(target[key], source[key]);
+      deepMerge(targetValue, sourceValue);
     } else {
-      target[key] = source[key];
+      target[key] = sourceValue;
     }
   }
   return target;
