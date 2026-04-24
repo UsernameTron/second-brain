@@ -3,7 +3,21 @@
 ## Current
 
 - [ ] Configure branch protection on master (repo is public, all CI gates green)
-- [ ] Decide next milestone scope (v1.4) — start with `/gsd:new-milestone` when ready
+- [ ] Decide next move: `/gsd:discuss-phase 20` (Instrumentation, in v1.4) OR `/gsd:new-milestone` to scope v1.5
+
+## Session Handoff (2026-04-24)
+
+**Last session shipped:** Phase 19 Semantic Memory Search to master (`2284fee` + STATE update `85429f3`). CI + CodeQL green on both pushes.
+
+**Key delivery this session:**
+- All 4 live-Voyage UAT items closed (Tests 1–4 pass)
+- Calibration fix: `memory.semantic.threshold` 0.72 → 0.55 in `config/pipeline.json` (empirical, against `voyage-4-lite`)
+- VERIFICATION.md status: `human_needed` → `passed`
+- Memory file `project_second_brain.md` refreshed via dream-memory-consolidation (was 2 days stale)
+
+**No blockers carried forward.** Phase 19 is complete and shipped.
+
+**v1.4 remaining (per ROADMAP):** Phase 20 Instrumentation, Phase 21 Closeout Hygiene.
 
 ## Forward (v1.4 candidates)
 
