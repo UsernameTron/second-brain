@@ -47,5 +47,9 @@
     "staleDays": 7,
     "excludeProjects": [],
     "maxProjects": 20
+  },
+  "thresholds": {
+    "haikuTimeoutMs": 2000,
+    "wikilinkTokenBudget": 1024
   }
 }

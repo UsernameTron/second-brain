@@ -20,6 +20,7 @@
 
 const Anthropic = require('@anthropic-ai/sdk');
 const { escapeRegex } = require('./utils');
+const { safeLoadPipelineConfig } = require('./pipeline-infra');
 
 const client = new Anthropic();
 
@@ -113,10 +114,13 @@ Respond with only the word BLOCK or ALLOW.`;
 
   const userMessage = `Classify these excerpts around the term '${sanitizedMatchedTerm}':\n\n${contextWindows.join('\n\n')}`;
 
+  const { config: pipelineConfig } = safeLoadPipelineConfig();
+  const haikuTimeout = (pipelineConfig && pipelineConfig.thresholds && pipelineConfig.thresholds.haikuTimeoutMs) || 2000;
+
   const response = await client.messages.create({
     model: 'claude-haiku-4-5',
     max_tokens: 10,
-    timeout: 2000,
+    timeout: haikuTimeout,
     system: systemPrompt,
     messages: [{ role: 'user', content: userMessage }],
   });
