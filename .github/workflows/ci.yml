@@ -12,6 +12,10 @@ jobs:
     strategy:
       matrix:
         node-version: [20, 22]
+
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,15 +23,12 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
       - run: npm ci
-
       - name: Lint
         run: npm run lint
-
       - name: Run tests with coverage
         # Phase 16 (B-16): ratcheted branches 70 -> 80. Further lift to 90 is a
         # future milestone gate; current gaps are in low-churn utility paths.
         run: npx jest --verbose --coverage --coverageThreshold='{"global":{"branches":80,"functions":90,"lines":90,"statements":90}}'
-
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
@@ -35,9 +36,7 @@ jobs:
           name: coverage-report-node-${{ matrix.node-version }}
           path: coverage/
           retention-days: 14
-
       - name: License compliance
         run: npm run license-check
-
       - name: Dependency audit
         run: npm audit --audit-level=high
