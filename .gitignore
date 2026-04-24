@@ -8,6 +8,7 @@ context/
 !.claude/hooks/
 !.claude/agents/
 !.claude/skills/
+!.claude/commands/
 !.claude/settings.json
 .claude/hooks/*.log
 node_modules/
