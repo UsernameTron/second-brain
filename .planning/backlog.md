@@ -39,6 +39,7 @@ Migrated from v1.2 MILESTONE-AUDIT.md (2026-04-23). Source: 7 verification warni
 | B-18 | No JSDoc on public API surface | R10, Claude-unique |
 | B-19 | ESLint config missing Node 18+ globals (fetch, AbortController) — blocked by config-protection hook, worked around with inline eslint-disable | Phase 14 T14.1 |
 | B-20 | 41 no-console warnings across src/ — decide: suppress with eslint-disable, add logger abstraction, or accept as-is | Phase 14 T14.1 |
+| B-21 | UAT tests (24 across 2 files) never run automatically — the `CI=true` skip guard added in Phase 14 T14.5 prevents CI execution but no replacement workflow runs them on any cadence. Effective UAT coverage in automation = 0%. Options: (a) add a scheduled `workflow_dispatch` UAT workflow with ANTHROPIC_API_KEY secret, runs nightly or weekly, (b) refactor UAT to use deterministic recorded-LLM-response fixtures (VCR-style) so they can run in CI without live API, (c) accept as manual-only and document in README that UAT is a pre-release gate run locally. Recommend (a) — scheduled live-API runs catch drift in model behavior that fixtures would hide. | Phase 16 discovery, v1.3 finalize |
 
 ### Accepted (non-blocking, carry forward for awareness)
 

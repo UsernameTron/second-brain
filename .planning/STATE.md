@@ -33,6 +33,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 | ID | Item | Priority |
 |----|------|----------|
+| B-21 | UAT CI strategy — 24 UAT tests skipped in CI with no replacement automation. Recommend scheduled workflow_dispatch with ANTHROPIC_API_KEY secret. | MEDIUM |
 | B-15 | No Unicode-specific tests for exclusion terms / filename generation | LOW |
 | B-18 | No JSDoc on public API surface | LOW |
 | B-20 | 41 no-console warnings across src/ — decide: suppress / logger abstraction / accept | LOW |

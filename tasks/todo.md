@@ -5,8 +5,12 @@
 - [ ] Configure branch protection on master (repo is public, all CI gates green)
 - [ ] Decide next milestone scope (v1.4) — start with `/gsd:new-milestone` when ready
 
-## Forward (v1.4 candidates — LOW priority)
+## Forward (v1.4 candidates)
 
+### MEDIUM priority
+- [ ] B-21: UAT CI strategy — 24 UAT tests (uat-classification, uat-wikilinks) never run automatically. Phase 14 `CI=true` skip guard stops CI runs; no replacement workflow exists. Effective automated UAT coverage = 0%. Recommend scheduled `workflow_dispatch` GitHub Actions workflow with `ANTHROPIC_API_KEY` secret, runs weekly to catch model behavior drift.
+
+### LOW priority
 - [ ] B-15: Unicode-specific tests for exclusion terms / filename generation
 - [ ] B-18: JSDoc on public API surface
 - [ ] B-20: Decide strategy for 41 no-console warnings (suppress, logger abstraction, or accept)
