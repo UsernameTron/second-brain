@@ -325,4 +325,89 @@ describe('config-validator', () => {
       expect(result.status).toBe('PASS');
     });
   });
+
+  // ------------------------------------------------------------------ //
+  // memory.semantic schema integration (Phase 19 additions)             //
+  // ------------------------------------------------------------------ //
+
+  describe('memory.semantic schema integration', () => {
+    const pipelineSchemaPath = path.join(SCHEMA_DIR, 'pipeline.schema.json');
+
+    // Minimal valid pipeline.json with a complete memory.semantic block
+    const validPipelineBase = {
+      classifier: { stage1ConfidenceThreshold: 0.8, stage2ConfidenceThreshold: 0.7, sonnetEscalationThreshold: 0.8, sonnetAcceptThreshold: 0.7, shortInputChars: 50 },
+      extraction: { confidenceAccept: 0.75, confidenceLowConfidence: 0.5, chunkSize: 100, chunkOverlap: 10, oversizeThresholdBytes: 5242880, oversizeThresholdMessages: 2000 },
+      wikilink: { relevanceThreshold: 0.6, maxSuggestions: 5, minSuggestions: 3, candidatePoolSize: 20 },
+      promotion: { batchCapMax: 10, batchCapMin: 5, archiveEntriesThreshold: 500, archiveSizeThresholdKB: 200, proposalArchiveThreshold: 100 },
+      retry: { delayMinutes: 15, maxAttempts: 3 },
+      leftProposal: { autoArchiveDays: 14 },
+      filename: { maxLength: 60, haikuWordRange: [4, 8] },
+      slippage: { staleDays: 7, excludeProjects: [], maxProjects: 20 },
+    };
+
+    function writeTmpPipeline(filename, overrideMemory) {
+      const content = overrideMemory !== undefined
+        ? { ...validPipelineBase, memory: overrideMemory }
+        : { ...validPipelineBase };
+      const filePath = path.join(tmpDir, filename);
+      fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+      return filePath;
+    }
+
+    test('pipeline.json with a complete valid memory.semantic block → { valid: true }', async () => {
+      const configPath = writeTmpPipeline('sem-valid.json', {
+        echoThreshold: 0.65,
+        semantic: {
+          model: 'voyage-4-lite',
+          threshold: 0.72,
+          recencyDecay: 0.2,
+          rrfK: 60,
+        },
+      });
+      const result = await validateFile(configPath, pipelineSchemaPath);
+      expect(result.status).toBe('PASS');
+      expect(result.errors).toHaveLength(0);
+    });
+
+    test('memory.semantic.threshold = 1.5 → FAIL (maximum is 1)', async () => {
+      const configPath = writeTmpPipeline('sem-threshold-over.json', {
+        semantic: {
+          model: 'voyage-4-lite',
+          threshold: 1.5,
+          recencyDecay: 0.2,
+          rrfK: 60,
+        },
+      });
+      const result = await validateFile(configPath, pipelineSchemaPath);
+      expect(result.status).toBe('FAIL');
+      const thresholdError = result.errors.find(e =>
+        (e.path && e.path.includes('threshold')) || (e.message && e.message.includes('maximum'))
+      );
+      expect(thresholdError).toBeDefined();
+    });
+
+    test('memory.semantic.model = "gpt-4" → FAIL (enum allows only voyage-4-lite)', async () => {
+      const configPath = writeTmpPipeline('sem-bad-model.json', {
+        semantic: {
+          model: 'gpt-4',
+          threshold: 0.72,
+          recencyDecay: 0.2,
+          rrfK: 60,
+        },
+      });
+      const result = await validateFile(configPath, pipelineSchemaPath);
+      expect(result.status).toBe('FAIL');
+      const modelError = result.errors.find(e =>
+        (e.path && e.path.includes('model')) || (e.message && e.message.toLowerCase().includes('enum'))
+      );
+      expect(modelError).toBeDefined();
+    });
+
+    test('live config/pipeline.json (with full memory.semantic block) → { valid: true }', async () => {
+      const livePipelinePath = path.join(CONFIG_DIR, 'pipeline.json');
+      const result = await validateFile(livePipelinePath, pipelineSchemaPath);
+      expect(result.status).toBe('PASS');
+      expect(result.errors).toHaveLength(0);
+    });
+  });
 });
