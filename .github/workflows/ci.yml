@@ -35,5 +35,8 @@ jobs:
           path: coverage/
           retention-days: 14
 
+      - name: License compliance
+        run: npm run license-check
+
       - name: Dependency audit
         run: npm audit --audit-level=high

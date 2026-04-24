@@ -6,7 +6,8 @@
   "scripts": {
     "test": "jest --verbose",
     "lint": "eslint src/ test/",
-    "test:uat": "CI= npx jest --forceExit test/uat/"
+    "test:uat": "CI= npx jest --forceExit test/uat/",
+    "license-check": "license-checker --production --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;CC0-1.0'"
   },
   "keywords": [],
   "author": "C Pete Conner",
@@ -18,7 +19,10 @@
     "gray-matter": "^4.0.3"
   },
   "jest": {
-    "testPathIgnorePatterns": ["/node_modules/", ".claude/worktrees"]
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      ".claude/worktrees"
+    ]
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -26,6 +30,7 @@
     "eslint": "^10.2.1",
     "eslint-plugin-jest": "^29.15.2",
     "eslint-plugin-n": "^17.24.0",
-    "jest": "^30.3.0"
+    "jest": "^30.3.0",
+    "license-checker": "^25.0.1"
   }
 }
