@@ -7,8 +7,8 @@
  * rejects invalid values — ensuring loadConfigWithOverlay('pipeline', {validate:true})
  * won't silently pass bad data through to semantic-index.js consumers.
  *
- * Test 9 (live config validates) runs last because it depends on Task 3 having
- * populated config/pipeline.json with the memory.semantic defaults.
+ * The live-config test runs last because it depends on pipeline.json containing
+ * the memory.semantic defaults populated in Task 3.
  */
 
 const Ajv = require('ajv');
@@ -55,14 +55,14 @@ const validSemantic = {
 };
 
 describe('pipeline.schema.json — memory.semantic', () => {
-  test('Test 1: complete valid memory.semantic block (all 9 defaults) passes validation', () => {
+  test('complete block with all 9 defaults passes validation', () => {
     const config = configWithSemantic(validSemantic);
     const valid = validate(config);
     expect(valid).toBe(true);
     expect(validate.errors).toBeNull();
   });
 
-  test('Test 2: memory.semantic.threshold = 1.5 fails validation (exceeds maximum 1)', () => {
+  test('threshold 1.5 fails validation (exceeds maximum 1)', () => {
     const config = configWithSemantic({ ...validSemantic, threshold: 1.5 });
     const valid = validate(config);
     expect(valid).toBe(false);
@@ -70,7 +70,7 @@ describe('pipeline.schema.json — memory.semantic', () => {
     expect(validate.errors.length).toBeGreaterThan(0);
   });
 
-  test('Test 3: memory.semantic.model = "gpt-4" fails validation (not in enum)', () => {
+  test('model "gpt-4" fails validation (not in enum)', () => {
     const config = configWithSemantic({ ...validSemantic, model: 'gpt-4' });
     const valid = validate(config);
     expect(valid).toBe(false);
@@ -78,7 +78,7 @@ describe('pipeline.schema.json — memory.semantic', () => {
     expect(validate.errors.length).toBeGreaterThan(0);
   });
 
-  test('Test 4: memory.semantic.embedBatchSize = 200 fails validation (exceeds maximum 128)', () => {
+  test('embedBatchSize 200 fails validation (exceeds maximum 128)', () => {
     const config = configWithSemantic({ ...validSemantic, embedBatchSize: 200 });
     const valid = validate(config);
     expect(valid).toBe(false);
@@ -86,7 +86,7 @@ describe('pipeline.schema.json — memory.semantic', () => {
     expect(validate.errors.length).toBeGreaterThan(0);
   });
 
-  test('Test 5: memory.semantic.unknownKey = 5 fails validation (additionalProperties: false)', () => {
+  test('unknown key fails validation (additionalProperties: false)', () => {
     const config = configWithSemantic({ ...validSemantic, unknownKey: 5 });
     const valid = validate(config);
     expect(valid).toBe(false);
@@ -94,14 +94,14 @@ describe('pipeline.schema.json — memory.semantic', () => {
     expect(validate.errors.length).toBeGreaterThan(0);
   });
 
-  test('Test 6: memory.semantic omitted (only echoThreshold present) still validates (semantic is optional)', () => {
+  test('omitted (only echoThreshold present) still validates (optional sub-object)', () => {
     const config = configWithSemantic(undefined);
     const valid = validate(config);
     expect(valid).toBe(true);
     expect(validate.errors).toBeNull();
   });
 
-  test('Test 7: memory.semantic missing required key threshold fails validation', () => {
+  test('missing required key threshold fails validation', () => {
     const { threshold, ...withoutThreshold } = validSemantic; // eslint-disable-line no-unused-vars
     const config = configWithSemantic(withoutThreshold);
     const valid = validate(config);
@@ -110,7 +110,7 @@ describe('pipeline.schema.json — memory.semantic', () => {
     expect(validate.errors.length).toBeGreaterThan(0);
   });
 
-  test('Test 8: memory.semantic.embeddingDim = 512 fails validation (enum: [1024] only)', () => {
+  test('embeddingDim 512 fails validation (enum: [1024] only)', () => {
     const config = configWithSemantic({ ...validSemantic, embeddingDim: 512 });
     const valid = validate(config);
     expect(valid).toBe(false);
@@ -118,10 +118,9 @@ describe('pipeline.schema.json — memory.semantic', () => {
     expect(validate.errors.length).toBeGreaterThan(0);
   });
 
-  // Test 9 runs LAST — depends on Task 3 populating config/pipeline.json with memory.semantic
-  test('Test 9: live config/pipeline.json (after Task 3) validates successfully', () => {
-    // Re-require to pick up any changes made since module load
-    // Use a fresh require by clearing cache
+  // Runs LAST — depends on pipeline.json containing memory.semantic defaults (Task 3)
+  test('live config/pipeline.json validates successfully against schema', () => {
+    // Clear require cache to pick up any changes since module load
     delete require.cache[require.resolve('../../config/pipeline.json')];
     const liveConfig = require('../../config/pipeline.json');
     const config = JSON.parse(JSON.stringify(liveConfig));
