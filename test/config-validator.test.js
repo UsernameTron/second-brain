@@ -36,49 +36,49 @@ describe('config-validator', () => {
       expect(results.length).toBeGreaterThan(0);
     });
 
-    test('Test 1: connectors.json validates as PASS', () => {
+    test('1: connectors.json validates as PASS', () => {
       const r = results.find(r => path.basename(r.file) === 'connectors.json');
       expect(r).toBeDefined();
       expect(r.status).toBe('PASS');
       expect(r.errors).toHaveLength(0);
     });
 
-    test('Test 2: pipeline.json validates as PASS', () => {
+    test('2: pipeline.json validates as PASS', () => {
       const r = results.find(r => path.basename(r.file) === 'pipeline.json');
       expect(r).toBeDefined();
       expect(r.status).toBe('PASS');
       expect(r.errors).toHaveLength(0);
     });
 
-    test('Test 3: templates.json validates as PASS', () => {
+    test('3: templates.json validates as PASS', () => {
       const r = results.find(r => path.basename(r.file) === 'templates.json');
       expect(r).toBeDefined();
       expect(r.status).toBe('PASS');
       expect(r.errors).toHaveLength(0);
     });
 
-    test('Test 4: memory-categories.json validates as PASS', () => {
+    test('4: memory-categories.json validates as PASS', () => {
       const r = results.find(r => path.basename(r.file) === 'memory-categories.json');
       expect(r).toBeDefined();
       expect(r.status).toBe('PASS');
       expect(r.errors).toHaveLength(0);
     });
 
-    test('Test 5: excluded-terms.json validates as PASS', () => {
+    test('5: excluded-terms.json validates as PASS', () => {
       const r = results.find(r => path.basename(r.file) === 'excluded-terms.json');
       expect(r).toBeDefined();
       expect(r.status).toBe('PASS');
       expect(r.errors).toHaveLength(0);
     });
 
-    test('Test 6: scheduling.json validates as PASS', () => {
+    test('6: scheduling.json validates as PASS', () => {
       const r = results.find(r => path.basename(r.file) === 'scheduling.json');
       expect(r).toBeDefined();
       expect(r.status).toBe('PASS');
       expect(r.errors).toHaveLength(0);
     });
 
-    test('Test 7: vault-paths.json validates as PASS', () => {
+    test('7: vault-paths.json validates as PASS', () => {
       const r = results.find(r => path.basename(r.file) === 'vault-paths.json');
       expect(r).toBeDefined();
       expect(r.status).toBe('PASS');
@@ -108,7 +108,7 @@ describe('config-validator', () => {
       return filePath;
     }
 
-    test('Test 5: malformed JSON config — returns ERROR with parse error message', async () => {
+    test('5: malformed JSON config — returns ERROR with parse error message', async () => {
       const schemaPath = writeTmp('valid.schema.json', simpleSchema);
       const configPath = writeTmp('broken.json', '{ this is not valid JSON }');
       const result = await validateFile(configPath, schemaPath);
@@ -117,7 +117,7 @@ describe('config-validator', () => {
       expect(result.errors[0].message).toBeTruthy();
     });
 
-    test('Test 6: config with schema violation — returns FAIL with JSON path and description', async () => {
+    test('6: config with schema violation — returns FAIL with JSON path and description', async () => {
       const schemaPath = writeTmp('schema.schema.json', simpleSchema);
       const configPath = writeTmp('invalid.json', { name: 123 }); // name should be string
       const result = await validateFile(configPath, schemaPath);
@@ -151,7 +151,7 @@ describe('config-validator', () => {
   // ------------------------------------------------------------------ //
 
   describe('main() exit code', () => {
-    test('Test 7: exit code 0 when all results are PASS or WARNING', async () => {
+    test('7: exit code 0 when all results are PASS or WARNING', async () => {
       // Use real config dir — should exit 0 (connectors/pipeline/templates PASS, memory-categories WARNING)
       const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});

@@ -46,7 +46,7 @@ function extractBannedWords(styleGuideContent) {
   const bannedWords = [];
   let inBannedSection = false;
   let inTable = false;
-  let headerSkipped = false;
+  let _headerSkipped = false;
 
   const lines = styleGuideContent.split('\n');
 
@@ -55,7 +55,7 @@ function extractBannedWords(styleGuideContent) {
     if (/^#+\s+.*[Bb]anned/i.test(line)) {
       inBannedSection = true;
       inTable = false;
-      headerSkipped = false;
+      _headerSkipped = false;
       continue;
     }
 
@@ -76,7 +76,7 @@ function extractBannedWords(styleGuideContent) {
 
       // Skip header row (contains "Word" or "Phrase")
       if (/^\|\s*word\/phrase/i.test(line) || /^\|\s*word\s*\|/i.test(line)) {
-        headerSkipped = true;
+        _headerSkipped = true;
         continue;
       }
 

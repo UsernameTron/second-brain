@@ -175,18 +175,16 @@ async function retryDeadLetters() {
     // Attempt retry
     summary.retried++;
 
-    let retrySuccess = false;
     let classificationResult = null;
 
     try {
       const { classifyInput } = require('./classifier');
       classificationResult = await classifyInput(body, { interactive: false });
-      retrySuccess = classificationResult && classificationResult.success === true;
     } catch (err) {
-      retrySuccess = false;
       try { require('./vault-gateway').logDecision('RETRY', filename, 'CLASSIFY_ERROR', err.message); } catch (_) { /* vault-gateway unavailable */ }
     }
 
+    const retrySuccess = classificationResult && classificationResult.success === true;
     if (retrySuccess) {
       const { formatNote, generateFilename } = require('./note-formatter');
       const { vaultWrite, logDecision } = require('./vault-gateway');
@@ -202,7 +200,6 @@ async function retryDeadLetters() {
         writeResult = await vaultWrite(destPath, formattedContent);
       } catch (writeErr) {
         logDecision('RETRY', destPath, 'WRITE_FAILED', writeErr.message);
-        retrySuccess = false;
       }
 
       // Step 2: If write succeeded, move original to promoted/ and unlink

@@ -35,14 +35,14 @@ const {
 let writeFileMock;
 let mkdirMock;
 let readFileMock;
-let realpathSyncMock;
+let _realpathSyncMock;
 
 beforeEach(() => {
   writeFileMock = jest.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
   mkdirMock = jest.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined);
   readFileMock = jest.spyOn(fs.promises, 'readFile').mockResolvedValue('mock file content');
   // realpathSync: default returns path unchanged (no symlink escape)
-  realpathSyncMock = jest.spyOn(fs, 'realpathSync').mockImplementation((p) => p);
+  _realpathSyncMock = jest.spyOn(fs, 'realpathSync').mockImplementation((p) => p);
 });
 
 afterEach(() => {
@@ -364,7 +364,7 @@ describe('13. Audit logging', () => {
     // Trigger a BLOCK decision (LEFT-side write) — should log metadata, not content
     try {
       await vaultWrite('ABOUT ME/secret.md', 'THIS SECRET MUST NOT APPEAR IN LOGS');
-    } catch (_) {}
+    } catch (_) { /* expected to throw */ }
 
     const allLogOutput = consoleSpy.mock.calls.map(([s]) => s).join(' ');
     expect(allLogOutput).not.toContain('THIS SECRET MUST NOT APPEAR IN LOGS');

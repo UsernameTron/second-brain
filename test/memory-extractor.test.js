@@ -437,10 +437,10 @@ describe('memory-extraction-hook.js', () => {
     const input = JSON.stringify({ session_id: 'test-session', hook_event_name: 'Stop' });
 
     await new Promise((resolve, reject) => {
-      const child = execFile('node', [hookPath], { timeout: 5000 }, (err, stdout, stderr) => {
+      const child = execFile('node', [hookPath], { timeout: 5000 }, (err, _stdout, _stderr) => {
         // Exit 0 even on missing transcript
         if (err && err.code !== 0) {
-          reject(new Error('Hook exited non-zero: ' + err.code + ' stderr: ' + stderr));
+          reject(new Error('Hook exited non-zero: ' + err.code + ' stderr: ' + _stderr));
         } else {
           resolve();
         }
@@ -455,7 +455,7 @@ describe('memory-extraction-hook.js', () => {
     const input = JSON.stringify({ session_id: 'test', transcript_path: '/tmp/none.jsonl', hook_event_name: 'PreToolUse' });
 
     await new Promise((resolve, reject) => {
-      const child = execFile('node', [hookPath], { timeout: 5000 }, (err, stdout, stderr) => {
+      const child = execFile('node', [hookPath], { timeout: 5000 }, (err, _stdout, _stderr) => {
         if (err && err.code !== 0) {
           reject(new Error('Hook exited non-zero: ' + err.code));
         } else {

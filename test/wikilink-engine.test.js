@@ -274,7 +274,7 @@ describe('vault index — refreshIndexEntry', () => {
 // ── Suggestion pipeline tests ────────────────────────────────────────────────
 
 describe('suggestWikilinks — core pipeline', () => {
-  let mockHaikuClient;
+  let _mockHaikuClient;
 
   beforeEach(() => {
     // Pre-populate cache with test notes

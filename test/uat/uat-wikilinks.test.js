@@ -120,7 +120,7 @@ describeFn('UAT-02: Wikilink relevance validation', () => {
   // Wikilink generation requires live vault index scan + Haiku API call
   jest.setTimeout(120000);
 
-  let allResults = [];
+  const allResults = [];
 
   beforeAll(async () => {
     // Build a fresh vault index before running tests
@@ -147,7 +147,7 @@ describeFn('UAT-02: Wikilink relevance validation', () => {
       if (r.links && r.links.length > 0) {
         for (const link of r.links) {
           const existsMark = link.targetExists ? '[EXISTS]' : '[MISSING]';
-          console.log(`  ${existsMark} ${link.path} (relevance: ${link.relevance != null ? link.relevance.toFixed(2) : 'n/a'})`);
+          console.log(`  ${existsMark} ${link.path} (relevance: ${link.relevance != null ? link.relevance.toFixed(2) : 'n/a'})`); // eslint-disable-line eqeqeq
         }
       } else {
         console.log('  (no links generated)');
@@ -172,7 +172,7 @@ describeFn('UAT-02: Wikilink relevance validation', () => {
           correlationId: `uat-02-${sample.id}`,
         });
       } catch (err) {
-        throw new Error(`suggestWikilinks threw for ${sample.id}: ${err.message}`);
+        throw new Error(`suggestWikilinks threw for ${sample.id}: ${err.message}`, { cause: err });
       }
 
       // Result must have the expected shape

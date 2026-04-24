@@ -122,7 +122,7 @@ async function validateAll(configDir = DEFAULT_CONFIG_DIR, schemaDir = DEFAULT_S
   try {
     schemaFiles = fs.readdirSync(schemaDir).filter(f => f.endsWith('.schema.json'));
   } catch (err) {
-    throw new Error(`Cannot read schema directory "${schemaDir}": ${err.message}`);
+    throw new Error(`Cannot read schema directory "${schemaDir}": ${err.message}`, { cause: err });
   }
 
   for (const schemaFilename of schemaFiles) {

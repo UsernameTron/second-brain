@@ -62,12 +62,12 @@ jest.mock('../src/pipeline-infra', () => ({
 process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
 process.env.VAULT_ROOT = '/tmp/test-vault';
 
-const { checkContent } = require('../src/content-policy');
+const { checkContent: _checkContent } = require('../src/content-policy');
 const {
-  generateCorrelationId,
-  createHaikuClient,
-  createSonnetClient,
-  writeDeadLetter,
+  generateCorrelationId: _generateCorrelationId,
+  createHaikuClient: _createHaikuClient,
+  createSonnetClient: _createSonnetClient,
+  writeDeadLetter: _writeDeadLetter,
 } = require('../src/pipeline-infra');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

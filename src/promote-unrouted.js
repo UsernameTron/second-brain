@@ -22,7 +22,7 @@ const fs = require('fs');
 const path = require('path');
 
 const VAULT_ROOT = () => process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude Cowork');
-const CONFIG_DIR = () => process.env.CONFIG_DIR_OVERRIDE || path.join(__dirname, '..', 'config');
+const _CONFIG_DIR = () => process.env.CONFIG_DIR_OVERRIDE || path.join(__dirname, '..', 'config');
 
 // loadVaultPaths consolidated into pipeline-infra.js as safeLoadVaultPaths (T12.2)
 const { safeLoadVaultPaths } = require('./pipeline-infra');
@@ -106,10 +106,10 @@ async function promoteUnrouted(filename, options = {}) {
   const { suggestWikilinks, refreshIndexEntry } = require('./wikilink-engine');
 
   const templatedDomains = ['briefings', 'job-hunt', 'interview-prep'];
-  let templateFields = {};
+  let _templateFields = {};
   if (targetResolved.type === 'right' && templatedDomains.includes(targetResolved.targetPath)) {
     try {
-      templateFields = await extractTemplateFields(inputBody, targetResolved.targetPath, correlationId);
+      _templateFields = await extractTemplateFields(inputBody, targetResolved.targetPath, correlationId);
     } catch (_) {
       // Enrichment failure is non-fatal per D-39
     }
@@ -183,7 +183,7 @@ async function promoteUnrouted(filename, options = {}) {
     if (targetResolved.type === 'right') {
       try {
         await refreshIndexEntry(targetPath);
-      } catch (_) {}
+      } catch (_) { /* index refresh non-fatal */ }
     }
 
     // ── (9) On success: move to proposals/unrouted/promoted/ ─────────────────
