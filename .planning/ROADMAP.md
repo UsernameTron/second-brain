@@ -134,12 +134,12 @@ No remaining backlog items. New items added here as discovered.
   3. A direct push to master that would skip CI (or a force-push) is rejected by branch protection; only PRs with passing lint, tests, coverage, and CodeQL checks can merge.
   4. The `ANTHROPIC_API_KEY` secret is scoped exclusively to the UAT job and does not appear in any other workflow step or log output.
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 17-01-PLAN.md — Scheduled UAT workflow with secret isolation and 90-day artifact retention (UAT-CI-01, UAT-CI-02)
 - [x] 17-02-PLAN.md — test:uat:ci npm script + nock@14.0.13 devDependency for Phase 19 mock infrastructure (UAT-CI-01 support)
-- [ ] 17-03-PLAN.md — Branch protection on master via gh api + human verification checkpoint (BRANCH-PROT-01)
+- [x] 17-03-PLAN.md — Branch protection on master via gh api + human verification checkpoint (BRANCH-PROT-01)
 
 ### Phase 18: Memory Retrieval Foundation
 **Goal**: Users can query the compounding memory layer via `/recall` and see relevant memories surfaced automatically in the `/today` briefing.
@@ -192,7 +192,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 17. UAT CI Infrastructure | 2/3 | In Progress|  |
+| 17. UAT CI Infrastructure | 3/3 | Complete    | 2026-04-24 |
 | 18. Memory Retrieval Foundation | 0/? | Not started | - |
 | 19. Semantic Memory Search | 0/? | Not started | - |
 | 20. Value Extraction Instrumentation | 0/? | Not started | - |

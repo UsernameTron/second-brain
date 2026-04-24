@@ -68,8 +68,15 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ CI coverage enforcement (90% stmts/funcs/lines, npm audit gating) — v1.2
 - ✓ Local LLM routing (configurable provider, Anthropic fallback with logging) — v1.2
 
+- ✓ Scheduled UAT workflow with secret isolation (weekly cron + workflow_dispatch, ANTHROPIC_API_KEY scoped to step only) — v1.4 Phase 17
+- ✓ UAT accuracy report artifact retained 90 days — v1.4 Phase 17
+- ✓ Branch protection on master: PR required, force-push blocked, required checks test (20)/test (22)/Analyze — v1.4 Phase 17
+
 ### Active
-(v1.4 milestone — requirements to be defined after research phase)
+- Memory Retrieval Foundation (readMemory, /recall keyword mode, Memory Echo in /today) — v1.4 Phase 18 (next)
+- Semantic Memory Search (Voyage AI embeddings, in-memory Float32Array cosine, RRF hybrid) — v1.4 Phase 19
+- Value Extraction Instrumentation (daily-stats.md append-only table, compounding evidence) — v1.4 Phase 20
+- Closeout Hygiene (B-15 Unicode tests, B-18 JSDoc, B-20 no-console policy, docs sweep) — v1.4 Phase 21
 
 ## Current Milestone: v1.4 Memory Activation & Final Closeout
 
@@ -217,4 +224,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 on v1.4 milestone start*
+*Last updated: 2026-04-24 after v1.4 Phase 17 completion*
