@@ -33,6 +33,7 @@ try { chokidar = require('chokidar'); } catch (_) { chokidar = null; }
 // Policy modules — integrated in Plan 02
 const { checkContent, sanitizeContent } = require('./content-policy');
 const { checkStyle, getBannedWords, loadStyleGuide } = require('./style-policy');
+const { safeLoadVaultPaths, loadExcludedTerms } = require('./pipeline-infra');
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -154,20 +155,17 @@ function validateConfig(config) {
 }
 
 /**
- * Load, parse, and validate config from disk.
- * Reads vault-paths.json and excluded-terms.json from CONFIG_DIR.
+ * Load, parse, and validate config via overlay-enabled loaders.
+ * Uses safeLoadVaultPaths() and loadExcludedTerms() from pipeline-infra.
  * Fails closed: throws on any parse or validation error.
  *
  * @returns {{ left: string[], right: string[], excludedTerms: string[] }}
  * @throws {Error} On file read, parse, or validation failure
  */
 function loadConfig() {
-  const vaultPathsFile = path.join(CONFIG_DIR, 'vault-paths.json');
-  const excludedTermsFile = path.join(CONFIG_DIR, 'excluded-terms.json');
-
-  // Use synchronous reads — called at init and hot-reload (not in the hot write path)
-  const vaultPaths = JSON.parse(fs.readFileSync(vaultPathsFile, 'utf8'));
-  const excludedTerms = JSON.parse(fs.readFileSync(excludedTermsFile, 'utf8'));
+  // Use overlay-enabled loaders (T13.6) — supports local overrides
+  const vaultPaths = safeLoadVaultPaths();
+  const excludedTerms = loadExcludedTerms();
 
   const config = {
     left: vaultPaths.left,

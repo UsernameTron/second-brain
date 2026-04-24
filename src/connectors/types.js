@@ -22,6 +22,7 @@
 const fs = require('fs');
 const path = require('path');
 const { validateAgainstSchema } = require('../utils/validate-schema');
+const { loadConfigWithOverlay } = require('../pipeline-infra');
 
 // ── Path resolution ──────────────────────────────────────────────────────────
 
@@ -115,19 +116,15 @@ function makeError(source, errorMessage) {
  * @throws {Error} If file is missing, JSON is invalid, or schema validation fails
  */
 function loadConnectorsConfig() {
+  // Use overlay-enabled loader (T13.6) — supports local overrides
+  const config = loadConfigWithOverlay('connectors');
+
+  // Full JSON Schema validation on merged result
   const configDir = _getConfigDir();
-  const configPath = path.join(configDir, 'connectors.json');
   const schemaPath = path.join(configDir, 'schema', 'connectors.schema.json');
-
-  // Read and parse connectors.json
-  const raw = fs.readFileSync(configPath, 'utf8');
-  const config = JSON.parse(raw);
-
-  // Read and parse schema
   const schemaRaw = fs.readFileSync(schemaPath, 'utf8');
   const schema = JSON.parse(schemaRaw);
 
-  // Full JSON Schema validation
   const { valid, errors } = validateAgainstSchema(config, schema);
   if (!valid) {
     throw new Error(
