@@ -78,6 +78,13 @@ describe('config-validator', () => {
       expect(r.status).toBe('PASS');
       expect(r.errors).toHaveLength(0);
     });
+
+    test('Test 7: vault-paths.json validates as PASS', () => {
+      const r = results.find(r => path.basename(r.file) === 'vault-paths.json');
+      expect(r).toBeDefined();
+      expect(r.status).toBe('PASS');
+      expect(r.errors).toHaveLength(0);
+    });
   });
 
   // ------------------------------------------------------------------ //
@@ -190,6 +197,52 @@ describe('config-validator', () => {
   // ------------------------------------------------------------------ //
   // Schema-specific validation tests (T13.1-T13.3, T13.5)
   // ------------------------------------------------------------------ //
+
+  describe('vault-paths schema validation', () => {
+    function writeTmp(filename, content) {
+      const filePath = path.join(tmpDir, filename);
+      fs.writeFileSync(filePath, typeof content === 'string' ? content : JSON.stringify(content, null, 2));
+      return filePath;
+    }
+
+    const schemaPath = path.join(SCHEMA_DIR, 'vault-paths.schema.json');
+
+    test('path with .. traversal fails', async () => {
+      const configPath = writeTmp('traversal.json', { left: ['../etc'], right: ['memory'] });
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('absolute path fails', async () => {
+      const configPath = writeTmp('absolute.json', { left: ['/etc/passwd'], right: ['memory'] });
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('empty left array fails', async () => {
+      const configPath = writeTmp('empty-left.json', { left: [], right: ['memory'] });
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('haikuContextChars negative fails', async () => {
+      const configPath = writeTmp('neg-ctx.json', { left: ['ABOUT ME'], right: ['memory'], haikuContextChars: -1 });
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('haikuContextChars over 200000 fails', async () => {
+      const configPath = writeTmp('big-ctx.json', { left: ['ABOUT ME'], right: ['memory'], haikuContextChars: 200001 });
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('FAIL');
+    });
+
+    test('valid vault-paths passes', async () => {
+      const configPath = writeTmp('valid-vp.json', { left: ['ABOUT ME'], right: ['memory', 'proposals'], haikuContextChars: 100 });
+      const result = await validateFile(configPath, schemaPath);
+      expect(result.status).toBe('PASS');
+    });
+  });
 
   describe('scheduling schema validation', () => {
     function writeTmp(filename, content) {
