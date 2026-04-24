@@ -6,7 +6,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-Shipped v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), and v1.2 Automation & Quality (2026-04-23). Three milestones complete: 11 phases, 27 plans. 614 tests passing across 28 suites. CI enforces 90% coverage (statements/functions/lines) with npm audit gating.
+Shipped v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24). v1.4 in flight: Phase 17 UAT CI, Phase 18 Memory Retrieval, and Phase 19 Semantic Memory Search (Voyage AI embeddings, RRF hybrid, graceful degradation) complete as of 2026-04-24. 982 tests across 48 suites (944 passing, 38 skipped — 24 UAT + pre-existing). Project branch coverage 81.28%; semantic-index.js 82.22%, voyage-health.js 84.61%. Four live-Voyage UAT items tracked in 19-HUMAN-UAT.md.
 
 **What works end-to-end:**
 - `/new` classifies input, enforces left/right routing, filters excluded content (15 terms), suggests wikilinks
@@ -72,10 +72,11 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ UAT accuracy report artifact retained 90 days — v1.4 Phase 17
 - ✓ Branch protection on master: PR required, force-push blocked, required checks test (20)/test (22)/Analyze — v1.4 Phase 17
 
+- ✓ Memory Retrieval Foundation (readMemory, /recall keyword mode, Memory Echo in /today) — v1.4 Phase 18
+- ✓ Semantic Memory Search (Voyage AI embeddings on promotion, cosine + temporal decay, RRF hybrid, 3-failure/15-min degradation) — v1.4 Phase 19
+
 ### Active
-- Memory Retrieval Foundation (readMemory, /recall keyword mode, Memory Echo in /today) — v1.4 Phase 18 (next)
-- Semantic Memory Search (Voyage AI embeddings, in-memory Float32Array cosine, RRF hybrid) — v1.4 Phase 19
-- Value Extraction Instrumentation (daily-stats.md append-only table, compounding evidence) — v1.4 Phase 20
+- Value Extraction Instrumentation (daily-stats.md append-only table, compounding evidence) — v1.4 Phase 20 (next)
 - Closeout Hygiene (B-15 Unicode tests, B-18 JSDoc, B-20 no-console policy, docs sweep) — v1.4 Phase 21
 
 ## Current Milestone: v1.4 Memory Activation & Final Closeout
@@ -224,4 +225,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 after v1.4 Phase 17 completion*
+*Last updated: 2026-04-24 after v1.4 Phase 19 completion*
