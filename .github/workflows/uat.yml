@@ -1,0 +1,50 @@
+name: UAT
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Monday 13:00 UTC = 6:00 AM PT (before Pete's morning /today routine).
+    # Mirrors the codeql.yml weekly cadence; offset 7 hours later in the day
+    # so UAT and CodeQL do not contend for runner minutes simultaneously.
+    - cron: '0 13 * * 1'
+
+jobs:
+  uat:
+    name: UAT Accuracy Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run UAT accuracy tests
+        # CI is explicitly set to empty string so the test/uat/*.test.js skip
+        # guard (process.env.CI === 'true') does NOT trip. The workflow
+        # controls the CI env for this step only — every other step inherits
+        # GitHub Actions' default CI=true, keeping any non-UAT tooling in CI mode.
+        env:
+          CI: ''
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          mkdir -p uat-output
+          npm run test:uat:ci 2>&1 | tee uat-output/uat-accuracy-report.txt
+          # Preserve jest exit code through the pipe so failures fail the job.
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload UAT accuracy report
+        # `if: always()` ensures the artifact uploads even when the test step
+        # fails — the failure report is the most valuable artifact.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uat-accuracy-report-${{ github.run_id }}
+          path: uat-output/
+          retention-days: 90
