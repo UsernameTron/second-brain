@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Memory Activation & Final Closeout
-status: verifying
-stopped_at: Completed 19-05-PLAN.md — all 4 tasks committed, Phase 19 docs updated (CLAUDE.md, README.md, DEVOPS-HANDOFF.md)
-last_updated: "2026-04-24T20:10:27.827Z"
+status: phase_19_shipped
+stopped_at: Phase 19 shipped — branch test/19-uat-live-voyage merged to master (2284fee). Live UAT closed all 4 items, threshold calibrated 0.72→0.55. CI + CodeQL green on master.
+last_updated: "2026-04-24T22:55:00.000Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 9
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 
 Phase: 20
 Plan: Not started
-Status: Phase complete — ready for verification
+Status: Phase 19 shipped to master (commit 2284fee, CI + CodeQL green). Ready to start Phase 20 (Instrumentation).
 Last activity: 2026-04-24
 
 **Shipped milestones:** v1.0 (MVP, 2026-04-22), v1.1 (Go Live, 2026-04-23), v1.2 (Automation & Quality, 2026-04-23), v1.3 (Review Remediation, 2026-04-24).
