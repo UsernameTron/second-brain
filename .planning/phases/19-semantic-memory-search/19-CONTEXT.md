@@ -50,6 +50,7 @@ Deliverables: `src/semantic-index.js` (new), extensions to `src/promote-memories
   - `timeoutMs` (default 3000)
   - `degradedModeMinutes` (default 15)
   - `candidatesPerSource` (default 20)
+  - `embeddingDim` (enum [1024]; default 1024) — required by D-14 for schema_version hashing
 - **D-12:** Schema-validated via AJV; overlay-compatible (`pipeline.local.json` can override for dev).
 - **D-13:** `VOYAGE_API_KEY` stays **env-only**. Never in config file. Never logged.
 - **D-14:** `schema_version` = `hash(model || dimension)` only. Threshold and recency decay are query-time scoring math; changing them does NOT require re-embedding. Re-embed is only triggered by model swap or dimension change.
