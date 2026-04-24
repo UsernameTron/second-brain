@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Memory Activation & Final Closeout
 status: executing
-stopped_at: Phase 19 Plan 02 complete — voyage-health.js + semantic-index.js committed
-last_updated: "2026-04-24T19:15:36.520Z"
+stopped_at: Phase 19 Plan 03 complete — promote-memories embed hook + recall --semantic/--hybrid wired
+last_updated: "2026-04-24T19:21:14.545Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 21
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-24)
 ## Current Position
 
 Phase: 19 (semantic-memory-search) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-04-24
 
@@ -75,6 +75,8 @@ Full log in PROJECT.md Key Decisions table. Summary:
 - [Phase 19]: memory.semantic is optional sub-object in schema — pipeline.json without semantic block still validates; semantic is additive
 - [Phase 19]: voyage-health.js uses atomic .tmp rename + chmod 0600/0700 for cross-invocation state; computeSchemaVersion hashes model+dim only (D-14)
 - [Phase 19]: checkContent() gate runs before every Voyage call in semanticSearch() — excluded terms never leave the process (Pattern 11, D-PRE-05)
+- [Phase 19]: Lazy require('./semantic-index') in promote-memories try/catch — embed-on-promotion is best-effort; promotion never blocked by embed failure
+- [Phase 19]: recall-command --semantic/--hybrid use lazy require per branch — keyword-only /recall never loads semantic-index
 
 ### Open Blockers
 
@@ -86,6 +88,6 @@ None active.
 
 ## Session Continuity
 
-Last session: 2026-04-24T19:15:36.517Z
-Stopped at: Phase 19 Plan 02 complete — voyage-health.js + semantic-index.js committed
+Last session: 2026-04-24T19:21:14.542Z
+Stopped at: Phase 19 Plan 03 complete — promote-memories embed hook + recall --semantic/--hybrid wired
 Ship log: PRs #1–#31 merged. Tags: v1.0, v1.1, v1.2.0, v1.3.0.
