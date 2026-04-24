@@ -51,5 +51,8 @@
   "thresholds": {
     "haikuTimeoutMs": 2000,
     "wikilinkTokenBudget": 1024
+  },
+  "memory": {
+    "echoThreshold": 0.65
   }
 }

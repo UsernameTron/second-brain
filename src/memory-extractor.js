@@ -20,9 +20,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 const { createHaikuClient, loadPipelineConfig, loadMemoryCategoriesConfig } = require('./pipeline-infra');
+const { computeHash } = require('./utils/memory-utils');
 const { writeCandidate } = require('./memory-proposals');
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -42,15 +42,6 @@ const HIGH_SIGNAL_PATTERNS = [
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Compute content_hash for dedup.
- * @param {string} content
- * @returns {string}
- */
-function computeHash(content) {
-  return crypto.createHash('sha256').update(content.trim().toLowerCase()).digest('hex').slice(0, 12);
-}
 
 /**
  * Check if a message should be excluded from the extraction corpus.

@@ -30,6 +30,7 @@ const { scanSlippage } = require('./today/slippage-scanner');
 const { identifyFrog } = require('./today/frog-identifier');
 const { generateSynthesis } = require('./today/llm-augmentation');
 const { renderBriefing, buildSourceHealth, formatDateYMD } = require('./today/briefing-renderer');
+const { getMemoryEcho } = require('./memory-reader');
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -170,6 +171,19 @@ async function runToday(options = {}) {
     // ── Frog identification (D-15) ────────────────────────────────────────
     const frogData = await identifyFrog(slippage, haikuClient);
 
+    // ── Memory Echo (Phase 18, TODAY-ECHO-01) ─────────────────────────────
+    // Pull memory entries that score above the configured threshold against
+    // today's calendar + VIP email signals. Failures never break the briefing.
+    const echoThreshold = (config && config.memory && typeof config.memory.echoThreshold === 'number')
+      ? config.memory.echoThreshold
+      : 0.65;
+    let memoryEcho;
+    try {
+      memoryEcho = await getMemoryEcho(connectorResults, { threshold: echoThreshold });
+    } catch (_err) {
+      memoryEcho = { entries: [], score: 0, skipped: true };
+    }
+
     // ── Source health (D-08) ──────────────────────────────────────────────
     const sourceHealth = buildSourceHealth(connectorResults, pipelineState.ok);
 
@@ -193,6 +207,7 @@ async function runToday(options = {}) {
       pipelineState,
       slippage,
       frog: frogData,
+      memoryEcho,
       mode,
       synthesis,
     });
