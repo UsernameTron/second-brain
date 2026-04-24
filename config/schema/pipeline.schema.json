@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Pipeline Configuration Schema",
-  "description": "Validates config/pipeline.json — all Phase 2 thresholds and configuration values",
+  "description": "Validates config/pipeline.json \u2014 all Phase 2 thresholds and configuration values",
   "type": "object",
   "required": [
     "classifier",
@@ -269,6 +269,17 @@
           "type": "integer",
           "minimum": 64,
           "maximum": 8192
+        }
+      },
+      "additionalProperties": false
+    },
+    "memory": {
+      "type": "object",
+      "properties": {
+        "echoThreshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         }
       },
       "additionalProperties": false
