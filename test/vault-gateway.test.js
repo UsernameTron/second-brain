@@ -372,3 +372,145 @@ describe('13. Audit logging', () => {
     consoleSpy.mockRestore();
   });
 });
+
+// ── 14. vaultWriteAtomic ──────────────────────────────────────────────────────
+describe('vaultWriteAtomic()', () => {
+  const os = require('os');
+  const realFs = jest.requireActual('fs');
+  let tmpDir;
+
+  beforeEach(() => {
+    // Create a real tmp directory for atomic write tests
+    tmpDir = realFs.mkdtempSync(path.join(os.tmpdir(), 'vault-gw-atomic-'));
+    // Point VAULT_ROOT at our tmp dir for these tests
+    process.env.VAULT_ROOT = tmpDir;
+    // Create a RIGHT directory inside tmpDir (matches config.right 'RIGHT')
+    realFs.mkdirSync(path.join(tmpDir, 'RIGHT'), { recursive: true });
+    // Restore fs mocks so real fs operations work
+    jest.restoreAllMocks();
+    // Re-mock fs.promises for non-atomic tests that rely on them
+    writeFileMock = jest.spyOn(fs.promises, 'writeFile').mockResolvedValue(undefined);
+    mkdirMock = jest.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined);
+    readFileMock = jest.spyOn(fs.promises, 'readFile').mockResolvedValue('mock file content');
+    _realpathSyncMock = jest.spyOn(fs, 'realpathSync').mockImplementation((p) => p);
+  });
+
+  afterEach(() => {
+    delete process.env.VAULT_ROOT;
+    try {
+      realFs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch (_) { /* cleanup best-effort */ }
+    jest.restoreAllMocks();
+  });
+
+  it('writes RIGHT-side path successfully', () => {
+    jest.resetModules();
+    process.env.VAULT_ROOT = tmpDir;
+    realFs.mkdirSync(path.join(tmpDir, 'RIGHT'), { recursive: true });
+    const freshGw = require('../src/vault-gateway');
+    freshGw.vaultWriteAtomic('RIGHT/foo.md', 'hello');
+    const written = realFs.readFileSync(path.join(tmpDir, 'RIGHT', 'foo.md'), 'utf8');
+    expect(written).toBe('hello');
+  });
+
+  it('writes nested RIGHT-side path, creating parent dirs', () => {
+    jest.resetModules();
+    process.env.VAULT_ROOT = tmpDir;
+    realFs.mkdirSync(path.join(tmpDir, 'RIGHT'), { recursive: true });
+    const freshGw = require('../src/vault-gateway');
+    freshGw.vaultWriteAtomic('RIGHT/sub/file.md', 'x');
+    const written = realFs.readFileSync(path.join(tmpDir, 'RIGHT', 'sub', 'file.md'), 'utf8');
+    expect(written).toBe('x');
+  });
+
+  it('throws VaultWriteError(PATH_BLOCKED) for LEFT-side path', () => {
+    jest.resetModules();
+    process.env.VAULT_ROOT = tmpDir;
+    const freshGw = require('../src/vault-gateway');
+    const { VaultWriteError: VWE } = freshGw;
+    let caught;
+    try {
+      freshGw.vaultWriteAtomic('ABOUT ME/foo.md', 'x');
+    } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(VWE);
+    expect(caught.code).toBe('PATH_BLOCKED');
+  });
+
+  it('throws VaultWriteError(PATH_BLOCKED) for unknown first segment', () => {
+    jest.resetModules();
+    process.env.VAULT_ROOT = tmpDir;
+    const freshGw = require('../src/vault-gateway');
+    const { VaultWriteError: VWE } = freshGw;
+    let caught;
+    try {
+      freshGw.vaultWriteAtomic('unknown-seg/x.md', 'x');
+    } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(VWE);
+    expect(caught.code).toBe('PATH_BLOCKED');
+  });
+
+  it('throws VaultWriteError(INVALID_PATH) for parent traversal', () => {
+    jest.resetModules();
+    process.env.VAULT_ROOT = tmpDir;
+    const freshGw = require('../src/vault-gateway');
+    const { VaultWriteError: VWE } = freshGw;
+
+    let caught1;
+    try {
+      freshGw.vaultWriteAtomic('../escape.md', 'x');
+    } catch (e) { caught1 = e; }
+    expect(caught1).toBeInstanceOf(VWE);
+    expect(caught1.code).toBe('INVALID_PATH');
+
+    let caught2;
+    try {
+      freshGw.vaultWriteAtomic('RIGHT/../ABOUT ME/spoof.md', 'x');
+    } catch (e) { caught2 = e; }
+    expect(caught2).toBeInstanceOf(VWE);
+    expect(caught2.code).toBe('INVALID_PATH');
+  });
+
+  it('throws VaultWriteError(INVALID_PATH) for absolute path', () => {
+    jest.resetModules();
+    process.env.VAULT_ROOT = tmpDir;
+    const freshGw = require('../src/vault-gateway');
+    const { VaultWriteError: VWE } = freshGw;
+    let caught;
+    try {
+      freshGw.vaultWriteAtomic('/etc/passwd', 'x');
+    } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(VWE);
+    expect(caught.code).toBe('INVALID_PATH');
+  });
+
+  it('does not leave a .tmp file after a successful write', () => {
+    jest.resetModules();
+    process.env.VAULT_ROOT = tmpDir;
+    realFs.mkdirSync(path.join(tmpDir, 'RIGHT'), { recursive: true });
+    const freshGw = require('../src/vault-gateway');
+    freshGw.vaultWriteAtomic('RIGHT/foo.md', 'content');
+    const tmpFile = path.join(tmpDir, 'RIGHT', 'foo.md.tmp');
+    expect(realFs.existsSync(tmpFile)).toBe(false);
+  });
+
+  it('reuses the canonical normalizePath + checkPath path-security helpers (structural)', () => {
+    // Structural proof: vaultWriteAtomic calls normalizePath and checkPath
+    // and does NOT contain duplicated guard logic
+    const source = realFs.readFileSync(
+      path.join(__dirname, '../src/vault-gateway.js'), 'utf8'
+    );
+    // Extract vaultWriteAtomic function body (from function declaration to closing })
+    const fnMatch = source.match(/function vaultWriteAtomic[\s\S]*?\n\}/);
+    expect(fnMatch).not.toBeNull();
+    const fnBody = fnMatch[0];
+
+    // Must delegate to existing helpers — not duplicate their logic
+    expect(fnBody).toMatch(/normalizePath\(/);
+    expect(fnBody).toMatch(/checkPath\(/);
+
+    // Must NOT contain duplicated guard logic
+    expect(fnBody).not.toMatch(/config\.right\.includes/);
+    // No raw '..' traversal check duplicated inside function
+    expect(fnBody).not.toMatch(/['"]\.\.['"]/);
+  });
+});

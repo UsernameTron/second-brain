@@ -493,6 +493,49 @@ async function vaultWrite(relativePath, content, options = {}) {
   return { decision: 'WRITTEN', path: normalized };
 }
 
+// ── Atomic RIGHT-side write ──────────────────────────────────────────────────
+
+/**
+ * Atomic RIGHT-side write: validates relativePath is under a RIGHT-side
+ * allowlist segment, then writes to `${absPath}.tmp` and renames it to
+ * `absPath`. Mirrors src/utils/voyage-health.js' _writeHealth atomic idiom.
+ *
+ * Pattern 11: LEFT/RIGHT boundary is enforced HERE (in code), not by the
+ * caller's config defaults. A misconfigured stats.path of "LEFT/spoof.md"
+ * MUST throw — that is the entire point of routing daily-stats writes
+ * through this function instead of calling fs.writeFileSync directly.
+ *
+ * Synchronous (matches Pattern 7 reference in voyage-health.js).
+ *
+ * @param {string} relativePath - Vault-relative path (e.g., "RIGHT/daily-stats.md")
+ * @param {string} content - File content to write (UTF-8)
+ * @returns {void}
+ * @throws {VaultWriteError} INVALID_PATH on absolute / traversal / vault-escape paths
+ * @throws {VaultWriteError} PATH_BLOCKED on LEFT or unknown first-segment paths
+ * @throws {Error} Any underlying fs error (no silent swallow)
+ */
+function vaultWriteAtomic(relativePath, content) {
+  // Guard: path security + RIGHT-side allowlist (reuse existing helpers — DO NOT duplicate)
+  const normalized = normalizePath(relativePath);
+  const config = getConfig();
+  const pathResult = checkPath(normalized, config);
+  if (pathResult.decision === 'BLOCK') {
+    logDecision('WRITE_ATOMIC', normalized, 'BLOCKED', pathResult.reason);
+    throw new VaultWriteError(pathResult.reason, 'PATH_BLOCKED');
+  }
+
+  const absolutePath = path.join(VAULT_ROOT, normalized);
+  // Ensure parent directory exists (sync — matches function shape)
+  fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+
+  // Atomic .tmp + rename (Pattern 7) — mirror src/utils/voyage-health.js _writeHealth
+  const tmp = absolutePath + '.tmp';
+  fs.writeFileSync(tmp, content, 'utf8');
+  fs.renameSync(tmp, absolutePath);
+
+  logDecision('WRITE_ATOMIC', normalized, 'WRITTEN', null);
+}
+
 // ── Config-driven vault bootstrap ────────────────────────────────────────────
 
 /**
@@ -554,6 +597,7 @@ module.exports = {
   // Core write/read
   vaultWrite,
   vaultRead,
+  vaultWriteAtomic,
 
   // Quarantine
   quarantine,
