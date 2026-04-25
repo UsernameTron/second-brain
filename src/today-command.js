@@ -47,14 +47,43 @@ const DEFAULT_VAULT_ROOT = process.env.VAULT_ROOT
 // ── Parallel data gathering ──────────────────────────────────────────────────
 
 /**
+ * Wrap an async connector call, measuring elapsed ms into the latencies accumulator.
+ * Parallelism is preserved — each connector is still awaited via allSettled.
+ * The measured ms is written even when the connector returns degraded/null.
+ *
+ * Phase 20 (STATS-LATENCY-01): per-connector timing contract for PLAN-04.
+ *
+ * @param {string} label - key written into latencies (e.g. 'calendar')
+ * @param {object} latencies - accumulator object mutated in place
+ * @param {function} fn - zero-arg async factory returning the connector result
+ * @returns {Promise<any>} the result of fn() (re-throws on connector failure)
+ */
+async function _timedCall(label, latencies, fn) {
+  const start = Date.now();
+  try {
+    const result = await fn();
+    latencies[label] = Date.now() - start;
+    return result;
+  } catch (err) {
+    latencies[label] = Date.now() - start;
+    throw err;
+  }
+}
+
+/**
  * Fan out to the three external connectors in parallel via allSettled (D-01).
  * Per FIX-03, when REMOTE_TRIGGER=true and mcpClient is null, calendar runs
  * against the RemoteTrigger-attached MCP; gmail/github degrade gracefully.
  *
+ * Phase 20 (STATS-LATENCY-01): populates latencies.calendar, latencies.gmail,
+ * latencies.github with elapsed ms per connector. Any connector that returns
+ * degraded/null still contributes its measured ms.
+ *
  * @param {object|null} mcpClient
+ * @param {object} latencies - accumulator object mutated in place by _timedCall
  * @returns {Promise<{ calendar: object, gmail: object, github: object }>}
  */
-async function _fanOut(mcpClient) {
+async function _fanOut(mcpClient, latencies) {
   const isRemoteTrigger = process.env.REMOTE_TRIGGER === 'true';
 
   // Calendar gets remote context when running in RemoteTrigger and no local mcpClient
@@ -63,11 +92,13 @@ async function _fanOut(mcpClient) {
     : undefined;
 
   const [calSettled, gmailSettled, githubSettled] = await Promise.allSettled([
-    calendarOptions
-      ? getCalendarEvents(null, calendarOptions)
-      : getCalendarEvents(mcpClient),
-    getRecentEmails(mcpClient, { vipOnly: true }),
-    getGitHubActivity(mcpClient),
+    _timedCall('calendar', latencies, () =>
+      calendarOptions
+        ? getCalendarEvents(null, calendarOptions)
+        : getCalendarEvents(mcpClient)
+    ),
+    _timedCall('gmail', latencies, () => getRecentEmails(mcpClient, { vipOnly: true })),
+    _timedCall('github', latencies, () => getGitHubActivity(mcpClient)),
   ]);
 
   function _unwrap(settled, source) {
@@ -125,6 +156,13 @@ async function _getPipelineState() {
  * @returns {Promise<{ path: string|null, briefing: string|null, sourceHealth?: object, error?: string }>}
  */
 async function runToday(options = {}) {
+  // Phase 20 (STATS-LATENCY-01): per-operation latency accumulator.
+  // Populated by _fanOut (calendar/gmail/github), getMemoryEcho timing below,
+  // and endToEnd at return time. PLAN-04 reads _phase20.avgLatencyMs from the
+  // return value — this function does NOT call recordDailyStats itself.
+  const latencies = {};
+  const t0 = Date.now();
+
   try {
     // ── Defaults ──────────────────────────────────────────────────────────
     const mode = options.mode || 'interactive';
@@ -144,8 +182,9 @@ async function runToday(options = {}) {
 
     // ── Parallel data gathering ───────────────────────────────────────────
     // Run fan-out (connectors) and pipeline state in parallel.
+    // latencies is passed to _fanOut so per-connector ms are written as they complete.
     const [fanOutResult, pipelineResult] = await Promise.allSettled([
-      _fanOut(mcpClient),
+      _fanOut(mcpClient, latencies),
       _getPipelineState(),
     ]);
 
@@ -174,15 +213,19 @@ async function runToday(options = {}) {
     // ── Memory Echo (Phase 18, TODAY-ECHO-01) ─────────────────────────────
     // Pull memory entries that score above the configured threshold against
     // today's calendar + VIP email signals. Failures never break the briefing.
+    // Phase 20: timing measured end-to-end around getMemoryEcho (includes any
+    // transitive semanticSearch cost — Echo path encapsulates it).
     const echoThreshold = (config && config.memory && typeof config.memory.echoThreshold === 'number')
       ? config.memory.echoThreshold
       : 0.65;
     let memoryEcho;
+    const memEchoStart = Date.now();
     try {
       memoryEcho = await getMemoryEcho(connectorResults, { threshold: echoThreshold });
     } catch (_err) {
       memoryEcho = { entries: [], score: 0, skipped: true };
     }
+    latencies.memoryEcho = Date.now() - memEchoStart;
 
     // ── Source health (D-08) ──────────────────────────────────────────────
     const sourceHealth = buildSourceHealth(connectorResults, pipelineState.ok);
@@ -228,7 +271,17 @@ async function runToday(options = {}) {
       console.log(briefing);
     }
 
-    return { path: outputPath, briefing, sourceHealth };
+    // ── Phase 20: compute end-to-end + mean latency ───────────────────────
+    // endToEnd covers t0 → here (after briefing render, before vault write timing).
+    // Mean includes all measured fields; undefined/non-numeric values are skipped.
+    // avgLatencyMs is what PLAN-04 passes to recordDailyStats.
+    latencies.endToEnd = Date.now() - t0;
+    const measured = Object.values(latencies).filter(v => typeof v === 'number');
+    const avgLatencyMs = measured.length > 0
+      ? Math.round(measured.reduce((a, b) => a + b, 0) / measured.length)
+      : null;
+
+    return { path: outputPath, briefing, sourceHealth, _phase20: { latencies, avgLatencyMs } };
 
   } catch (err) {
     // Catastrophic failure — return error envelope rather than throw
