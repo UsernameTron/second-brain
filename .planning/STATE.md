@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Memory Activation & Final Closeout
-status: phase_19_shipped
-stopped_at: Phase 19 shipped — branch test/19-uat-live-voyage merged to master (2284fee). Live UAT closed all 4 items, threshold calibrated 0.72→0.55. CI + CodeQL green on master.
-last_updated: "2026-04-24T22:55:00.000Z"
-last_activity: 2026-04-24
+status: executing
+stopped_at: Completed Phase 20 Plan 01 — pipeline config stats schema
+last_updated: "2026-04-25T15:21:42.328Z"
+last_activity: 2026-04-25
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 21
-  completed_plans: 22
+  total_plans: 26
+  completed_plans: 23
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-24)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Phase 19 — semantic-memory-search
+**Current focus:** Phase 20 — value-extraction-instrumentation
 
 ## Current Position
 
-Phase: 20
-Plan: Not started
-Status: Phase 19 shipped to master (commit 2284fee, CI + CodeQL green). Ready to start Phase 20 (Instrumentation).
-Last activity: 2026-04-24
+Phase: 20 (value-extraction-instrumentation) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-04-25
 
 **Shipped milestones:** v1.0 (MVP, 2026-04-22), v1.1 (Go Live, 2026-04-23), v1.2 (Automation & Quality, 2026-04-23), v1.3 (Review Remediation, 2026-04-24).
 
@@ -81,6 +81,8 @@ Full log in PROJECT.md Key Decisions table. Summary:
 - [Phase 19]: pipeline.json schema uses additionalProperties:false preventing excludedTerms key — integration tests must inject terms via safeLoadPipelineConfig spy
 - [Phase 19]: DELTA.md grounding pass required before any doc edit — prevents invented file paths (lesson from Phase 16 docs-sync incident)
 - [Phase 19]: DEVOPS-HANDOFF.md rewritten from bootstrap stub — stub was factually incorrect (claimed no external services, but system has 4 integrations)
+- [Phase 20]: stats sub-object is optional in pipeline schema (not in required array) — backward-compatible additive change; timezone defaults to America/Chicago (D-08/REQ-AMEND-01)
+- [Phase 20]: stats.path stores vault-relative path (RIGHT/daily-stats.md); absolute resolution via VAULT_ROOT at runtime per vault-gateway.js Pattern 11 convention
 
 ### Open Blockers
 
@@ -88,10 +90,10 @@ None active.
 
 ### Pending Todos
 
-- Run /gsd:plan-phase 17 to begin UAT CI Infrastructure planning
+- Run /gsd:plan-phase 20 to plan Value Extraction Instrumentation (CONTEXT.md committed 4a9bb8d)
 
 ## Session Continuity
 
-Last session: 2026-04-24T19:48:11.913Z
-Stopped at: Completed 19-05-PLAN.md — all 4 tasks committed, Phase 19 docs updated (CLAUDE.md, README.md, DEVOPS-HANDOFF.md)
+Last session: 2026-04-25T15:21:42.326Z
+Stopped at: Completed Phase 20 Plan 01 — pipeline config stats schema
 Ship log: PRs #1–#31 merged. Tags: v1.0, v1.1, v1.2.0, v1.3.0.

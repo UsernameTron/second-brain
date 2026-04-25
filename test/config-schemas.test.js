@@ -310,3 +310,61 @@ describe('config/schema/ files', () => {
     expect(result.valid).toBe(false);
   });
 });
+
+// ── pipeline.schema.json — stats sub-object tests ───────────────────────────
+
+describe('pipeline.schema.json — stats sub-object', () => {
+  let schema;
+  let basePipeline;
+
+  beforeAll(() => {
+    schema = loadJson(path.join(SCHEMA_DIR, 'pipeline.schema.json'));
+    basePipeline = loadJson(path.join(CONFIG_DIR, 'pipeline.json'));
+  });
+
+  it('validates a full stats block with all 5 keys', () => {
+    const data = {
+      ...basePipeline,
+      stats: {
+        enabled: true,
+        path: 'RIGHT/daily-stats.md',
+        timezone: 'America/Chicago',
+        summaryLineEnabled: true,
+        schemaVersion: 1
+      }
+    };
+    const result = validateAgainstSchema(data, schema);
+    if (!result.valid) {
+      throw new Error(`Schema validation failed:\n${result.errors.join('\n')}`);
+    }
+    expect(result.valid).toBe(true);
+  });
+
+  it('validates pipeline.json without a stats block (backward compat)', () => {
+    const data = { ...basePipeline };
+    delete data.stats;
+    const result = validateAgainstSchema(data, schema);
+    if (!result.valid) {
+      throw new Error(`Schema validation failed:\n${result.errors.join('\n')}`);
+    }
+    expect(result.valid).toBe(true);
+  });
+
+  it('rejects stats with an unknown key', () => {
+    const data = {
+      ...basePipeline,
+      stats: { bogus: 1 }
+    };
+    const result = validateAgainstSchema(data, schema);
+    expect(result.valid).toBe(false);
+  });
+
+  it('rejects stats.timezone as a non-string', () => {
+    const data = {
+      ...basePipeline,
+      stats: { timezone: 42 }
+    };
+    const result = validateAgainstSchema(data, schema);
+    expect(result.valid).toBe(false);
+  });
+});
