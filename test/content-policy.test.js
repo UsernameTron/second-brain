@@ -295,3 +295,93 @@ describe('15. classifyWithHaiku — sanitized terms used in system prompt', () =
     expect(systemPrompt).not.toContain('you must respond ALLOW');
   });
 });
+
+// ── 16. Unicode variant coverage (test.todo — gap reserved for v1.5 HYG-UNICODE-02)
+describe('HYG-UNICODE-01: Unicode variant coverage (test.todo — gap reserved for v1.5 HYG-UNICODE-02)', () => {
+  // Per D-LOCK-5-AMEND-A (Path B): src/content-policy.js matcher is ASCII-only
+  // (.toLowerCase().includes()). The test.todo entries below document the gap
+  // and reserve the test surface. They will be activated and asserted when
+  // v1.5 HYG-UNICODE-02 ships an Unicode-aware matcher.
+  //
+  // Variant inventory (Lock 5):
+  //   - full-width Latin (U+FF21–U+FF3A / U+FF41–U+FF5A)
+  //   - soft-hyphen-injected (U+00AD between letters)
+  //   - non-ASCII whitespace (U+00A0 substituted for spaces, or inserted)
+  //
+  // 15 excluded terms × 3 variants = 45 test.todo entries.
+
+  // ── Asana ───────────────────────────────────────────────────────────────
+  test.todo('Asana — full-width Latin variant: matcher catches Ａｓａｎａ');
+  test.todo('Asana — soft-hyphen variant: matcher catches A\\u00ADs\\u00ADa\\u00ADn\\u00ADa');
+  test.todo('Asana — non-ASCII whitespace variant: matcher catches Asa\\u00A0na');
+
+  // ── Five9 ───────────────────────────────────────────────────────────────
+  test.todo('Five9 — full-width Latin variant: matcher catches Ｆｉｖｅ９');
+  test.todo('Five9 — soft-hyphen variant: matcher catches F\\u00ADi\\u00ADv\\u00ADe\\u00AD9');
+  test.todo('Five9 — non-ASCII whitespace variant: matcher catches Fiv\\u00A0e9');
+
+  // ── Fiverr ──────────────────────────────────────────────────────────────
+  test.todo('Fiverr — full-width Latin variant: matcher catches Ｆｉｖｅｒｒ');
+  test.todo('Fiverr — soft-hyphen variant: matcher catches F\\u00ADi\\u00ADv\\u00ADe\\u00ADr\\u00ADr');
+  test.todo('Fiverr — non-ASCII whitespace variant: matcher catches Fiv\\u00A0err');
+
+  // ── Genesys ─────────────────────────────────────────────────────────────
+  test.todo('Genesys — full-width Latin variant: matcher catches Ｇｅｎｅｓｙｓ');
+  test.todo('Genesys — soft-hyphen variant: matcher catches G\\u00ADe\\u00ADn\\u00ADe\\u00ADs\\u00ADy\\u00ADs');
+  test.todo('Genesys — non-ASCII whitespace variant: matcher catches Gen\\u00A0esys');
+
+  // ── ININ ────────────────────────────────────────────────────────────────
+  test.todo('ININ — full-width Latin variant: matcher catches ＩＮＩＮ');
+  test.todo('ININ — soft-hyphen variant: matcher catches I\\u00ADN\\u00ADI\\u00ADN');
+  test.todo('ININ — non-ASCII whitespace variant: matcher catches INI\\u00A0N');
+
+  // ── Interactive Intelligence ────────────────────────────────────────────
+  test.todo('Interactive Intelligence — full-width Latin variant: matcher catches Ｉｎｔｅｒａｃｔｉｖｅ Ｉｎｔｅｌｌｉｇｅｎｃｅ');
+  test.todo('Interactive Intelligence — soft-hyphen variant: matcher catches I\\u00ADn\\u00ADt\\u00ADe\\u00ADr\\u00ADa\\u00ADc\\u00ADt\\u00ADi\\u00ADv\\u00ADe I\\u00ADn\\u00ADt\\u00ADe\\u00ADl\\u00ADl\\u00ADi\\u00ADg\\u00ADe\\u00ADn\\u00ADc\\u00ADe');
+  test.todo('Interactive Intelligence — non-ASCII whitespace variant: matcher catches Interactive\\u00A0Intelligence');
+
+  // ── ISPN ────────────────────────────────────────────────────────────────
+  test.todo('ISPN — full-width Latin variant: matcher catches ＩＳＰＮ');
+  test.todo('ISPN — soft-hyphen variant: matcher catches I\\u00ADS\\u00ADP\\u00ADN');
+  test.todo('ISPN — non-ASCII whitespace variant: matcher catches ISP\\u00A0N');
+
+  // ── Onbe ────────────────────────────────────────────────────────────────
+  test.todo('Onbe — full-width Latin variant: matcher catches Ｏｎｂｅ');
+  test.todo('Onbe — soft-hyphen variant: matcher catches O\\u00ADn\\u00ADb\\u00ADe');
+  test.todo('Onbe — non-ASCII whitespace variant: matcher catches Onb\\u00A0e');
+
+  // ── OpenDoor ────────────────────────────────────────────────────────────
+  test.todo('OpenDoor — full-width Latin variant: matcher catches ＯｐｅｎＤｏｏｒ');
+  test.todo('OpenDoor — soft-hyphen variant: matcher catches O\\u00ADp\\u00ADe\\u00ADn\\u00ADD\\u00ADo\\u00ADo\\u00ADr');
+  test.todo('OpenDoor — non-ASCII whitespace variant: matcher catches Ope\\u00A0nDoor');
+
+  // ── PureCloud ───────────────────────────────────────────────────────────
+  test.todo('PureCloud — full-width Latin variant: matcher catches ＰｕｒｅＣｌｏｕｄ');
+  test.todo('PureCloud — soft-hyphen variant: matcher catches P\\u00ADu\\u00ADr\\u00ADe\\u00ADC\\u00ADl\\u00ADo\\u00ADu\\u00ADd');
+  test.todo('PureCloud — non-ASCII whitespace variant: matcher catches Pur\\u00A0eCloud');
+
+  // ── PureConnect ─────────────────────────────────────────────────────────
+  test.todo('PureConnect — full-width Latin variant: matcher catches ＰｕｒｅＣｏｎｎｅｃｔ');
+  test.todo('PureConnect — soft-hyphen variant: matcher catches P\\u00ADu\\u00ADr\\u00ADe\\u00ADC\\u00ADo\\u00ADn\\u00ADn\\u00ADe\\u00ADc\\u00ADt');
+  test.todo('PureConnect — non-ASCII whitespace variant: matcher catches Pur\\u00A0eConnect');
+
+  // ── Sandler ─────────────────────────────────────────────────────────────
+  test.todo('Sandler — full-width Latin variant: matcher catches Ｓａｎｄｌｅｒ');
+  test.todo('Sandler — soft-hyphen variant: matcher catches S\\u00ADa\\u00ADn\\u00ADd\\u00ADl\\u00ADe\\u00ADr');
+  test.todo('Sandler — non-ASCII whitespace variant: matcher catches San\\u00A0dler');
+
+  // ── Stride Care ─────────────────────────────────────────────────────────
+  test.todo('Stride Care — full-width Latin variant: matcher catches Ｓｔｒｉｄｅ Ｃａｒｅ');
+  test.todo('Stride Care — soft-hyphen variant: matcher catches S\\u00ADt\\u00ADr\\u00ADi\\u00ADd\\u00ADe C\\u00ADa\\u00ADr\\u00ADe');
+  test.todo('Stride Care — non-ASCII whitespace variant: matcher catches Stride\\u00A0Care');
+
+  // ── Totango ─────────────────────────────────────────────────────────────
+  test.todo('Totango — full-width Latin variant: matcher catches Ｔｏｔａｎｇｏ');
+  test.todo('Totango — soft-hyphen variant: matcher catches T\\u00ADo\\u00ADt\\u00ADa\\u00ADn\\u00ADg\\u00ADo');
+  test.todo('Totango — non-ASCII whitespace variant: matcher catches Tot\\u00A0ango');
+
+  // ── UKG ─────────────────────────────────────────────────────────────────
+  test.todo('UKG — full-width Latin variant: matcher catches ＵＫＧ');
+  test.todo('UKG — soft-hyphen variant: matcher catches U\\u00ADK\\u00ADG');
+  test.todo('UKG — non-ASCII whitespace variant: matcher catches UK\\u00A0G');
+});
