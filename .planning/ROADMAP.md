@@ -183,10 +183,10 @@ Plans:
   3. The `/today` briefing opens with a one-line summary — e.g., "Yesterday: +3 proposals, +2 promotions, +1.4 KB memory" — drawn from the prior day's stats row; the line is omitted when no prior-day row exists (first run ever).
   4. The stats row captures per-connector latency (calendar, Gmail, GitHub) and per-operation latency (semanticSearch, memoryEcho) alongside the end-to-end `/today` latency.
 
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 
 Plans:
-- [ ] 20-01-PLAN.md — Pipeline schema extension: stats sub-object (enabled, path, timezone, summaryLineEnabled, schemaVersion) + defaults — STATS-DAILY-01
+- [x] 20-01-PLAN.md — Pipeline schema extension: stats sub-object (enabled, path, timezone, summaryLineEnabled, schemaVersion) + defaults — STATS-DAILY-01
 - [ ] 20-02-PLAN.md — src/daily-stats.js core module: dateKey() with America/Chicago + DST + 23:59/00:01 boundary tests, atomic .tmp+rename writer, gray-matter frontmatter, idempotent same-day rewrite — STATS-DAILY-01, STATS-GROWTH-01
 - [ ] 20-03-PLAN.md — Counter emit points: recall_count in recall-command (D-04: Memory Echo NOT counted), proposals/promotions/avg_confidence in promote-memories, top-1 cosine in semantic-index, top-1 RRF in --hybrid (D-07 emit-only), latency timing harness in today-command — STATS-DAILY-01, STATS-LATENCY-01
 - [ ] 20-04-PLAN.md — today-command.js orchestrator integration: recordStats step after briefing-renderer, lazy require, every call try/catch-wrapped (D-06 briefing-is-the-product), end-to-end integration test — STATS-DAILY-01, STATS-LATENCY-01, STATS-GROWTH-01
@@ -212,7 +212,7 @@ Plans:
 | 17. UAT CI Infrastructure | 3/3 | Complete    | 2026-04-24 |
 | 18. Memory Retrieval Foundation | 6/6 | Complete    | 2026-04-24 |
 | 19. Semantic Memory Search | 5/5 | Complete    | 2026-04-24 |
-| 20. Value Extraction Instrumentation | 0/5 | Not started | - |
+| 20. Value Extraction Instrumentation | 1/5 | In Progress|  |
 | 21. Closeout Hygiene | 0/? | Not started | - |
 
 ---
