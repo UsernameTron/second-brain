@@ -78,3 +78,15 @@
 - [ ] **HOOK-DOCSYNC-01: Post-merge documentation drift detection** — `scope: v1.5` `category: hooks`
   - After merge to master, compare `CLAUDE.md` stats (test count, coverage, phase count) against actual `jest --coverage` output; flag mismatches as warnings — don't block, just surface.
   - Rationale: v1.4 required a manual doc-sync after every phase ship (test counts, coverage percentages, milestone tags). Drift is silent until someone notices the README claims 982 tests and the suite actually runs 1,084. A non-blocking warning hook closes the loop without inverting the dependency on devs remembering to update three living documents.
+
+- [ ] **AGENT-DOCSYNC-01: Post-ship documentation drift detection** — `scope: v1.5` `category: agents`
+  - After each phase ships, compare `CLAUDE.md` / `README.md` stats (test count, coverage, phase count, milestone list) against actual `jest --coverage` and `git log` reality; produce a diff of stale values; block phase closure if drift exceeds threshold. Pairs with HOOK-DOCSYNC-01 — the hook fires on merge for cheap structural checks, the agent does deeper semantic comparison at phase boundary.
+  - Rationale: `CLAUDE.md` test count drifted from 982 to 1,082+ across Phases 18-20 undetected. The hook (HOOK-DOCSYNC-01) catches numbers that don't match `jest`; the agent catches narrative drift the hook can't see — milestone descriptions, phase summaries, "what's shipped" prose.
+
+- [ ] **AGENT-VERIFY-01: Requirement-level auto-verification** — `scope: v1.5` `category: agents`
+  - Expand `test-verifier` to auto-run against every phase's requirements checklist, not just UAT items; spawn parallel sub-checks per requirement ID using the subagent fan-out pattern (Pattern 6 streaming + Pattern 10 write-once registration).
+  - Rationale: Phase 20's verifier caught a Pattern 11 violation only because we ran it manually. Auto-spawning a sub-check per REQ-ID at phase-close time makes verification cover the full requirements surface, not just the UAT subset that happens to be in the verifier prompt.
+
+- [ ] **AGENT-MEMORY-01: Memory health monitor** — `scope: v1.5` `category: agents`
+  - Read `daily-stats.md` counters; flag anomalies: zero promotions for 3+ days, proposal backlog growing without promotions, recall usage dropping, vault size plateau. Surface anomaly alerts in the `/today` briefing output (between Memory Echo and the summary line).
+  - Rationale: Compounding memory is the project's core value prop, but nothing currently monitors whether it's actually compounding. Phase 20 instrumented the counters; this is the consumer that converts counters into "is the system working" signal.
