@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Pipeline Configuration Schema",
-  "description": "Validates config/pipeline.json \u2014 all Phase 2 thresholds and configuration values",
+  "description": "Validates config/pipeline.json — all Phase 2 thresholds and configuration values",
   "type": "object",
   "required": [
     "classifier",
@@ -272,6 +272,32 @@
         }
       },
       "additionalProperties": false
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "path": {
+          "type": "string",
+          "default": "RIGHT/daily-stats.md"
+        },
+        "timezone": {
+          "type": "string",
+          "default": "America/Chicago"
+        },
+        "summaryLineEnabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "default": 1
+        }
+      }
     },
     "memory": {
       "type": "object",
