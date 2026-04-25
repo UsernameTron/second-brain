@@ -487,7 +487,13 @@ describe('Phase 20: yesterday summary line', () => {
     const docWithout = renderBriefing(baseDataPhase20());
 
     // Stripping "Yesterday: ...\n\n" from docWith must equal docWithout.
-    const bodyFromWith = docWith.replace(/^Yesterday:.*?\n\n/, '');
-    expect(bodyFromWith).toBe(docWithout);
+    // The two renderBriefing() calls each call new Date().toISOString() for the
+    // frontmatter `generated:` field, so the millisecond can drift between them
+    // (especially on slower CI hardware). Normalize the generated timestamp in
+    // both docs before comparing — we're asserting body equality, not timestamp
+    // equality.
+    const normalizeGenerated = (s) => s.replace(/generated: \d{4}-\d{2}-\d{2}T[\d:.]+Z/, 'generated: <NORMALIZED>');
+    const bodyFromWith = normalizeGenerated(docWith).replace(/^Yesterday:.*?\n\n/, '');
+    expect(bodyFromWith).toBe(normalizeGenerated(docWithout));
   });
 });
