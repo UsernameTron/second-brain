@@ -42,9 +42,14 @@ function parseRecallArgs(argv) {
 }
 
 /**
- * Run a /recall invocation.
- * @param {string[]} argv
- * @returns {Promise<{ query: string, mode: string, results: Array, total: number, lines: string[], empty: boolean, degraded: boolean, degradedBanner: string|null, blocked: boolean, blockedReason: string|null }>}
+ * Run a /recall invocation: parses argv, dispatches to keyword / semantic /
+ * hybrid search, increments daily-stats counters, and renders display lines
+ * (including degraded-mode banners and blocked-policy reasons).
+ * @param {string[]} argv - Argv slice starting AFTER the command name.
+ * @param {Object} [options] - Internal call options.
+ * @param {boolean} [options._internal=false] - When true, suppresses the
+ *   `recall_count` daily-stats increment (used by Memory Echo's morning hit).
+ * @returns {Promise<{ query: string, mode: string, results: Array<{rank: number, category: string, snippet: string, sourceRef: string, date: string, score: number}>, total: number, lines: string[], empty: boolean, degraded: boolean, degradedBanner: string|null, blocked: boolean, blockedReason: string|null }>} Recall result envelope.
  */
 async function runRecall(argv, options = {}) {
   const { query, flags } = parseRecallArgs(argv);

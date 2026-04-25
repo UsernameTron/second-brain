@@ -274,6 +274,17 @@ function runMemoryArchive(archiveSizeThresholdKB, archiveEntriesThreshold) {
   return true;
 }
 
+/**
+ * Promote candidate memories from staging to memory.md based on threshold,
+ * deduplication, and content/style policy gates. Honors the human-reviewed
+ * checkbox state on each candidate, dedupes against existing memory + archive,
+ * archives stale proposals, and triggers tail-archive of memory.md when size
+ * thresholds are exceeded.
+ * @param {Object} [options] - Promotion options.
+ * @param {number} [options.max] - Override batch cap (must fall within
+ *   `pipeline.json` `promotion.batchCapMin`..`batchCapMax`); defaults to `batchCapMax`.
+ * @returns {Promise<{promoted: number, deferred: number, duplicates: number, rejected: number, skipped: number, archived: boolean, error?: string}>} Promotion outcome.
+ */
 async function promoteMemories(options = {}) {
   let config;
   try { config = loadPromotionConfig(); } catch (err) { return { error: 'Failed to load pipeline config: ' + err.message }; }

@@ -546,6 +546,7 @@ module.exports = {
   getEmbeddingsPath,
   getMetadataPath,
   // Test-only internals
+  // Test-only seam — not public API. JSDoc not required per Phase 21 D-LOCK-3.
   _testOnly: {
     _cosine,
     _adjustedScore,
