@@ -36,7 +36,6 @@ let tmpVault;
 let tmpProjects;
 
 const FIXED_NOW_DAY1 = new Date('2026-04-24T18:00:00.000Z'); // 13:00 Central → 2026-04-24
-const FIXED_NOW_DAY2 = new Date('2026-04-25T18:00:00.000Z'); // 13:00 Central → 2026-04-25
 
 // ── Pipeline config (real stats block) ───────────────────────────────────────
 
@@ -269,7 +268,7 @@ it('briefing succeeds when memory.md is missing — recordDailyStats called with
 
   // Also mock readMemory to simulate missing file (returns [])
   jest.resetModules();
-  const { runToday, recordDailyStatsSpy } = loadRunToday({ day: '2026-04-24' });
+  loadRunToday({ day: '2026-04-24' });
 
   // Override readMemory to return empty (simulating missing file)
   jest.doMock('../../src/memory-reader', () => ({
@@ -278,7 +277,7 @@ it('briefing succeeds when memory.md is missing — recordDailyStats called with
   }));
 
   jest.resetModules();
-  const { runToday: runToday2, recordDailyStatsSpy: spy2 } = loadRunToday({ day: '2026-04-24' });
+  loadRunToday({ day: '2026-04-24' });
   // Override readMemory after re-registering
   jest.doMock('../../src/memory-reader', () => ({
     getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0, skipped: false }),

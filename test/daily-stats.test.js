@@ -9,8 +9,6 @@
 
 const {
   dateKey, recordDailyStats, readDailyStats,
-  recordRecallInvocation, recordProposalsBatch, recordPromotion,
-  recordTopCosine, recordTopRrf, readDailyCounters,
 } = require('../src/daily-stats');
 
 // ── dateKey() ────────────────────────────────────────────────────────────────
@@ -300,7 +298,6 @@ describe('recordDailyStats()', () => {
 
   it('readDailyStats rethrows non-ENOENT fs errors', () => {
     // This covers the re-throw branch at line 84
-    const realFs = jest.requireActual('fs');
     jest.spyOn(require('fs'), 'readFileSync').mockImplementation(() => {
       const err = new Error('permission denied');
       err.code = 'EACCES';

@@ -1000,7 +1000,7 @@ describe('Phase 20: latency timing', () => {
   const FIXED_DATE_LATENCY = new Date('2026-04-24T18:00:00.000Z');
 
   it('runToday return value includes _phase20.latencies with calendar, gmail, github, memoryEcho, endToEnd keys', async () => {
-    const { runToday } = setupMocks();
+    setupMocks();
 
     jest.doMock('../src/memory-reader', () => ({
       getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),

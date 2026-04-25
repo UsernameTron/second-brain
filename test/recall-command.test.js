@@ -7,8 +7,6 @@
  * Phase 20: counter instrumentation emit points.
  */
 
-const path = require('path');
-
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 const mockSearchMemoryKeyword = jest.fn();
