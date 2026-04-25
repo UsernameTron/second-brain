@@ -281,6 +281,48 @@ async function runToday(options = {}) {
       ? Math.round(measured.reduce((a, b) => a + b, 0) / measured.length)
       : null;
 
+    // ── Phase 20: Record daily stats (briefing-is-the-product, D-06) ──────
+    // Briefing is already written above. Stats failure NEVER breaks the briefing.
+    // Skip in dry-run mode to avoid polluting daily-stats.md with practice runs.
+    if (mode !== 'dry-run') {
+      try {
+        const { recordDailyStats, readDailyCounters } = require('./daily-stats');
+        const { readMemory } = require('./memory-reader');
+
+        // Aggregate inputs — each sub-fetch in its own try/catch with safe defaults.
+        let counters = { proposals: 0, promotions: 0, recallCount: 0, avgConfidence: null };
+        try { counters = readDailyCounters(); } catch (_) { /* defaults retained */ }
+
+        let memoryKb = 0;
+        try {
+          // memory.md lives at <VAULT_ROOT>/memory/memory.md (Phase 18 convention).
+          const memoryPath = path.join(vaultRoot, 'memory', 'memory.md');
+          if (fs.existsSync(memoryPath)) {
+            memoryKb = Math.round((fs.statSync(memoryPath).size / 1024) * 10) / 10;
+          }
+        } catch (_) { /* memoryKb stays 0 */ }
+
+        let totalEntries = 0;
+        try {
+          const entries = await readMemory();
+          totalEntries = Array.isArray(entries) ? entries.length : 0;
+        } catch (_) { /* totalEntries stays 0 */ }
+
+        recordDailyStats({
+          proposals: counters.proposals,
+          promotions: counters.promotions,
+          totalEntries,
+          memoryKb,
+          recallCount: counters.recallCount,
+          avgLatencyMs,
+          avgConfidence: counters.avgConfidence,
+        });
+      } catch (_) {
+        // Briefing already written; stats failure is non-fatal.
+        // Per CLAUDE.md ESLint config: no console.* in production. Silent catch.
+      }
+    }
+
     return { path: outputPath, briefing, sourceHealth, _phase20: { latencies, avgLatencyMs } };
 
   } catch (err) {
