@@ -254,6 +254,12 @@ function _renderFrontmatter(date, sources, degradedCount, mode) {
 /**
  * Render the full D-09 markdown briefing template.
  *
+ * Phase 20 addition (TODAY-SUMMARY-01, D-05/D-06): prepends a verbatim 5-delta
+ * "Yesterday: ..." line at the top of the briefing when:
+ *   - config.stats.summaryLineEnabled is true (default)
+ *   - daily-stats.md exists and has at least one row strictly before today
+ * Silent suppression on every failure path — briefing is the product (D-06).
+ *
  * @param {object} data
  * @param {Date} data.date - Today's date object
  * @param {{ sources: object, degradedCount: number }} data.sourceHealth
@@ -280,7 +286,7 @@ function renderBriefing(data) {
   const githubSection = _renderGitHubSection(connectorResults.github);
   const pipelineSection = _renderPipelineSection(pipelineState);
 
-  return [
+  const body = [
     frontmatter,
     '',
     heading,
@@ -316,6 +322,46 @@ function renderBriefing(data) {
     '',
     pipelineSection,
   ].join('\n');
+
+  // ── Phase 20: Yesterday summary line prefix (TODAY-SUMMARY-01, D-05/D-06) ──
+  // Silent suppression on every failure path — briefing is the product.
+  // All requires are lazy (inside function body) per Pattern 12.
+  let summaryLine = '';
+  try {
+    const { loadConfigWithOverlay } = require('../pipeline-infra');
+    const config = loadConfigWithOverlay('pipeline', { validate: true });
+
+    if (config.stats && config.stats.summaryLineEnabled !== false) {
+      const { readDailyStats, dateKey } = require('../daily-stats');
+      const { VAULT_ROOT } = require('../vault-gateway');
+      const nodePath = require('path');
+
+      const statsAbsPath = nodePath.join(VAULT_ROOT, config.stats.path || 'RIGHT/daily-stats.md');
+      const tz = config.stats.timezone || 'America/Chicago';
+
+      const { rows } = readDailyStats(statsAbsPath);
+
+      if (Array.isArray(rows) && rows.length > 0) {
+        const todayKey = dateKey(data.date || new Date(), tz);
+
+        // Use the largest-date-strictly-less-than-today rule (handles history gaps).
+        const earlier = rows.filter(r => r.date < todayKey);
+
+        if (earlier.length > 0) {
+          const priorRow = earlier[earlier.length - 1];
+          const dayBeforePrior = earlier.length > 1 ? earlier[earlier.length - 2] : null;
+
+          const { buildYesterdaySummaryLine } = require('../briefing-helpers');
+          summaryLine = buildYesterdaySummaryLine(priorRow, dayBeforePrior);
+        }
+      }
+    }
+  } catch (_) {
+    // Silent suppression — briefing-is-the-product (D-06).
+    summaryLine = '';
+  }
+
+  return summaryLine ? `${summaryLine}\n\n${body}` : body;
 }
 
 module.exports = {

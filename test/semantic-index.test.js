@@ -711,3 +711,129 @@ describe('_testOnly math helpers', () => {
     });
   });
 });
+
+// ── Phase 20: top-1 cosine emit ───────────────────────────────────────────────
+
+describe('Phase 20: top-1 cosine emit', () => {
+  const mockRecordTopCosine = jest.fn();
+
+  // Helper: make a normalized unit vec of length 4 pointing in a given direction
+  function uv(seed) {
+    const v = Array.from({ length: 4 }, (_, i) => Math.sin(seed + i));
+    const mag = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
+    return v.map(x => x / mag);
+  }
+
+  beforeEach(() => {
+    mockRecordTopCosine.mockClear();
+    jest.resetModules();
+
+    // Re-apply all the shared mocks after resetModules
+    jest.mock('voyageai', () => ({
+      VoyageAIClient: jest.fn().mockImplementation(() => ({ embed: (...args) => mockEmbed(...args) })),
+    }));
+    jest.mock('../src/content-policy', () => ({ checkContent: (...args) => mockCheckContent(...args) }));
+    jest.mock('../src/memory-reader', () => ({
+      readMemory: (...args) => mockReadMemory(...args),
+      searchMemoryKeyword: (...args) => mockSearchMemoryKeyword(...args),
+      getMemoryEcho: (...args) => mockGetMemoryEcho(...args),
+    }));
+    jest.mock('../src/pipeline-infra', () => ({ safeLoadPipelineConfig: (...args) => mockSafeLoadPipelineConfig(...args) }));
+    jest.mock('../src/daily-stats', () => ({ recordTopCosine: (...args) => mockRecordTopCosine(...args) }));
+
+    // Reset shared mock return values for this group
+    mockCheckContent.mockResolvedValue({ decision: 'PASS' });
+    mockReadMemory.mockResolvedValue([]);
+    mockSafeLoadPipelineConfig.mockReturnValue({
+      config: {
+        memory: { semantic: defaultSemConfig },
+        excludedTerms: [],
+      },
+      errors: [],
+    });
+  });
+
+  it('recordTopCosine is called with results[0].score when filtered.length > 0', async () => {
+    const { semanticSearch } = require('../src/semantic-index');
+
+    // Store one embedding in the cache dir so semanticSearch has something to score
+    const queryVec = uv(1.0);
+    const docVec = uv(1.0); // identical → cosine ≈ 1.0 → above threshold 0.72
+
+    // Write a single embedding record
+    const embPath = path.join(tmpCacheDir, 'embeddings.jsonl');
+    fs.mkdirSync(tmpCacheDir, { recursive: true });
+    fs.writeFileSync(embPath, JSON.stringify({
+      hash: 'testhash1',
+      embedding: docVec,
+      addedAt: new Date().toISOString(),
+      category: 'INSIGHT',
+    }) + '\n', { encoding: 'utf8', mode: 0o600 });
+
+    mockReadMemory.mockResolvedValue([{
+      id: 'e1',
+      contentHash: 'testhash1',
+      content: 'Test memory entry',
+      category: 'INSIGHT',
+      sourceRef: 'memory/memory.md#1',
+      date: '2026-04-24',
+      addedAt: new Date().toISOString(),
+    }]);
+
+    // Mock Voyage to return the query vector
+    mockEmbed.mockResolvedValueOnce({ data: [{ embedding: queryVec }] });
+    // Mock selfHealIfNeeded sub-calls (readMemory already mocked)
+    mockEmbed.mockResolvedValue({ data: [{ embedding: queryVec }] });
+
+    const result = await semanticSearch('test query', { top: 5 });
+
+    expect(result.results.length).toBeGreaterThan(0);
+    expect(mockRecordTopCosine).toHaveBeenCalledTimes(1);
+    expect(typeof mockRecordTopCosine.mock.calls[0][0]).toBe('number');
+  });
+
+  it('recordTopCosine is NOT called when filtered.length === 0', async () => {
+    const { semanticSearch } = require('../src/semantic-index');
+
+    // No embeddings in cache → results will be empty
+    mockEmbed.mockResolvedValueOnce({ data: [{ embedding: uv(1.0) }] });
+
+    const result = await semanticSearch('test query', { top: 5 });
+
+    expect(result.results).toHaveLength(0);
+    expect(mockRecordTopCosine).not.toHaveBeenCalled();
+  });
+
+  it('semanticSearch does not throw when recordTopCosine throws', async () => {
+    mockRecordTopCosine.mockImplementation(() => { throw new Error('disk full'); });
+
+    const { semanticSearch } = require('../src/semantic-index');
+
+    const queryVec = uv(1.0);
+    const embPath = path.join(tmpCacheDir, 'embeddings.jsonl');
+    fs.mkdirSync(tmpCacheDir, { recursive: true });
+    fs.writeFileSync(embPath, JSON.stringify({
+      hash: 'testhash2',
+      embedding: queryVec,
+      addedAt: new Date().toISOString(),
+      category: 'INSIGHT',
+    }) + '\n', { encoding: 'utf8', mode: 0o600 });
+
+    mockReadMemory.mockResolvedValue([{
+      id: 'e2',
+      contentHash: 'testhash2',
+      content: 'Test memory entry 2',
+      category: 'INSIGHT',
+      sourceRef: 'memory/memory.md#2',
+      date: '2026-04-24',
+      addedAt: new Date().toISOString(),
+    }]);
+
+    mockEmbed.mockResolvedValue({ data: [{ embedding: queryVec }] });
+
+    // Should not throw even though recordTopCosine throws
+    const result = await semanticSearch('test query', { top: 5 });
+    expect(result).toBeDefined();
+    expect(Array.isArray(result.results)).toBe(true);
+  });
+});

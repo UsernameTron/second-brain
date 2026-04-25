@@ -32,10 +32,10 @@ All requirements are user-centric (or developer-centric where the "user" is the 
 
 ### Value Extraction Instrumentation (Phase 20)
 
-- [ ] **STATS-DAILY-01**: `appendDailyStats()` writes one row per calendar day to `~/Claude Cowork/RIGHT/daily-stats.md` with columns `date | proposals | promotions | total_entries | memory_kb | recall_count | avg_latency_ms | avg_confidence`. Second run on the same day updates the existing row rather than appending a duplicate (idempotency).
+- [x] **STATS-DAILY-01**: `appendDailyStats()` writes one row per calendar day to `~/Claude Cowork/RIGHT/daily-stats.md` with columns `date | proposals | promotions | total_entries | memory_kb | recall_count | avg_latency_ms | avg_confidence`. Second run on the same day updates the existing row rather than appending a duplicate (idempotency).
 - [ ] **STATS-LATENCY-01**: `today-command.js` records end-to-end `/today` latency plus per-connector latency (calendar, gmail, github) and per-operation latency (semanticSearch, memoryEcho). Stats row captures `avg_latency_ms` across those operations.
-- [ ] **STATS-GROWTH-01**: Memory growth measured as `memory_kb` (size in KB) and `total_entries` (count of `### ` headers), recorded per day. A 7-day trend line shows whether memory is compounding. All date handling uses the user's local timezone (`America/Los_Angeles`) via a single shared `dateKey()` utility and is unit-tested at 23:59 and 00:01.
-- [ ] **TODAY-SUMMARY-01**: `/today` output includes a one-line "Yesterday: +N proposals, +M promotions, +X KB memory" summary at the top of the briefing, pulled from the previous day's row in `daily-stats.md`.
+- [ ] **STATS-GROWTH-01**: Memory growth measured as `memory_kb` (size in KB) and `total_entries` (count of `### ` headers), recorded per day. A 7-day trend line shows whether memory is compounding. All date handling uses the user's local timezone (`America/Chicago`) via a single shared `dateKey()` utility and is unit-tested at 23:59 and 00:01.
+- [x] **TODAY-SUMMARY-01**: `/today` output includes a one-line "Yesterday: +N proposals, +M promotions, +X KB memory" summary at the top of the briefing, pulled from the previous day's row in `daily-stats.md`.
 
 ### Closeout Hygiene (Phase 21)
 
@@ -84,10 +84,10 @@ All requirements are user-centric (or developer-centric where the "user" is the 
 | MEM-SEMANTIC-01 | 19 — Semantic Memory Search | Complete | TBD |
 | MEM-INDEX-REFRESH-01 | 19 — Semantic Memory Search | Complete | TBD |
 | MEM-DEGRADE-01 | 19 — Semantic Memory Search | Complete | TBD |
-| STATS-DAILY-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
+| STATS-DAILY-01 | 20 — Value Extraction Instrumentation | Complete | TBD |
 | STATS-LATENCY-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
 | STATS-GROWTH-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
-| TODAY-SUMMARY-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
+| TODAY-SUMMARY-01 | 20 — Value Extraction Instrumentation | Complete | TBD |
 | HYG-UNICODE-01 | 21 — Closeout Hygiene | Pending | TBD |
 | HYG-JSDOC-01 | 21 — Closeout Hygiene | Pending | TBD |
 | HYG-CONSOLE-01 | 21 — Closeout Hygiene | Pending | TBD |

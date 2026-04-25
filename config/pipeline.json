@@ -55,6 +55,13 @@
     "haikuTimeoutMs": 2000,
     "wikilinkTokenBudget": 1024
   },
+  "stats": {
+    "enabled": true,
+    "path": "RIGHT/daily-stats.md",
+    "timezone": "America/Chicago",
+    "summaryLineEnabled": true,
+    "schemaVersion": 1
+  },
   "memory": {
     "echoThreshold": 0.65,
     "semantic": {

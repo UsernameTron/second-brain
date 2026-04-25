@@ -6,7 +6,26 @@
  * Unit tests for src/today/briefing-renderer.js extracted in Phase 15.
  * Covers: frontmatter shape, section assembly, degraded-section format,
  * source-health map, date formatters, each section's empty/populated/degraded states.
+ *
+ * Phase 20 additions: yesterday summary line prepend (TODAY-SUMMARY-01, D-05/D-06).
  */
+
+// Top-level mocks for lazy-required modules used inside renderBriefing's summary-line block.
+// These are hoisted so they apply to every require of these modules in the renderer.
+jest.mock('../../src/pipeline-infra', () => ({
+  loadConfigWithOverlay: jest.fn(() => ({
+    stats: { enabled: true, summaryLineEnabled: true, path: 'RIGHT/daily-stats.md', timezone: 'America/Chicago' },
+  })),
+}));
+
+jest.mock('../../src/daily-stats', () => ({
+  readDailyStats: jest.fn(() => ({ frontmatter: null, rows: [] })),
+  dateKey: jest.fn(() => '2026-04-25'),
+}));
+
+jest.mock('../../src/vault-gateway', () => ({
+  VAULT_ROOT: '/fake/vault',
+}));
 
 jest.mock('../../src/briefing-helpers', () => ({
   formatBriefingSection: jest.fn((kind, data) => {
@@ -14,6 +33,7 @@ jest.mock('../../src/briefing-helpers', () => ({
     if (kind === 'deadletter') return data.total ? `Dead-letter: ${data.total}` : '';
     return '';
   }),
+  buildYesterdaySummaryLine: jest.fn(() => ''),
 }));
 
 const {
@@ -293,5 +313,187 @@ describe('renderBriefing', () => {
 
     expect(doc).toMatch(/Proposals pending: 5/);
     expect(doc).toMatch(/Dead-letter: 3/);
+  });
+});
+
+// ── Phase 20: yesterday summary line (TODAY-SUMMARY-01) ──────────────────────
+//
+// These tests control mock return values via mockReturnValue / mockImplementation
+// on the top-level jest.mock() stubs. The renderer lazily requires pipeline-infra,
+// daily-stats, vault-gateway, and briefing-helpers inside its try/catch block;
+// because those modules are already mocked at the file level, the mocked versions
+// are returned by every require() call inside renderBriefing at test time.
+
+// Grab references to the mocked modules so we can reconfigure per-test.
+const mockPipelineInfra = require('../../src/pipeline-infra');
+const mockDailyStats = require('../../src/daily-stats');
+const mockBriefingHelpers = require('../../src/briefing-helpers');
+
+describe('Phase 20: yesterday summary line', () => {
+  const TODAY = new Date('2026-04-25T14:00:00Z');
+  const TODAY_KEY = '2026-04-25';
+  const YESTERDAY_KEY = '2026-04-24';
+  const DAY_BEFORE_KEY = '2026-04-23';
+
+  const PRIOR_ROW = {
+    date: YESTERDAY_KEY,
+    proposals: '3', promotions: '2', total_entries: '47',
+    memory_kb: '14.6', recall_count: '5',
+  };
+  const DAY_BEFORE_ROW = {
+    date: DAY_BEFORE_KEY,
+    proposals: '1', promotions: '0', total_entries: '45',
+    memory_kb: '13.2', recall_count: '2',
+  };
+
+  function baseDataPhase20(overrides = {}) {
+    return {
+      date: TODAY,
+      sourceHealth: {
+        sources: { calendar: 'ok', gmail: 'ok', github: 'ok', pipeline: 'ok' },
+        degradedCount: 0,
+      },
+      connectorResults: {
+        calendar: { success: true, data: [] },
+        gmail: { success: true, data: [] },
+        github: { success: true, data: { repos: [] } },
+      },
+      pipelineState: {
+        ok: true, proposalCount: 0,
+        deadLetter: { pending: 0, frozen: 0, total: 0 },
+      },
+      slippage: { projects: [], warnings: [] },
+      frog: { frog: null, reasoning: 'none' },
+      mode: 'interactive',
+      synthesis: '> Synthesis.',
+      ...overrides,
+    };
+  }
+
+  // Default happy-path config returned by loadConfigWithOverlay in all tests unless overridden.
+  const happyConfig = {
+    stats: { enabled: true, summaryLineEnabled: true, path: 'RIGHT/daily-stats.md', timezone: 'America/Chicago' },
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Default: summaryLineEnabled true, stats path set.
+    mockPipelineInfra.loadConfigWithOverlay.mockReturnValue(happyConfig);
+    // Default: empty rows (no prior row) — suppresses summary line unless overridden.
+    mockDailyStats.readDailyStats.mockReturnValue({ frontmatter: null, rows: [] });
+    mockDailyStats.dateKey.mockReturnValue(TODAY_KEY);
+    // Default: buildYesterdaySummaryLine returns '' — no prepend.
+    mockBriefingHelpers.buildYesterdaySummaryLine.mockReturnValue('');
+    // formatBriefingSection default (same as outer suite top-level impl).
+    mockBriefingHelpers.formatBriefingSection.mockImplementation((kind, data) => {
+      if (kind === 'proposals') return data.count ? `Proposals pending: ${data.count}` : '';
+      if (kind === 'deadletter') return data.total ? `Dead-letter: ${data.total}` : '';
+      return '';
+    });
+  });
+
+  it('prepends summary line when daily-stats.md has a prior-day row and summaryLineEnabled is true', () => {
+    mockDailyStats.readDailyStats.mockReturnValue({
+      frontmatter: {}, rows: [DAY_BEFORE_ROW, PRIOR_ROW],
+    });
+    mockBriefingHelpers.buildYesterdaySummaryLine.mockReturnValue(
+      'Yesterday: +3 proposals, +2 promotions, +1.4 KB memory, +2 entries, 5 recalls'
+    );
+
+    const doc = renderBriefing(baseDataPhase20());
+    expect(doc).toMatch(/^Yesterday: /);
+  });
+
+  it('does NOT prepend when summaryLineEnabled is false', () => {
+    mockPipelineInfra.loadConfigWithOverlay.mockReturnValue({
+      stats: { enabled: true, summaryLineEnabled: false, path: 'RIGHT/daily-stats.md', timezone: 'America/Chicago' },
+    });
+    mockDailyStats.readDailyStats.mockReturnValue({
+      frontmatter: {}, rows: [DAY_BEFORE_ROW, PRIOR_ROW],
+    });
+    // buildYesterdaySummaryLine should NOT be called, but even if it is, return ''.
+
+    const doc = renderBriefing(baseDataPhase20());
+    expect(doc).not.toMatch(/^Yesterday:/);
+  });
+
+  it('does NOT prepend when daily-stats.md is missing (readDailyStats returns empty rows)', () => {
+    // Default mock already returns empty rows — no override needed.
+    const doc = renderBriefing(baseDataPhase20());
+    expect(doc).not.toMatch(/^Yesterday:/);
+  });
+
+  it('does NOT prepend when readDailyStats throws (corrupt file)', () => {
+    mockDailyStats.readDailyStats.mockImplementation(() => {
+      throw new Error('Corrupt frontmatter');
+    });
+
+    let doc;
+    expect(() => { doc = renderBriefing(baseDataPhase20()); }).not.toThrow();
+    expect(doc).not.toMatch(/^Yesterday:/);
+  });
+
+  it('does NOT prepend on day 1 (no row earlier than today)', () => {
+    // Only row is today — filter for date < todayKey yields nothing.
+    mockDailyStats.readDailyStats.mockReturnValue({
+      frontmatter: {},
+      rows: [{ date: TODAY_KEY, proposals: '1', promotions: '0', total_entries: '5', memory_kb: '3.0', recall_count: '0' }],
+    });
+
+    const doc = renderBriefing(baseDataPhase20());
+    expect(doc).not.toMatch(/^Yesterday:/);
+  });
+
+  it('uses the latest row strictly before today as priorRow even with history gaps', () => {
+    // Rows for [2026-04-20, 2026-04-22, 2026-04-23]; today = 2026-04-25.
+    // Largest-date-less-than-today rule → priorRow = 2026-04-23, dayBefore = 2026-04-22.
+    const gappedRows = [
+      { date: '2026-04-20', proposals: '1', promotions: '0', total_entries: '10', memory_kb: '5.0', recall_count: '0' },
+      { date: '2026-04-22', proposals: '2', promotions: '1', total_entries: '15', memory_kb: '6.0', recall_count: '1' },
+      { date: '2026-04-23', proposals: '7', promotions: '4', total_entries: '20', memory_kb: '7.2', recall_count: '3' },
+    ];
+    mockDailyStats.readDailyStats.mockReturnValue({ frontmatter: {}, rows: gappedRows });
+
+    let capturedPrior = null;
+    let capturedDayBefore = null;
+    mockBriefingHelpers.buildYesterdaySummaryLine.mockImplementation((pr, db) => {
+      capturedPrior = pr;
+      capturedDayBefore = db;
+      return `Yesterday: +${pr.proposals} proposals, +${pr.promotions} promotions, +0.0 KB memory, +0 entries, ${pr.recall_count} recalls`;
+    });
+
+    const doc = renderBriefing(baseDataPhase20());
+
+    expect(capturedPrior).toBeTruthy();
+    expect(capturedPrior.date).toBe('2026-04-23');
+    expect(capturedDayBefore).toBeTruthy();
+    expect(capturedDayBefore.date).toBe('2026-04-22');
+    expect(doc).toMatch(/^Yesterday: /);
+  });
+
+  it('briefing body content is unchanged when summary line is prepended', () => {
+    const SUMMARY = 'Yesterday: +3 proposals, +2 promotions, +1.4 KB memory, +2 entries, 5 recalls';
+
+    // Render WITH summary line.
+    mockDailyStats.readDailyStats.mockReturnValue({
+      frontmatter: {}, rows: [DAY_BEFORE_ROW, PRIOR_ROW],
+    });
+    mockBriefingHelpers.buildYesterdaySummaryLine.mockReturnValue(SUMMARY);
+    const docWith = renderBriefing(baseDataPhase20());
+
+    // Render WITHOUT summary line (suppress via empty rows).
+    mockDailyStats.readDailyStats.mockReturnValue({ frontmatter: null, rows: [] });
+    mockBriefingHelpers.buildYesterdaySummaryLine.mockReturnValue('');
+    const docWithout = renderBriefing(baseDataPhase20());
+
+    // Stripping "Yesterday: ...\n\n" from docWith must equal docWithout.
+    // The two renderBriefing() calls each call new Date().toISOString() for the
+    // frontmatter `generated:` field, so the millisecond can drift between them
+    // (especially on slower CI hardware). Normalize the generated timestamp in
+    // both docs before comparing — we're asserting body equality, not timestamp
+    // equality.
+    const normalizeGenerated = (s) => s.replace(/generated: \d{4}-\d{2}-\d{2}T[\d:.]+Z/, 'generated: <NORMALIZED>');
+    const bodyFromWith = normalizeGenerated(docWith).replace(/^Yesterday:.*?\n\n/, '');
+    expect(bodyFromWith).toBe(normalizeGenerated(docWithout));
   });
 });

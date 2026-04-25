@@ -152,3 +152,82 @@ describe('formatBriefingSection', () => {
     expect(result).toContain('12 unrouted captures need attention');
   });
 });
+
+describe('buildYesterdaySummaryLine', () => {
+  it('returns empty string when priorRow is null', () => {
+    const { buildYesterdaySummaryLine } = require('../src/briefing-helpers');
+    expect(buildYesterdaySummaryLine(null)).toBe('');
+  });
+
+  it('returns empty string when priorRow is undefined', () => {
+    const { buildYesterdaySummaryLine } = require('../src/briefing-helpers');
+    expect(buildYesterdaySummaryLine(undefined)).toBe('');
+  });
+
+  it('formats the 5-delta line verbatim when both rows present (positive case)', () => {
+    const { buildYesterdaySummaryLine } = require('../src/briefing-helpers');
+    const prior = { proposals: 3, promotions: 2, total_entries: 47, memory_kb: 14.6, recall_count: 5 };
+    const dayBefore = { proposals: 1, promotions: 0, total_entries: 45, memory_kb: 13.2, recall_count: 2 };
+    expect(buildYesterdaySummaryLine(prior, dayBefore)).toBe(
+      'Yesterday: +3 proposals, +2 promotions, +1.4 KB memory, +2 entries, 5 recalls'
+    );
+  });
+
+  it('renders +0 for zero-activity day (zero is signal, not shame, per D-06)', () => {
+    const { buildYesterdaySummaryLine } = require('../src/briefing-helpers');
+    const prior = { proposals: 0, promotions: 0, total_entries: 47, memory_kb: 14.6, recall_count: 0 };
+    const dayBefore = { proposals: 0, promotions: 0, total_entries: 47, memory_kb: 14.6, recall_count: 0 };
+    expect(buildYesterdaySummaryLine(prior, dayBefore)).toBe(
+      'Yesterday: +0 proposals, +0 promotions, +0.0 KB memory, +0 entries, 0 recalls'
+    );
+  });
+
+  it('renders negative entry delta when memory was pruned', () => {
+    const { buildYesterdaySummaryLine } = require('../src/briefing-helpers');
+    const prior = { proposals: 0, promotions: 0, total_entries: 45, memory_kb: 13.0, recall_count: 0 };
+    const dayBefore = { proposals: 0, promotions: 0, total_entries: 47, memory_kb: 14.6, recall_count: 0 };
+    expect(buildYesterdaySummaryLine(prior, dayBefore)).toBe(
+      'Yesterday: +0 proposals, +0 promotions, -1.6 KB memory, -2 entries, 0 recalls'
+    );
+  });
+
+  it('falls back to priorRow values (signed +) when dayBeforePrior is null — day 2 case', () => {
+    const { buildYesterdaySummaryLine } = require('../src/briefing-helpers');
+    const prior = { proposals: 5, promotions: 3, total_entries: 10, memory_kb: 4.2, recall_count: 1 };
+    expect(buildYesterdaySummaryLine(prior, null)).toBe(
+      'Yesterday: +5 proposals, +3 promotions, +4.2 KB memory, +10 entries, 1 recalls'
+    );
+  });
+
+  it('rounds memory_kb to 1 decimal place', () => {
+    const { buildYesterdaySummaryLine } = require('../src/briefing-helpers');
+    const prior = { proposals: 0, promotions: 0, total_entries: 0, memory_kb: 14.678, recall_count: 0 };
+    const dayBefore = { proposals: 0, promotions: 0, total_entries: 0, memory_kb: 13.234, recall_count: 0 };
+    const result = buildYesterdaySummaryLine(prior, dayBefore);
+    expect(result).toContain('+1.4 KB memory');
+    expect(result).not.toContain('+1.444');
+    expect(result).not.toContain('+1 KB');
+  });
+
+  it('handles missing fields on priorRow gracefully (treats as 0)', () => {
+    const { buildYesterdaySummaryLine } = require('../src/briefing-helpers');
+    const prior = { memory_kb: 5.0 };
+    expect(buildYesterdaySummaryLine(prior, null)).toBe(
+      'Yesterday: +0 proposals, +0 promotions, +5.0 KB memory, +0 entries, 0 recalls'
+    );
+  });
+
+  it('output format matches the verbatim CONTEXT.md D-05 wording exactly', () => {
+    const { buildYesterdaySummaryLine } = require('../src/briefing-helpers');
+    const prior = { proposals: 3, promotions: 2, total_entries: 47, memory_kb: 14.6, recall_count: 5 };
+    const dayBefore = { proposals: 1, promotions: 0, total_entries: 45, memory_kb: 13.2, recall_count: 2 };
+    const result = buildYesterdaySummaryLine(prior, dayBefore);
+    expect(result).toMatch(/^Yesterday: /);
+    expect(result).toContain(' proposals, ');
+    expect(result).toContain(' promotions, ');
+    expect(result).toContain(' KB memory, ');
+    expect(result).toContain(' entries, ');
+    expect(result).toContain(' recalls');
+    expect(result).not.toContain(', and ');
+  });
+});
