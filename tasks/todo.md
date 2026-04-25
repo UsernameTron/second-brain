@@ -90,3 +90,4 @@
 - [ ] **AGENT-MEMORY-01: Memory health monitor** — `scope: v1.5` `category: agents`
   - Read `daily-stats.md` counters; flag anomalies: zero promotions for 3+ days, proposal backlog growing without promotions, recall usage dropping, vault size plateau. Surface anomaly alerts in the `/today` briefing output (between Memory Echo and the summary line).
   - Rationale: Compounding memory is the project's core value prop, but nothing currently monitors whether it's actually compounding. Phase 20 instrumented the counters; this is the consumer that converts counters into "is the system working" signal.
+- HOOK-DOTENV-01: library modules call dotenv.config() directly (root cause: src/pipeline-infra.js:23); should move to entry-point only. Surfaced during pre-flight for v1.4 Phase 21.
