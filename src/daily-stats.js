@@ -22,6 +22,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const matter = require('gray-matter');
 
 // ── dateKey() ─────────────────────────────────────────────────────────────────
@@ -245,6 +246,179 @@ function recordDailyStats(stats, opts = {}) {
   _writeDailyStats(relativePath, frontmatter, rows);
 }
 
+// ── Daily counter store ───────────────────────────────────────────────────────
+//
+// Accumulates per-invocation counters across separate process executions of
+// /recall, /promote-memories, and /today using an atomic per-day JSON file at
+// ~/.cache/second-brain/daily-counters-YYYY-MM-DD.json (Chicago dateKey).
+//
+// File shape: { date, proposals, promotions, recallCount,
+//               confidenceSum, confidenceCount, topCosineScores[], topRrfScores[] }
+//
+// Pattern 7: atomic .tmp + rename, chmod 0600 — mirrors voyage-health.js _writeHealth.
+// All emit functions are wrapped in try/catch — briefing-is-the-product: never throw.
+
+/** Default counter state for a fresh day. */
+const _COUNTER_DEFAULTS = {
+  proposals: 0,
+  promotions: 0,
+  recallCount: 0,
+  confidenceSum: 0,
+  confidenceCount: 0,
+  topCosineScores: [],
+  topRrfScores: [],
+};
+
+/**
+ * Resolve the counter file path for a given date.
+ * Honors CACHE_DIR_OVERRIDE for test isolation.
+ * @param {Date} now
+ * @returns {string} absolute path to daily-counters-YYYY-MM-DD.json
+ */
+function _counterPath(now) {
+  const cacheDir = process.env.CACHE_DIR_OVERRIDE
+    || path.join(os.homedir(), '.cache', 'second-brain');
+  return path.join(cacheDir, `daily-counters-${dateKey(now)}.json`);
+}
+
+/**
+ * Read today's counter state. Returns defaults if file missing or unparseable.
+ * @param {Date} now
+ * @returns {object} counter state
+ */
+function _readCounters(now) {
+  try {
+    const raw = fs.readFileSync(_counterPath(now), 'utf8');
+    return { ..._COUNTER_DEFAULTS, ...JSON.parse(raw) };
+  } catch (_) {
+    return { date: dateKey(now), ..._COUNTER_DEFAULTS };
+  }
+}
+
+/**
+ * Atomically write counter state (tmp + rename, mode 0o600).
+ * @param {Date} now
+ * @param {object} state
+ */
+function _writeCounters(now, state) {
+  const filePath = _counterPath(now);
+  const dir = path.dirname(filePath);
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (_) { /* dir may exist */ }
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2), { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(tmp, filePath);
+}
+
+/**
+ * Increment today's recall_count by 1 (D-04: explicit /recall invocations only).
+ * Never throws — stats failure must not break the recall command.
+ * @param {object} [opts={}] - { now: Date } for testability
+ */
+function recordRecallInvocation(opts = {}) {
+  try {
+    const now = opts.now || new Date();
+    const state = _readCounters(now);
+    state.recallCount = (state.recallCount || 0) + 1;
+    state.date = dateKey(now);
+    _writeCounters(now, state);
+  } catch (_) { /* non-fatal */ }
+}
+
+/**
+ * Add count to today's proposals tally.
+ * @param {number} count - number of new proposals written this batch
+ * @param {object} [opts={}] - { now: Date }
+ */
+function recordProposalsBatch(count, opts = {}) {
+  try {
+    const now = opts.now || new Date();
+    const state = _readCounters(now);
+    state.proposals = (state.proposals || 0) + count;
+    state.date = dateKey(now);
+    _writeCounters(now, state);
+  } catch (_) { /* non-fatal */ }
+}
+
+/**
+ * Record one promoted entry: increments promotions count and, if confidence is
+ * a valid number, accumulates it toward avg_confidence (null-confidence
+ * promotions are counted but excluded from the mean — D-03).
+ * @param {number|null} confidence - memory-extractor classifier confidence
+ * @param {object} [opts={}] - { now: Date }
+ */
+function recordPromotion(confidence, opts = {}) {
+  try {
+    const now = opts.now || new Date();
+    const state = _readCounters(now);
+    state.promotions = (state.promotions || 0) + 1;
+    if (typeof confidence === 'number' && Number.isFinite(confidence)) {
+      state.confidenceSum = (state.confidenceSum || 0) + confidence;
+      state.confidenceCount = (state.confidenceCount || 0) + 1;
+    }
+    state.date = dateKey(now);
+    _writeCounters(now, state);
+  } catch (_) { /* non-fatal */ }
+}
+
+/**
+ * Append a top-1 cosine score record (D-07: emit-only, not surfaced in stats columns this phase).
+ * @param {number} score
+ * @param {object} [opts={}] - { now: Date }
+ */
+function recordTopCosine(score, opts = {}) {
+  try {
+    const now = opts.now || new Date();
+    const state = _readCounters(now);
+    state.topCosineScores = Array.isArray(state.topCosineScores) ? state.topCosineScores : [];
+    state.topCosineScores.push(score);
+    state.date = dateKey(now);
+    _writeCounters(now, state);
+  } catch (_) { /* non-fatal */ }
+}
+
+/**
+ * Append a top-1 RRF score record (D-07: emit-only, --hybrid branch).
+ * @param {number} score
+ * @param {object} [opts={}] - { now: Date }
+ */
+function recordTopRrf(score, opts = {}) {
+  try {
+    const now = opts.now || new Date();
+    const state = _readCounters(now);
+    state.topRrfScores = Array.isArray(state.topRrfScores) ? state.topRrfScores : [];
+    state.topRrfScores.push(score);
+    state.date = dateKey(now);
+    _writeCounters(now, state);
+  } catch (_) { /* non-fatal */ }
+}
+
+/**
+ * Read today's accumulated counters.
+ * Returns { proposals, promotions, recallCount, avgConfidence } with zeros/null defaults.
+ * @param {object} [opts={}] - { now: Date }
+ * @returns {{ proposals: number, promotions: number, recallCount: number, avgConfidence: number|null }}
+ */
+function readDailyCounters(opts = {}) {
+  try {
+    const now = opts.now || new Date();
+    const state = _readCounters(now);
+    return {
+      proposals: state.proposals || 0,
+      promotions: state.promotions || 0,
+      recallCount: state.recallCount || 0,
+      avgConfidence: (state.confidenceCount > 0)
+        ? state.confidenceSum / state.confidenceCount
+        : null,
+    };
+  } catch (_) {
+    return { proposals: 0, promotions: 0, recallCount: 0, avgConfidence: null };
+  }
+}
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 
-module.exports = { recordDailyStats, dateKey, readDailyStats };
+module.exports = {
+  recordDailyStats, dateKey, readDailyStats,
+  recordRecallInvocation, recordProposalsBatch, recordPromotion,
+  recordTopCosine, recordTopRrf, readDailyCounters,
+};

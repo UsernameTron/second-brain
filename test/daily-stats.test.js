@@ -7,7 +7,11 @@
  * Tests dateKey(), recordDailyStats(), and readDailyStats().
  */
 
-const { dateKey, recordDailyStats, readDailyStats } = require('../src/daily-stats');
+const {
+  dateKey, recordDailyStats, readDailyStats,
+  recordRecallInvocation, recordProposalsBatch, recordPromotion,
+  recordTopCosine, recordTopRrf, readDailyCounters,
+} = require('../src/daily-stats');
 
 // ── dateKey() ────────────────────────────────────────────────────────────────
 describe('dateKey()', () => {
@@ -373,5 +377,132 @@ describe('recordDailyStats()', () => {
     const { frontmatter } = readDailyStats(absPath);
     expect(frontmatter.timezone).toBe('America/Chicago');
     expect(frontmatter.schema_version).toBe(1);
+  });
+});
+
+// ── counter helpers ────────────────────────────────────────────────────────────
+
+describe('counter helpers', () => {
+  const os = require('os');
+  const fs = require('fs');
+  const path = require('path');
+
+  let cacheDir;
+
+  beforeEach(() => {
+    cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-counter-test-'));
+    process.env.CACHE_DIR_OVERRIDE = cacheDir;
+    jest.resetModules();
+  });
+
+  afterEach(() => {
+    delete process.env.CACHE_DIR_OVERRIDE;
+    try { fs.rmSync(cacheDir, { recursive: true, force: true }); } catch (_) { /* best-effort */ }
+    jest.restoreAllMocks();
+  });
+
+  function freshModule() {
+    return require('../src/daily-stats');
+  }
+
+  it('recordRecallInvocation increments recallCount atomically across calls', () => {
+    const { recordRecallInvocation: rri, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ now });
+    rri({ now });
+    rri({ now });
+    const counters = rdc({ now });
+    expect(counters.recallCount).toBe(3);
+  });
+
+  it('recordProposalsBatch accumulates across calls', () => {
+    const { recordProposalsBatch: rpb, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rpb(2, { now });
+    rpb(5, { now });
+    const counters = rdc({ now });
+    expect(counters.proposals).toBe(7);
+  });
+
+  it('recordPromotion accumulates count + confidence sum', () => {
+    const { recordPromotion: rp, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rp(0.8, { now });
+    rp(0.9, { now });
+    const counters = rdc({ now });
+    expect(counters.promotions).toBe(2);
+    expect(counters.avgConfidence).toBeCloseTo(0.85, 5);
+  });
+
+  it('avgConfidence is null when no promotions recorded', () => {
+    const { readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    const counters = rdc({ now });
+    expect(counters.avgConfidence).toBeNull();
+  });
+
+  it('recordTopCosine appends to topCosineScores', () => {
+    const { recordTopCosine: rtc } = freshModule();
+    const fs2 = require('fs');
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rtc(0.9, { now });
+    rtc(0.7, { now });
+    const files = fs2.readdirSync(cacheDir).filter(f => f.startsWith('daily-counters-'));
+    expect(files.length).toBe(1);
+    const raw = JSON.parse(fs2.readFileSync(path.join(cacheDir, files[0]), 'utf8'));
+    expect(Array.isArray(raw.topCosineScores)).toBe(true);
+    expect(raw.topCosineScores.length).toBe(2);
+  });
+
+  it('recordTopRrf appends to topRrfScores', () => {
+    const { recordTopRrf: rtr } = freshModule();
+    const fs2 = require('fs');
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rtr(0.05, { now });
+    rtr(0.03, { now });
+    const files = fs2.readdirSync(cacheDir).filter(f => f.startsWith('daily-counters-'));
+    expect(files.length).toBe(1);
+    const raw = JSON.parse(fs2.readFileSync(path.join(cacheDir, files[0]), 'utf8'));
+    expect(Array.isArray(raw.topRrfScores)).toBe(true);
+    expect(raw.topRrfScores.length).toBe(2);
+  });
+
+  it('emit functions never throw on FS error', () => {
+    const ds = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    const fsModule = require('fs');
+    jest.spyOn(fsModule, 'writeFileSync').mockImplementation(() => { throw new Error('disk full'); });
+    expect(() => ds.recordRecallInvocation({ now })).not.toThrow();
+  });
+
+  it('counter file is written atomically via .tmp + rename', () => {
+    const ds = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    const fsModule = require('fs');
+    const renameSpy = jest.spyOn(fsModule, 'renameSync');
+    ds.recordRecallInvocation({ now });
+    const tmpCall = renameSpy.mock.calls.find(args => String(args[0]).endsWith('.tmp'));
+    expect(tmpCall).toBeDefined();
+  });
+
+  it('counter file is created with chmod 0o600', () => {
+    const ds = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    const fsModule = require('fs');
+    const writeSpy = jest.spyOn(fsModule, 'writeFileSync');
+    ds.recordRecallInvocation({ now });
+    const call600 = writeSpy.mock.calls.find(args => args[2] && args[2].mode === 0o600);
+    expect(call600).toBeDefined();
+  });
+
+  it('counters are scoped to today dateKey — different day creates a different file', () => {
+    const ds = freshModule();
+    const fs2 = require('fs');
+    const day1 = new Date('2026-04-24T18:00:00.000Z');
+    const day2 = new Date('2026-04-25T18:00:00.000Z');
+    ds.recordRecallInvocation({ now: day1 });
+    ds.recordRecallInvocation({ now: day2 });
+    const counterFiles = fs2.readdirSync(cacheDir).filter(f => f.startsWith('daily-counters-'));
+    expect(counterFiles.length).toBe(2);
   });
 });
