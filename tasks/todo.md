@@ -1,10 +1,5 @@
 # Todo
 
-## Current
-
-- [ ] Configure branch protection on master (repo is public, all CI gates green)
-- [ ] Decide next move: `/gsd:discuss-phase 20` (Instrumentation, in v1.4) OR `/gsd:new-milestone` to scope v1.5
-
 ## Session Handoff (2026-04-24)
 
 **Last session shipped:** Phase 19 Semantic Memory Search to master (`2284fee` + STATE update `85429f3`). CI + CodeQL green on both pushes.
@@ -19,12 +14,8 @@
 
 **v1.4 remaining (per ROADMAP):** Phase 20 Instrumentation, Phase 21 Closeout Hygiene.
 
-## Forward (v1.4 candidates)
+## Forward (v1.4 candidates — folded into Phase 21 Closeout Hygiene)
 
-### MEDIUM priority
-- [ ] B-21: UAT CI strategy — 24 UAT tests (uat-classification, uat-wikilinks) never run automatically. Phase 14 `CI=true` skip guard stops CI runs; no replacement workflow exists. Effective automated UAT coverage = 0%. Recommend scheduled `workflow_dispatch` GitHub Actions workflow with `ANTHROPIC_API_KEY` secret, runs weekly to catch model behavior drift.
-
-### LOW priority
 - [ ] B-15: Unicode-specific tests for exclusion terms / filename generation
 - [ ] B-18: JSDoc on public API surface
 - [ ] B-20: Decide strategy for 41 no-console warnings (suppress, logger abstraction, or accept)
@@ -71,3 +62,19 @@
 - [x] Phase 2: Content Pipeline
 - [x] Phase 3: External Integrations
 - [x] Phase 4: Daily Briefing and Scheduling
+
+## v1.5 Backlog
+
+<!-- Captured 2026-04-25. Backlog only — not scheduled. Promote to a v1.5 phase via /gsd:new-milestone when ready. -->
+
+- [ ] **HOOK-SCHEMA-01: Pre-commit schema validation** — `scope: v1.5` `category: hooks`
+  - AJV validation on `daily-stats.md` YAML frontmatter and `config/pipeline.json` on every commit; catches malformed entries and out-of-bounds config values before they land on master.
+  - Rationale: Phase 19 had to ship a calibration fix (`memory.semantic.threshold` 0.72 → 0.55) after merge; Phase 20 added a `stats` sub-object schema that's only validated at runtime. A pre-commit AJV gate would have caught both classes of drift at the source instead of in production logs.
+
+- [ ] **HOOK-VAULT-01: Pre-commit LEFT/RIGHT boundary enforcement** — `scope: v1.5` `category: hooks`
+  - Git-level path check that prevents committing files to the wrong vault side; makes the LEFT/RIGHT write-permission boundary structural at the git layer, not just runtime via `vault-gateway.js`.
+  - Rationale: Pattern 11 (LEFT/RIGHT as a security perimeter) is currently enforced only when the agent goes through `createVaultWriter()`. A direct manual commit, IDE drag-and-drop, or merge of an unreviewed branch can bypass the runtime check entirely. A pre-commit hook makes the perimeter structural — the flag becomes the boundary, per the pattern's definition.
+
+- [ ] **HOOK-DOCSYNC-01: Post-merge documentation drift detection** — `scope: v1.5` `category: hooks`
+  - After merge to master, compare `CLAUDE.md` stats (test count, coverage, phase count) against actual `jest --coverage` output; flag mismatches as warnings — don't block, just surface.
+  - Rationale: v1.4 required a manual doc-sync after every phase ship (test counts, coverage percentages, milestone tags). Drift is silent until someone notices the README claims 982 tests and the suite actually runs 1,084. A non-blocking warning hook closes the loop without inverting the dependency on devs remembering to update three living documents.
