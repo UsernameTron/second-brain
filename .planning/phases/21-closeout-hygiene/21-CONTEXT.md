@@ -6,11 +6,11 @@
 <domain>
 ## Phase Boundary
 
-Phase 21 closes v1.4 by clearing every deferred hygiene item from the v1.3 backlog and producing the final v1.4 documentation set. Four requirements (HYG-UNICODE-01, HYG-JSDOC-01, HYG-CONSOLE-01, DOCS-FINAL-01) per `.planning/REQUIREMENTS.md`. No new features, no logic changes (one conditional exception — see Lock 5). Last phase before milestone close.
+Phase 21 closes v1.4 by clearing every deferred hygiene item from the v1.3 backlog and producing the final v1.4 documentation set. Four requirements (HYG-UNICODE-01, HYG-JSDOC-01, HYG-CONSOLE-01, DOCS-FINAL-01) per `.planning/REQUIREMENTS.md`. No new features, no logic changes (Lock 5 fence preserved without exception). Last phase before milestone close.
 
 **Builds on:** Phase 17 (UAT CI), Phase 18 (Memory Retrieval), Phase 19 (Semantic Memory), Phase 20 (Instrumentation) — all shipped to master via PRs #35–#39.
 
-**Out of phase:** Logger abstraction (deferred to v1.5 per Lock 2). Production code refactors. Schema changes. New tests beyond Unicode coverage. Address-by-address dotenv migration (HOOK-DOTENV-01 in v1.5 backlog). UAT corpus rebaselining (UAT-CORPUS-REFRESH-01 in v1.5 backlog).
+**Out of phase:** Logger abstraction (deferred to v1.5 per Lock 2). Production code refactors. Schema changes. New tests beyond Unicode coverage. Address-by-address dotenv migration (HOOK-DOTENV-01 in v1.5 backlog). UAT corpus rebaselining (UAT-CORPUS-REFRESH-01 in v1.5 backlog). Unicode-aware matcher upgrade (HYG-UNICODE-02 in v1.5 backlog).
 
 </domain>
 
@@ -179,7 +179,7 @@ Plans will be authored against these locked positions:
 - **D-PRE-02:** Pre-flight green/red is `CI=true npm test` (per LESSON-PREFLIGHT-CI-MODE-01). Local-mode UAT-01 corpus drift (UAT-CORPUS-REFRESH-01) is non-blocking.
 - **D-PRE-03:** Active KB v2.1 patterns from `state/pattern-context.md` carry into this phase:
   - **Pattern 9** (Type Names as Governance) — every `eslint-disable-next-line no-console` carries reviewer-visible rationale per the categorization manifest (D-LOCK-2-AMEND-A).
-  - **Pattern 11** (Feature Flags as Security Perimeters) — vault and excluded-terms boundaries remain enforced; HYG-UNICODE-01 strengthens the boundary by closing the Unicode-variant gap.
+  - **Pattern 11** (Feature Flags as Security Perimeters) — vault and excluded-terms boundaries remain enforced; Phase 21 documents the Unicode-variant gap via `test.todo()` blocks (HYG-UNICODE-01) and reserves closure for v1.5 HYG-UNICODE-02.
 
 ### Locked in Discussion
 
@@ -209,7 +209,7 @@ Plans will be authored against these locked positions:
 
 ### Out-of-scope safeguards
 
-- No logger abstraction in this phase. v1.5 backlog (HOOK-DOCSYNC-01 / AGENT-DOCSYNC-01 / HOOK-DOTENV-01).
+- No logger abstraction in this phase. Defer to v1.5 if a real need surfaces.
 - No UAT-01 corpus rebaselining. v1.5 backlog (UAT-CORPUS-REFRESH-01).
 - No production code refactors.
 - No new test scenarios beyond Unicode coverage.
