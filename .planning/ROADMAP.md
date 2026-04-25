@@ -212,7 +212,7 @@ Plans:
 | 17. UAT CI Infrastructure | 3/3 | Complete    | 2026-04-24 |
 | 18. Memory Retrieval Foundation | 6/6 | Complete    | 2026-04-24 |
 | 19. Semantic Memory Search | 5/5 | Complete    | 2026-04-24 |
-| 20. Value Extraction Instrumentation | 5/5 | Complete   | 2026-04-25 |
+| 20. Value Extraction Instrumentation | 5/5 | Complete    | 2026-04-25 |
 | 21. Closeout Hygiene | 0/? | Not started | - |
 
 ---
