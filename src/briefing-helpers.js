@@ -117,10 +117,63 @@ function formatBriefingSection(type, data) {
   return '';
 }
 
+// ── buildYesterdaySummaryLine ─────────────────────────────────────────────────
+
+/**
+ * Format the verbatim 5-delta "Yesterday: ..." summary line for the top of /today briefings.
+ * Pure function — no I/O, no config reads, no logging.
+ * Returns empty string on day-1 (priorRow is null/undefined) — caller checks length.
+ *
+ * Delta rules (from 20-CONTEXT.md D-05):
+ *   - proposals, promotions: priorRow's own activity count, always rendered with sign
+ *   - memory_kb, total_entries: delta vs dayBeforePrior; falls back to priorRow value
+ *     (treated as +full_value vs zero baseline) when dayBeforePrior is null
+ *   - recall_count: priorRow's count, rendered without sign (it's a count, not a delta)
+ *   - memory_kb rendered to 1 decimal place
+ *   - No Oxford comma (operator prose style)
+ *
+ * @param {object|null|undefined} priorRow - Row for yesterday; shape { proposals, promotions, total_entries, memory_kb, recall_count }
+ * @param {object|null|undefined} [dayBeforePrior] - Row for two days ago, same shape; used for memory_kb/total_entries deltas
+ * @returns {string} Verbatim summary line, or '' when priorRow is null/undefined
+ */
+function buildYesterdaySummaryLine(priorRow, dayBeforePrior) {
+  if (!priorRow) return '';
+
+  // Sign helper for integer deltas — always includes + or -
+  const sign = (n) => (n >= 0 ? `+${n}` : `${n}`);
+
+  // Sign helper for float deltas — 1 decimal place, always includes + or -
+  const signKb = (n) => {
+    const rounded = Math.round(n * 10) / 10;
+    return rounded >= 0 ? `+${rounded.toFixed(1)}` : `${rounded.toFixed(1)}`;
+  };
+
+  // proposals and promotions are activity counts — emit verbatim with sign
+  const proposals = sign(priorRow.proposals || 0);
+  const promotions = sign(priorRow.promotions || 0);
+
+  // memory_kb and total_entries are deltas; fall back to priorRow value on day 2
+  const memoryDelta = dayBeforePrior
+    ? (priorRow.memory_kb || 0) - (dayBeforePrior.memory_kb || 0)
+    : (priorRow.memory_kb || 0);
+  const memoryStr = signKb(memoryDelta);
+
+  const entriesDelta = dayBeforePrior
+    ? (priorRow.total_entries || 0) - (dayBeforePrior.total_entries || 0)
+    : (priorRow.total_entries || 0);
+  const entriesStr = sign(entriesDelta);
+
+  // recall_count is a count — no sign per D-05
+  const recalls = priorRow.recall_count || 0;
+
+  return `Yesterday: ${proposals} proposals, ${promotions} promotions, ${memoryStr} KB memory, ${entriesStr} entries, ${recalls} recalls`;
+}
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
   getProposalsPendingCount,
   getDeadLetterSummary,
   formatBriefingSection,
+  buildYesterdaySummaryLine,
 };
