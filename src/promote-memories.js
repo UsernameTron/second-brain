@@ -298,6 +298,15 @@ async function promoteMemories(options = {}) {
   const { body: originalBody, totalProcessed } = parseProposalsFrontmatter(rawContent);
   const allCandidates = parseCandidateSections(originalBody);
 
+  // Phase 20 (STATS-DAILY-01): emit proposals count — how many proposals were
+  // staged (available in memory-proposals.md) at the time of this promotion run.
+  if (allCandidates.length > 0) {
+    try {
+      const { recordProposalsBatch } = require('./daily-stats');
+      recordProposalsBatch(allCandidates.length);
+    } catch (_) { /* briefing-is-the-product: never break promotion on stats failure */ }
+  }
+
   const { pending: remainingCandidates, proposalArchived } = await runProposalArchive(allCandidates, proposalArchiveThreshold);
 
   const acceptedCandidates = allCandidates.filter(c => {
@@ -342,6 +351,22 @@ async function promoteMemories(options = {}) {
 
   if (promoted.length > 0) {
     await appendToMemoryFile(promoted);
+    // Phase 20 (STATS-DAILY-01): emit one recordPromotion per promoted entry.
+    // D-03: confidence = memory-extractor classifier confidence on the proposal.
+    // null-confidence promotions are counted but excluded from avg_confidence mean.
+    for (const candidate of promoted) {
+      try {
+        const { recordPromotion } = require('./daily-stats');
+        const confidence = candidate.confidence;
+        // Only emit a numeric confidence; null/undefined → call with null so
+        // promotions count still increments but doesn't skew the mean.
+        if (typeof confidence === 'number' && Number.isFinite(confidence)) {
+          recordPromotion(confidence);
+        } else {
+          recordPromotion(null);
+        }
+      } catch (_) { /* briefing-is-the-product: never break promotion on stats failure */ }
+    }
   }
 
   const replacements = {};

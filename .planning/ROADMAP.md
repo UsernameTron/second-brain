@@ -182,7 +182,15 @@ Plans:
   2. Running `/today` twice on the same day updates the existing row rather than appending a duplicate row.
   3. The `/today` briefing opens with a one-line summary — e.g., "Yesterday: +3 proposals, +2 promotions, +1.4 KB memory" — drawn from the prior day's stats row; the line is omitted when no prior-day row exists (first run ever).
   4. The stats row captures per-connector latency (calendar, Gmail, GitHub) and per-operation latency (semanticSearch, memoryEcho) alongside the end-to-end `/today` latency.
-**Plans**: TBD
+
+**Plans:** 5/5 plans complete
+
+Plans:
+- [x] 20-01-PLAN.md — Pipeline schema extension: stats sub-object (enabled, path, timezone, summaryLineEnabled, schemaVersion) + defaults — STATS-DAILY-01
+- [x] 20-02-PLAN.md — src/daily-stats.js core module: dateKey() with America/Chicago + DST + 23:59/00:01 boundary tests, atomic .tmp+rename writer, gray-matter frontmatter, idempotent same-day rewrite — STATS-DAILY-01, STATS-GROWTH-01
+- [x] 20-03-PLAN.md — Counter emit points: recall_count in recall-command (D-04: Memory Echo NOT counted), proposals/promotions/avg_confidence in promote-memories, top-1 cosine in semantic-index, top-1 RRF in --hybrid (D-07 emit-only), latency timing harness in today-command — STATS-DAILY-01, STATS-LATENCY-01
+- [x] 20-04-PLAN.md — today-command.js orchestrator integration: recordStats step after briefing-renderer, lazy require, every call try/catch-wrapped (D-06 briefing-is-the-product), end-to-end integration test — STATS-DAILY-01, STATS-LATENCY-01, STATS-GROWTH-01
+- [x] 20-05-PLAN.md — Verbatim 5-delta summary-line prepend: buildYesterdaySummaryLine() pure formatter + briefing-renderer integration with silent suppression on every degenerate path — TODAY-SUMMARY-01
 
 ### Phase 21: Closeout Hygiene
 **Goal**: Every deferred hygiene item from v1.3 is closed, public API surface is documented, and all three living documents accurately describe v1.4.
@@ -204,7 +212,7 @@ Plans:
 | 17. UAT CI Infrastructure | 3/3 | Complete    | 2026-04-24 |
 | 18. Memory Retrieval Foundation | 6/6 | Complete    | 2026-04-24 |
 | 19. Semantic Memory Search | 5/5 | Complete    | 2026-04-24 |
-| 20. Value Extraction Instrumentation | 0/? | Not started | - |
+| 20. Value Extraction Instrumentation | 5/5 | Complete    | 2026-04-25 |
 | 21. Closeout Hygiene | 0/? | Not started | - |
 
 ---

@@ -454,6 +454,15 @@ async function semanticSearch(query, options) {
     baseScore: s.baseScore,
   }));
 
+  // Phase 20 D-07: emit top-1 cosine score (emit-only — not surfaced in stats columns this phase).
+  // Zero results → no emit (no meaningful top-1 to record).
+  if (topResults.length > 0) {
+    try {
+      const { recordTopCosine } = require('./daily-stats');
+      recordTopCosine(topResults[0].score);
+    } catch (_) { /* briefing-is-the-product: never break semantic search on stats failure */ }
+  }
+
   return { results: topResults, degraded: false, mode: 'semantic' };
 }
 

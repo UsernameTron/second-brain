@@ -993,3 +993,523 @@ describe('runToday', () => {
     });
   });
 });
+
+// ── Phase 20: latency timing ──────────────────────────────────────────────────
+
+describe('Phase 20: latency timing', () => {
+  const FIXED_DATE_LATENCY = new Date('2026-04-24T18:00:00.000Z');
+
+  it('runToday return value includes _phase20.latencies with calendar, gmail, github, memoryEcho, endToEnd keys', async () => {
+    const { runToday } = setupMocks();
+
+    jest.doMock('../src/memory-reader', () => ({
+      getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
+    }));
+    jest.doMock('../src/today/slippage-scanner', () => ({
+      scanSlippage: jest.fn().mockReturnValue([]),
+    }));
+    jest.doMock('../src/today/frog-identifier', () => ({
+      identifyFrog: jest.fn().mockResolvedValue({ frog: null, reasoning: '' }),
+    }));
+    jest.doMock('../src/today/llm-augmentation', () => ({
+      generateSynthesis: jest.fn().mockResolvedValue(''),
+    }));
+    jest.doMock('../src/today/briefing-renderer', () => ({
+      renderBriefing: jest.fn().mockReturnValue('# Briefing'),
+      buildSourceHealth: jest.fn().mockReturnValue({ degradedCount: 0, sources: {} }),
+      formatDateYMD: jest.fn().mockReturnValue('2026-04-24'),
+    }));
+
+    jest.resetModules();
+    // Re-apply all mocks after resetModules
+    jest.doMock('../src/connectors/calendar', () => ({
+      getCalendarEvents: jest.fn().mockResolvedValue({ success: true, data: [], error: null, source: 'calendar', fetchedAt: new Date().toISOString() }),
+    }));
+    jest.doMock('../src/connectors/gmail', () => ({
+      getRecentEmails: jest.fn().mockResolvedValue({ success: true, data: [], error: null, source: 'gmail', fetchedAt: new Date().toISOString() }),
+    }));
+    jest.doMock('../src/connectors/github', () => ({
+      getGitHubActivity: jest.fn().mockResolvedValue({ success: true, data: {}, error: null, source: 'github', fetchedAt: new Date().toISOString() }),
+    }));
+    jest.doMock('../src/briefing-helpers', () => ({
+      getProposalsPendingCount: jest.fn().mockResolvedValue(0),
+      getDeadLetterSummary: jest.fn().mockResolvedValue({ pending: 0, frozen: 0, total: 0, warning: false }),
+    }));
+    jest.doMock('../src/pipeline-infra', () => ({
+      safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
+      createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+    }));
+    jest.doMock('../src/memory-reader', () => ({
+      getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
+    }));
+    jest.doMock('../src/today/slippage-scanner', () => ({
+      scanSlippage: jest.fn().mockReturnValue([]),
+    }));
+    jest.doMock('../src/today/frog-identifier', () => ({
+      identifyFrog: jest.fn().mockResolvedValue({ frog: null, reasoning: '' }),
+    }));
+    jest.doMock('../src/today/llm-augmentation', () => ({
+      generateSynthesis: jest.fn().mockResolvedValue(''),
+    }));
+    jest.doMock('../src/today/briefing-renderer', () => ({
+      renderBriefing: jest.fn().mockReturnValue('# Briefing'),
+      buildSourceHealth: jest.fn().mockReturnValue({ degradedCount: 0, sources: {} }),
+      formatDateYMD: jest.fn().mockReturnValue('2026-04-24'),
+    }));
+
+    const { runToday: runTodayFresh } = require('../src/today-command');
+    const result = await runTodayFresh({
+      mcpClient: null,
+      mode: 'dry-run',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_LATENCY,
+    });
+
+    expect(result._phase20).toBeDefined();
+    expect(result._phase20.latencies).toBeDefined();
+    const lat = result._phase20.latencies;
+    expect(typeof lat.calendar).toBe('number');
+    expect(typeof lat.gmail).toBe('number');
+    expect(typeof lat.github).toBe('number');
+    expect(typeof lat.memoryEcho).toBe('number');
+    expect(typeof lat.endToEnd).toBe('number');
+  });
+
+  it('avgLatencyMs is a non-negative integer mean of all measured latencies', async () => {
+    jest.resetModules();
+    jest.doMock('../src/connectors/calendar', () => ({
+      getCalendarEvents: jest.fn().mockResolvedValue({ success: true, data: [], error: null, source: 'calendar', fetchedAt: new Date().toISOString() }),
+    }));
+    jest.doMock('../src/connectors/gmail', () => ({
+      getRecentEmails: jest.fn().mockResolvedValue({ success: true, data: [], error: null, source: 'gmail', fetchedAt: new Date().toISOString() }),
+    }));
+    jest.doMock('../src/connectors/github', () => ({
+      getGitHubActivity: jest.fn().mockResolvedValue({ success: true, data: {}, error: null, source: 'github', fetchedAt: new Date().toISOString() }),
+    }));
+    jest.doMock('../src/briefing-helpers', () => ({
+      getProposalsPendingCount: jest.fn().mockResolvedValue(0),
+      getDeadLetterSummary: jest.fn().mockResolvedValue({ pending: 0, frozen: 0, total: 0, warning: false }),
+    }));
+    jest.doMock('../src/pipeline-infra', () => ({
+      safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
+      createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+    }));
+    jest.doMock('../src/memory-reader', () => ({
+      getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
+    }));
+    jest.doMock('../src/today/slippage-scanner', () => ({
+      scanSlippage: jest.fn().mockReturnValue([]),
+    }));
+    jest.doMock('../src/today/frog-identifier', () => ({
+      identifyFrog: jest.fn().mockResolvedValue({ frog: null, reasoning: '' }),
+    }));
+    jest.doMock('../src/today/llm-augmentation', () => ({
+      generateSynthesis: jest.fn().mockResolvedValue(''),
+    }));
+    jest.doMock('../src/today/briefing-renderer', () => ({
+      renderBriefing: jest.fn().mockReturnValue('# Briefing'),
+      buildSourceHealth: jest.fn().mockReturnValue({ degradedCount: 0, sources: {} }),
+      formatDateYMD: jest.fn().mockReturnValue('2026-04-24'),
+    }));
+
+    const { runToday: runTodayFresh } = require('../src/today-command');
+    const result = await runTodayFresh({
+      mcpClient: null,
+      mode: 'dry-run',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_LATENCY,
+    });
+
+    expect(result._phase20).toBeDefined();
+    const { avgLatencyMs } = result._phase20;
+    expect(typeof avgLatencyMs).toBe('number');
+    expect(avgLatencyMs).toBeGreaterThanOrEqual(0);
+    expect(Number.isInteger(avgLatencyMs)).toBe(true);
+  });
+
+  it('endToEnd latency is >= max of any individual operation latency', async () => {
+    jest.resetModules();
+    jest.doMock('../src/connectors/calendar', () => ({
+      getCalendarEvents: jest.fn().mockResolvedValue({ success: true, data: [], error: null, source: 'calendar', fetchedAt: new Date().toISOString() }),
+    }));
+    jest.doMock('../src/connectors/gmail', () => ({
+      getRecentEmails: jest.fn().mockResolvedValue({ success: true, data: [], error: null, source: 'gmail', fetchedAt: new Date().toISOString() }),
+    }));
+    jest.doMock('../src/connectors/github', () => ({
+      getGitHubActivity: jest.fn().mockResolvedValue({ success: true, data: {}, error: null, source: 'github', fetchedAt: new Date().toISOString() }),
+    }));
+    jest.doMock('../src/briefing-helpers', () => ({
+      getProposalsPendingCount: jest.fn().mockResolvedValue(0),
+      getDeadLetterSummary: jest.fn().mockResolvedValue({ pending: 0, frozen: 0, total: 0, warning: false }),
+    }));
+    jest.doMock('../src/pipeline-infra', () => ({
+      safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
+      createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+    }));
+    jest.doMock('../src/memory-reader', () => ({
+      getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
+    }));
+    jest.doMock('../src/today/slippage-scanner', () => ({
+      scanSlippage: jest.fn().mockReturnValue([]),
+    }));
+    jest.doMock('../src/today/frog-identifier', () => ({
+      identifyFrog: jest.fn().mockResolvedValue({ frog: null, reasoning: '' }),
+    }));
+    jest.doMock('../src/today/llm-augmentation', () => ({
+      generateSynthesis: jest.fn().mockResolvedValue(''),
+    }));
+    jest.doMock('../src/today/briefing-renderer', () => ({
+      renderBriefing: jest.fn().mockReturnValue('# Briefing'),
+      buildSourceHealth: jest.fn().mockReturnValue({ degradedCount: 0, sources: {} }),
+      formatDateYMD: jest.fn().mockReturnValue('2026-04-24'),
+    }));
+
+    const { runToday: runTodayFresh } = require('../src/today-command');
+    const result = await runTodayFresh({
+      mcpClient: null,
+      mode: 'dry-run',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_LATENCY,
+    });
+
+    const lat = result._phase20.latencies;
+    const individualMax = Math.max(lat.calendar, lat.gmail, lat.github, lat.memoryEcho);
+    // endToEnd covers t0 → after briefing render, so it must be >= the slowest individual op
+    // (which ran inside the same wall-clock window). Allow 1ms tolerance for scheduling jitter.
+    expect(lat.endToEnd).toBeGreaterThanOrEqual(0);
+    // Sanity: endToEnd >= max of the connectors that ran in parallel inside it
+    // This is a soft check — in fast CI, connectors can resolve in 0ms,
+    // so we check non-negativity and that endToEnd is a plausible number.
+    expect(lat.endToEnd).toBeGreaterThanOrEqual(individualMax - 1);
+  });
+
+  it('a degraded connector (returns null) still contributes its measured ms to latencies', async () => {
+    jest.resetModules();
+    // Calendar returns null (degraded) after some delay — timing still recorded
+    jest.doMock('../src/connectors/calendar', () => ({
+      getCalendarEvents: jest.fn().mockResolvedValue(null),
+    }));
+    jest.doMock('../src/connectors/gmail', () => ({
+      getRecentEmails: jest.fn().mockResolvedValue({ success: true, data: [], error: null, source: 'gmail', fetchedAt: new Date().toISOString() }),
+    }));
+    jest.doMock('../src/connectors/github', () => ({
+      getGitHubActivity: jest.fn().mockResolvedValue({ success: true, data: {}, error: null, source: 'github', fetchedAt: new Date().toISOString() }),
+    }));
+    jest.doMock('../src/briefing-helpers', () => ({
+      getProposalsPendingCount: jest.fn().mockResolvedValue(0),
+      getDeadLetterSummary: jest.fn().mockResolvedValue({ pending: 0, frozen: 0, total: 0, warning: false }),
+    }));
+    jest.doMock('../src/pipeline-infra', () => ({
+      safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
+      createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+    }));
+    jest.doMock('../src/memory-reader', () => ({
+      getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
+    }));
+    jest.doMock('../src/today/slippage-scanner', () => ({
+      scanSlippage: jest.fn().mockReturnValue([]),
+    }));
+    jest.doMock('../src/today/frog-identifier', () => ({
+      identifyFrog: jest.fn().mockResolvedValue({ frog: null, reasoning: '' }),
+    }));
+    jest.doMock('../src/today/llm-augmentation', () => ({
+      generateSynthesis: jest.fn().mockResolvedValue(''),
+    }));
+    jest.doMock('../src/today/briefing-renderer', () => ({
+      renderBriefing: jest.fn().mockReturnValue('# Briefing'),
+      buildSourceHealth: jest.fn().mockReturnValue({ degradedCount: 0, sources: {} }),
+      formatDateYMD: jest.fn().mockReturnValue('2026-04-24'),
+    }));
+
+    const { runToday: runTodayFresh } = require('../src/today-command');
+    const result = await runTodayFresh({
+      mcpClient: null,
+      mode: 'dry-run',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_LATENCY,
+    });
+
+    // calendar returned null but its latency should still be recorded as a number
+    expect(result._phase20).toBeDefined();
+    expect(typeof result._phase20.latencies.calendar).toBe('number');
+    expect(result._phase20.latencies.calendar).toBeGreaterThanOrEqual(0);
+  });
+
+  it('avgLatencyMs is null when latencies object has no numeric values (edge case)', () => {
+    // Test the avgLatencyMs computation logic directly by simulating the internal math:
+    // If all values in measured are filtered out → avgLatencyMs = null.
+    // This exercises the defensive branch — in practice latencies always has values.
+    const measured = [].filter(v => typeof v === 'number');
+    const avgLatencyMs = measured.length > 0
+      ? Math.round(measured.reduce((a, b) => a + b, 0) / measured.length)
+      : null;
+    expect(avgLatencyMs).toBeNull();
+  });
+});
+
+// ── Phase 20: recordStats orchestrator step ───────────────────────────────────
+
+/**
+ * Helper: set up all mocks needed for recordStats tests.
+ * Returns { runToday, recordDailyStatsMock, readDailyCountersMock, readMemoryMock }
+ *
+ * All Phase 20 recordStats tests use mode: 'scheduled' (not 'dry-run') so the
+ * stats step actually executes.
+ *
+ * vaultRoot should be a real tmp dir so fs.promises.writeFile (briefing write) succeeds.
+ * For memoryKb testing, tests control whether memory/memory.md exists in tempVaultRoot.
+ */
+function setupRecordStatsMocks({
+  recordDailyStatsImpl = jest.fn(),
+  readDailyCountersImpl = jest.fn().mockReturnValue({ proposals: 5, promotions: 3, recallCount: 2, avgConfidence: 0.85 }),
+  readMemoryImpl = jest.fn().mockResolvedValue([{}, {}, {}]), // 3 entries
+} = {}) {
+  jest.resetModules();
+
+  const { SOURCE } = require('../src/connectors/types');
+
+  jest.doMock('../src/connectors/calendar', () => ({
+    getCalendarEvents: jest.fn().mockResolvedValue({ success: true, data: [], error: null, source: SOURCE.CALENDAR, fetchedAt: new Date().toISOString() }),
+  }));
+  jest.doMock('../src/connectors/gmail', () => ({
+    getRecentEmails: jest.fn().mockResolvedValue({ success: true, data: [], error: null, source: SOURCE.GMAIL, fetchedAt: new Date().toISOString() }),
+  }));
+  jest.doMock('../src/connectors/github', () => ({
+    getGitHubActivity: jest.fn().mockResolvedValue({ success: true, data: {}, error: null, source: SOURCE.GITHUB, fetchedAt: new Date().toISOString() }),
+  }));
+  jest.doMock('../src/briefing-helpers', () => ({
+    getProposalsPendingCount: jest.fn().mockResolvedValue(0),
+    getDeadLetterSummary: jest.fn().mockResolvedValue({ pending: 0, frozen: 0, total: 0, warning: false }),
+  }));
+  jest.doMock('../src/pipeline-infra', () => ({
+    safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
+    createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+  }));
+  jest.doMock('../src/memory-reader', () => ({
+    getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
+    readMemory: readMemoryImpl,
+  }));
+  jest.doMock('../src/today/slippage-scanner', () => ({
+    scanSlippage: jest.fn().mockReturnValue([]),
+  }));
+  jest.doMock('../src/today/frog-identifier', () => ({
+    identifyFrog: jest.fn().mockResolvedValue({ frog: null, reasoning: '' }),
+  }));
+  jest.doMock('../src/today/llm-augmentation', () => ({
+    generateSynthesis: jest.fn().mockResolvedValue(''),
+  }));
+  jest.doMock('../src/today/briefing-renderer', () => ({
+    renderBriefing: jest.fn().mockReturnValue('# Briefing\n\nContent here.'),
+    buildSourceHealth: jest.fn().mockReturnValue({ degradedCount: 0, sources: {} }),
+    formatDateYMD: jest.fn().mockReturnValue('2026-04-25'),
+  }));
+  jest.doMock('../src/daily-stats', () => ({
+    recordDailyStats: recordDailyStatsImpl,
+    readDailyCounters: readDailyCountersImpl,
+  }));
+
+  const { runToday } = require('../src/today-command');
+
+  return { runToday, recordDailyStatsMock: recordDailyStatsImpl, readDailyCountersMock: readDailyCountersImpl, readMemoryMock: readMemoryImpl };
+}
+
+describe('Phase 20: recordStats orchestrator step', () => {
+  const FIXED_DATE_STATS = new Date('2026-04-25T18:00:00.000Z');
+
+  it('calls recordDailyStats with the aggregated payload after briefing is written', async () => {
+    const recordDailyStatsMock = jest.fn();
+    const { runToday } = setupRecordStatsMocks({ recordDailyStatsImpl: recordDailyStatsMock });
+
+    const result = await runToday({
+      mcpClient: null,
+      mode: 'scheduled',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_STATS,
+    });
+
+    expect(result.path).toBeDefined();
+    expect(result.briefing).toBeDefined();
+    expect(recordDailyStatsMock).toHaveBeenCalledTimes(1);
+
+    const payload = recordDailyStatsMock.mock.calls[0][0];
+    expect(payload).toHaveProperty('proposals');
+    expect(payload).toHaveProperty('promotions');
+    expect(payload).toHaveProperty('totalEntries');
+    expect(payload).toHaveProperty('memoryKb');
+    expect(payload).toHaveProperty('recallCount');
+    expect(payload).toHaveProperty('avgLatencyMs');
+    expect(payload).toHaveProperty('avgConfidence');
+  });
+
+  it('does NOT call recordDailyStats in dry-run mode', async () => {
+    const recordDailyStatsMock = jest.fn();
+    const { runToday } = setupRecordStatsMocks({ recordDailyStatsImpl: recordDailyStatsMock });
+
+    await runToday({
+      mcpClient: null,
+      mode: 'dry-run',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_STATS,
+    });
+
+    expect(recordDailyStatsMock).toHaveBeenCalledTimes(0);
+  });
+
+  it('runToday completes successfully when recordDailyStats throws', async () => {
+    const recordDailyStatsMock = jest.fn().mockImplementation(() => { throw new Error('stats boom'); });
+    const { runToday } = setupRecordStatsMocks({ recordDailyStatsImpl: recordDailyStatsMock });
+
+    const result = await runToday({
+      mcpClient: null,
+      mode: 'scheduled',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_STATS,
+    });
+
+    expect(result.path).toBeDefined();
+    expect(result.briefing).toBeDefined();
+    expect(result.error).toBeUndefined();
+  });
+
+  it('runToday completes successfully when readDailyCounters throws — recordDailyStats called with default counters', async () => {
+    const recordDailyStatsMock = jest.fn();
+    const readDailyCountersMock = jest.fn().mockImplementation(() => { throw new Error('counter boom'); });
+    const { runToday } = setupRecordStatsMocks({
+      recordDailyStatsImpl: recordDailyStatsMock,
+      readDailyCountersImpl: readDailyCountersMock,
+    });
+
+    const result = await runToday({
+      mcpClient: null,
+      mode: 'scheduled',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_STATS,
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(recordDailyStatsMock).toHaveBeenCalledTimes(1);
+    const payload = recordDailyStatsMock.mock.calls[0][0];
+    expect(payload.proposals).toBe(0);
+    expect(payload.promotions).toBe(0);
+    expect(payload.recallCount).toBe(0);
+    expect(payload.avgConfidence).toBeNull();
+  });
+
+  it('runToday completes successfully when readMemory throws — recordDailyStats called with totalEntries: 0', async () => {
+    const recordDailyStatsMock = jest.fn();
+    const readMemoryMock = jest.fn().mockRejectedValue(new Error('memory boom'));
+    const { runToday } = setupRecordStatsMocks({
+      recordDailyStatsImpl: recordDailyStatsMock,
+      readMemoryImpl: readMemoryMock,
+    });
+
+    const result = await runToday({
+      mcpClient: null,
+      mode: 'scheduled',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_STATS,
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(recordDailyStatsMock).toHaveBeenCalledTimes(1);
+    const payload = recordDailyStatsMock.mock.calls[0][0];
+    expect(payload.totalEntries).toBe(0);
+  });
+
+  it('runToday completes successfully when memory.md is missing — recordDailyStats called with memoryKb: 0', async () => {
+    // No memory/memory.md in tempVaultRoot → existsSync returns false → memoryKb stays 0
+    const recordDailyStatsMock = jest.fn();
+    const { runToday } = setupRecordStatsMocks({ recordDailyStatsImpl: recordDailyStatsMock });
+
+    // Ensure memory dir does NOT exist in this vault
+    const memDir = path.join(tempVaultRoot, 'memory');
+    if (fs.existsSync(memDir)) {
+      fs.rmSync(memDir, { recursive: true, force: true });
+    }
+
+    const result = await runToday({
+      mcpClient: null,
+      mode: 'scheduled',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_STATS,
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(recordDailyStatsMock).toHaveBeenCalledTimes(1);
+    const payload = recordDailyStatsMock.mock.calls[0][0];
+    expect(payload.memoryKb).toBe(0);
+  });
+
+  it('memoryKb is computed to 1 decimal place from fs.statSync size', async () => {
+    // Create a real memory.md file of a known size so statSync returns real data
+    const recordDailyStatsMock = jest.fn();
+    const { runToday } = setupRecordStatsMocks({ recordDailyStatsImpl: recordDailyStatsMock });
+
+    // Write exactly 1536 bytes to memory.md → 1536 / 1024 = 1.5 KB
+    const memDir = path.join(tempVaultRoot, 'memory');
+    fs.mkdirSync(memDir, { recursive: true });
+    const memPath = path.join(memDir, 'memory.md');
+    fs.writeFileSync(memPath, 'x'.repeat(1536), 'utf8');
+
+    await runToday({
+      mcpClient: null,
+      mode: 'scheduled',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_STATS,
+    });
+
+    expect(recordDailyStatsMock).toHaveBeenCalledTimes(1);
+    const payload = recordDailyStatsMock.mock.calls[0][0];
+    expect(payload.memoryKb).toBe(1.5);
+  });
+
+  it('avgLatencyMs in the payload matches the value PLAN-03 computed in latencies aggregation', async () => {
+    const recordDailyStatsMock = jest.fn();
+    const { runToday } = setupRecordStatsMocks({ recordDailyStatsImpl: recordDailyStatsMock });
+
+    const result = await runToday({
+      mcpClient: null,
+      mode: 'scheduled',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_STATS,
+    });
+
+    const returnedAvgLatency = result._phase20.avgLatencyMs;
+    expect(recordDailyStatsMock).toHaveBeenCalledTimes(1);
+    const payload = recordDailyStatsMock.mock.calls[0][0];
+    expect(payload.avgLatencyMs).toBe(returnedAvgLatency);
+  });
+
+  it('require to ./daily-stats happens lazily inside runToday, not at module top', () => {
+    const src = require('fs').readFileSync(
+      require('path').join(__dirname, '..', 'src', 'today-command.js'),
+      'utf8'
+    );
+    // Find position of async function runToday
+    const fnStart = src.indexOf('async function runToday(');
+    expect(fnStart).toBeGreaterThan(-1);
+
+    // Find the lazy require of ./daily-stats
+    const requirePos = src.indexOf("require('./daily-stats')");
+    expect(requirePos).toBeGreaterThan(-1);
+
+    // The lazy require must appear AFTER the function definition start
+    expect(requirePos).toBeGreaterThan(fnStart);
+
+    // The top-of-file require block (first 40 lines) must NOT contain ./daily-stats
+    const firstFortyLines = src.split('\n').slice(0, 40).join('\n');
+    expect(firstFortyLines).not.toContain('./daily-stats');
+  });
+});

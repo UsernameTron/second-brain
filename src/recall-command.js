@@ -46,7 +46,7 @@ function parseRecallArgs(argv) {
  * @param {string[]} argv
  * @returns {Promise<{ query: string, mode: string, results: Array, total: number, lines: string[], empty: boolean, degraded: boolean, degradedBanner: string|null, blocked: boolean, blockedReason: string|null }>}
  */
-async function runRecall(argv) {
+async function runRecall(argv, options = {}) {
   const { query, flags } = parseRecallArgs(argv);
   let hits = [];
   let mode = 'keyword';
@@ -54,6 +54,19 @@ async function runRecall(argv) {
   let degradedBanner = null;
   let blocked = false;
   let blockedReason = null;
+
+  // D-04: Increment recall_count for every explicit /recall invocation.
+  // Internal callers (e.g. Memory Echo in getMemoryEcho()) pass { _internal: true }
+  // to suppress the counter — Memory Echo's automatic morning hit is NOT counted.
+  // Memory Echo calls searchMemoryKeyword/semanticSearch directly and does NOT
+  // call runRecall at all, so D-04 is naturally satisfied even without the flag.
+  // The flag provides an explicit gate for any future internal callers.
+  if (!options._internal) {
+    try {
+      const { recordRecallInvocation } = require('./daily-stats');
+      recordRecallInvocation();
+    } catch (_) { /* briefing-is-the-product: never break recall on stats failure */ }
+  }
 
   try {
     if (flags.hybrid) {
@@ -69,6 +82,13 @@ async function runRecall(argv) {
           degradedBanner = '(hybrid unavailable — using keyword only)';
         }
         mode = res.mode || (res.degraded ? 'keyword (hybrid unavailable)' : 'hybrid');
+        // D-07: Emit top-1 RRF score (emit-only — not surfaced in stats columns this phase).
+        if (hits.length > 0) {
+          try {
+            const { recordTopRrf } = require('./daily-stats');
+            recordTopRrf(hits[0].rrfScore);
+          } catch (_) { /* briefing-is-the-product: never break --hybrid on stats failure */ }
+        }
       }
     } else if (flags.semantic) {
       const { semanticSearch } = require('./semantic-index');
