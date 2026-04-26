@@ -277,6 +277,7 @@ async function runToday(options = {}) {
 
     // ── Interactive: echo to stdout ───────────────────────────────────────
     if (mode === 'interactive') {
+      // eslint-disable-next-line no-console -- user-facing-output: Interactive mode emits the day briefing — the visible product of /today
       console.log(briefing);
     }
 

@@ -98,7 +98,7 @@ function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 function createVoyageClient(config) {
   const apiKey = process.env.VOYAGE_API_KEY;
   if (!apiKey) {
-    // eslint-disable-next-line no-console
+    // eslint-disable-next-line no-console -- degradation-warning: VOYAGE_API_KEY missing; falls back to keyword search
     console.error('WARNING: VOYAGE_API_KEY is not set or invalid. Set it in .env or drop --semantic from your query. Falling back to keyword search.');
     return {
       async embed() {
@@ -141,7 +141,7 @@ function createVoyageClient(config) {
     } catch (err) {
       const failureMode = classifyVoyageError(err);
       if (failureMode === '401') {
-        // eslint-disable-next-line no-console
+        // eslint-disable-next-line no-console -- degradation-warning: 401 from Voyage; falls back to keyword search
         console.error('WARNING: VOYAGE_API_KEY is not set or invalid. Set it in .env or drop --semantic from your query. Falling back to keyword search.');
       }
       voyageHealth.recordFailure(failureMode, config.degradedModeMinutes);

@@ -264,6 +264,7 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
       }
     }
   } catch (err) {
+    // eslint-disable-next-line no-console -- last-resort-error: Transcript read failed; extractor returns []
     console.error('[memory-extractor] Could not read transcript: ' + err.message);
     return [];
   }
@@ -281,6 +282,7 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
       const corpus = buildCorpus(messages);
       const response = await haiku.classify(systemPrompt, corpus);
       if (!response.success) {
+        // eslint-disable-next-line no-console -- last-resort-error: Single-pass Haiku extraction failed; extractor returns []
         console.error('[memory-extractor] Haiku extraction failed: ' + (response.error || 'unknown'));
         return [];
       }
@@ -301,6 +303,7 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
           const results = await processCandidates(candidates, sessionId, transcriptPath, 'wrap', seenHashes);
           allResults.push(...results);
         } else {
+          // eslint-disable-next-line no-console -- degradation-warning: Chunk extraction failed; loop continues to next chunk with partial results
           console.error('[memory-extractor] Chunk extraction failed at ' + start + ': ' + (response.error || 'unknown'));
         }
 
@@ -310,6 +313,7 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
       }
     }
   } catch (err) {
+    // eslint-disable-next-line no-console -- last-resort-error: Outer extraction try/catch fired; extractor returns []
     console.error('[memory-extractor] Extraction error: ' + err.message);
     return [];
   }
@@ -337,6 +341,7 @@ async function extractFromFile(relativePath, options = {}) {
     const absolutePath = path.join(VAULT_ROOT, relativePath);
     content = fs.readFileSync(absolutePath, 'utf8');
   } catch (err) {
+    // eslint-disable-next-line no-console -- last-resort-error: File read failed in extractFromFile; returns []
     console.error('[memory-extractor] Could not read file ' + relativePath + ': ' + err.message);
     return [];
   }
@@ -345,11 +350,13 @@ async function extractFromFile(relativePath, options = {}) {
   try {
     response = await haiku.classify(systemPrompt, content);
   } catch (err) {
+    // eslint-disable-next-line no-console -- last-resort-error: Haiku call threw in extractFromFile; returns []
     console.error('[memory-extractor] Haiku call failed for ' + relativePath + ': ' + err.message);
     return [];
   }
 
   if (!response.success) {
+    // eslint-disable-next-line no-console -- last-resort-error: Haiku response unsuccessful in extractFromFile; returns []
     console.error('[memory-extractor] Haiku extraction failed for ' + relativePath + ': ' + (response.error || 'unknown'));
     return [];
   }
@@ -414,6 +421,7 @@ async function extractFromDirectory(relativeDir, options = {}) {
       .filter((f) => f.endsWith('.md'))
       .map((f) => path.join(relativeDir, f));
   } catch (err) {
+    // eslint-disable-next-line no-console -- last-resort-error: Directory read failed in extractFromDirectory; returns []
     console.error('[memory-extractor] Could not read directory ' + relativeDir + ': ' + err.message);
     return [];
   }
