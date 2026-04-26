@@ -1,5 +1,36 @@
 # Milestones
 
+## v1.5 Internal Hardening (Shipped: 2026-04-26)
+
+**Phases:** 4 (22-25) | **Plans:** 8 | **Commits:** 12 in v1.5 range | **Files changed:** 14 (+1,122 / -75) | **PRs merged:** #50-#53 | **Requirements:** 10/10 complete
+
+**Goal:** Harden the development infrastructure — committed hooks at the git layer, new agent surface for documentation drift and requirement verification, memory health monitoring, and Unicode-safe matching — closing every deferred backlog item from v1.4.
+
+**Key accomplishments:**
+
+- **Phase 22: Committed Hooks** — Pre-commit AJV schema validation for `daily-stats.md` frontmatter and `pipeline.json` config bounds (HOOK-SCHEMA-01). Pre-commit vault-boundary enforcement prevents committing to wrong LEFT/RIGHT side (HOOK-VAULT-01). Dotenv loading moved to entry-points only; `pipeline-infra.js:23` root cause resolved (HOOK-DOTENV-01).
+- **Phase 23: Doc Sync Layer** — Post-merge hook compares CLAUDE.md/README.md stats against live jest output, flags drift as non-blocking warnings (HOOK-DOCSYNC-01). Docs-sync agent extended with DOCSYNC-AUDIT mode that blocks phase closure when drift exceeds threshold (AGENT-DOCSYNC-01).
+- **Phase 24: Agent Surface** — Test-verifier agent gains Phase-Closure Verification Mode: spawns parallel sub-checks per REQ-ID at phase-close time (AGENT-VERIFY-01). Memory health monitor reads daily-stats.md counters and surfaces anomaly alerts (zero promotions 3+ days, backlog growth, recall drop, vault plateau) in `/today` briefing (AGENT-MEMORY-01).
+- **Phase 25: Unicode Hardening & UAT Closeout** — Replaced ASCII-only `.toLowerCase().includes()` with NFKD-normalized `normalizeForMatch()` that blocks full-width Latin, soft-hyphen, and NBSP bypass attacks (HYG-UNICODE-02). 45 test.todo entries promoted to passing assertions. UAT corpus rebaselined at 100% accuracy (UAT-REFRESH-01). GitHub Actions UAT workflow smoke run confirmed end-to-end (UAT-SMOKE-01).
+
+**Stats:**
+- **Test count:** 1190 (1152 passing, 38 skipped, 0 todo) across 56 files
+- **Coverage:** 81.28% branch / 94.62% statements / 96.94% functions / 95.53% lines
+- **src/ LOC:** ~9,700 (minimal growth — hardening milestone, not feature work)
+- **Timeline:** 2026-04-26 (1 day — all 4 phases planned and executed same day)
+
+**Locked decisions:**
+- normalizeForMatch strips ALL whitespace (not just NBSP) for multi-word term consistency
+- UAT tests require Anthropic API, not local LM Studio — pipeline.local.json routing documented as pre-existing config interaction
+- test-verifier dual-mode: invocation phrasing triggers Phase-Closure Verification Mode
+- Memory health anomalies surface only when threshold conditions met (no false alerts)
+
+**Known gaps:** FIX-02 (config hot-reload) — restart workaround sufficient. All v1.4 backlog items fully resolved. No new backlog items generated.
+
+**Tag:** v1.5
+
+---
+
 ## v1.4 Memory Activation & Final Closeout (Shipped: 2026-04-26)
 
 **Phases:** 5 (17-21) | **Plans:** 23 | **Commits:** ~50 in v1.4 range | **Files changed:** 114 (+21,393 / −138) | **PRs merged:** #25–#48 | **Audit:** tech_debt status (Option C — fix user-facing, absorb process drift)
