@@ -17,7 +17,7 @@ Requirements for v1.5 Internal Hardening. All promoted from v1.4 backlog — no 
 ### Agents
 
 - [ ] **AGENT-DOCSYNC-01**: Post-ship agent compares living-doc stats and narrative against `jest --coverage` and `git log` reality; blocks phase closure if drift exceeds threshold; pairs with HOOK-DOCSYNC-01
-- [ ] **AGENT-VERIFY-01**: Requirement-level auto-verification expands `test-verifier` to spawn parallel sub-checks per REQ-ID at phase-close time, covering full requirements surface
+- [x] **AGENT-VERIFY-01**: Requirement-level auto-verification expands `test-verifier` to spawn parallel sub-checks per REQ-ID at phase-close time, covering full requirements surface
 - [ ] **AGENT-MEMORY-01**: Memory health monitor reads `daily-stats.md` counters and surfaces anomaly alerts (zero promotions 3+ days, backlog growth, recall usage drop, vault plateau) in `/today` briefing
 
 ### Test / Hygiene
@@ -52,7 +52,7 @@ None — v1.5 is a hardening milestone consuming the full v1.4 backlog. New feat
 | HOOK-DOTENV-01 | Phase 22 | Pending |
 | HOOK-DOCSYNC-01 | Phase 23 | Pending |
 | AGENT-DOCSYNC-01 | Phase 23 | Pending |
-| AGENT-VERIFY-01 | Phase 24 | Pending |
+| AGENT-VERIFY-01 | Phase 24 | Complete |
 | AGENT-MEMORY-01 | Phase 24 | Pending |
 | UAT-REFRESH-01 | Phase 25 | Pending |
 | HYG-UNICODE-02 | Phase 25 | Pending |

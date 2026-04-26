@@ -166,5 +166,5 @@ Plans:
 | 21. Closeout Hygiene | v1.4 | 4/4 | Complete | 2026-04-26 |
 | 22. Committed Hooks | v1.5 | 0/2 | Complete    | 2026-04-26 |
 | 23. Doc Sync Layer | v1.5 | 2/2 | Complete    | 2026-04-26 |
-| 24. Agent Surface | v1.5 | 0/TBD | Not started | - |
+| 24. Agent Surface | v1.5 | 1/2 | In Progress|  |
 | 25. Unicode Hardening & UAT Closeout | v1.5 | 0/TBD | Not started | - |
