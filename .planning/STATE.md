@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: null
-milestone_name: null
-status: between-milestones
-stopped_at: "v1.4 milestone close ceremony complete (tag v1.4 created)"
-last_updated: "2026-04-26T13:00:00.000Z"
+milestone: v1.5
+milestone_name: Internal Hardening
+status: defining-requirements
+stopped_at: null
+last_updated: "2026-04-26T18:00:00.000Z"
 last_activity: 2026-04-26
 progress:
   total_phases: 0
@@ -17,17 +17,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-26 after v1.4 milestone close)
+See: .planning/PROJECT.md (updated 2026-04-26 after v1.5 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Between milestones — v1.5 unscoped. Run `/gsd:new-milestone` to gather requirements.
+**Current focus:** v1.5 Internal Hardening — defining requirements from v1.4 backlog.
 
 ## Current Position
 
-Phase: none (between milestones)
-Plan: none
-Status: v1.4 shipped (tag v1.4) — ready for v1.5 scoping
-Last activity: 2026-04-26
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-26 — Milestone v1.5 started
 
 **Shipped milestones:**
 - v1.0 MVP (2026-04-22) — tag v1.0
@@ -35,6 +35,8 @@ Last activity: 2026-04-26
 - v1.2 Automation & Quality (2026-04-23) — tag v1.2.0
 - v1.3 Review Remediation (2026-04-24) — tag v1.3.0
 - v1.4 Memory Activation & Final Closeout (2026-04-26) — tag v1.4
+
+**Current milestone:** v1.5 Internal Hardening — 10 backlog items promoted from v1.4
 
 ## Accumulated Context
 
@@ -69,4 +71,4 @@ Ship log: PRs #1–#48 merged. Tags: v1.0, v1.1, v1.2.0, v1.3.0, v1.4.
 
 ## Next Action
 
-Run `/gsd:new-milestone` to scope v1.5 — adaptive questioning → research (optional) → REQUIREMENTS.md → ROADMAP.md.
+Define REQUIREMENTS.md from v1.4 backlog, then create ROADMAP.md with phase structure starting at Phase 22.

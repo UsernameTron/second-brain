@@ -34,9 +34,21 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 - Phase 17 UAT workflow smoke run still deferred per Pete's checkpoint
 - FIX-02 (config hot-reload) — restart workaround sufficient
 
-## Next Milestone Goals
+## Current Milestone: v1.5 Internal Hardening
 
-v1.5 is unscoped. Run `/gsd:new-milestone` to gather requirements and define phases. Backlog parking lot lives in `tasks/todo.md`.
+**Goal:** Harden the development infrastructure — committed hooks, new agent surface, test corpus rebaseline, and Unicode-safe matching — closing every deferred backlog item from v1.4.
+
+**Target features:**
+- Pre-commit AJV schema validation on config/frontmatter (HOOK-SCHEMA-01)
+- Pre-commit LEFT/RIGHT boundary enforcement at git layer (HOOK-VAULT-01)
+- Post-merge documentation drift detection hook (HOOK-DOCSYNC-01)
+- Entry-point-only dotenv loading (HOOK-DOTENV-01)
+- Post-ship documentation drift detection agent (AGENT-DOCSYNC-01)
+- Requirement-level auto-verification via subagent fan-out (AGENT-VERIFY-01)
+- Memory health monitor surfacing anomalies in /today (AGENT-MEMORY-01)
+- Rebaseline UAT classification corpus (UAT-CORPUS-REFRESH-01)
+- Unicode-variant matcher upgrade for excluded terms (HYG-UNICODE-02)
+- UAT workflow smoke run (Phase 17 carry-forward)
 
 ## Core Value
 
@@ -101,7 +113,7 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 
 ### Active
 
-(None — v1.5 unscoped. Run `/gsd:new-milestone` to gather requirements.)
+(Defined in REQUIREMENTS.md — see v1.5 Internal Hardening scope.)
 
 <details>
 <summary>v1.4 Memory Activation & Final Closeout (shipped 2026-04-26, tag v1.4)</summary>
@@ -250,4 +262,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after v1.4 milestone close*
+*Last updated: 2026-04-26 after v1.5 milestone start*
