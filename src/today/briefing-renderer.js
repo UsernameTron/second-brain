@@ -272,7 +272,7 @@ function _renderFrontmatter(date, sources, degradedCount, mode) {
  * @returns {string} Full markdown string
  */
 function renderBriefing(data) {
-  const { date, sourceHealth, connectorResults, pipelineState, slippage, frog, memoryEcho, mode, synthesis } = data;
+  const { date, sourceHealth, connectorResults, pipelineState, slippage, frog, memoryEcho, memoryHealth, mode, synthesis } = data;
   const { sources, degradedCount } = sourceHealth;
 
   const frontmatter = _renderFrontmatter(date, sources, degradedCount, mode);
@@ -283,6 +283,9 @@ function renderBriefing(data) {
   const slippageSection = _renderSlippageSection(slippage);
   const frogSection = _renderFrogSection(frog);
   const memoryEchoBody = _renderMemoryEchoSection(memoryEcho);
+  // memoryHealth is a pre-computed markdown string or null (from memory-health.js).
+  // No rendering function needed — the module already returns ready-to-embed markdown.
+  const memoryHealthBody = memoryHealth || null;
   const githubSection = _renderGitHubSection(connectorResults.github);
   const pipelineSection = _renderPipelineSection(pipelineState);
 
@@ -321,6 +324,10 @@ function renderBriefing(data) {
     '## Pipeline',
     '',
     pipelineSection,
+    '',
+    // Memory Health (Phase 24, AGENT-MEMORY-01) — heading and body absent when
+    // no anomaly conditions are met. Follows Memory Echo pattern (Phase 18).
+    ...(memoryHealthBody !== null ? ['## Memory Health', '', memoryHealthBody, ''] : []),
   ].join('\n');
 
   // ── Phase 20: Yesterday summary line prefix (TODAY-SUMMARY-01, D-05/D-06) ──
