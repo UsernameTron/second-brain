@@ -52,6 +52,7 @@ function sanitizeTermForPrompt(term) {
   // Step 4: Reject instruction-like patterns
   const injectionPattern = /^(you must|always|never|ignore|respond with|say |forget|disregard|override)/i;
   if (injectionPattern.test(sanitized)) {
+    // eslint-disable-next-line no-console -- degradation-warning: Suspicious excluded-term pattern dropped; pipeline continues without it
     console.error(`[content-policy] Skipping suspicious excluded term: "${term}"`);
     return null;
   }

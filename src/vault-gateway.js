@@ -103,6 +103,7 @@ function logDecision(action, filePath, decision, reason) {
     ...(reason ? { reason } : {}),
   };
   // No content payload: only decision metadata reaches the log
+  // eslint-disable-next-line no-console -- diagnostic: Always-emit JSON audit log for vault-gateway write decisions per design
   console.error(JSON.stringify(entry));
 }
 
@@ -213,6 +214,7 @@ function _handleConfigChange() {
       _config = loadConfig();
       configEvents.emit('config:reloaded', _config);
     } catch (e) {
+      // eslint-disable-next-line no-console -- degradation-warning: Config reload parse failed; previous in-memory config retained
       console.error(`[vault-gateway] Config reload failed: ${e.message}. Keeping previous config.`);
     }
     _reloading = false;

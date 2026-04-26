@@ -192,7 +192,7 @@ async function appendToMemoryFile(promotedCandidates) {
     const { indexNewEntries } = require('./semantic-index');
     await indexNewEntries(promotedCandidates);
   } catch (err) {
-    // eslint-disable-next-line no-console
+    // eslint-disable-next-line no-console -- degradation-warning: semantic indexing failed; promotion continues
     console.error(`[promote-memories] Semantic indexing failed (non-fatal): ${err && err.message ? err.message : err}`);
   }
 }

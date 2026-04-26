@@ -126,6 +126,7 @@ function loadStyleGuide() {
     fullText = fs.readFileSync(styleGuidePath, 'utf8');
   } catch (err) {
     // If style guide doesn't exist (e.g., first run before vault setup), use empty cache
+    // eslint-disable-next-line no-console -- degradation-warning: Style guide load failed; cache set to empty so style lint disables
     console.error(`[style-policy] Could not load style guide: ${err.message}. Style lint will be disabled.`);
     fullText = '';
   }
@@ -148,6 +149,7 @@ function loadStyleGuide() {
                 bannedWords: extractBannedWords(updatedText),
               };
             } catch (e) {
+              // eslint-disable-next-line no-console -- degradation-warning: Style guide reload failed; previous cache retained
               console.error(`[style-policy] Style guide reload failed: ${e.message}. Keeping previous cache.`);
             }
             _styleGuideReloading = false;
@@ -156,6 +158,7 @@ function loadStyleGuide() {
       });
     } catch (watchErr) {
       // Non-fatal: watch failure means no hot-reload but style lint still works
+      // eslint-disable-next-line no-console -- degradation-warning: Style guide watch failed; lint still works without hot-reload
       console.error(`[style-policy] Could not watch style guide for changes: ${watchErr.message}`);
     }
   }

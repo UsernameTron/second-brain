@@ -161,19 +161,25 @@ async function main(configDir = DEFAULT_CONFIG_DIR, schemaDir = DEFAULT_SCHEMA_D
   const results = await validateAll(configDir, schemaDir);
 
   // Print results table
+  // eslint-disable-next-line no-console -- user-facing-output: CLI header line for validation results table
   console.log('\nConfig Validation Results');
+  // eslint-disable-next-line no-console -- user-facing-output: CLI separator under validation results header
   console.log('='.repeat(80));
   for (const r of results) {
     const file = path.relative(process.cwd(), r.file);
     const schema = path.relative(process.cwd(), r.schema);
+    // eslint-disable-next-line no-console -- user-facing-output: CLI per-file status line in validation results
     console.log(`\n[${r.status}] ${file}`);
+    // eslint-disable-next-line no-console -- user-facing-output: CLI schema-path line under each file status
     console.log(`       Schema: ${schema}`);
     if (r.errors.length > 0) {
       for (const e of r.errors) {
+        // eslint-disable-next-line no-console -- user-facing-output: CLI per-error detail line in validation results
         console.log(`       Error:  ${e.path || '(root)'} — ${e.message}`);
       }
     }
   }
+  // eslint-disable-next-line no-console -- user-facing-output: CLI closing separator after validation results
   console.log('\n' + '='.repeat(80));
 
   const hasFailure = results.some(r => r.status === 'FAIL' || r.status === 'ERROR');
@@ -185,6 +191,7 @@ module.exports = { validateFile, validateAll, main };
 // CLI entry point
 if (require.main === module) {
   main().catch(err => {
+    // eslint-disable-next-line no-console -- last-resort-error: Unexpected error logged before process.exit(1) in CLI entry
     console.error('Unexpected error:', err.message);
     process.exit(1);
   });

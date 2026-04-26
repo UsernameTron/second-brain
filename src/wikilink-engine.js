@@ -248,12 +248,14 @@ async function loadVaultIndex() {
     const raw = await fs.promises.readFile(cacheFile, 'utf8');
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) {
+      // eslint-disable-next-line no-console -- degradation-warning: vault-index.json shape invalid; returns empty index so callers continue
       console.error('[wikilink-engine] vault-index.json is not an array — returning empty index');
       return [];
     }
     return parsed;
   } catch (err) {
     if (err.code !== 'ENOENT') {
+      // eslint-disable-next-line no-console -- degradation-warning: vault-index.json read failed (non-ENOENT); returns empty index
       console.error(`[wikilink-engine] Failed to load vault index: ${err.message} — returning empty index`);
     }
     return [];

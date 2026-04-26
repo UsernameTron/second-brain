@@ -155,9 +155,11 @@ async function runNew(input, options = {}) {
       }
       await refreshIndexEntry(targetPath);
     } catch (wikiErr) {
+      // eslint-disable-next-line no-console -- degradation-warning: Wikilinks suggestion failed; routing continues without enrichment
       console.error(`[wikilinks] Non-blocking failure: ${wikiErr.message} (correlation-id: ${correlationId})`);
     }
 
+    // eslint-disable-next-line no-console -- user-facing-output: CLI confirmation that input was routed to target path
     console.log(`Routed to ${targetPath} (correlation-id: ${correlationId})`);
 
     return {
@@ -178,6 +180,7 @@ async function runNew(input, options = {}) {
     if (err.code === 'PATH_BLOCKED') failureMode = 'gate-rejection';
 
     const dlResult = await writeDeadLetter(input, failureMode, correlationId, { source });
+    // eslint-disable-next-line no-console -- user-facing-output: CLI dead-letter notification informing user where unroutable input was saved
     console.error(`Dead-lettered to ${dlResult.path} (failure-mode: ${failureMode})`);
 
     return {

@@ -284,6 +284,7 @@ async function _flushPendingBufferInternal() {
         await _writeCandidateWithLock(candidate);
       }
     } catch (err) {
+      // eslint-disable-next-line no-console -- degradation-warning: Pending-line flush failed for one entry; loop continues to remaining entries
       console.error('[memory-proposals] Failed to flush pending line: ' + err.message);
     }
   }
@@ -316,6 +317,7 @@ async function writeCandidate(candidate) {
   const contentHash = computeHash(content);
 
   if (isDuplicate(contentHash)) {
+    // eslint-disable-next-line no-console -- diagnostic: Always-emit JSON audit log for WRITE_CANDIDATE SKIPPED duplicate decision
     console.error(JSON.stringify({ ts: new Date().toISOString(), action: 'WRITE_CANDIDATE', decision: 'SKIPPED', reason: 'duplicate', content_hash: contentHash }));
     return { written: false, reason: 'duplicate' };
   }
@@ -326,6 +328,7 @@ async function writeCandidate(candidate) {
     const pendingPath = PENDING_FILE();
     const line = JSON.stringify(candidate) + '\n';
     fs.appendFileSync(pendingPath, line, 'utf8');
+    // eslint-disable-next-line no-console -- diagnostic: Always-emit JSON audit log for WRITE_CANDIDATE BUFFERED decision
     console.error(JSON.stringify({ ts: new Date().toISOString(), action: 'WRITE_CANDIDATE', decision: 'BUFFERED', content_hash: contentHash }));
     return { written: true, buffered: true };
   }
@@ -333,6 +336,7 @@ async function writeCandidate(candidate) {
   try {
     await _flushPendingBufferInternal();
     const candidateId = await _writeCandidateWithLock(candidate);
+    // eslint-disable-next-line no-console -- diagnostic: Always-emit JSON audit log for WRITE_CANDIDATE WRITTEN decision
     console.error(JSON.stringify({ ts: new Date().toISOString(), action: 'WRITE_CANDIDATE', decision: 'WRITTEN', candidateId, content_hash: contentHash }));
     return { written: true, candidateId };
   } finally {
@@ -351,6 +355,7 @@ async function writeCandidate(candidate) {
 async function flushPendingBuffer() {
   const lockResult = await acquireLock();
   if (!lockResult.acquired) {
+    // eslint-disable-next-line no-console -- degradation-warning: Lock acquisition failed during pending-buffer flush; returns silently
     console.error('[memory-proposals] Could not acquire lock to flush pending buffer');
     return;
   }
