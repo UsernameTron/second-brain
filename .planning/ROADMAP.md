@@ -108,7 +108,7 @@ Plans:
 **Depends on**: Phase 22
 **Requirements**: HOOK-DOCSYNC-01, AGENT-DOCSYNC-01
 **Success Criteria** (what must be TRUE):
-  1. After a merge to master, the post-merge hook compares `CLAUDE.md`/`README.md` stats (test count, coverage, phase count) against live `jest --coverage` output and prints a warning if any stat is stale
+  1. After a merge to master, the post-merge hook compares `CLAUDE.md`/`README.md` stats (test count, coverage) against live `jest --coverage` output and prints a warning if any stat is stale
   2. At phase closure, the `docs-sync` agent compares living-doc narrative against `jest --coverage` and `git log` reality and blocks closure if any stat drift exceeds the configured threshold
   3. A correctly synced state produces no warnings or block from either the hook or the agent
 **Plans:** 2/2 plans complete
