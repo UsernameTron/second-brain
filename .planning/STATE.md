@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Internal Hardening
-status: defining-requirements
+status: roadmap-complete
 stopped_at: null
-last_updated: "2026-04-26T18:00:00.000Z"
+last_updated: "2026-04-26T18:30:00.000Z"
 last_activity: 2026-04-26
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-26 after v1.5 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** v1.5 Internal Hardening — defining requirements from v1.4 backlog.
+**Current focus:** v1.5 Internal Hardening — roadmap defined, ready to plan Phase 22.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 22 (not started — roadmap complete, awaiting plan-phase)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-26 — Milestone v1.5 started
+Status: Roadmap complete
+Last activity: 2026-04-26 — ROADMAP.md created for v1.5
+
+```
+Progress: [----------] 0/4 phases complete
+```
 
 **Shipped milestones:**
 - v1.0 MVP (2026-04-22) — tag v1.0
@@ -36,7 +40,14 @@ Last activity: 2026-04-26 — Milestone v1.5 started
 - v1.3 Review Remediation (2026-04-24) — tag v1.3.0
 - v1.4 Memory Activation & Final Closeout (2026-04-26) — tag v1.4
 
-**Current milestone:** v1.5 Internal Hardening — 10 backlog items promoted from v1.4
+**Current milestone:** v1.5 Internal Hardening — 4 phases, 10 requirements
+
+| Phase | Goal | Requirements | Status |
+|-------|------|--------------|--------|
+| 22. Committed Hooks | Git pre-commit enforces schema, vault boundary, dotenv discipline | HOOK-SCHEMA-01, HOOK-VAULT-01, HOOK-DOTENV-01 | Not started |
+| 23. Doc Sync Layer | Drift detection at merge time and phase closure | HOOK-DOCSYNC-01, AGENT-DOCSYNC-01 | Not started |
+| 24. Agent Surface | Requirement-level verification + memory health monitoring | AGENT-VERIFY-01, AGENT-MEMORY-01 | Not started |
+| 25. Unicode Hardening & UAT Closeout | Unicode-safe matching, UAT corpus rebaseline, Phase 17 smoke run | HYG-UNICODE-02, UAT-REFRESH-01, UAT-SMOKE-01 | Not started |
 
 ## Accumulated Context
 
@@ -55,20 +66,14 @@ None active.
 
 ### Pending Todos
 
-v1.5 backlog parking lot in `tasks/todo.md`:
-- HYG-UNICODE-02 — Unicode-variant matcher upgrade (45 test.todo entries staged)
-- HOOK-VAULT-01 / HOOK-SCHEMA-01 / HOOK-DOCSYNC-01 — Committed hook coverage
-- AGENT-DOCSYNC-01 / AGENT-VERIFY-01 / AGENT-MEMORY-01 — New agent surface
-- UAT-CORPUS-REFRESH-01 — Rebaseline classification corpus
-- DOTENV-FIX-01 — Suite-level dotenv neutralization
-- Phase 17 UAT workflow smoke run (`gh workflow run uat.yml`) — deferred to v1.5 first-week
+None — all v1.4 backlog items are now captured as v1.5 requirements in REQUIREMENTS.md.
 
 ## Session Continuity
 
-Last session: 2026-04-26 — v1.4 milestone close ceremony
-Stopped at: v1.4 archived; ROADMAP.md collapsed; REQUIREMENTS.md deleted (fresh for v1.5); PROJECT.md evolved; RETROSPECTIVE.md appended; tag v1.4 created
+Last session: 2026-04-26 — v1.5 roadmap created
+Stopped at: ROADMAP.md written (4 phases, 10 requirements, 100% coverage). REQUIREMENTS.md traceability updated. STATE.md updated.
 Ship log: PRs #1–#48 merged. Tags: v1.0, v1.1, v1.2.0, v1.3.0, v1.4.
 
 ## Next Action
 
-Define REQUIREMENTS.md from v1.4 backlog, then create ROADMAP.md with phase structure starting at Phase 22.
+Run `/gsd:plan-phase 22` to plan Phase 22: Committed Hooks.

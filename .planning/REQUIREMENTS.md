@@ -47,22 +47,22 @@ None — v1.5 is a hardening milestone consuming the full v1.4 backlog. New feat
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HOOK-SCHEMA-01 | TBD | Pending |
-| HOOK-VAULT-01 | TBD | Pending |
-| HOOK-DOCSYNC-01 | TBD | Pending |
-| HOOK-DOTENV-01 | TBD | Pending |
-| AGENT-DOCSYNC-01 | TBD | Pending |
-| AGENT-VERIFY-01 | TBD | Pending |
-| AGENT-MEMORY-01 | TBD | Pending |
-| UAT-REFRESH-01 | TBD | Pending |
-| HYG-UNICODE-02 | TBD | Pending |
-| UAT-SMOKE-01 | TBD | Pending |
+| HOOK-SCHEMA-01 | Phase 22 | Pending |
+| HOOK-VAULT-01 | Phase 22 | Pending |
+| HOOK-DOTENV-01 | Phase 22 | Pending |
+| HOOK-DOCSYNC-01 | Phase 23 | Pending |
+| AGENT-DOCSYNC-01 | Phase 23 | Pending |
+| AGENT-VERIFY-01 | Phase 24 | Pending |
+| AGENT-MEMORY-01 | Phase 24 | Pending |
+| UAT-REFRESH-01 | Phase 25 | Pending |
+| HYG-UNICODE-02 | Phase 25 | Pending |
+| UAT-SMOKE-01 | Phase 25 | Pending |
 
 **Coverage:**
 - v1.5 requirements: 10 total
-- Mapped to phases: 0
-- Unmapped: 10 (pending roadmap creation)
+- Mapped to phases: 10
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-26*
-*Last updated: 2026-04-26 after initial definition*
+*Last updated: 2026-04-26 after roadmap creation*
