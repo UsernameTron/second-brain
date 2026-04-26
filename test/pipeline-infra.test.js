@@ -14,6 +14,30 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+// ── dotenv side-effect guard (HOOK-DOTENV-01) ────────────────────────────────
+
+describe('pipeline-infra dotenv discipline', () => {
+  test('does not call dotenv.config() at require time', () => {
+    // jest.mock is hoisted and cannot reference scope variables.
+    // Use jest.isolateModules + jest.doMock (not hoisted) to intercept
+    // the dotenv require inside pipeline-infra during a fresh module load.
+    let called = false;
+    jest.isolateModules(() => {
+      jest.doMock('dotenv', () => ({
+        config: () => { called = true; return { parsed: {} }; },
+      }));
+      require('../src/pipeline-infra');
+    });
+    expect(called).toBe(false);
+  });
+
+  test('exports generateCorrelationId as a function', () => {
+    jest.resetModules();
+    const infra = require('../src/pipeline-infra');
+    expect(typeof infra.generateCorrelationId).toBe('function');
+  });
+});
+
 // ── generateCorrelationId ────────────────────────────────────────────────────
 
 describe('generateCorrelationId', () => {

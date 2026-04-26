@@ -20,7 +20,10 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+// dotenv.config() intentionally NOT called here. Library modules must not
+// re-load .env at import time. Entry points (CLI scripts, hook runners)
+// are responsible for calling dotenv.config() before requiring this module.
+// See HOOK-DOTENV-01.
 
 // ── Path resolution ──────────────────────────────────────────────────────────
 
