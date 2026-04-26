@@ -38,6 +38,7 @@ if (!process.env.VAULT_ROOT) {
  * Deterministic cases — included in accuracy denominator.
  * expected: 'LEFT' | 'RIGHT'
  */
+// Rebaselined: 2026-04-26 — all 12 cases confirmed against current classifier behavior (100% accuracy)
 const DETERMINISTIC_CASES = [
   {
     id: 'LEFT-01',
