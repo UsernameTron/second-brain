@@ -6,9 +6,9 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-**v1.4 shipped 2026-04-26 (tag v1.4).** Five milestones complete: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4). Memory layer is now bidirectional — write path operating since v1.0, read path activated in v1.4 via `/recall` (keyword + semantic + RRF hybrid) and Memory Echo in `/today`. Phase 22 (Committed Hooks) complete — pre-commit schema validation, vault boundary enforcement, and dotenv discipline now enforced at git layer. Phase 23 (Doc Sync Layer) complete — post-merge hook detects documentation drift (test count, coverage) against live jest output; docs-sync agent extended with DOCSYNC-AUDIT: PASS/BLOCK verdict for phase closure gates. Phase 24 (Agent Surface) complete — test-verifier agent has per-REQ-ID phase-closure verification mode; /today briefing surfaces memory health anomalies (zero promotions, backlog growth, recall drop, vault plateau).
+**v1.5 milestone near-complete (2026-04-26).** Six milestones shipped: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4). v1.5 Internal Hardening all 4 phases (22-25) executed and verified. Phase 25 (Unicode Hardening & UAT Closeout) complete — NFKD-normalized matcher replaces ASCII-only matching, 45 test.todo entries promoted, UAT corpus confirmed at 100% accuracy, workflow smoke run passed.
 
-**Stats post-v1.4:** 1127 tests across 55 files (1044 passing, 38 skipped, 45 todo). Coverage 81.28% branch / 94.62% statements / 96.94% functions / 95.53% lines. 9,617 LOC in `src/`. 0 ESLint no-console warnings (35 category-tagged disables). JSDoc on 53 public exports.
+**Stats post-Phase 25:** 1190 tests across 56 files (1152 passing, 38 skipped, 0 todo). Coverage 81.28% branch / 94.62% statements / 96.94% functions / 95.53% lines. 0 ESLint no-console warnings. JSDoc on 53 public exports. All 10 v1.5 requirements complete.
 
 **What works end-to-end:**
 - `/new` classifies input, enforces left/right routing, filters excluded content (15 terms with substring matching), suggests wikilinks
@@ -25,13 +25,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 - UAT workflow: weekly cron + manual `workflow_dispatch`, ANTHROPIC_API_KEY scoped step-only, 90-day artifact retention
 - Branch protection on master: PR-required-reviews, required CI checks (test (20)/test (22)/Analyze), force-push blocked
 
-**Known gaps (carried to v1.5 backlog in `tasks/todo.md`):**
-- HYG-UNICODE-02 — Unicode-variant matcher upgrade (45 test.todo entries staged)
-- AGENT-VERIFY-01 / AGENT-MEMORY-01 — New agent surface
-- UAT-CORPUS-REFRESH-01 — Rebaseline classification corpus after excluded-terms expansion
-- DOTENV-FIX-01 — Suite-level dotenv neutralization (precedent in PR #38)
-- Phase 17 UAT workflow smoke run still deferred per Pete's checkpoint
-- FIX-02 (config hot-reload) — restart workaround sufficient
+**Known gaps:** FIX-02 (config hot-reload) — restart workaround sufficient. All v1.4 backlog items resolved in v1.5.
 
 ## Current Milestone: v1.5 Internal Hardening
 
