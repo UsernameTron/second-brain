@@ -6,17 +6,37 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-Shipped v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24). v1.4 nearly closed: Phase 17 UAT CI, Phase 18 Memory Retrieval, Phase 19 Semantic Memory Search (Voyage AI embeddings, RRF hybrid, graceful degradation, 2026-04-24), Phase 20 Value Extraction Instrumentation (shipped via PR #35), and Phase 21 Closeout Hygiene (HYG-UNICODE-01 PR #42, HYG-JSDOC-01 PR #43, HYG-CONSOLE-01 PR #44, DOCS-FINAL-01 in flight) all complete. 1127 tests across 55 suites (1044 passing, 38 skipped — 24 UAT + pre-existing — plus 45 test.todo entries documenting the v1.5 HYG-UNICODE-02 ASCII-vs-Unicode gap). Project branch coverage 81.28%; semantic-index.js 82.22%, voyage-health.js 84.61%. Four live-Voyage UAT items tracked in 19-HUMAN-UAT.md (status: complete; 4/4 items pass, including Test 1 calibration fix 0.72 → 0.55).
+**v1.4 shipped 2026-04-26 (tag v1.4).** Five milestones complete: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4). Memory layer is now bidirectional — write path operating since v1.0, read path activated in v1.4 via `/recall` (keyword + semantic + RRF hybrid) and Memory Echo in `/today`.
+
+**Stats post-v1.4:** 1127 tests across 55 files (1044 passing, 38 skipped, 45 todo). Coverage 81.28% branch / 94.62% statements / 96.94% functions / 95.53% lines. 9,617 LOC in `src/`. 0 ESLint no-console warnings (35 category-tagged disables). JSDoc on 53 public exports.
 
 **What works end-to-end:**
-- `/new` classifies input, enforces left/right routing, filters excluded content (15 terms), suggests wikilinks
-- `/today` produces 6-section daily briefing with graceful degradation
-- Memory extraction, proposals, promotion pipeline with human review gate
-- Gmail (OAuth wired), Calendar, GitHub connectors with zero-trust permissions
-- RemoteTrigger active for weekday pre-morning scheduling
-- GitHub Actions CI pipeline (Node 20+22 matrix, push + PR triggers, badge on README)
+- `/new` classifies input, enforces left/right routing, filters excluded content (15 terms with substring matching), suggests wikilinks
+- `/today` produces 6-section daily briefing with Memory Echo, yesterday-summary line, and graceful degradation
+- `/recall <query>` keyword search with `--category`, `--since`, `--top N` flags
+- `/recall --semantic <query>` Voyage AI cosine search (calibrated 0.55 threshold, post-UAT)
+- `/recall --hybrid <query>` RRF fusion of keyword + semantic
+- `/promote-memories` writes to `memory.md` AND embeds new entries to `~/.cache/second-brain/embeddings.jsonl`
+- `/today` records per-day stats row in `RIGHT/daily-stats.md` (8 columns: date/proposals/promotions/total_entries/memory_kb/recall_count/avg_latency_ms/avg_confidence)
+- Voyage degradation: 3-failure threshold → 15-min cross-invocation window persisted to `voyage-health.json`; falls back to keyword with banner
+- Gmail (OAuth, draft-only), Calendar (read-only), GitHub (UsernameTron-scoped) connectors with per-connector latency captured
+- RemoteTrigger active for weekday pre-morning `/today` execution
+- GitHub Actions CI: Node 20+22 matrix, ESLint, CodeQL SAST, license-checker, coverage ≥80%, GitGuardian secrets scan
+- UAT workflow: weekly cron + manual `workflow_dispatch`, ANTHROPIC_API_KEY scoped step-only, 90-day artifact retention
+- Branch protection on master: PR-required-reviews, required CI checks (test (20)/test (22)/Analyze), force-push blocked
 
-**Known gaps:** Config hot-reload defect (FIX-02, deferred — restart workaround sufficient).
+**Known gaps (carried to v1.5 backlog in `tasks/todo.md`):**
+- HYG-UNICODE-02 — Unicode-variant matcher upgrade (45 test.todo entries staged)
+- HOOK-VAULT-01 / HOOK-SCHEMA-01 / HOOK-DOCSYNC-01 — Committed pre-commit/post-merge hooks
+- AGENT-DOCSYNC-01 / AGENT-VERIFY-01 / AGENT-MEMORY-01 — New agent surface
+- UAT-CORPUS-REFRESH-01 — Rebaseline classification corpus after excluded-terms expansion
+- DOTENV-FIX-01 — Suite-level dotenv neutralization (precedent in PR #38)
+- Phase 17 UAT workflow smoke run still deferred per Pete's checkpoint
+- FIX-02 (config hot-reload) — restart workaround sufficient
+
+## Next Milestone Goals
+
+v1.5 is unscoped. Run `/gsd:new-milestone` to gather requirements and define phases. Backlog parking lot lives in `tasks/todo.md`.
 
 ## Core Value
 
@@ -72,36 +92,30 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ UAT accuracy report artifact retained 90 days — v1.4 Phase 17
 - ✓ Branch protection on master: PR required, force-push blocked, required checks test (20)/test (22)/Analyze — v1.4 Phase 17
 
-- ✓ Memory Retrieval Foundation (readMemory, /recall keyword mode, Memory Echo in /today) — v1.4 Phase 18
-- ✓ Semantic Memory Search (Voyage AI embeddings on promotion, cosine + temporal decay, RRF hybrid, 3-failure/15-min degradation) — v1.4 Phase 19
+- ✓ UAT CI scheduled workflow with secret isolation + 90-day artifact retention — v1.4 Phase 17
+- ✓ Branch protection on master (PR-required-reviews, force-push blocked, required CI checks) — v1.4 Phase 17
+- ✓ Memory Retrieval Foundation (readMemory, /recall keyword mode with --category/--since/--top N flags, Memory Echo in /today at 0.65 threshold) — v1.4 Phase 18
+- ✓ Semantic Memory Search (Voyage AI `voyage-4-lite` embeddings on promotion, cosine + temporal decay at 0.55 threshold, RRF hybrid, Pattern 7 degradation 3-failure/15-min window) — v1.4 Phase 19
+- ✓ Value Extraction Instrumentation (per-day daily-stats.md row with 8 columns, idempotent same-day update, per-connector + per-operation latency capture, yesterday-summary line at top of /today) — v1.4 Phase 20
+- ✓ Closeout Hygiene (HYG-UNICODE-01 Path B with 45 test.todo markers, HYG-JSDOC-01 on 53 public exports, HYG-CONSOLE-01 with 35 category-tagged disables, DOCS-FINAL-01 across 8 living docs) — v1.4 Phase 21
 
 ### Active
-- Value Extraction Instrumentation (daily-stats.md append-only table, compounding evidence) — v1.4 Phase 20 (shipped via PR #35)
-- Closeout Hygiene (HYG-UNICODE-01 Path B per D-LOCK-5-AMEND-A, HYG-JSDOC-01, HYG-CONSOLE-01, DOCS-FINAL-01) — v1.4 Phase 21 (complete; v1.4 ready for milestone close ceremony). Phase 19 UAT closure recorded in `.planning/phases/19-semantic-memory-search/19-HUMAN-UAT.md` (status: complete).
 
-## Current Milestone: v1.4 Memory Activation & Final Closeout
+(None — v1.5 unscoped. Run `/gsd:new-milestone` to gather requirements.)
 
-**Goal:** Activate the write-only memory layer (keyword + semantic retrieval), prove memory compounds daily via instrumentation, close the UAT CI gap, and clear every low-priority hygiene item. No changes to existing working behavior — all additions. This is the closing milestone.
+<details>
+<summary>v1.4 Memory Activation & Final Closeout (shipped 2026-04-26, tag v1.4)</summary>
 
-**Target features:**
-- UAT CI infrastructure (scheduled workflow + workflow_dispatch with ANTHROPIC_API_KEY secret, branch protection on master)
-- Memory retrieval foundation (`readMemory()`, `/recall` command, Memory Echo section in `/today`)
-- Semantic memory search (Voyage AI embeddings, local vector index, graceful degradation to keyword)
-- Value extraction instrumentation (daily-stats.md append-only table, memory growth + latency + velocity)
-- Closeout hygiene (B-15 Unicode tests, B-18 JSDoc on public API, B-20 no-console policy, final docs sweep)
+**Goal:** Activate the write-only memory layer (keyword + semantic retrieval), prove memory compounds daily via instrumentation, close the UAT CI gap, and clear every low-priority hygiene item. No changes to existing working behavior — all additions. The closing milestone of the v1.x cycle.
 
-**Key context:**
-- Memory pipeline has been write-only across v1.0–v1.3; v1.4 activates the read path
-- Voyage AI chosen as embedding provider (matches Anthropic cloud posture, generous free tier)
-- `/new` stays behaviorally untouched — memory retrieval surfaces only via `/recall` and `/today` Memory Echo
-- 4 parallel research agents (Stack, Features, Architecture, Pitfalls) run before requirements scoping
+**Delivered:** 5 phases (17–21), 23 plans. UAT CI on weekly cron with branch protection on master. Memory retrieval (keyword via minisearch, semantic via Voyage AI, RRF hybrid). Pattern 7 graceful degradation with cross-invocation persistence. Daily stats instrumentation with yesterday-summary line. Closeout hygiene: 0 ESLint no-console warnings, JSDoc on all 53 public exports, all 8 living docs synced. Audit completed (status: tech_debt — Option C selected, user-facing flag-doc gap closed in PR #48, process drift documented).
 
-**Phases (continued numbering from Phase 16):**
-- Phase 17: UAT CI Infrastructure (UAT-CI-01, UAT-CI-02, BRANCH-PROT-01)
-- Phase 18: Memory Retrieval Foundation (MEM-READ-01, MEM-SEARCH-KW-01, RECALL-CMD-01, TODAY-ECHO-01)
-- Phase 19: Semantic Memory Search (MEM-EMBED-01, MEM-SEMANTIC-01, MEM-INDEX-REFRESH-01, MEM-DEGRADE-01)
-- Phase 20: Value Extraction Instrumentation (STATS-DAILY-01, STATS-LATENCY-01, STATS-GROWTH-01, TODAY-SUMMARY-01)
-- Phase 21: Closeout Hygiene (HYG-UNICODE-01, HYG-JSDOC-01, HYG-CONSOLE-01, DOCS-FINAL-01)
+**Stats:** 1127 tests across 55 files (1044 passing, 38 skipped, 45 todo). 81.28% branch / 94.62% statements / 96.94% functions / 95.53% lines coverage. PRs #25–#48.
+
+**Deferred to v1.5:** HYG-UNICODE-02 Unicode matcher, HOOK-VAULT-01/HOOK-SCHEMA-01/HOOK-DOCSYNC-01 committed hooks, AGENT-DOCSYNC-01/AGENT-VERIFY-01/AGENT-MEMORY-01 agent surface, UAT-CORPUS-REFRESH-01 classifier corpus rebaseline, DOTENV-FIX-01 suite-level neutralization. Phase 17 UAT smoke run still deferred per Pete's 17-03 checkpoint.
+
+**Key locked decisions:** Voyage `voyage-4-lite` model + 0.55 threshold (calibrated empirically); `schema_version = hash(model || dim)` only; America/Chicago timezone for daily-stats; ASCII-only excluded-term matching for v1.4 (Unicode deferred); `/new` behavior untouched.
+</details>
 
 <details>
 <summary>v1.3 Review Remediation (shipped 2026-04-24)</summary>
@@ -206,6 +220,17 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 | AUTH_ERRORS structural comparison | errorType field not string matching — resilient to message changes | ✓ Good — typed error taxonomy |
 | UAT harnesses call real Anthropic API | Accuracy and relevance cannot be validated with stubs | ✓ Good — verified LLM quality in CI-excluded tests |
 | GitHub Actions Node 20+22 matrix | LTS coverage without maintaining older versions | ✓ Good — CI green on both |
+| Branch protection: PR-required-reviews on master (v1.4) | Classic `required_status_checks` only gates PR merges, NOT direct pushes; without `required_pull_request_reviews` (non-null) direct push with red CI lands. Required for solo-dev safety. | ✓ Good — direct pushes blocked since 2026-04-24 |
+| ANTHROPIC_API_KEY scoped step-only in uat.yml (v1.4) | Workflow-level or job-level secrets leak to all steps; step-level scoping is P11 prevention | ✓ Good — verified by grep across ci.yml, codeql.yml, uat.yml |
+| Voyage AI `voyage-4-lite` for semantic embeddings (v1.4) | Cloud posture matches Anthropic; generous free tier; SDK quality; cosine + temporal decay computable client-side | ✓ Good — embed-on-promotion working, 0.55 threshold calibrated post-UAT |
+| `schema_version = hash(model \|\| dim)` only (v1.4) | Threshold/decay are query-time math applied to cached vectors — re-embedding on those changes is wasted compute | ✓ Good — D-14 invariant tested, prevents unnecessary cache busts |
+| Pattern 7 (Adaptive Denial) for Voyage failures (v1.4) | 3-failure threshold + 15-min window persisted to `voyage-health.json` — graceful degradation without amplifying transient errors | ✓ Good — degraded state survives across CLI invocations |
+| `/new` behavior untouched in v1.4 | Memory retrieval surfaces only via `/recall` and `/today` Memory Echo to avoid regressing working classifier | ✓ Good — UAT-01 unchanged through v1.4 |
+| ASCII-only excluded-term matcher for v1.4 (Lock 5 Path B) | Unicode-variant matcher upgrade is a v1.5 feature, not v1.4 hygiene; 45 test.todo entries staged to document the gap without false-claiming behavior | ✓ Good — D-LOCK-5-AMEND-A held |
+| RIGHT/daily-stats.md path with vault-relative resolution (v1.4) | Pattern 11 convention: vault-relative path + VAULT_ROOT runtime resolution via vault-gateway | ✓ Good — atomic .tmp+rename writes, idempotent same-day update |
+| America/Chicago timezone for daily-stats date boundaries (v1.4) | Operator is in Fort Worth; ROADMAP success criterion citing America/Los_Angeles was an initial draft error corrected by REQ-AMEND-01 | ✓ Good — single shared `dateKey()` utility unit-tested at 23:59/00:01/DST boundaries |
+| Manifest-first protocol for scoped governance work (v1.4 lesson) | Plan 21-03 caught 5 categorization corrections from CONTEXT estimates by building full N-row manifest before applying any changes | ✓ Good — protocol now codified in lessons.md as LESSON-MANIFEST-FIRST-VALIDATED-01 |
+| `CI=true npm test` as the green/red signal (v1.4 lesson) | Bare `npm test` runs UAT tests against live API; `CI=true` triggers describe.skip guards and produces production-correctness signal | ✓ Good — codified in LESSON-PREFLIGHT-CI-MODE-01 |
 
 ## Evolution
 
@@ -225,4 +250,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-24 after v1.4 Phase 19 completion*
+*Last updated: 2026-04-26 after v1.4 milestone close*
