@@ -20,13 +20,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-26 after v1.5 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Phase 23 — doc-sync-layer
+**Current focus:** Phase 24 — agent-surface
 
 ## Current Position
 
 Phase: 24
 Plan: Not started
-Status: Executing Phase 23
+Status: Phase 23 complete, Phase 24 not started
 Last activity: 2026-04-26
 
 ```
