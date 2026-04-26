@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Daily Stats Frontmatter Schema",
+  "description": "Validates YAML frontmatter fields in RIGHT/daily-stats.md",
+  "type": "object",
+  "required": ["schema_version", "columns", "timezone", "last_updated"],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "columns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "timezone": {
+      "type": "string"
+    },
+    "last_updated": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T"
+    }
+  },
+  "additionalProperties": false
+}
