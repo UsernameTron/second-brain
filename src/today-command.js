@@ -147,13 +147,22 @@ async function _getPipelineState() {
 // ── runToday ─────────────────────────────────────────────────────────────────
 
 /**
- * Orchestrate the full /today briefing pipeline.
- *
- * Options: mcpClient (null for dry-run/test), mode ('interactive'|'scheduled'
- * |'dry-run'), projectsDir, vaultRoot, date, haikuClient — all overridable
- * for testing.
- *
- * @returns {Promise<{ path: string|null, briefing: string|null, sourceHealth?: object, error?: string }>}
+ * Orchestrate the full /today briefing pipeline: load config, fan out to
+ * connectors in parallel, scan slippage, identify the frog, fetch Memory Echo,
+ * synthesize narrative, render the briefing, write to the daily note, and
+ * record daily stats. Catches all errors into a `TODAY_FATAL` envelope.
+ * @param {Object} [options] - Overrides for orchestration inputs.
+ * @param {Object|null} [options.mcpClient=null] - Pre-built MCP client; null
+ *   selects dry-run / RemoteTrigger paths in connectors.
+ * @param {('interactive'|'scheduled'|'dry-run')} [options.mode='interactive'] -
+ *   Output mode; `dry-run` writes a `_dry-run-…md` file and skips stats.
+ * @param {string} [options.projectsDir] - Override for projects root scanned
+ *   by slippage; defaults to `$PROJECTS_DIR` or `~/projects`.
+ * @param {string} [options.vaultRoot] - Override for vault root; defaults to
+ *   `$VAULT_ROOT` or `~/Claude Cowork`.
+ * @param {Date} [options.date] - Date stamp used for filename + window math.
+ * @param {Object} [options.haikuClient] - Test override for the Haiku client.
+ * @returns {Promise<{ path: string|null, briefing: string|null, sourceHealth?: Object, error?: string, _phase20?: {latencies: Object, avgLatencyMs: number|null} }>} Briefing result envelope.
  */
 async function runToday(options = {}) {
   // Phase 20 (STATS-LATENCY-01): per-operation latency accumulator.

@@ -40,6 +40,12 @@ function ensureProposalsDir() {
 
 // ── generateCandidateId ──────────────────────────────────────────────────────
 
+/**
+ * Generate the next deterministic candidate ID for today's proposals file.
+ * Reads the existing proposals file and returns the next sequence number in the
+ * `mem-YYYYMMDD-NNN` format so concurrent extractors do not collide.
+ * @returns {string} Candidate ID in the form `mem-YYYYMMDD-NNN`.
+ */
 function generateCandidateId() {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const prefix = 'mem-' + today + '-';
@@ -287,6 +293,22 @@ async function _flushPendingBufferInternal() {
 
 // ── writeCandidate (public) ──────────────────────────────────────────────────
 
+/**
+ * Write a memory candidate to the proposals staging file under a write lock.
+ * Skips duplicates (D-27/D-66 hash check) and buffers to a JSONL pending file
+ * if the lock is contended (D-58); on lock acquisition, drains the buffer first.
+ * @param {Object} candidate - Candidate fields to stage.
+ * @param {string} candidate.content - Candidate memory text (required).
+ * @param {string} candidate.category - D-55 category bucket (e.g., `decisions`, `principles`).
+ * @param {string} [candidate.sourceRef] - Origin reference (`session:`, `file:`, `daily:`).
+ * @param {number|string} [candidate.confidence] - Extractor confidence (0..1 or label).
+ * @param {string} [candidate.sessionId='manual'] - Session identifier; defaults to `'manual'`.
+ * @param {string} [candidate.sourceFile=''] - Originating file path.
+ * @param {string} [candidate.extractionTrigger='wrap'] - Trigger label; defaults to `'wrap'`.
+ * @param {string[]} [candidate.proposedTags=[]] - Suggested tags.
+ * @param {string[]} [candidate.proposedRelated=[]] - Suggested related notes.
+ * @returns {Promise<{written: boolean, reason?: string, buffered?: boolean, candidateId?: string}>} Outcome record.
+ */
 async function writeCandidate(candidate) {
   ensureProposalsDir();
 
@@ -320,6 +342,12 @@ async function writeCandidate(candidate) {
 
 // ── flushPendingBuffer (public) ──────────────────────────────────────────────
 
+/**
+ * Drain any candidates buffered to the pending JSONL file into the proposals
+ * markdown file. Acquires the write lock; logs and returns silently if the
+ * lock cannot be obtained within the timeout.
+ * @returns {Promise<void>} Resolves once the buffer is flushed (or skipped).
+ */
 async function flushPendingBuffer() {
   const lockResult = await acquireLock();
   if (!lockResult.acquired) {
@@ -335,6 +363,12 @@ async function flushPendingBuffer() {
 
 // ── readProposals ────────────────────────────────────────────────────────────
 
+/**
+ * Parse the proposals staging markdown file into structured candidate records.
+ * Returns an empty array if the file does not exist yet. Each record is the
+ * shape consumed by the promotion pipeline (D-55 schema).
+ * @returns {Promise<Array<{candidateId: string, category: string, session_id: string, captured_at: string, source_file: string, confidence: string, content_hash: string, status: string, extraction_trigger: string}>>} Parsed candidates.
+ */
 async function readProposals() {
   let content;
   try {
@@ -394,6 +428,7 @@ module.exports = {
 
 // Test-only surface: tests that need to exercise lock primitives directly
 // can opt in via this namespaced export. Production code must not use this.
+// Test-only seam — not public API. JSDoc not required per Phase 21 D-LOCK-3.
 module.exports._testOnly = {
   acquireLock,
   releaseLock,

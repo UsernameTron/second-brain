@@ -177,6 +177,7 @@ function _writeDailyStats(relativePath, frontmatter, rows) {
  *
  * @param {object} stats - { proposals, promotions, totalEntries, memoryKb, recallCount, avgLatencyMs, avgConfidence }
  * @param {object} [opts={}] - { now: Date, configOverride: pipelineConfig } for testability
+ * @returns {void}
  */
 function recordDailyStats(stats, opts = {}) {
   const { loadConfigWithOverlay } = require('./pipeline-infra');
@@ -313,6 +314,7 @@ function _writeCounters(now, state) {
  * Increment today's recall_count by 1 (D-04: explicit /recall invocations only).
  * Never throws — stats failure must not break the recall command.
  * @param {object} [opts={}] - { now: Date } for testability
+ * @returns {void}
  */
 function recordRecallInvocation(opts = {}) {
   try {
@@ -328,6 +330,7 @@ function recordRecallInvocation(opts = {}) {
  * Add count to today's proposals tally.
  * @param {number} count - number of new proposals written this batch
  * @param {object} [opts={}] - { now: Date }
+ * @returns {void}
  */
 function recordProposalsBatch(count, opts = {}) {
   try {
@@ -345,6 +348,7 @@ function recordProposalsBatch(count, opts = {}) {
  * promotions are counted but excluded from the mean — D-03).
  * @param {number|null} confidence - memory-extractor classifier confidence
  * @param {object} [opts={}] - { now: Date }
+ * @returns {void}
  */
 function recordPromotion(confidence, opts = {}) {
   try {
@@ -364,6 +368,7 @@ function recordPromotion(confidence, opts = {}) {
  * Append a top-1 cosine score record (D-07: emit-only, not surfaced in stats columns this phase).
  * @param {number} score
  * @param {object} [opts={}] - { now: Date }
+ * @returns {void}
  */
 function recordTopCosine(score, opts = {}) {
   try {
@@ -380,6 +385,7 @@ function recordTopCosine(score, opts = {}) {
  * Append a top-1 RRF score record (D-07: emit-only, --hybrid branch).
  * @param {number} score
  * @param {object} [opts={}] - { now: Date }
+ * @returns {void}
  */
 function recordTopRrf(score, opts = {}) {
   try {

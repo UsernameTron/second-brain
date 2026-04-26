@@ -40,6 +40,7 @@ const { safeLoadVaultPaths, loadExcludedTerms } = require('./pipeline-infra');
 /**
  * Vault root path. Overridable via VAULT_ROOT env var for integration testing.
  * Addresses review item #6: env var override for test isolation.
+ * @type {string}
  */
 const VAULT_ROOT = process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude Cowork');
 
@@ -56,6 +57,7 @@ const CONFIG_DIR = process.env.CONFIG_DIR_OVERRIDE
  * EventEmitter for config lifecycle events.
  * Fires 'config:reloaded' after successful hot-reload.
  * Consumers (e.g., pipeline stages) listen on this to invalidate caches.
+ * @type {EventEmitter}
  */
 const configEvents = new EventEmitter();
 
@@ -64,6 +66,8 @@ const configEvents = new EventEmitter();
 /**
  * Custom error class for vault gateway violations.
  * Codes: INVALID_PATH, PATH_BLOCKED, STYLE_VIOLATION (Plan 02), CONTENT_BLOCKED (Plan 02)
+ * @class
+ * @extends Error
  */
 class VaultWriteError extends Error {
   /**
@@ -88,6 +92,7 @@ class VaultWriteError extends Error {
  * @param {string} filePath - The vault-relative path
  * @param {string} decision - The decision outcome (WRITTEN, BLOCKED, QUARANTINED, etc.)
  * @param {string|null} reason - Human-readable reason for non-PASS decisions
+ * @returns {void}
  */
 function logDecision(action, filePath, decision, reason) {
   const entry = {
@@ -119,6 +124,7 @@ const _watcher = null;
  *   - LEFT ∩ RIGHT = ∅ (addresses review item #3 — config intersection check)
  *
  * @param {{ left: string[], right: string[], excludedTerms: string[] }} config
+ * @returns {void}
  * @throws {Error} On any validation failure
  */
 function validateConfig(config) {
