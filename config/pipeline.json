@@ -75,5 +75,9 @@
       "degradedModeMinutes": 15,
       "embeddingDim": 1024
     }
+  },
+  "memoryHealth": {
+    "enabled": true,
+    "streakDays": 3
   }
 }
