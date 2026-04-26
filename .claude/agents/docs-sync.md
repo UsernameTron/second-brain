@@ -1,7 +1,7 @@
 ---
 name: docs-sync
-description: Keeps README.md, CLAUDE.md, and docs/DEVOPS-HANDOFF.md current after code changes. Use when features are completed, merged, or documentation may be stale. Use when src/ files, config/, or dependencies change and docs need to reflect the update.
-tools: Read, Write, Edit, Glob, Grep
+description: Keeps README.md, CLAUDE.md, and docs/DEVOPS-HANDOFF.md current after code changes. Use when features are completed, merged, or documentation may be stale. Use when src/ files, config/, or dependencies change and docs need to reflect the update. Also performs documentation drift audits at phase closure — invoke with "audit", "DOCSYNC-CHECK", or "phase closure check".
+tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 ---
 
@@ -41,3 +41,54 @@ Updates made:
   - CLAUDE.md: [section] — [what changed and why]
   - DEVOPS-HANDOFF.md: [no changes needed | what changed]
 ```
+
+## Phase-Closure Audit Mode
+
+Activated when invoked with the word "audit", "DOCSYNC-CHECK", or "phase closure check".
+
+In audit mode, do NOT update documents. Instead, compare stated stats against live reality and emit a structured verdict.
+
+### Audit Procedure
+
+1. Read `config/docsync.json` to get `block_threshold_pct` (default: 3.0 if file missing)
+2. Run `npx jest --coverage --json --outputFile=/tmp/jest-docsync.json --silent --forceExit` to get live stats
+3. Read `/tmp/jest-docsync.json` for `numTotalTests` (live test count)
+4. Read `coverage/coverage-summary.json` for `total.statements.pct` and `total.branches.pct`
+5. Read `CLAUDE.md` and `README.md` — extract stated stats using these patterns:
+   - Test count: number followed by "total" (e.g., "1127 total across 55 test files")
+   - Statement coverage: "Statements" followed by percentage (e.g., "Statements 94.62%")
+   - Branch coverage: "Branch" followed by percentage (e.g., "Branch 81.28%")
+6. Compare each extracted stat against live reality:
+   - Test count: exact match required (any difference is a violation)
+   - Coverage percentages: violation if `abs(doc - live) > block_threshold_pct`
+7. Emit the structured verdict (see Audit Output Format below)
+8. Clean up: `rm -f /tmp/jest-docsync.json`
+
+### Audit Output Format
+
+Always emit this exact structure as the FINAL output block:
+
+```
+DOCSYNC-AUDIT: PASS
+Checked: CLAUDE.md, README.md
+Stats compared: test_count, coverage_statements, coverage_branches
+Violations: none
+```
+
+Or if violations found:
+
+```
+DOCSYNC-AUDIT: BLOCK
+Checked: CLAUDE.md, README.md
+Stats compared: test_count, coverage_statements, coverage_branches
+Violations:
+  - test count: doc states 1127, actual is 1146, drift=19
+  - statements %: doc states 94.62, actual is 94.32, drift=0.30
+```
+
+### Audit Constraints
+
+- Do NOT edit any documents in audit mode — read-only comparison only
+- DOCSYNC-AUDIT: BLOCK means phase closure should not proceed until docs are updated
+- DOCSYNC-AUDIT: PASS means documentation is within acceptable drift thresholds
+- If jest fails to run or coverage data is unavailable, emit DOCSYNC-AUDIT: BLOCK with explanation
