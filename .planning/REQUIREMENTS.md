@@ -9,25 +9,25 @@ Requirements for v1.5 Internal Hardening. All promoted from v1.4 backlog — no 
 
 ### Hooks
 
-- [ ] **HOOK-SCHEMA-01**: Pre-commit AJV validation catches malformed `daily-stats.md` frontmatter and out-of-bounds `config/pipeline.json` values before they land on master
-- [ ] **HOOK-VAULT-01**: Pre-commit git-level path check prevents committing files to the wrong vault side, making the LEFT/RIGHT boundary structural at the git layer
-- [ ] **HOOK-DOCSYNC-01**: Post-merge hook compares `CLAUDE.md`/`README.md` stats (test count, coverage) against live `jest --coverage` output and flags mismatches as non-blocking warnings
-- [ ] **HOOK-DOTENV-01**: `dotenv.config()` calls move from library modules to entry-points only; `src/pipeline-infra.js:23` is the known root cause
+- [x] **HOOK-SCHEMA-01**: Pre-commit AJV validation catches malformed `daily-stats.md` frontmatter and out-of-bounds `config/pipeline.json` values before they land on master
+- [x] **HOOK-VAULT-01**: Pre-commit git-level path check prevents committing files to the wrong vault side, making the LEFT/RIGHT boundary structural at the git layer
+- [x] **HOOK-DOCSYNC-01**: Post-merge hook compares `CLAUDE.md`/`README.md` stats (test count, coverage) against live `jest --coverage` output and flags mismatches as non-blocking warnings
+- [x] **HOOK-DOTENV-01**: `dotenv.config()` calls move from library modules to entry-points only; `src/pipeline-infra.js:23` is the known root cause
 
 ### Agents
 
-- [ ] **AGENT-DOCSYNC-01**: Post-ship agent compares living-doc stats and narrative against `jest --coverage` and `git log` reality; blocks phase closure if drift exceeds threshold; pairs with HOOK-DOCSYNC-01
+- [x] **AGENT-DOCSYNC-01**: Post-ship agent compares living-doc stats and narrative against `jest --coverage` and `git log` reality; blocks phase closure if drift exceeds threshold; pairs with HOOK-DOCSYNC-01
 - [x] **AGENT-VERIFY-01**: Requirement-level auto-verification expands `test-verifier` to spawn parallel sub-checks per REQ-ID at phase-close time, covering full requirements surface
 - [x] **AGENT-MEMORY-01**: Memory health monitor reads `daily-stats.md` counters and surfaces anomaly alerts (zero promotions 3+ days, backlog growth, recall usage drop, vault plateau) in `/today` briefing
 
 ### Test / Hygiene
 
-- [ ] **UAT-REFRESH-01**: Rebaseline UAT classification corpus against current classifier behavior so that `test/uat/uat-classification.test.js` produces a meaningful accuracy score locally
-- [ ] **HYG-UNICODE-02**: Replace ASCII-only `.toLowerCase().includes()` at `src/content-policy.js:160,201` with NFKD-normalized matching; backfill 45 `test.todo()` blocks from Plan 21-01; full UAT sweep after matcher semantics change
+- [x] **UAT-REFRESH-01**: Rebaseline UAT classification corpus against current classifier behavior so that `test/uat/uat-classification.test.js` produces a meaningful accuracy score locally
+- [x] **HYG-UNICODE-02**: Replace ASCII-only `.toLowerCase().includes()` at `src/content-policy.js:160,201` with NFKD-normalized matching; backfill 45 `test.todo()` blocks from Plan 21-01; full UAT sweep after matcher semantics change
 
 ### Audit Carry-Forward
 
-- [ ] **UAT-SMOKE-01**: Run `gh workflow run uat.yml` and confirm the scheduled UAT workflow fires, executes, and produces an artifact — the Phase 17 carry-forward smoke test
+- [x] **UAT-SMOKE-01**: Run `gh workflow run uat.yml` and confirm the scheduled UAT workflow fires, executes, and produces an artifact — the Phase 17 carry-forward smoke test
 
 ## Future Requirements
 
@@ -47,16 +47,16 @@ None — v1.5 is a hardening milestone consuming the full v1.4 backlog. New feat
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HOOK-SCHEMA-01 | Phase 22 | Pending |
-| HOOK-VAULT-01 | Phase 22 | Pending |
-| HOOK-DOTENV-01 | Phase 22 | Pending |
-| HOOK-DOCSYNC-01 | Phase 23 | Pending |
-| AGENT-DOCSYNC-01 | Phase 23 | Pending |
+| HOOK-SCHEMA-01 | Phase 22 | Complete |
+| HOOK-VAULT-01 | Phase 22 | Complete |
+| HOOK-DOTENV-01 | Phase 22 | Complete |
+| HOOK-DOCSYNC-01 | Phase 23 | Complete |
+| AGENT-DOCSYNC-01 | Phase 23 | Complete |
 | AGENT-VERIFY-01 | Phase 24 | Complete |
 | AGENT-MEMORY-01 | Phase 24 | Complete |
-| UAT-REFRESH-01 | Phase 25 | Pending |
-| HYG-UNICODE-02 | Phase 25 | Pending |
-| UAT-SMOKE-01 | Phase 25 | Pending |
+| UAT-REFRESH-01 | Phase 25 | Complete |
+| HYG-UNICODE-02 | Phase 25 | Complete |
+| UAT-SMOKE-01 | Phase 25 | Complete |
 
 **Coverage:**
 - v1.5 requirements: 10 total
