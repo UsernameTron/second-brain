@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Internal Hardening
 status: executing
-stopped_at: ROADMAP.md written (4 phases, 10 requirements, 100% coverage). REQUIREMENTS.md traceability updated. STATE.md updated.
+stopped_at: Phase 23 shipped — PR #51
 last_updated: "2026-04-26T15:27:42.148Z"
 last_activity: 2026-04-26
 progress:
