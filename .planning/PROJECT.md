@@ -6,7 +6,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-Shipped v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24). v1.4 in flight: Phase 17 UAT CI, Phase 18 Memory Retrieval, and Phase 19 Semantic Memory Search (Voyage AI embeddings, RRF hybrid, graceful degradation) complete as of 2026-04-24. 982 tests across 48 suites (944 passing, 38 skipped — 24 UAT + pre-existing). Project branch coverage 81.28%; semantic-index.js 82.22%, voyage-health.js 84.61%. Four live-Voyage UAT items tracked in 19-HUMAN-UAT.md.
+Shipped v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24). v1.4 nearly closed: Phase 17 UAT CI, Phase 18 Memory Retrieval, Phase 19 Semantic Memory Search (Voyage AI embeddings, RRF hybrid, graceful degradation, 2026-04-24), Phase 20 Value Extraction Instrumentation (shipped via PR #35), and Phase 21 Closeout Hygiene (HYG-UNICODE-01 PR #42, HYG-JSDOC-01 PR #43, HYG-CONSOLE-01 PR #44, DOCS-FINAL-01 in flight) all complete. 1127 tests across 55 suites (1044 passing, 38 skipped — 24 UAT + pre-existing — plus 45 test.todo entries documenting the v1.5 HYG-UNICODE-02 ASCII-vs-Unicode gap). Project branch coverage 81.28%; semantic-index.js 82.22%, voyage-health.js 84.61%. Four live-Voyage UAT items tracked in 19-HUMAN-UAT.md (status: complete; 4/4 items pass, including Test 1 calibration fix 0.72 → 0.55).
 
 **What works end-to-end:**
 - `/new` classifies input, enforces left/right routing, filters excluded content (15 terms), suggests wikilinks
@@ -76,8 +76,8 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ Semantic Memory Search (Voyage AI embeddings on promotion, cosine + temporal decay, RRF hybrid, 3-failure/15-min degradation) — v1.4 Phase 19
 
 ### Active
-- Value Extraction Instrumentation (daily-stats.md append-only table, compounding evidence) — v1.4 Phase 20 (next)
-- Closeout Hygiene (B-15 Unicode tests, B-18 JSDoc, B-20 no-console policy, docs sweep) — v1.4 Phase 21
+- Value Extraction Instrumentation (daily-stats.md append-only table, compounding evidence) — v1.4 Phase 20 (shipped via PR #35)
+- Closeout Hygiene (HYG-UNICODE-01 Path B per D-LOCK-5-AMEND-A, HYG-JSDOC-01, HYG-CONSOLE-01, DOCS-FINAL-01) — v1.4 Phase 21 (complete; v1.4 ready for milestone close ceremony). Phase 19 UAT closure recorded in `.planning/phases/19-semantic-memory-search/19-HUMAN-UAT.md` (status: complete).
 
 ## Current Milestone: v1.4 Memory Activation & Final Closeout
 
