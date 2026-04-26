@@ -63,10 +63,16 @@ None active.
 
 None — all v1.4 backlog items are now captured as v1.5 requirements in REQUIREMENTS.md.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260426-mpy | Wire up missing slash commands and extract GSD knowledge into memory proposals | 2026-04-26 | 6dccf0b | [260426-mpy](./quick/260426-mpy-wire-up-missing-slash-commands-and-extra/) |
+
 ## Session Continuity
 
-Last session: 2026-04-26T16:37:42.047Z
-Stopped at: Completed 24-agent-surface plan 01: test-verifier Phase-Closure Verification Mode
+Last session: 2026-04-26
+Last activity: 2026-04-26 - Completed quick task 260426-mpy: Wire up slash commands + extract GSD knowledge
 Ship log: PRs #1–#53. Tags: v1.0, v1.1, v1.2.0, v1.3.0, v1.4, v1.5.
 
 ## Next Action
