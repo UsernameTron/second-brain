@@ -24,7 +24,7 @@ Built for a technical executive who directs AI. The project code lives in this r
 ```bash
 npm install
 npm run lint  # ESLint 10 (flat config)
-npm test      # Jest 30 — 1127 total tests (1044 pass, 38 skipped in CI, 45 todo)
+npm test      # Jest 30 — 1190 total tests (1152 pass, 38 skipped in CI)
 ```
 
 **Optional: Semantic memory search** — Set `VOYAGE_API_KEY` in `.env` to enable `/recall --semantic` and `/recall --hybrid`. Without the key, `/recall` falls back to keyword search. See [docs/DEVOPS-HANDOFF.md](docs/DEVOPS-HANDOFF.md) for acquisition steps and configuration.
@@ -73,7 +73,7 @@ src/                          # Core modules (27 .js files total)
     ├── github.js            # UsernameTron repo activity
     └── types.js             # Connector registry + SOURCE enum
 
-test/                         # 1127 tests across 55 files
+test/                         # 1190 tests across 56 files
 ├── unit/                    # Module-level tests
 ├── integration/             # Cross-module flow tests
 └── uat/                     # End-to-end command behavior (guarded from CI)
@@ -113,12 +113,12 @@ CLAUDE.md                    # Project governance, commands, conventions
 
 ## Status
 
-**Latest Release:** v1.3.0 Review Remediation (2026-04-24) | Phase 19 complete: Semantic Memory Search (2026-04-24) | Phase 20 complete: Value Extraction Instrumentation (PR #35) | Phase 21 complete: Closeout Hygiene (v1.4 ready for milestone close)
-- **1127 total tests** across 55 test files (1044 passing, 38 skipped in CI, 45 todo documenting the v1.5 HYG-UNICODE-02 backlog item)
+**Latest Release:** v1.5.0 Internal Hardening (2026-04-26) | Phase 22-25 complete: Unicode Hardening, Pre-Commit Hooks, Doc Sync, UAT Rebaseline
+- **1190 total tests** across 56 test files (1152 passing, 38 skipped in CI)
 - **Branch coverage:** 81.28% (threshold: ≥80% enforced in CI)
-- **Lint:** 0 ESLint no-console warnings (32 historical sites, originally tracked as 41 in v1.3 backlog drift; corrected in Phase 21 via category-tagged disables)
+- **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 20+22 matrix, GitGuardian secrets scan
-- **Shipped milestones:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24)
+- **Shipped milestones:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24), v1.4 Closeout Hygiene (2026-04-25), v1.5 Internal Hardening (2026-04-26)
 
 For detailed release history and known gaps, see [.planning/MILESTONES.md](.planning/MILESTONES.md).
 
@@ -146,7 +146,7 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 ### Test Coverage
 
 ```bash
-npm test                    # Run all tests (799 total; set CI=true to skip UAT)
+npm test                    # Run all tests (1190 total; set CI=true to skip UAT)
 npm run lint               # ESLint validation
 npm run test:uat           # UAT tests (requires CI= to unblock)
 ```
@@ -156,7 +156,7 @@ npm run test:uat           # UAT tests (requires CI= to unblock)
 - Critical modules (auth, vault boundary): ≥95%
 - All other modules: ≥80%
 
-Current coverage: Statements 94.44%, Functions 96.85%, Lines 95.50%, Branch 81.31%
+Current coverage: Statements 94.62%, Functions 96.94%, Lines 95.53%, Branch 81.28%
 
 ### Project Governance
 
@@ -194,17 +194,18 @@ For complete architecture details, see [.planning/PROJECT.md](.planning/PROJECT.
 | `/recall --semantic <query>` | Semantic search | Voyage AI embedding search with cosine similarity + recency decay (0.55 threshold; requires `VOYAGE_API_KEY`). Accepts the same `--category` / `--since` / `--top N` flags |
 | `/recall --hybrid <query>` | Hybrid search | RRF fusion of keyword + semantic results; degrades gracefully to keyword if Voyage unavailable. Accepts the same `--category` / `--since` / `--top N` flags |
 
-## Known Gaps (v1.5 Backlog after v1.4 close)
+## Known Gaps and Deferred Work
 
-v1.4 Phase 21 closeout hygiene resolved B-15, B-18, and B-20:
+v1.5 (Phase 22-25) completed the v1.4 backlog items and Unicode hardening:
 
-- **B-15** → resolved via HYG-UNICODE-01 (45 test.todo entries documenting the ASCII-only-vs-Unicode gap; Unicode-variant matching deferred to v1.5 HYG-UNICODE-02 in tasks/todo.md)
-- **B-18** → resolved via HYG-JSDOC-01 (53 public exports now carry JSDoc, 2 _testOnly carve-outs)
-- **B-20** → resolved via HYG-CONSOLE-01 (32 historical no-console sites — originally tracked as 41 in v1.3 backlog drift — eliminated via category-tagged eslint-disable-next-line directives per D-LOCK-2)
-- **F-01:** chokidar v3 CJS compat accepted flag (works, documented)
-- **F-02:** docs-sync scope_guard accepted flag (works, documented)
+- **HYG-UNICODE-02** → resolved via Phase 22 NFKD Unicode Matcher (full-width Latin, soft-hyphen injection, non-ASCII whitespace)
+- **HYG-JSDOC-01** → resolved Phase 21 (53 public exports + 2 _testOnly carve-outs)
+- **HYG-CONSOLE-01** → resolved Phase 21 (32 primary + 3 corollary disables, all category-tagged per D-LOCK-2)
+- **Phase 23 Pre-Commit Hooks** → schema validation, vault boundary guard, dotenv policy enforcement
+- **Phase 24 Doc Sync Agent** → documentation consistency checks and API surface parity
+- **Phase 25 UAT Rebaseline** → re-baselined all tests post-Unicode fix; removed todo entries
 
-See [.planning/MILESTONES.md](.planning/MILESTONES.md) for complete v1.3 audit details and Phase 21 closeout SUMMARYs in `.planning/phases/21-closeout-hygiene/`.
+See [.planning/MILESTONES.md](.planning/MILESTONES.md) for complete v1.5 release details.
 
 ## Author
 

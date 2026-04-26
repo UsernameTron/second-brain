@@ -4,7 +4,7 @@
 
 Personal operating system built on an Obsidian vault. Runs locally — no cloud hosting, no deployment infrastructure. Three CLI commands (`/today`, `/new`, `/wrap`) orchestrate memory compounding, daily briefing, and input routing via Claude Code and Docker MCP Gateway.
 
-Phase 19 (2026-04-24) adds semantic memory retrieval via Voyage AI embeddings (`/recall --semantic`, `/recall --hybrid`), with graceful degradation to keyword search when the API is unavailable.
+v1.5 (2026-04-26) adds NFKD Unicode hardening, pre-commit hooks for schema and vault validation, doc-sync agent, and UAT rebaseline. Semantic memory retrieval via Voyage AI embeddings (`/recall --semantic`, `/recall --hybrid`) added in Phase 19 with graceful degradation to keyword search when the API is unavailable.
 
 ## Environment Requirements
 
@@ -21,7 +21,7 @@ git clone <repo>
 cd second-brain
 npm install
 cp .env.example .env   # add ANTHROPIC_API_KEY and optionally VOYAGE_API_KEY
-npm test               # verify 1127 tests pass (1044 active + 38 CI-skipped + 45 todo)
+npm test               # verify 1190 tests pass (1152 active + 38 CI-skipped)
 npm run lint           # verify ESLint 10 clean
 ```
 
@@ -164,7 +164,7 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 | Gate | Tool | Threshold |
 |---|---|---|
 | Lint | ESLint 10 (flat config) | 0 errors |
-| Unit + integration tests | Jest 30, Node 20+22 matrix | 1127 total, 1044 passing |
+| Unit + integration tests | Jest 30, Node 20+22 matrix | 1190 total, 1152 passing |
 | Branch coverage | Jest coverage | ≥81% enforced |
 | Security scan | CodeQL SAST | 0 high/critical |
 | Secrets scan | GitGuardian | 0 secrets |
@@ -178,7 +178,7 @@ UAT tests (`test/uat/`) are guarded by `CI=true` skip logic and run on a separat
 - [ ] `VOYAGE_API_KEY` provisioned in `.env` (if semantic features are enabled)
 - [ ] Obsidian Local REST API plugin running on port 27123
 - [ ] Docker MCP Gateway running (for Gmail/Calendar/GitHub connectors)
-- [ ] `npm test` passes (1127 tests, 1044 passing)
+- [ ] `npm test` passes (1190 tests, 1152 passing)
 - [ ] `npm run lint` exits 0
 - [ ] `~/.cache/second-brain/` writable (auto-created on first `/recall --semantic`)
 

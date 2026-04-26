@@ -11,7 +11,7 @@ Transform an Obsidian vault into a personal operating system with compounding me
 - ✅ **v1.2 Automation & Quality** — Phases 8-11 (shipped 2026-04-23, tag v1.2.0)
 - ✅ **v1.3 Review Remediation** — Phases 12-16 (shipped 2026-04-24, tag v1.3.0)
 - ✅ **v1.4 Memory Activation & Final Closeout** — Phases 17-21 (shipped 2026-04-26, tag v1.4)
-- 🚧 **v1.5 Internal Hardening** — Phases 22-25 (in progress)
+- ✅ **v1.5 Internal Hardening** — Phases 22-25 (shipped 2026-04-26, tag v1.5)
 
 ## Phases
 
@@ -77,14 +77,17 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 </details>
 
-### 🚧 v1.5 Internal Hardening (In Progress)
+<details>
+<summary>✅ v1.5 Internal Hardening (Phases 22-25) — SHIPPED 2026-04-26</summary>
 
-**Milestone Goal:** Harden the development infrastructure — committed hooks at the git layer, new agent surface for documentation drift and requirement verification, memory health monitoring, and Unicode-safe matching — closing every deferred backlog item from v1.4.
+- [x] Phase 22: Committed Hooks (2/2 plans) — completed 2026-04-26
+- [x] Phase 23: Doc Sync Layer (2/2 plans) — completed 2026-04-26
+- [x] Phase 24: Agent Surface (2/2 plans) — completed 2026-04-26
+- [x] Phase 25: Unicode Hardening & UAT Closeout (2/2 plans) — completed 2026-04-26
 
-- [x] **Phase 22: Committed Hooks** (2 plans) — Pre-commit AJV schema validation, vault-boundary enforcement, and dotenv entry-point refactor (completed 2026-04-26)
-- [x] **Phase 23: Doc Sync Layer** (2 plans) — Post-merge hook and post-ship agent for documentation drift detection (completed 2026-04-26)
-- [x] **Phase 24: Agent Surface** — Requirement-level auto-verification agent and memory health monitor (completed 2026-04-26)
-- [x] **Phase 25: Unicode Hardening & UAT Closeout** (2 plans) — NFKD-normalized matcher upgrade, UAT corpus rebaseline, and Phase 17 smoke run (completed 2026-04-26)
+Full details: [milestones/v1.5-phases/](milestones/v1.5-phases/)
+
+</details>
 
 ## Phase Details
 

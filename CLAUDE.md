@@ -20,16 +20,17 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 
 ## Project Status
 
-**Latest Release:** v1.3.0 Review Remediation (2026-04-24)
-**Phase 19 complete:** Semantic Memory Search (2026-04-24)
-**Phase 20 complete:** Value Extraction Instrumentation (shipped via PR #35)
-**Phase 21 complete:** Closeout Hygiene (HYG-UNICODE-01, HYG-JSDOC-01, HYG-CONSOLE-01, DOCS-FINAL-01 — v1.4 ready for milestone close)
+**Latest Release:** v1.5.0 Internal Hardening (2026-04-26)
+**Phase 22 complete:** NFKD Unicode Matcher (2026-04-26)
+**Phase 23 complete:** Pre-Commit Hooks (2026-04-26)
+**Phase 24 complete:** Doc Sync Agent (2026-04-26)
+**Phase 25 complete:** UAT Rebaseline (2026-04-26)
 
-- **Test count:** 1127 total across 55 test files (1044 passing, 38 skipped — 24 UAT CI-guarded + 13 API-key guards + 1 uat-classification, plus 45 test.todo entries documenting the HYG-UNICODE-01 ASCII-vs-Unicode gap deferred to v1.5)
+- **Test count:** 1190 total across 56 test files (1152 passing, 38 skipped)
 - **Coverage:** Branch 81.28%, Statements 94.62%, Functions 96.94%, Lines 95.53%
-- **Lint:** 0 ESLint no-console warnings (32 historical sites — originally tracked as 41 in v1.3 backlog drift; corrected and eliminated in Phase 21 via category-tagged eslint-disable-next-line directives per D-LOCK-2)
+- **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 20+22 matrix, coverage ≥80%, GitGuardian secrets scan
-- **Milestones shipped:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24)
+- **Milestones shipped:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24), v1.4 Closeout Hygiene (2026-04-25), v1.5 Internal Hardening (2026-04-26)
 
 For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES.md).
 
