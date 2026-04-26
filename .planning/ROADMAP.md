@@ -83,7 +83,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 - [x] **Phase 22: Committed Hooks** (2 plans) — Pre-commit AJV schema validation, vault-boundary enforcement, and dotenv entry-point refactor (completed 2026-04-26)
 - [x] **Phase 23: Doc Sync Layer** (2 plans) — Post-merge hook and post-ship agent for documentation drift detection (completed 2026-04-26)
-- [ ] **Phase 24: Agent Surface** — Requirement-level auto-verification agent and memory health monitor
+- [x] **Phase 24: Agent Surface** — Requirement-level auto-verification agent and memory health monitor (completed 2026-04-26)
 - [ ] **Phase 25: Unicode Hardening & UAT Closeout** — NFKD-normalized matcher upgrade, UAT corpus rebaseline, and Phase 17 smoke run
 
 ## Phase Details
@@ -166,5 +166,5 @@ Plans:
 | 21. Closeout Hygiene | v1.4 | 4/4 | Complete | 2026-04-26 |
 | 22. Committed Hooks | v1.5 | 0/2 | Complete    | 2026-04-26 |
 | 23. Doc Sync Layer | v1.5 | 2/2 | Complete    | 2026-04-26 |
-| 24. Agent Surface | v1.5 | 0/TBD | Not started | - |
+| 24. Agent Surface | v1.5 | 1/2 | Complete    | 2026-04-26 |
 | 25. Unicode Hardening & UAT Closeout | v1.5 | 0/TBD | Not started | - |

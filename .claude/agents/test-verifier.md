@@ -44,3 +44,41 @@ Verdict: PASS | FAIL ([N] failures)
 
 If all tests pass, the Failures section should read: "Failures: none"
 The Verdict line is the critical output — PASS when 0 failures, FAIL with count otherwise.
+
+## Phase-Closure Verification Mode
+
+**Trigger:** Activated when invoked with phrasing containing `"phase-close <N>"` or `"verify requirements: REQ-ID1, REQ-ID2"`. If neither pattern is present, use the standard full-suite mode above.
+
+**Steps:**
+
+1. Parse REQ-IDs from the invocation. Accept comma-separated IDs after "verify requirements:" or extract from `.planning/phases/NN-*/NN-*-PLAN.md` frontmatter `requirements:` fields when given a phase number.
+2. For each REQ-ID:
+   a. Run: `grep -rl "$REQ_ID" test/ --include=*.test.js`
+   b. If no files found: verdict = UNTESTED
+   c. If files found: run `npx jest <files> --no-coverage --silent`
+   d. verdict = PASS if exit code 0, FAIL otherwise
+3. Emit the Phase-Close Verification Report (see output format below).
+
+**Output format for Phase-Closure mode:**
+
+```
+Phase-Close Verification Report
+================================
+Phase: <N> -- <phase-name>
+REQ-IDs checked: <count>
+
+| REQ-ID | Test File(s) | Verdict |
+|--------|-------------|---------|
+| <ID>   | <files>     | PASS/FAIL/UNTESTED |
+
+Overall: PASS (<N>/<N> requirements verified) | FAIL (<N> failures, <N> untested)
+```
+
+**Constraints for this mode:**
+
+- Scope grep to `--include=*.test.js` to avoid false positives from fixture/snapshot/planning files
+- UNTESTED is a distinct verdict (not PASS) — it signals a coverage gap, not a success
+- Never modify test files; read-only observation only
+- Report UNTESTED count separately in the Overall line
+
+// Requirement: AGENT-VERIFY-01

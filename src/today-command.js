@@ -236,6 +236,20 @@ async function runToday(options = {}) {
     }
     latencies.memoryEcho = Date.now() - memEchoStart;
 
+    // ── Memory Health (Phase 24, AGENT-MEMORY-01) ────────────────────────
+    // Anomaly detection from daily-stats rows. Non-fatal — briefing is the product.
+    // All requires are lazy (inside function body) per Pattern 12.
+    let memoryHealth = null;
+    try {
+      if (config && config.memoryHealth && config.memoryHealth.enabled !== false) {
+        const { computeMemoryHealth } = require('./today/memory-health');
+        const { readDailyStats } = require('./daily-stats');
+        const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'RIGHT/daily-stats.md');
+        const { rows } = readDailyStats(statsAbsPath);
+        memoryHealth = computeMemoryHealth(rows, config.memoryHealth);
+      }
+    } catch (_) { /* non-fatal — briefing-is-the-product */ }
+
     // ── Source health (D-08) ──────────────────────────────────────────────
     const sourceHealth = buildSourceHealth(connectorResults, pipelineState.ok);
 
@@ -260,6 +274,7 @@ async function runToday(options = {}) {
       slippage,
       frog: frogData,
       memoryEcho,
+      memoryHealth,
       mode,
       synthesis,
     });
