@@ -27,6 +27,8 @@ npm run lint           # verify ESLint 10 clean
 
 All commands are Claude Code `/` commands invoked from the project terminal. No server process to start; commands run on-demand.
 
+**User command surface (full flag inventory in README.md and CLAUDE.md):** `/today`, `/new`, `/wrap`, `/promote-memories`, `/reroute`, `/promote-unrouted`, `/recall <query> [--category <name>] [--since YYYY-MM-DD] [--top N]`, `/recall --semantic <query>`, `/recall --hybrid <query>`. The `--category`, `--since`, and `--top N` flags apply uniformly across keyword, semantic, and hybrid recall modes.
+
 ## Environment Variables
 
 | Variable | Required | Purpose | Acquisition |

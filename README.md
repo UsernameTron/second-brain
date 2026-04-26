@@ -190,8 +190,9 @@ For complete architecture details, see [.planning/PROJECT.md](.planning/PROJECT.
 | `/promote-memories` | Review daily | Human-approve memory candidates from staging to `memory.md` |
 | `/reroute` | Fix misclassified item | Re-route previously classified note to different location |
 | `/promote-unrouted` | Bulk-promote | Move all unrouted items from staging to workspace |
-| `/recall --semantic <query>` | Semantic search | Voyage AI embedding search with cosine similarity + recency decay (requires `VOYAGE_API_KEY`) |
-| `/recall --hybrid <query>` | Hybrid search | RRF fusion of keyword + semantic results; degrades gracefully to keyword if Voyage unavailable |
+| `/recall <query>` | Keyword recall | Minisearch over `memory.md` — AND semantics, quoted phrases, negation. Flags: `--category <name>`, `--since YYYY-MM-DD`, `--top N` (default 5) |
+| `/recall --semantic <query>` | Semantic search | Voyage AI embedding search with cosine similarity + recency decay (0.55 threshold; requires `VOYAGE_API_KEY`). Accepts the same `--category` / `--since` / `--top N` flags |
+| `/recall --hybrid <query>` | Hybrid search | RRF fusion of keyword + semantic results; degrades gracefully to keyword if Voyage unavailable. Accepts the same `--category` / `--since` / `--top N` flags |
 
 ## Known Gaps (v1.5 Backlog after v1.4 close)
 

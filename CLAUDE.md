@@ -43,8 +43,9 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 | `/promote-memories` | Human-in-the-loop memory promotion from staging to `memory.md` |
 | `/reroute` | Re-route previously classified item to different vault location |
 | `/promote-unrouted` | Bulk-promote unrouted items from staging |
-| `/recall --semantic <query>` | Semantic search via Voyage AI embeddings with cosine similarity + recency decay |
-| `/recall --hybrid <query>` | RRF fusion of keyword + semantic results; falls back to keyword if Voyage unavailable |
+| `/recall <query>` | Keyword search over `memory.md` via minisearch — AND semantics, quoted phrases, negation. Flags: `--category <name>`, `--since YYYY-MM-DD`, `--top N` (default 5) |
+| `/recall --semantic <query>` | Semantic search via Voyage AI embeddings with cosine similarity + recency decay (0.55 threshold). Same `--category` / `--since` / `--top N` flags apply |
+| `/recall --hybrid <query>` | RRF fusion of keyword + semantic results; falls back to keyword if Voyage unavailable. Same `--category` / `--since` / `--top N` flags apply |
 
 ## Tech Stack
 
