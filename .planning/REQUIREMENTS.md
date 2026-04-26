@@ -39,10 +39,10 @@ All requirements are user-centric (or developer-centric where the "user" is the 
 
 ### Closeout Hygiene (Phase 21)
 
-- [ ] **HYG-UNICODE-01**: `test/content-policy.test.js` includes tests that exercise the exclusion filter against Unicode variants (curly quotes, em-dashes, smart apostrophes, non-ASCII whitespace) of each excluded term, verifying substring matching still catches them.
-- [ ] **HYG-JSDOC-01**: Every public function exported from `src/classifier.js`, `src/memory-extractor.js`, `src/memory-proposals.js`, `src/promote-memories.js`, `src/memory-reader.js`, `src/semantic-index.js`, `src/recall-command.js`, `src/daily-stats.js`, `src/today-command.js`, and `src/vault-gateway.js` has JSDoc with `@param`, `@returns`, and a one-line description.
-- [ ] **HYG-CONSOLE-01**: The 41 `no-console` ESLint warnings are resolved by a single decision (logger abstraction OR documented `eslint-disable` with rationale per call site), executed once across the codebase.
-- [ ] **DOCS-FINAL-01**: `CLAUDE.md`, `README.md`, and `docs/DEVOPS-HANDOFF.md` accurately reflect v1.4 state — new commands (`/recall`), new env vars (`VOYAGE_API_KEY`), new config keys (`memory.*`, `stats.*`), new artifacts (`daily-stats.md`, `~/.cache/second-brain/embeddings.jsonl`), and final test/coverage numbers.
+- [x] **HYG-UNICODE-01** (Path B per D-LOCK-5-AMEND-A): `test/content-policy.test.js` includes 45 `test.todo()` entries (15 excluded terms × 3 Unicode variant types: full-width Latin, soft-hyphen-injected, non-ASCII whitespace) documenting the gap. ASCII-only substring matching is the v1.4 contract; Unicode-variant catching is deferred to v1.5 HYG-UNICODE-02 (tracked in `tasks/todo.md`). Shipped PR #42.
+- [x] **HYG-JSDOC-01**: Every public function exported from `src/classifier.js`, `src/memory-extractor.js`, `src/memory-proposals.js`, `src/promote-memories.js`, `src/memory-reader.js`, `src/semantic-index.js`, `src/recall-command.js`, `src/daily-stats.js`, `src/today-command.js`, and `src/vault-gateway.js` has JSDoc with `@param`, `@returns`, and a one-line description (53 exports + 2 `_testOnly` carve-outs). Shipped PR #43.
+- [x] **HYG-CONSOLE-01**: The 32 `no-console` ESLint warnings (originally tracked as 41 in v1.3 backlog drift; corrected during Phase 21 manifest re-count) are resolved via documented `eslint-disable-next-line` directives with category-tagged rationale per D-LOCK-2 (4 categories: user-facing-output, degradation-warning, diagnostic, last-resort-error). 32 primary + 3 corollary = 35 disables in src/, all category-tagged. Shipped PR #44.
+- [x] **DOCS-FINAL-01**: `CLAUDE.md`, `README.md`, `docs/DEVOPS-HANDOFF.md`, `.planning/PROJECT.md`, `.planning/ROADMAP.md`, `.planning/REQUIREMENTS.md`, `.planning/STATE.md`, and `tasks/todo.md` accurately reflect v1.4 state — `/recall`, `VOYAGE_API_KEY`, `memory.*` and `stats.*` config keys, `daily-stats.md`, `~/.cache/second-brain/embeddings.jsonl`, live test/coverage numbers, and the 32-console-sites correction. Phase 19 UAT closure cited at `.planning/phases/19-semantic-memory-search/19-HUMAN-UAT.md` (status: complete).
 
 ---
 
@@ -84,11 +84,11 @@ All requirements are user-centric (or developer-centric where the "user" is the 
 | MEM-SEMANTIC-01 | 19 — Semantic Memory Search | Complete | TBD |
 | MEM-INDEX-REFRESH-01 | 19 — Semantic Memory Search | Complete | TBD |
 | MEM-DEGRADE-01 | 19 — Semantic Memory Search | Complete | TBD |
-| STATS-DAILY-01 | 20 — Value Extraction Instrumentation | Complete | TBD |
-| STATS-LATENCY-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
-| STATS-GROWTH-01 | 20 — Value Extraction Instrumentation | Pending | TBD |
-| TODAY-SUMMARY-01 | 20 — Value Extraction Instrumentation | Complete | TBD |
-| HYG-UNICODE-01 | 21 — Closeout Hygiene | Pending | TBD |
-| HYG-JSDOC-01 | 21 — Closeout Hygiene | Pending | TBD |
-| HYG-CONSOLE-01 | 21 — Closeout Hygiene | Pending | TBD |
-| DOCS-FINAL-01 | 21 — Closeout Hygiene | Pending | TBD |
+| STATS-DAILY-01 | 20 — Value Extraction Instrumentation | Complete | PR #35 |
+| STATS-LATENCY-01 | 20 — Value Extraction Instrumentation | Complete | PR #35 |
+| STATS-GROWTH-01 | 20 — Value Extraction Instrumentation | Complete | PR #35 |
+| TODAY-SUMMARY-01 | 20 — Value Extraction Instrumentation | Complete | PR #35 |
+| HYG-UNICODE-01 | 21 — Closeout Hygiene | Complete (Path B; ASCII-only contract, Unicode deferred to v1.5 HYG-UNICODE-02) | PR #42 |
+| HYG-JSDOC-01 | 21 — Closeout Hygiene | Complete | PR #43 |
+| HYG-CONSOLE-01 | 21 — Closeout Hygiene | Complete | PR #44 |
+| DOCS-FINAL-01 | 21 — Closeout Hygiene | Complete | (this plan) |

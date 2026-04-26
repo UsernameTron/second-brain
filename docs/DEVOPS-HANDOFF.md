@@ -21,7 +21,7 @@ git clone <repo>
 cd second-brain
 npm install
 cp .env.example .env   # add ANTHROPIC_API_KEY and optionally VOYAGE_API_KEY
-npm test               # verify 982 tests pass
+npm test               # verify 1127 tests pass (1044 active + 38 CI-skipped + 45 todo)
 npm run lint           # verify ESLint 10 clean
 ```
 
@@ -162,7 +162,7 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 | Gate | Tool | Threshold |
 |---|---|---|
 | Lint | ESLint 10 (flat config) | 0 errors |
-| Unit + integration tests | Jest 30, Node 20+22 matrix | 982 total, 944 passing |
+| Unit + integration tests | Jest 30, Node 20+22 matrix | 1127 total, 1044 passing |
 | Branch coverage | Jest coverage | ≥81% enforced |
 | Security scan | CodeQL SAST | 0 high/critical |
 | Secrets scan | GitGuardian | 0 secrets |
@@ -176,19 +176,22 @@ UAT tests (`test/uat/`) are guarded by `CI=true` skip logic and run on a separat
 - [ ] `VOYAGE_API_KEY` provisioned in `.env` (if semantic features are enabled)
 - [ ] Obsidian Local REST API plugin running on port 27123
 - [ ] Docker MCP Gateway running (for Gmail/Calendar/GitHub connectors)
-- [ ] `npm test` passes (982 tests, 944 passing)
+- [ ] `npm test` passes (1127 tests, 1044 passing)
 - [ ] `npm run lint` exits 0
 - [ ] `~/.cache/second-brain/` writable (auto-created on first `/recall --semantic`)
 
 ## Known Tech Debt and Deferred Work
 
-| ID | Item | Target |
+Phase 21 (Closeout Hygiene, v1.4) shipped the JSDoc, no-console, and Unicode-gap items below. Remaining deferred items:
+
+| ID | Item | Status / Target |
 |---|---|---|
-| HYG-JSDOC-01 | JSDoc missing on public API surface including Phase 19 modules (`semantic-index.js`, `voyage-health.js`) | Phase 21 |
-| HYG-CONSOLE-01 | 41 no-console warnings across `src/` (non-blocking, suppressed by ESLint config) | Phase 21 |
+| HYG-JSDOC-01 | JSDoc on public API surface (incl. Phase 19 `semantic-index.js`, `voyage-health.js`) | Shipped Phase 21 (53 exports + 2 `_testOnly` carve-outs, PR #43) |
+| HYG-CONSOLE-01 | 32 no-console warnings across `src/` (originally tracked as 41 in v1.3 backlog drift; corrected during Phase 21 manifest re-count) | Shipped Phase 21 (32 primary + 3 corollary disables, all category-tagged per D-LOCK-2, PR #44) |
+| HYG-UNICODE-01 | ASCII-only excluded-term matching documented as the v1.4 contract; Unicode-variant catching deferred to v1.5 HYG-UNICODE-02 (45 test.todo entries staged) | Shipped Phase 21 (Path B per D-LOCK-5-AMEND-A, PR #42) |
+| HYG-UNICODE-02 | Unicode-variant excluded-term matching (full-width Latin, soft-hyphen-injected, non-ASCII whitespace) | v1.5 (`tasks/todo.md`) |
 | FUT-HNSW-01 | HNSW approximate nearest-neighbor index for vaults >20K entries (linear scan adequate for current scale) | Future milestone |
 | FUT-RERANK-01 | Cross-encoder reranking pass after RRF fusion (RRF adequate for v1.4) | Future milestone |
-| B-15 | Unicode-specific exclusion term tests | Phase 21 |
 
 ## Deployment Maturity
 

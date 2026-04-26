@@ -17,11 +17,11 @@ Transform an Obsidian vault into a personal operating system with compounding me
 <details>
 <summary>🚧 v1.4 Memory Activation & Final Closeout (Phases 17-21) — IN PROGRESS</summary>
 
-- [ ] **Phase 17: UAT CI Infrastructure** — Close the UAT CI gap and enforce branch protection on master
-- [ ] **Phase 18: Memory Retrieval Foundation** — Activate the read path on the write-only memory layer with keyword search and `/recall`
-- [ ] **Phase 19: Semantic Memory Search** — Add Voyage AI semantic retrieval with RRF hybrid mode and graceful degradation
-- [ ] **Phase 20: Value Extraction Instrumentation** — Make the "memory compounds daily" promise visible and measurable
-- [ ] **Phase 21: Closeout Hygiene** — Clear every deferred hygiene item and produce final v1.4 documentation
+- [x] **Phase 17: UAT CI Infrastructure** — Close the UAT CI gap and enforce branch protection on master
+- [x] **Phase 18: Memory Retrieval Foundation** — Activate the read path on the write-only memory layer with keyword search and `/recall`
+- [x] **Phase 19: Semantic Memory Search** — Add Voyage AI semantic retrieval with RRF hybrid mode and graceful degradation
+- [x] **Phase 20: Value Extraction Instrumentation** — Make the "memory compounds daily" promise visible and measurable (PR #35)
+- [x] **Phase 21: Closeout Hygiene** — Clear every deferred hygiene item and produce final v1.4 documentation (PRs #42 HYG-UNICODE-01 Path B, #43 HYG-JSDOC-01, #44 HYG-CONSOLE-01, DOCS-FINAL-01 in flight)
 
 </details>
 
@@ -199,7 +199,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. The `test/content-policy.test.js` suite includes at least one test per excluded term exercising Unicode variants (curly quotes, em-dashes, smart apostrophes, non-ASCII whitespace), and all new tests pass in CI.
   2. Every public function exported from the ten named source files (`classifier.js`, `memory-extractor.js`, `memory-proposals.js`, `promote-memories.js`, `memory-reader.js`, `semantic-index.js`, `recall-command.js`, `daily-stats.js`, `today-command.js`, `vault-gateway.js`) has a JSDoc block with `@param`, `@returns`, and a one-line description.
-  3. The 41 `no-console` ESLint warnings are eliminated — either via a shared logger abstraction or via documented `eslint-disable` comments with per-call-site rationale — and `npm run lint` exits clean.
+  3. The 32 `no-console` ESLint warnings (originally tracked as 41 in v1.3 backlog drift; corrected during Phase 21 manifest re-count) are eliminated via documented `eslint-disable-next-line` comments with category-tagged rationale per D-LOCK-2 (4 categories: user-facing-output, degradation-warning, diagnostic, last-resort-error) — and `npm run lint` exits clean.
   4. `CLAUDE.md`, `README.md`, and `docs/DEVOPS-HANDOFF.md` accurately document `/recall`, `VOYAGE_API_KEY`, the `memory.*` and `stats.*` config keys, `daily-stats.md`, and `~/.cache/second-brain/embeddings.jsonl`, with final test counts and coverage numbers filled in.
 **Plans**: TBD
 
@@ -238,7 +238,7 @@ Plans:
 | TODAY-SUMMARY-01 | 20 | One-line yesterday summary at top of `/today` briefing |
 | HYG-UNICODE-01 | 21 | Unicode-variant exclusion term tests in content-policy.test.js |
 | HYG-JSDOC-01 | 21 | JSDoc on all public exports across 10 named modules |
-| HYG-CONSOLE-01 | 21 | 41 no-console warnings resolved; lint exits clean |
+| HYG-CONSOLE-01 | 21 | 32 no-console warnings resolved (originally tracked as 41 in v1.3 backlog drift; corrected during Phase 21 manifest re-count); lint exits clean |
 | DOCS-FINAL-01 | 21 | CLAUDE.md, README.md, DEVOPS-HANDOFF.md reflect v1.4 final state |
 
 **Coverage: 19/19 requirements mapped. No orphans.**
