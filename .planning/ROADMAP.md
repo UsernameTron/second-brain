@@ -82,7 +82,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Milestone Goal:** Harden the development infrastructure — committed hooks at the git layer, new agent surface for documentation drift and requirement verification, memory health monitoring, and Unicode-safe matching — closing every deferred backlog item from v1.4.
 
 - [x] **Phase 22: Committed Hooks** (2 plans) — Pre-commit AJV schema validation, vault-boundary enforcement, and dotenv entry-point refactor (completed 2026-04-26)
-- [ ] **Phase 23: Doc Sync Layer** — Post-merge hook and post-ship agent for documentation drift detection
+- [ ] **Phase 23: Doc Sync Layer** (2 plans) — Post-merge hook and post-ship agent for documentation drift detection
 - [ ] **Phase 24: Agent Surface** — Requirement-level auto-verification agent and memory health monitor
 - [ ] **Phase 25: Unicode Hardening & UAT Closeout** — NFKD-normalized matcher upgrade, UAT corpus rebaseline, and Phase 17 smoke run
 
@@ -111,7 +111,11 @@ Plans:
   1. After a merge to master, the post-merge hook compares `CLAUDE.md`/`README.md` stats (test count, coverage, phase count) against live `jest --coverage` output and prints a warning if any stat is stale
   2. At phase closure, the `docs-sync` agent compares living-doc narrative against `jest --coverage` and `git log` reality and blocks closure if any stat drift exceeds the configured threshold
   3. A correctly synced state produces no warnings or block from either the hook or the agent
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 23-01-PLAN.md — Post-merge hook with drift detection, threshold config, and tests
+- [ ] 23-02-PLAN.md — Extend docs-sync agent with Phase-Closure Audit Mode
 
 ### Phase 24: Agent Surface
 **Goal**: Requirement coverage is automatically verifiable at phase close, and memory health anomalies surface in the daily briefing before they compound into data quality problems
@@ -161,6 +165,6 @@ Plans:
 | 20. Value Extraction Instrumentation | v1.4 | 5/5 | Complete | 2026-04-25 |
 | 21. Closeout Hygiene | v1.4 | 4/4 | Complete | 2026-04-26 |
 | 22. Committed Hooks | v1.5 | 0/2 | Complete    | 2026-04-26 |
-| 23. Doc Sync Layer | v1.5 | 0/TBD | Not started | - |
+| 23. Doc Sync Layer | v1.5 | 0/2 | Not started | - |
 | 24. Agent Surface | v1.5 | 0/TBD | Not started | - |
 | 25. Unicode Hardening & UAT Closeout | v1.5 | 0/TBD | Not started | - |
