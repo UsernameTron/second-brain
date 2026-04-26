@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DocSync Configuration",
+  "description": "Validates config/docsync.json — thresholds for documentation drift detection",
+  "type": "object",
+  "required": ["warn_threshold_pct", "block_threshold_pct"],
+  "properties": {
+    "warn_threshold_pct": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Percentage drift that triggers a warning (non-blocking)"
+    },
+    "block_threshold_pct": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Percentage drift reserved for future blocking behavior"
+    }
+  },
+  "additionalProperties": false
+}
