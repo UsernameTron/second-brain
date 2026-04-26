@@ -100,8 +100,8 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Plans:** 2 plans
 
 Plans:
-- [ ] 22-01-PLAN.md -- Pre-commit schema validation (AJV) and vault boundary enforcement hooks
-- [ ] 22-02-PLAN.md -- Dotenv entry-point refactor (remove side-effect from pipeline-infra.js)
+- [x] 22-01-PLAN.md -- Pre-commit schema validation (AJV) and vault boundary enforcement hooks
+- [x] 22-02-PLAN.md -- Dotenv entry-point refactor (remove side-effect from pipeline-infra.js)
 
 ### Phase 23: Doc Sync Layer
 **Goal**: Documentation drift between living docs and code reality is detected automatically — once at merge time (non-blocking warning) and once at phase closure (blocking if threshold exceeded)
