@@ -171,5 +171,10 @@ Plans:
 | 21. Closeout Hygiene | v1.4 | 4/4 | Complete | 2026-04-26 |
 | 22. Committed Hooks | v1.5 | 0/2 | Complete    | 2026-04-26 |
 | 23. Doc Sync Layer | v1.5 | 2/2 | Complete    | 2026-04-26 |
+<<<<<<< HEAD
 | 24. Agent Surface | v1.5 | 2/2 | Complete    | 2026-04-26 |
 | 25. Unicode Hardening & UAT Closeout | v1.5 | 2/2 | Complete    | 2026-04-26 |
+=======
+| 24. Agent Surface | v1.5 | 1/2 | Complete    | 2026-04-26 |
+| 25. Unicode Hardening & UAT Closeout | v1.5 | 0/TBD | Complete    | 2026-04-26 |
+>>>>>>> 2bb974d (docs(phase-25): complete phase execution — Unicode hardening and UAT closeout)
