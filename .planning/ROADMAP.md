@@ -81,7 +81,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 **Milestone Goal:** Harden the development infrastructure — committed hooks at the git layer, new agent surface for documentation drift and requirement verification, memory health monitoring, and Unicode-safe matching — closing every deferred backlog item from v1.4.
 
-- [ ] **Phase 22: Committed Hooks** (2 plans) — Pre-commit AJV schema validation, vault-boundary enforcement, and dotenv entry-point refactor
+- [x] **Phase 22: Committed Hooks** (2 plans) — Pre-commit AJV schema validation, vault-boundary enforcement, and dotenv entry-point refactor (completed 2026-04-26)
 - [ ] **Phase 23: Doc Sync Layer** — Post-merge hook and post-ship agent for documentation drift detection
 - [ ] **Phase 24: Agent Surface** — Requirement-level auto-verification agent and memory health monitor
 - [ ] **Phase 25: Unicode Hardening & UAT Closeout** — NFKD-normalized matcher upgrade, UAT corpus rebaseline, and Phase 17 smoke run
@@ -97,7 +97,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   2. Attempting to commit a file to the wrong vault side (LEFT vs RIGHT) is blocked by the pre-commit hook before the commit lands
   3. `dotenv.config()` calls exist only at entry points; no library module re-loads env at import time; `src/pipeline-infra.js:23` root cause is resolved
   4. All three hooks are committed to `.git/hooks/` (or equivalent project hook config) and activate automatically for new checkouts
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 22-01-PLAN.md -- Pre-commit schema validation (AJV) and vault boundary enforcement hooks
@@ -160,7 +160,7 @@ Plans:
 | 19. Semantic Memory Search | v1.4 | 5/5 | Complete | 2026-04-24 |
 | 20. Value Extraction Instrumentation | v1.4 | 5/5 | Complete | 2026-04-25 |
 | 21. Closeout Hygiene | v1.4 | 4/4 | Complete | 2026-04-26 |
-| 22. Committed Hooks | v1.5 | 0/2 | Planned | - |
+| 22. Committed Hooks | v1.5 | 0/2 | Complete    | 2026-04-26 |
 | 23. Doc Sync Layer | v1.5 | 0/TBD | Not started | - |
 | 24. Agent Surface | v1.5 | 0/TBD | Not started | - |
 | 25. Unicode Hardening & UAT Closeout | v1.5 | 0/TBD | Not started | - |
