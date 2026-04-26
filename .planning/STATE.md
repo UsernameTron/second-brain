@@ -4,12 +4,12 @@ milestone: v1.5
 milestone_name: Internal Hardening
 status: executing
 stopped_at: "Completed 24-agent-surface plan 01: test-verifier Phase-Closure Verification Mode"
-last_updated: "2026-04-26T17:07:26.272Z"
-last_activity: 2026-04-26
+last_updated: "2026-04-26T17:33:50.560Z"
+last_activity: 2026-04-26 -- Phase 25 execution started
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 6
+  total_plans: 8
   completed_plans: 6
 ---
 
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-26 after v1.5 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Current focus:** Phase 24 — agent-surface
+**Current focus:** Phase 25 — unicode-hardening-uat-closeout
 
 ## Current Position
 
-Phase: 25
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-04-26
+Phase: 25 (unicode-hardening-uat-closeout) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 25
+Last activity: 2026-04-26 -- Phase 25 execution started
 
 ```
 Progress: [----------] 0/4 phases complete
