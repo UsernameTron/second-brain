@@ -29,15 +29,6 @@ jest.mock('voyageai', () => ({
   })),
 }));
 
-// ── Neutralize dotenv re-loading ──────────────────────────────────────────────
-// src/pipeline-infra.js calls require('dotenv').config() at module load. After
-// jest.resetModules() inside any beforeEach, re-requiring transitively pulls
-// pipeline-infra and re-injects VOYAGE_API_KEY from the real .env. Stub it.
-
-jest.mock('dotenv', () => ({
-  config: jest.fn(() => ({ parsed: {} })),
-}));
-
 // ── Env isolation vars ────────────────────────────────────────────────────────
 
 let tmpCacheDir;
@@ -170,9 +161,10 @@ const BASE_VECS = [
 const QUERY_VEC = normalize([1, 0, 0, 0]);
 
 // ── Suite-wide VOYAGE_API_KEY wrapper ────────────────────────────────────────
-// dotenv is mocked above so the real .env can't leak in. Set a fake key for
-// scenarios 1–5 (which exercise the happy path against mockEmbed). Scenario 6's
-// per-test beforeEach deletes this fake key to exercise the degraded path.
+// pipeline-infra no longer calls dotenv.config() at import time (HOOK-DOTENV-01),
+// so env vars set here cannot be overwritten by a library-level dotenv re-load.
+// Set a fake key for scenarios 1–5 (happy path). Scenario 6's per-test beforeEach
+// deletes this fake key to exercise the degraded path.
 
 const TEST_VOYAGE_KEY = 'test-voyage-key-not-real';
 let __originalVoyageKey;

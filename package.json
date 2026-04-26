@@ -9,7 +9,8 @@
     "test:integration:voyage": "node -e \"if(!process.env.VOYAGE_API_KEY){console.log('SKIP: VOYAGE_API_KEY not set');process.exit(0)}\" && jest --forceExit test/uat/semantic-search.uat.test.js",
     "test:uat": "CI= npx jest --forceExit test/uat/",
     "test:uat:ci": "jest --forceExit test/uat/",
-    "license-check": "license-checker --production --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;CC0-1.0'"
+    "license-check": "license-checker --production --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;CC0-1.0'",
+    "prepare": "git config core.hooksPath hooks"
   },
   "keywords": [],
   "author": "C Pete Conner",

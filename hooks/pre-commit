@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Pre-commit hook orchestrator for Second Brain
+# Runs: schema validation, vault boundary check
+# Install: ln -sf ../../hooks/pre-commit .git/hooks/pre-commit
+
+# Resolve to the hooks/ directory whether run directly or via .git/hooks symlink
+SELF="$(readlink -f "$0" 2>/dev/null || python3 -c "import os; print(os.path.realpath('$0'))")"
+HOOK_DIR="$(dirname "$SELF")"
+
+echo "[pre-commit] Running schema validation..."
+node "$HOOK_DIR/pre-commit-schema-validate.js"
+
+echo "[pre-commit] Running vault boundary check..."
+node "$HOOK_DIR/pre-commit-vault-boundary.js"
+
+echo "[pre-commit] All checks passed."

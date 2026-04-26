@@ -6,7 +6,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-**v1.4 shipped 2026-04-26 (tag v1.4).** Five milestones complete: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4). Memory layer is now bidirectional — write path operating since v1.0, read path activated in v1.4 via `/recall` (keyword + semantic + RRF hybrid) and Memory Echo in `/today`.
+**v1.4 shipped 2026-04-26 (tag v1.4).** Five milestones complete: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4). Memory layer is now bidirectional — write path operating since v1.0, read path activated in v1.4 via `/recall` (keyword + semantic + RRF hybrid) and Memory Echo in `/today`. Phase 22 (Committed Hooks) complete — pre-commit schema validation, vault boundary enforcement, and dotenv discipline now enforced at git layer.
 
 **Stats post-v1.4:** 1127 tests across 55 files (1044 passing, 38 skipped, 45 todo). Coverage 81.28% branch / 94.62% statements / 96.94% functions / 95.53% lines. 9,617 LOC in `src/`. 0 ESLint no-console warnings (35 category-tagged disables). JSDoc on 53 public exports.
 
@@ -34,9 +34,21 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 - Phase 17 UAT workflow smoke run still deferred per Pete's checkpoint
 - FIX-02 (config hot-reload) — restart workaround sufficient
 
-## Next Milestone Goals
+## Current Milestone: v1.5 Internal Hardening
 
-v1.5 is unscoped. Run `/gsd:new-milestone` to gather requirements and define phases. Backlog parking lot lives in `tasks/todo.md`.
+**Goal:** Harden the development infrastructure — committed hooks, new agent surface, test corpus rebaseline, and Unicode-safe matching — closing every deferred backlog item from v1.4.
+
+**Target features:**
+- Pre-commit AJV schema validation on config/frontmatter (HOOK-SCHEMA-01)
+- Pre-commit LEFT/RIGHT boundary enforcement at git layer (HOOK-VAULT-01)
+- Post-merge documentation drift detection hook (HOOK-DOCSYNC-01)
+- Entry-point-only dotenv loading (HOOK-DOTENV-01)
+- Post-ship documentation drift detection agent (AGENT-DOCSYNC-01)
+- Requirement-level auto-verification via subagent fan-out (AGENT-VERIFY-01)
+- Memory health monitor surfacing anomalies in /today (AGENT-MEMORY-01)
+- Rebaseline UAT classification corpus (UAT-CORPUS-REFRESH-01)
+- Unicode-variant matcher upgrade for excluded terms (HYG-UNICODE-02)
+- UAT workflow smoke run (Phase 17 carry-forward)
 
 ## Core Value
 
@@ -99,9 +111,13 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ Value Extraction Instrumentation (per-day daily-stats.md row with 8 columns, idempotent same-day update, per-connector + per-operation latency capture, yesterday-summary line at top of /today) — v1.4 Phase 20
 - ✓ Closeout Hygiene (HYG-UNICODE-01 Path B with 45 test.todo markers, HYG-JSDOC-01 on 53 public exports, HYG-CONSOLE-01 with 35 category-tagged disables, DOCS-FINAL-01 across 8 living docs) — v1.4 Phase 21
 
+- ✓ Pre-commit AJV schema validation on config/*.json and daily-stats.md frontmatter (HOOK-SCHEMA-01) — v1.5 Phase 22
+- ✓ Pre-commit LEFT/RIGHT vault boundary enforcement at git layer (HOOK-VAULT-01) — v1.5 Phase 22
+- ✓ Entry-point-only dotenv loading discipline (HOOK-DOTENV-01) — v1.5 Phase 22
+
 ### Active
 
-(None — v1.5 unscoped. Run `/gsd:new-milestone` to gather requirements.)
+(Defined in REQUIREMENTS.md — see v1.5 Internal Hardening scope.)
 
 <details>
 <summary>v1.4 Memory Activation & Final Closeout (shipped 2026-04-26, tag v1.4)</summary>
@@ -250,4 +266,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-26 after v1.4 milestone close*
+*Last updated: 2026-04-26 after v1.5 milestone start*
