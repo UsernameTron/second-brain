@@ -6,7 +6,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-**v1.4 shipped 2026-04-26 (tag v1.4).** Five milestones complete: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4). Memory layer is now bidirectional — write path operating since v1.0, read path activated in v1.4 via `/recall` (keyword + semantic + RRF hybrid) and Memory Echo in `/today`. Phase 22 (Committed Hooks) complete — pre-commit schema validation, vault boundary enforcement, and dotenv discipline now enforced at git layer.
+**v1.4 shipped 2026-04-26 (tag v1.4).** Five milestones complete: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4). Memory layer is now bidirectional — write path operating since v1.0, read path activated in v1.4 via `/recall` (keyword + semantic + RRF hybrid) and Memory Echo in `/today`. Phase 22 (Committed Hooks) complete — pre-commit schema validation, vault boundary enforcement, and dotenv discipline now enforced at git layer. Phase 23 (Doc Sync Layer) complete — post-merge hook detects documentation drift (test count, coverage) against live jest output; docs-sync agent extended with DOCSYNC-AUDIT: PASS/BLOCK verdict for phase closure gates.
 
 **Stats post-v1.4:** 1127 tests across 55 files (1044 passing, 38 skipped, 45 todo). Coverage 81.28% branch / 94.62% statements / 96.94% functions / 95.53% lines. 9,617 LOC in `src/`. 0 ESLint no-console warnings (35 category-tagged disables). JSDoc on 53 public exports.
 
@@ -27,8 +27,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 **Known gaps (carried to v1.5 backlog in `tasks/todo.md`):**
 - HYG-UNICODE-02 — Unicode-variant matcher upgrade (45 test.todo entries staged)
-- HOOK-VAULT-01 / HOOK-SCHEMA-01 / HOOK-DOCSYNC-01 — Committed pre-commit/post-merge hooks
-- AGENT-DOCSYNC-01 / AGENT-VERIFY-01 / AGENT-MEMORY-01 — New agent surface
+- AGENT-VERIFY-01 / AGENT-MEMORY-01 — New agent surface
 - UAT-CORPUS-REFRESH-01 — Rebaseline classification corpus after excluded-terms expansion
 - DOTENV-FIX-01 — Suite-level dotenv neutralization (precedent in PR #38)
 - Phase 17 UAT workflow smoke run still deferred per Pete's checkpoint

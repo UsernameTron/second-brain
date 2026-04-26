@@ -11,7 +11,7 @@ Requirements for v1.5 Internal Hardening. All promoted from v1.4 backlog — no 
 
 - [ ] **HOOK-SCHEMA-01**: Pre-commit AJV validation catches malformed `daily-stats.md` frontmatter and out-of-bounds `config/pipeline.json` values before they land on master
 - [ ] **HOOK-VAULT-01**: Pre-commit git-level path check prevents committing files to the wrong vault side, making the LEFT/RIGHT boundary structural at the git layer
-- [ ] **HOOK-DOCSYNC-01**: Post-merge hook compares `CLAUDE.md`/`README.md` stats (test count, coverage, phase count) against live `jest --coverage` output and flags mismatches as non-blocking warnings
+- [ ] **HOOK-DOCSYNC-01**: Post-merge hook compares `CLAUDE.md`/`README.md` stats (test count, coverage) against live `jest --coverage` output and flags mismatches as non-blocking warnings
 - [ ] **HOOK-DOTENV-01**: `dotenv.config()` calls move from library modules to entry-points only; `src/pipeline-infra.js:23` is the known root cause
 
 ### Agents

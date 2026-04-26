@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Post-merge hook: documentation drift warning (non-blocking).
+# CRITICAL: This hook must NEVER exit non-zero. A non-zero exit
+#           can abort or confuse git merge operations.
+
+# Resolve to the hooks/ directory whether run directly or via .git/hooks symlink
+SELF="$(readlink -f "$0" 2>/dev/null \
+      || python3 -c "import os; print(os.path.realpath('$0'))")"
+HOOK_DIR="$(dirname "$SELF")"
+
+echo "[post-merge] Checking documentation drift..."
+node "$HOOK_DIR/post-merge-doc-sync.js" || {
+  echo "[post-merge] Warning check failed (non-blocking)" >&2
+}
+exit 0
