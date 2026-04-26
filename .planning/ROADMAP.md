@@ -111,10 +111,10 @@ Plans:
   1. After a merge to master, the post-merge hook compares `CLAUDE.md`/`README.md` stats (test count, coverage, phase count) against live `jest --coverage` output and prints a warning if any stat is stale
   2. At phase closure, the `docs-sync` agent compares living-doc narrative against `jest --coverage` and `git log` reality and blocks closure if any stat drift exceeds the configured threshold
   3. A correctly synced state produces no warnings or block from either the hook or the agent
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 23-01-PLAN.md — Post-merge hook with drift detection, threshold config, and tests
+- [x] 23-01-PLAN.md — Post-merge hook with drift detection, threshold config, and tests
 - [ ] 23-02-PLAN.md — Extend docs-sync agent with Phase-Closure Audit Mode
 
 ### Phase 24: Agent Surface
@@ -165,6 +165,6 @@ Plans:
 | 20. Value Extraction Instrumentation | v1.4 | 5/5 | Complete | 2026-04-25 |
 | 21. Closeout Hygiene | v1.4 | 4/4 | Complete | 2026-04-26 |
 | 22. Committed Hooks | v1.5 | 0/2 | Complete    | 2026-04-26 |
-| 23. Doc Sync Layer | v1.5 | 0/2 | Not started | - |
+| 23. Doc Sync Layer | v1.5 | 1/2 | In Progress|  |
 | 24. Agent Surface | v1.5 | 0/TBD | Not started | - |
 | 25. Unicode Hardening & UAT Closeout | v1.5 | 0/TBD | Not started | - |
