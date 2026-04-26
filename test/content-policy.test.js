@@ -296,92 +296,321 @@ describe('15. classifyWithHaiku — sanitized terms used in system prompt', () =
   });
 });
 
-// ── 16. Unicode variant coverage (test.todo — gap reserved for v1.5 HYG-UNICODE-02)
-describe('HYG-UNICODE-01: Unicode variant coverage (test.todo — gap reserved for v1.5 HYG-UNICODE-02)', () => {
-  // Per D-LOCK-5-AMEND-A (Path B): src/content-policy.js matcher is ASCII-only
-  // (.toLowerCase().includes()). The test.todo entries below document the gap
-  // and reserve the test surface. They will be activated and asserted when
-  // v1.5 HYG-UNICODE-02 ships an Unicode-aware matcher.
+// ── 16. normalizeForMatch utility unit tests ─────────────────────────────────
+describe('normalizeForMatch utility', () => {
+  const { normalizeForMatch } = require('../src/content-policy');
+
+  test('NFKD decomposes full-width to ASCII', () => {
+    // Full-width "ASANA" (Ａ=U+FF21, Ｓ=U+FF33, Ａ=U+FF21, Ｎ=U+FF2E, Ａ=U+FF21)
+    expect(normalizeForMatch('\uFF21\uFF33\uFF21\uFF2E\uFF21')).toBe('asana');
+  });
+
+  test('strips soft hyphens', () => {
+    expect(normalizeForMatch('I\u00ADS\u00ADP\u00ADN')).toBe('ispn');
+  });
+
+  test('strips non-ASCII whitespace (NBSP)', () => {
+    expect(normalizeForMatch('Gen\u00A0esys')).toBe('genesys');
+  });
+
+  test('plain ASCII lowercased unchanged', () => {
+    expect(normalizeForMatch('ISPN')).toBe('ispn');
+  });
+});
+
+// ── 17. Unicode variant coverage (HYG-UNICODE-02 — v1.5)
+describe('HYG-UNICODE-02: Unicode variant coverage — NFKD-normalized matcher', () => {
+  // HYG-UNICODE-02: src/content-policy.js now uses normalizeForMatch (NFKD + strip).
+  // These 45 tests validate that all three bypass-variant categories are detected
+  // for all 15 excluded terms.
   //
-  // Variant inventory (Lock 5):
+  // Variant inventory:
   //   - full-width Latin (U+FF21–U+FF3A / U+FF41–U+FF5A)
   //   - soft-hyphen-injected (U+00AD between letters)
-  //   - non-ASCII whitespace (U+00A0 substituted for spaces, or inserted)
-  //
-  // 15 excluded terms × 3 variants = 45 test.todo entries.
+  //   - non-ASCII whitespace (U+00A0 substituted for space or inserted mid-term)
 
   // ── Asana ───────────────────────────────────────────────────────────────
-  test.todo('Asana — full-width Latin variant: matcher catches Ａｓａｎａ');
-  test.todo('Asana — soft-hyphen variant: matcher catches A\\u00ADs\\u00ADa\\u00ADn\\u00ADa');
-  test.todo('Asana — non-ASCII whitespace variant: matcher catches Asa\\u00A0na');
+  test('Asana — full-width Latin variant: matcher catches \uFF21\uFF53\uFF41\uFF4E\uFF41', () => {
+    const content = 'Testing with \uFF21\uFF53\uFF41\uFF4E\uFF41 in this paragraph.';
+    const result = sanitizeContent(content, ['Asana']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Asana — soft-hyphen variant: matcher catches A\u00ADs\u00ADa\u00ADn\u00ADa', () => {
+    const content = 'Testing with A\u00ADs\u00ADa\u00ADn\u00ADa in this paragraph.';
+    const result = sanitizeContent(content, ['Asana']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Asana — non-ASCII whitespace variant: matcher catches Asa\u00A0na', () => {
+    const content = 'Testing with Asa\u00A0na in this paragraph.';
+    const result = sanitizeContent(content, ['Asana']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── Five9 ───────────────────────────────────────────────────────────────
-  test.todo('Five9 — full-width Latin variant: matcher catches Ｆｉｖｅ９');
-  test.todo('Five9 — soft-hyphen variant: matcher catches F\\u00ADi\\u00ADv\\u00ADe\\u00AD9');
-  test.todo('Five9 — non-ASCII whitespace variant: matcher catches Fiv\\u00A0e9');
+  test('Five9 — full-width Latin variant: matcher catches \uFF26\uFF49\uFF56\uFF45\uFF19', () => {
+    const content = 'Testing with \uFF26\uFF49\uFF56\uFF45\uFF19 in this paragraph.';
+    const result = sanitizeContent(content, ['Five9']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Five9 — soft-hyphen variant: matcher catches F\u00ADi\u00ADv\u00ADe\u00AD9', () => {
+    const content = 'Testing with F\u00ADi\u00ADv\u00ADe\u00AD9 in this paragraph.';
+    const result = sanitizeContent(content, ['Five9']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Five9 — non-ASCII whitespace variant: matcher catches Fiv\u00A0e9', () => {
+    const content = 'Testing with Fiv\u00A0e9 in this paragraph.';
+    const result = sanitizeContent(content, ['Five9']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── Fiverr ──────────────────────────────────────────────────────────────
-  test.todo('Fiverr — full-width Latin variant: matcher catches Ｆｉｖｅｒｒ');
-  test.todo('Fiverr — soft-hyphen variant: matcher catches F\\u00ADi\\u00ADv\\u00ADe\\u00ADr\\u00ADr');
-  test.todo('Fiverr — non-ASCII whitespace variant: matcher catches Fiv\\u00A0err');
+  test('Fiverr — full-width Latin variant: matcher catches \uFF26\uFF49\uFF56\uFF45\uFF52\uFF52', () => {
+    const content = 'Testing with \uFF26\uFF49\uFF56\uFF45\uFF52\uFF52 in this paragraph.';
+    const result = sanitizeContent(content, ['Fiverr']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Fiverr — soft-hyphen variant: matcher catches F\u00ADi\u00ADv\u00ADe\u00ADr\u00ADr', () => {
+    const content = 'Testing with F\u00ADi\u00ADv\u00ADe\u00ADr\u00ADr in this paragraph.';
+    const result = sanitizeContent(content, ['Fiverr']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Fiverr — non-ASCII whitespace variant: matcher catches Fiv\u00A0err', () => {
+    const content = 'Testing with Fiv\u00A0err in this paragraph.';
+    const result = sanitizeContent(content, ['Fiverr']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── Genesys ─────────────────────────────────────────────────────────────
-  test.todo('Genesys — full-width Latin variant: matcher catches Ｇｅｎｅｓｙｓ');
-  test.todo('Genesys — soft-hyphen variant: matcher catches G\\u00ADe\\u00ADn\\u00ADe\\u00ADs\\u00ADy\\u00ADs');
-  test.todo('Genesys — non-ASCII whitespace variant: matcher catches Gen\\u00A0esys');
+  test('Genesys — full-width Latin variant: matcher catches \uFF27\uFF45\uFF4E\uFF45\uFF53\uFF59\uFF53', () => {
+    const content = 'Testing with \uFF27\uFF45\uFF4E\uFF45\uFF53\uFF59\uFF53 in this paragraph.';
+    const result = sanitizeContent(content, ['Genesys']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Genesys — soft-hyphen variant: matcher catches G\u00ADe\u00ADn\u00ADe\u00ADs\u00ADy\u00ADs', () => {
+    const content = 'Testing with G\u00ADe\u00ADn\u00ADe\u00ADs\u00ADy\u00ADs in this paragraph.';
+    const result = sanitizeContent(content, ['Genesys']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Genesys — non-ASCII whitespace variant: matcher catches Gen\u00A0esys', () => {
+    const content = 'Testing with Gen\u00A0esys in this paragraph.';
+    const result = sanitizeContent(content, ['Genesys']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── ININ ────────────────────────────────────────────────────────────────
-  test.todo('ININ — full-width Latin variant: matcher catches ＩＮＩＮ');
-  test.todo('ININ — soft-hyphen variant: matcher catches I\\u00ADN\\u00ADI\\u00ADN');
-  test.todo('ININ — non-ASCII whitespace variant: matcher catches INI\\u00A0N');
+  test('ININ — full-width Latin variant: matcher catches \uFF29\uFF2E\uFF29\uFF2E', () => {
+    const content = 'Testing with \uFF29\uFF2E\uFF29\uFF2E in this paragraph.';
+    const result = sanitizeContent(content, ['ININ']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('ININ — soft-hyphen variant: matcher catches I\u00ADN\u00ADI\u00ADN', () => {
+    const content = 'Testing with I\u00ADN\u00ADI\u00ADN in this paragraph.';
+    const result = sanitizeContent(content, ['ININ']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('ININ — non-ASCII whitespace variant: matcher catches INI\u00A0N', () => {
+    const content = 'Testing with INI\u00A0N in this paragraph.';
+    const result = sanitizeContent(content, ['ININ']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── Interactive Intelligence ────────────────────────────────────────────
-  test.todo('Interactive Intelligence — full-width Latin variant: matcher catches Ｉｎｔｅｒａｃｔｉｖｅ Ｉｎｔｅｌｌｉｇｅｎｃｅ');
-  test.todo('Interactive Intelligence — soft-hyphen variant: matcher catches I\\u00ADn\\u00ADt\\u00ADe\\u00ADr\\u00ADa\\u00ADc\\u00ADt\\u00ADi\\u00ADv\\u00ADe I\\u00ADn\\u00ADt\\u00ADe\\u00ADl\\u00ADl\\u00ADi\\u00ADg\\u00ADe\\u00ADn\\u00ADc\\u00ADe');
-  test.todo('Interactive Intelligence — non-ASCII whitespace variant: matcher catches Interactive\\u00A0Intelligence');
+  test('Interactive Intelligence — full-width Latin variant: matcher catches \uFF29\uFF4E\uFF54\uFF45\uFF52\uFF41\uFF43\uFF54\uFF49\uFF56\uFF45 \uFF29\uFF4E\uFF54\uFF45\uFF4C\uFF4C\uFF49\uFF47\uFF45\uFF4E\uFF43\uFF45', () => {
+    const content = 'Testing with \uFF29\uFF4E\uFF54\uFF45\uFF52\uFF41\uFF43\uFF54\uFF49\uFF56\uFF45 \uFF29\uFF4E\uFF54\uFF45\uFF4C\uFF4C\uFF49\uFF47\uFF45\uFF4E\uFF43\uFF45 in this paragraph.';
+    const result = sanitizeContent(content, ['Interactive Intelligence']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Interactive Intelligence — soft-hyphen variant: matcher catches I\u00ADn\u00ADt\u00ADe\u00ADr\u00ADa\u00ADc\u00ADt\u00ADi\u00ADv\u00ADe I\u00ADn\u00ADt\u00ADe\u00ADl\u00ADl\u00ADi\u00ADg\u00ADe\u00ADn\u00ADc\u00ADe', () => {
+    const content = 'Testing with I\u00ADn\u00ADt\u00ADe\u00ADr\u00ADa\u00ADc\u00ADt\u00ADi\u00ADv\u00ADe I\u00ADn\u00ADt\u00ADe\u00ADl\u00ADl\u00ADi\u00ADg\u00ADe\u00ADn\u00ADc\u00ADe in this paragraph.';
+    const result = sanitizeContent(content, ['Interactive Intelligence']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Interactive Intelligence — non-ASCII whitespace variant: matcher catches Interactive\u00A0Intelligence', () => {
+    const content = 'Testing with Interactive\u00A0Intelligence in this paragraph.';
+    const result = sanitizeContent(content, ['Interactive Intelligence']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── ISPN ────────────────────────────────────────────────────────────────
-  test.todo('ISPN — full-width Latin variant: matcher catches ＩＳＰＮ');
-  test.todo('ISPN — soft-hyphen variant: matcher catches I\\u00ADS\\u00ADP\\u00ADN');
-  test.todo('ISPN — non-ASCII whitespace variant: matcher catches ISP\\u00A0N');
+  test('ISPN — full-width Latin variant: matcher catches \uFF29\uFF33\uFF30\uFF2E', () => {
+    const content = 'Testing with \uFF29\uFF33\uFF30\uFF2E in this paragraph.';
+    const result = sanitizeContent(content, ['ISPN']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('ISPN — soft-hyphen variant: matcher catches I\u00ADS\u00ADP\u00ADN', () => {
+    const content = 'Testing with I\u00ADS\u00ADP\u00ADN in this paragraph.';
+    const result = sanitizeContent(content, ['ISPN']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('ISPN — non-ASCII whitespace variant: matcher catches ISP\u00A0N', () => {
+    const content = 'Testing with ISP\u00A0N in this paragraph.';
+    const result = sanitizeContent(content, ['ISPN']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── Onbe ────────────────────────────────────────────────────────────────
-  test.todo('Onbe — full-width Latin variant: matcher catches Ｏｎｂｅ');
-  test.todo('Onbe — soft-hyphen variant: matcher catches O\\u00ADn\\u00ADb\\u00ADe');
-  test.todo('Onbe — non-ASCII whitespace variant: matcher catches Onb\\u00A0e');
+  test('Onbe — full-width Latin variant: matcher catches \uFF2F\uFF4E\uFF42\uFF45', () => {
+    const content = 'Testing with \uFF2F\uFF4E\uFF42\uFF45 in this paragraph.';
+    const result = sanitizeContent(content, ['Onbe']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Onbe — soft-hyphen variant: matcher catches O\u00ADn\u00ADb\u00ADe', () => {
+    const content = 'Testing with O\u00ADn\u00ADb\u00ADe in this paragraph.';
+    const result = sanitizeContent(content, ['Onbe']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Onbe — non-ASCII whitespace variant: matcher catches Onb\u00A0e', () => {
+    const content = 'Testing with Onb\u00A0e in this paragraph.';
+    const result = sanitizeContent(content, ['Onbe']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── OpenDoor ────────────────────────────────────────────────────────────
-  test.todo('OpenDoor — full-width Latin variant: matcher catches ＯｐｅｎＤｏｏｒ');
-  test.todo('OpenDoor — soft-hyphen variant: matcher catches O\\u00ADp\\u00ADe\\u00ADn\\u00ADD\\u00ADo\\u00ADo\\u00ADr');
-  test.todo('OpenDoor — non-ASCII whitespace variant: matcher catches Ope\\u00A0nDoor');
+  test('OpenDoor — full-width Latin variant: matcher catches \uFF2F\uFF50\uFF45\uFF4E\uFF24\uFF4F\uFF4F\uFF52', () => {
+    const content = 'Testing with \uFF2F\uFF50\uFF45\uFF4E\uFF24\uFF4F\uFF4F\uFF52 in this paragraph.';
+    const result = sanitizeContent(content, ['OpenDoor']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('OpenDoor — soft-hyphen variant: matcher catches O\u00ADp\u00ADe\u00ADn\u00ADD\u00ADo\u00ADo\u00ADr', () => {
+    const content = 'Testing with O\u00ADp\u00ADe\u00ADn\u00ADD\u00ADo\u00ADo\u00ADr in this paragraph.';
+    const result = sanitizeContent(content, ['OpenDoor']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('OpenDoor — non-ASCII whitespace variant: matcher catches Ope\u00A0nDoor', () => {
+    const content = 'Testing with Ope\u00A0nDoor in this paragraph.';
+    const result = sanitizeContent(content, ['OpenDoor']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── PureCloud ───────────────────────────────────────────────────────────
-  test.todo('PureCloud — full-width Latin variant: matcher catches ＰｕｒｅＣｌｏｕｄ');
-  test.todo('PureCloud — soft-hyphen variant: matcher catches P\\u00ADu\\u00ADr\\u00ADe\\u00ADC\\u00ADl\\u00ADo\\u00ADu\\u00ADd');
-  test.todo('PureCloud — non-ASCII whitespace variant: matcher catches Pur\\u00A0eCloud');
+  test('PureCloud — full-width Latin variant: matcher catches \uFF30\uFF55\uFF52\uFF45\uFF23\uFF4C\uFF4F\uFF55\uFF44', () => {
+    const content = 'Testing with \uFF30\uFF55\uFF52\uFF45\uFF23\uFF4C\uFF4F\uFF55\uFF44 in this paragraph.';
+    const result = sanitizeContent(content, ['PureCloud']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('PureCloud — soft-hyphen variant: matcher catches P\u00ADu\u00ADr\u00ADe\u00ADC\u00ADl\u00ADo\u00ADu\u00ADd', () => {
+    const content = 'Testing with P\u00ADu\u00ADr\u00ADe\u00ADC\u00ADl\u00ADo\u00ADu\u00ADd in this paragraph.';
+    const result = sanitizeContent(content, ['PureCloud']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('PureCloud — non-ASCII whitespace variant: matcher catches Pur\u00A0eCloud', () => {
+    const content = 'Testing with Pur\u00A0eCloud in this paragraph.';
+    const result = sanitizeContent(content, ['PureCloud']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── PureConnect ─────────────────────────────────────────────────────────
-  test.todo('PureConnect — full-width Latin variant: matcher catches ＰｕｒｅＣｏｎｎｅｃｔ');
-  test.todo('PureConnect — soft-hyphen variant: matcher catches P\\u00ADu\\u00ADr\\u00ADe\\u00ADC\\u00ADo\\u00ADn\\u00ADn\\u00ADe\\u00ADc\\u00ADt');
-  test.todo('PureConnect — non-ASCII whitespace variant: matcher catches Pur\\u00A0eConnect');
+  test('PureConnect — full-width Latin variant: matcher catches \uFF30\uFF55\uFF52\uFF45\uFF23\uFF4F\uFF4E\uFF4E\uFF45\uFF43\uFF54', () => {
+    const content = 'Testing with \uFF30\uFF55\uFF52\uFF45\uFF23\uFF4F\uFF4E\uFF4E\uFF45\uFF43\uFF54 in this paragraph.';
+    const result = sanitizeContent(content, ['PureConnect']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('PureConnect — soft-hyphen variant: matcher catches P\u00ADu\u00ADr\u00ADe\u00ADC\u00ADo\u00ADn\u00ADn\u00ADe\u00ADc\u00ADt', () => {
+    const content = 'Testing with P\u00ADu\u00ADr\u00ADe\u00ADC\u00ADo\u00ADn\u00ADn\u00ADe\u00ADc\u00ADt in this paragraph.';
+    const result = sanitizeContent(content, ['PureConnect']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('PureConnect — non-ASCII whitespace variant: matcher catches Pur\u00A0eConnect', () => {
+    const content = 'Testing with Pur\u00A0eConnect in this paragraph.';
+    const result = sanitizeContent(content, ['PureConnect']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── Sandler ─────────────────────────────────────────────────────────────
-  test.todo('Sandler — full-width Latin variant: matcher catches Ｓａｎｄｌｅｒ');
-  test.todo('Sandler — soft-hyphen variant: matcher catches S\\u00ADa\\u00ADn\\u00ADd\\u00ADl\\u00ADe\\u00ADr');
-  test.todo('Sandler — non-ASCII whitespace variant: matcher catches San\\u00A0dler');
+  test('Sandler — full-width Latin variant: matcher catches \uFF33\uFF41\uFF4E\uFF44\uFF4C\uFF45\uFF52', () => {
+    const content = 'Testing with \uFF33\uFF41\uFF4E\uFF44\uFF4C\uFF45\uFF52 in this paragraph.';
+    const result = sanitizeContent(content, ['Sandler']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Sandler — soft-hyphen variant: matcher catches S\u00ADa\u00ADn\u00ADd\u00ADl\u00ADe\u00ADr', () => {
+    const content = 'Testing with S\u00ADa\u00ADn\u00ADd\u00ADl\u00ADe\u00ADr in this paragraph.';
+    const result = sanitizeContent(content, ['Sandler']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Sandler — non-ASCII whitespace variant: matcher catches San\u00A0dler', () => {
+    const content = 'Testing with San\u00A0dler in this paragraph.';
+    const result = sanitizeContent(content, ['Sandler']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── Stride Care ─────────────────────────────────────────────────────────
-  test.todo('Stride Care — full-width Latin variant: matcher catches Ｓｔｒｉｄｅ Ｃａｒｅ');
-  test.todo('Stride Care — soft-hyphen variant: matcher catches S\\u00ADt\\u00ADr\\u00ADi\\u00ADd\\u00ADe C\\u00ADa\\u00ADr\\u00ADe');
-  test.todo('Stride Care — non-ASCII whitespace variant: matcher catches Stride\\u00A0Care');
+  test('Stride Care — full-width Latin variant: matcher catches \uFF33\uFF54\uFF52\uFF49\uFF44\uFF45 \uFF23\uFF41\uFF52\uFF45', () => {
+    const content = 'Testing with \uFF33\uFF54\uFF52\uFF49\uFF44\uFF45 \uFF23\uFF41\uFF52\uFF45 in this paragraph.';
+    const result = sanitizeContent(content, ['Stride Care']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Stride Care — soft-hyphen variant: matcher catches S\u00ADt\u00ADr\u00ADi\u00ADd\u00ADe C\u00ADa\u00ADr\u00ADe', () => {
+    const content = 'Testing with S\u00ADt\u00ADr\u00ADi\u00ADd\u00ADe C\u00ADa\u00ADr\u00ADe in this paragraph.';
+    const result = sanitizeContent(content, ['Stride Care']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Stride Care — non-ASCII whitespace variant: matcher catches Stride\u00A0Care', () => {
+    const content = 'Testing with Stride\u00A0Care in this paragraph.';
+    const result = sanitizeContent(content, ['Stride Care']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── Totango ─────────────────────────────────────────────────────────────
-  test.todo('Totango — full-width Latin variant: matcher catches Ｔｏｔａｎｇｏ');
-  test.todo('Totango — soft-hyphen variant: matcher catches T\\u00ADo\\u00ADt\\u00ADa\\u00ADn\\u00ADg\\u00ADo');
-  test.todo('Totango — non-ASCII whitespace variant: matcher catches Tot\\u00A0ango');
+  test('Totango — full-width Latin variant: matcher catches \uFF34\uFF4F\uFF54\uFF41\uFF4E\uFF47\uFF4F', () => {
+    const content = 'Testing with \uFF34\uFF4F\uFF54\uFF41\uFF4E\uFF47\uFF4F in this paragraph.';
+    const result = sanitizeContent(content, ['Totango']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Totango — soft-hyphen variant: matcher catches T\u00ADo\u00ADt\u00ADa\u00ADn\u00ADg\u00ADo', () => {
+    const content = 'Testing with T\u00ADo\u00ADt\u00ADa\u00ADn\u00ADg\u00ADo in this paragraph.';
+    const result = sanitizeContent(content, ['Totango']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('Totango — non-ASCII whitespace variant: matcher catches Tot\u00A0ango', () => {
+    const content = 'Testing with Tot\u00A0ango in this paragraph.';
+    const result = sanitizeContent(content, ['Totango']);
+    expect(result.redactedCount).toBe(1);
+  });
 
   // ── UKG ─────────────────────────────────────────────────────────────────
-  test.todo('UKG — full-width Latin variant: matcher catches ＵＫＧ');
-  test.todo('UKG — soft-hyphen variant: matcher catches U\\u00ADK\\u00ADG');
-  test.todo('UKG — non-ASCII whitespace variant: matcher catches UK\\u00A0G');
+  test('UKG — full-width Latin variant: matcher catches \uFF35\uFF2B\uFF27', () => {
+    const content = 'Testing with \uFF35\uFF2B\uFF27 in this paragraph.';
+    const result = sanitizeContent(content, ['UKG']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('UKG — soft-hyphen variant: matcher catches U\u00ADK\u00ADG', () => {
+    const content = 'Testing with U\u00ADK\u00ADG in this paragraph.';
+    const result = sanitizeContent(content, ['UKG']);
+    expect(result.redactedCount).toBe(1);
+  });
+
+  test('UKG — non-ASCII whitespace variant: matcher catches UK\u00A0G', () => {
+    const content = 'Testing with UK\u00A0G in this paragraph.';
+    const result = sanitizeContent(content, ['UKG']);
+    expect(result.redactedCount).toBe(1);
+  });
 });

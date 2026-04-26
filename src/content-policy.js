@@ -24,6 +24,43 @@ const { safeLoadPipelineConfig } = require('./pipeline-infra');
 
 const client = new Anthropic();
 
+// ── Unicode-aware matching helper ────────────────────────────────────────────
+
+/**
+ * Normalize a string for excluded-term matching using NFKD decomposition.
+ *
+ * Steps applied in order:
+ *   1. NFKD normalization — decomposes full-width Latin (U+FF01–U+FF60) to ASCII equivalents
+ *   2. Strip combining marks (U+0300–U+036F) — removes diacritical residue after NFKD
+ *   3. Strip soft hyphens (U+00AD) — removes zero-width word-break hints
+ *   4. Strip non-ASCII whitespace (U+00A0 NBSP, U+2000–U+200B hair/zero-width spaces, U+FEFF BOM)
+ *   5. Lowercase — case-insensitive substring matching
+ *
+ * Prevents Unicode-variant bypass attempts (e.g., full-width "ＩＳＰＮ" or
+ * soft-hyphen "I\u00ADS\u00ADP\u00ADN" slipping past an ASCII-only matcher).
+ *
+ * @param {string} str - Input string (content paragraph or excluded term)
+ * @returns {string} Normalized, lowercased string ready for substring comparison
+ */
+function normalizeForMatch(str) {
+  return str
+    // Strip soft hyphens (U+00AD) — zero-width word-break hints used as bypass
+    .replace(/\u00AD/g, '')
+    // NFKD normalization — decomposes full-width Latin (U+FF01–U+FF60) to ASCII,
+    // also converts U+00A0 NBSP → U+0020 regular space
+    .normalize('NFKD')
+    // Strip combining marks (diacritical residue after NFKD decomposition)
+    .replace(/[\u0300-\u036F]/g, '')
+    // Strip zero-width and non-breaking space characters
+    // After NFKD, U+00A0 has already been converted to U+0020 (regular space).
+    // Strip remaining zero-width chars (U+2000–U+200B range, U+FEFF BOM).
+    .replace(/[\u2000-\u200B\uFEFF]/g, '')
+    // Strip ALL whitespace — collapses injected-space bypasses (e.g., "Asa na" → "asana")
+    // and normalizes multi-word terms identically ("interactive intelligence" → "interactiveintelligence")
+    .replace(/\s+/g, '')
+    .toLowerCase();
+}
+
 // ── Prompt injection defense ─────────────────────────────────────────────────
 
 /**
@@ -157,10 +194,10 @@ function sanitizeContent(content, excludedTerms) {
   const markers = [];
 
   const sanitizedParagraphs = paragraphs.map((paragraph, idx) => {
-    // Check if any excluded term appears in this paragraph (case-insensitive substring match)
-    const paragraphLower = paragraph.toLowerCase();
+    // Check if any excluded term appears in this paragraph (Unicode-normalized substring match)
+    const paragraphNorm = normalizeForMatch(paragraph);
     const hasExcludedTerm = excludedTerms.some(term =>
-      paragraphLower.includes(term.toLowerCase())
+      paragraphNorm.includes(normalizeForMatch(term))
     );
 
     if (hasExcludedTerm) {
@@ -194,12 +231,12 @@ function sanitizeContent(content, excludedTerms) {
  * @returns {Promise<{ decision: 'PASS' } | { decision: 'BLOCK', reason: string, matchedTerm: string }>}
  */
 async function checkContent(content, excludedTerms, contextChars = 100) {
-  // Stage 1: Keyword scan (case-insensitive substring match; content lowercased once outside loop)
+  // Stage 1: Keyword scan (Unicode-normalized substring match; content normalized once outside loop)
   let matchedTerm = null;
-  const contentLower = content.toLowerCase();
+  const contentNorm = normalizeForMatch(content);
 
   for (const term of excludedTerms) {
-    if (contentLower.includes(term.toLowerCase())) {
+    if (contentNorm.includes(normalizeForMatch(term))) {
       matchedTerm = term;
       break;
     }
@@ -239,6 +276,7 @@ async function checkContent(content, excludedTerms, contextChars = 100) {
 module.exports = {
   checkContent,
   classifyWithHaiku,
+  normalizeForMatch,
   sanitizeContent,
   sanitizeTermForPrompt,
 };
