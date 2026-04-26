@@ -84,7 +84,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [x] **Phase 22: Committed Hooks** (2 plans) — Pre-commit AJV schema validation, vault-boundary enforcement, and dotenv entry-point refactor (completed 2026-04-26)
 - [x] **Phase 23: Doc Sync Layer** (2 plans) — Post-merge hook and post-ship agent for documentation drift detection (completed 2026-04-26)
 - [x] **Phase 24: Agent Surface** — Requirement-level auto-verification agent and memory health monitor (completed 2026-04-26)
-- [ ] **Phase 25: Unicode Hardening & UAT Closeout** — NFKD-normalized matcher upgrade, UAT corpus rebaseline, and Phase 17 smoke run
+- [x] **Phase 25: Unicode Hardening & UAT Closeout** (2 plans) — NFKD-normalized matcher upgrade, UAT corpus rebaseline, and Phase 17 smoke run (completed 2026-04-26)
 
 ## Phase Details
 
@@ -136,7 +136,12 @@ Plans:
   2. `src/content-policy.js:160,201` uses NFKD-normalized matching; ASCII-only `.toLowerCase().includes()` is removed
   3. `test/uat/uat-classification.test.js` produces a meaningful accuracy score locally against the rebaselined corpus — no stale or ambiguous fixture data
   4. `gh workflow run uat.yml` fires, executes to completion, and a UAT accuracy report artifact is available in GitHub Actions (Phase 17 carry-forward closed)
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 25-01-PLAN.md -- NFKD-normalized Unicode matcher and 45 promoted test assertions
+- [ ] 25-02-PLAN.md -- UAT corpus rebaseline and Phase 17 workflow smoke run
+
 **UI hint**: no
 
 ## Progress
@@ -166,5 +171,5 @@ Plans:
 | 21. Closeout Hygiene | v1.4 | 4/4 | Complete | 2026-04-26 |
 | 22. Committed Hooks | v1.5 | 0/2 | Complete    | 2026-04-26 |
 | 23. Doc Sync Layer | v1.5 | 2/2 | Complete    | 2026-04-26 |
-| 24. Agent Surface | v1.5 | 1/2 | Complete    | 2026-04-26 |
-| 25. Unicode Hardening & UAT Closeout | v1.5 | 0/TBD | Not started | - |
+| 24. Agent Surface | v1.5 | 2/2 | Complete    | 2026-04-26 |
+| 25. Unicode Hardening & UAT Closeout | v1.5 | 2/2 | Complete    | 2026-04-26 |
