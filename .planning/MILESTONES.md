@@ -1,5 +1,58 @@
 # Milestones
 
+## v1.4 Memory Activation & Final Closeout (Shipped: 2026-04-26)
+
+**Phases:** 5 (17-21) | **Plans:** 23 | **Commits:** ~50 in v1.4 range | **Files changed:** 114 (+21,393 / −138) | **PRs merged:** #25–#48 | **Audit:** tech_debt status (Option C — fix user-facing, absorb process drift)
+
+**Goal:** Activate the write-only memory layer (keyword + semantic retrieval), prove memory compounds daily via instrumentation, close the UAT CI gap, and clear every deferred hygiene item from v1.3. The closing milestone of the v1.x cycle.
+
+**Key accomplishments:**
+
+- **Phase 17: UAT CI Infrastructure** — Weekly cron + manual `workflow_dispatch` UAT workflow with step-level secret isolation (P11 prevention). Branch protection on master enforces CI + force-push block + PR-required-reviews (BRANCH-PROT-01 corrected after admin-bypass discovery). 90-day artifact retention for UAT accuracy reports.
+- **Phase 18: Memory Retrieval Foundation** — `/recall <query>` reads `memory/memory.md` via minisearch (AND semantics, quoted phrases, negation, `--category` / `--since` / `--top N` flags). `/today` adds Memory Echo section gated at 0.65 relevance threshold against today's calendar + VIP emails.
+- **Phase 19: Semantic Memory Search** — Voyage AI (`voyage-4-lite`) embed-on-promotion sidecar in `~/.cache/second-brain/embeddings.jsonl`. `semanticSearch` with cosine + temporal decay; calibrated 0.55 threshold (post-UAT empirical correction from spec'd 0.72). `/recall --hybrid` performs RRF fusion. Pattern 7 graceful degradation: 3-failure threshold → 15-min window persisted to `voyage-health.json`.
+- **Phase 20: Value Extraction Instrumentation** — `recordDailyStats()` writes idempotent per-day row to `RIGHT/daily-stats.md` with 8 columns (date, proposals, promotions, total_entries, memory_kb, recall_count, avg_latency_ms, avg_confidence). `/today` opens with verbatim "Yesterday: +N proposals, +M promotions, +X KB memory" summary line. Per-connector + per-operation latency captured.
+- **Phase 21: Closeout Hygiene** — 0 ESLint no-console warnings (35 category-tagged disables across 4 categories per D-LOCK-2). JSDoc on 53 public exports + 2 `_testOnly` carve-outs across 10 named source files. 45 `test.todo` markers staged for v1.5 HYG-UNICODE-02 (Path B per D-LOCK-5-AMEND-A — ASCII-only contract for v1.4). All 8 living docs synced.
+
+**Stats:**
+- **Test count:** 1127 (1044 passing, 38 skipped, 45 todo) across 55 files
+- **Coverage:** 81.28% branch / 94.62% statements / 96.94% functions / 95.53% lines
+- **src/ LOC:** 9,617 (post-v1.4)
+- **Timeline:** 2026-04-24 to 2026-04-26 (3 days)
+
+**Locked decisions:**
+- Voyage `voyage-4-lite` model + 0.55 threshold (calibrated empirically post-UAT)
+- `schema_version = hash(model || dimension)` only — threshold/decay are query-time math, no re-embed needed
+- `/new` behavior untouched — retrieval surfaces only via `/recall` and `/today` Memory Echo
+- ASCII-only substring matching for excluded terms (Unicode-variant matching deferred to v1.5)
+- America/Chicago timezone for daily-stats date boundaries
+
+**Known gaps (carried to v1.5 backlog in `tasks/todo.md`):**
+- **HYG-UNICODE-02** — Unicode-variant matcher upgrade (45 test.todo entries staged in test/content-policy.test.js)
+- **HOOK-VAULT-01 / HOOK-SCHEMA-01 / HOOK-DOCSYNC-01** — Committed pre-commit/post-merge hooks for vault boundary, schema validation, doc drift detection
+- **AGENT-DOCSYNC-01 / AGENT-VERIFY-01 / AGENT-MEMORY-01** — New agent surface for documentation sync, independent verification, memory health
+- **UAT-CORPUS-REFRESH-01** — Rebaseline UAT classification corpus after v1.1 excluded-terms expansion shifted classifier decision boundaries
+- **DOTENV-FIX-01** — Suite-level dotenv neutralization (precedent set in PR #38)
+- **REQUIREMENTS.md per-phase checklist drift** (documented in audit) — Phase 18 (4 REQs) and Phase 20 (STATS-LATENCY-01, STATS-GROWTH-01) were marked `[ ]` Pending in checklist while traceability table showed Complete; fixed by archive-then-fresh in this ceremony
+- **Phase 17 UAT workflow smoke run** — `gh workflow run uat.yml` deferred per Pete's 17-03 checkpoint; deferred again to v1.5 first-week
+- **Phase 21 missing VERIFICATION.md** — substituted by `.planning/v1.4-MILESTONE-AUDIT.md` (now archived to milestones/v1.4-MILESTONE-AUDIT.md)
+
+**Process lessons captured (16 total in `tasks/lessons.md`):**
+- LESSON-LIVE-RECOUNT-AT-EXECUTE-01 — Re-count live numbers at Task 1 of any doc-refresh plan
+- LESSON-MANIFEST-FIRST-VALIDATED-01 — Manifest-first protocol mandatory for scoped governance work
+- LESSON-OPTION-A-SCOPE-CORRECTION-01 — Bring out-of-scope adjacent debt into scope when Lock-fence permits
+- LESSON-PRE-EXISTING-DEBT-ABSORPTION-01 — Closeout phases default to absorbing adjacent pre-existing debt
+- LESSON-RECIPE-VERIFY-01 — Recipes need Step 0 to confirm change isn't already present
+- LESSON-PREFLIGHT-CI-MODE-01 — Pre-flight checks must use `CI=true npm test` (UAT skip-guard semantics)
+- LESSON-UAT-CORPUS-DRIFT-01 — Classifier-side changes require UAT corpus revalidation step
+- LESSON-SQUASH-CONTENT-CHECK-01 — Use `git cherry-pick --no-commit` + `git status --porcelain` to verify squash-merged branch content equivalence
+
+**Tag:** v1.4
+
+---
+
+---
+
 ## v1.3 Review Remediation (Shipped: 2026-04-24)
 
 **Phases:** 5 (12-16) | **Commits:** 11 | **Files changed:** 90 (+9168 / −1452) | **Backlog items closed:** 15/18
@@ -29,6 +82,7 @@
 **Goal:** Close quality, security, and automation gaps. No new features.
 
 **Phases:**
+
 - Phase 8: Hook Infrastructure — auto-test hook, protected file guard, security scan gate
 - Phase 9: Security & Verification — security scanner agent, test verifier, config validator skill
 - Phase 10: Agent Hardening & Skills — roster improvements, pipeline health skill, context7 MCP

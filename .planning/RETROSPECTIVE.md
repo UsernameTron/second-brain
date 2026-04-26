@@ -144,6 +144,66 @@
 
 ---
 
+## Milestone: v1.4 — Memory Activation & Final Closeout
+
+**Shipped:** 2026-04-26 (tag v1.4)
+**Phases:** 5 (17, 18, 19, 20, 21) | **Plans:** 23 | **Files changed:** 114 (+21,393 / −138)
+**PRs merged:** #25–#48 | **Audit:** tech_debt (Option C)
+
+### What Was Built
+
+- **Phase 17** UAT CI infrastructure: weekly cron + manual workflow_dispatch, step-level secret isolation, 90-day artifact retention, branch protection on master with PR-required-reviews + force-push block
+- **Phase 18** Memory Retrieval Foundation: `/recall <query>` keyword search via minisearch (AND, phrase, negation, `--category`/`--since`/`--top N`), Memory Echo section in `/today` at 0.65 threshold
+- **Phase 19** Semantic Memory Search: Voyage AI `voyage-4-lite` embed-on-promotion sidecar, `semanticSearch` with cosine + temporal decay (calibrated 0.55 threshold post-UAT), `/recall --hybrid` RRF fusion, Pattern 7 graceful degradation (3-failure / 15-min cross-invocation window)
+- **Phase 20** Value Extraction Instrumentation: per-day `RIGHT/daily-stats.md` row (8 columns, idempotent same-day update), per-connector + per-operation latency capture, verbatim "Yesterday: +N proposals…" summary line at top of `/today`
+- **Phase 21** Closeout Hygiene: 0 ESLint no-console warnings (35 category-tagged disables), JSDoc on 53 public exports, 45 Unicode `test.todo` markers staged for v1.5 HYG-UNICODE-02, all 8 living docs synced
+
+### What Worked
+
+- **Manifest-first protocol on scoped governance work** (Plan 21-03 caught 5 categorization corrections from CONTEXT estimates — ~16% of the 32-site corpus). Codified as LESSON-MANIFEST-FIRST-VALIDATED-01.
+- **Live-recount at Task 1 of doc-refresh plans** (Plan 21-04 captured 1127 tests / 81.28% branch / 9617 LOC at execution start; downstream tasks referenced the capture, not stale CONTEXT figures). Codified as LESSON-LIVE-RECOUNT-AT-EXECUTE-01.
+- **Option A scope correction over scope limitation** when audit gates fail on adjacent pre-existing artifacts in same Lock-class (Plan 21-03 absorbed 3 bare disables from promote-memories.js + semantic-index.js as corollary). Codified as LESSON-OPTION-A-SCOPE-CORRECTION-01.
+- **Closeout phases default to absorbing adjacent pre-existing debt** rather than deferring (corollary disables, bonus REQ flips). Codified as LESSON-PRE-EXISTING-DEBT-ABSORPTION-01.
+- **Calibrate against live system, not against spec** (Phase 19 threshold 0.72 → 0.55 after first live UAT showed top relevance hits in 0.55-0.70 cosine band; spec was based on older voyage-3 family math).
+- **Audit-then-remediate (Option C) over hand-wave-and-ship**: PR #47 audit produced 18/19-SATISFIED + 1-PARTIAL with file:line evidence; PR #48 closed the partial in 5 minutes; remaining process drift documented in MILESTONES.md `### Known Gaps` rather than silently accepted.
+
+### What Was Inefficient
+
+- **Phase 21 shipped without a phase-level VERIFICATION.md** — per-plan SUMMARYs each had A1-A7 acceptance gates but the consolidated phase verification step was skipped. Audit substituted, but the structural gap is real.
+- **REQUIREMENTS.md per-phase checklist drift** — Plan 21-04 closed Phase 18 + Phase 20 traceability rows but missed flipping the per-phase checklist `[ ]` → `[x]` at the top of REQUIREMENTS.md for Phase 18 (4 entries) and Phase 20 (2 entries). Same drift LESSON-LIVE-RECOUNT-AT-EXECUTE-01 was meant to prevent — except this was *within* a single file rather than across files.
+- **Two false-positive STOP-and-stash detours during v1.4 Phase 21 pre-flight** — recipes that prescribed additive changes ("add X to file Y") executed without first reading the target to confirm X wasn't already there. Codified as LESSON-RECIPE-VERIFY-01.
+- **One trip-wire over-strict gate** — pre-flight CHECK 2 fired on UAT-01 (a pre-existing local-only failure) during the dotenv-fix verification; the fix itself was sound but the absolute "0 failed" gate forced unnecessary remediation. Codified as LESSON-TRIP-WIRE-RELATIVE-01.
+
+### Patterns Established
+
+- **Lock fence verification as commit-time gate** — `git diff master -- src/` returning empty (or only comment-line changes) is the structural proof that hygiene work didn't touch function bodies. Held across HYG-JSDOC-01 and HYG-CONSOLE-01.
+- **Path B for unsolvable-in-this-milestone work** — D-LOCK-5-AMEND-A established the pattern: stage `test.todo()` markers documenting the gap rather than asserting behavior the implementation cannot deliver, then defer the implementation work to the next milestone with explicit handoff (HYG-UNICODE-02 in tasks/todo.md).
+- **Hybrid audit verdict (tech_debt)** — surfaces partials and process gaps without forcing them to either pass or fail. Pairs naturally with three-option routing (close gaps / absorb / hybrid).
+- **`CI=true npm test` as the green/red signal** for this project — UAT skip-guard semantics make bare `npm test` a developer-environment debugging mode, not a CI signal. Codified as LESSON-PREFLIGHT-CI-MODE-01.
+
+### Key Lessons (full inventory in tasks/lessons.md)
+
+1. **LESSON-LIVE-RECOUNT-AT-EXECUTE-01** — Task 1 of any doc-refresh plan re-counts live values; downstream tasks reference the capture, never CONTEXT estimates
+2. **LESSON-MANIFEST-FIRST-VALIDATED-01** — Any plan whose scope is "apply label X to N items" gets a Task 0 that builds the full N-row manifest and pauses for review
+3. **LESSON-OPTION-A-SCOPE-CORRECTION-01** — When audit gate fails on adjacent pre-existing artifact in same Lock-class, default to absorption ("32 primary + 3 corollary") over exemption
+4. **LESSON-BONUS-REQ-FLIP-01** — "Verifiable v1.4-fact error" rule legitimately permits adjacent-scope corrections beyond the named target rows; document scope expansions explicitly in SUMMARY
+5. **LESSON-PRE-EXISTING-DEBT-ABSORPTION-01** — Closeout phases default to absorbing adjacent pre-existing debt; reserve deferral for genuine future-milestone work
+6. **LESSON-RECIPE-VERIFY-01** — Recipes that prescribe additive changes must include a Step 0 that reads the target file and confirms the change isn't already present
+7. **LESSON-TRIP-WIRE-RELATIVE-01** — Recipe verification trip-wires baseline against most recent known state, not against a Platonic 0-failure ideal
+8. **LESSON-SQUASH-CONTENT-CHECK-01** — Use `git cherry-pick --no-commit` + `git status --porcelain` to verify squash-merged branch content equivalence
+9. **LESSON-PREFLIGHT-CI-MODE-01** — `CI=true npm test` is the production-correctness signal; bare `npm test` is developer-mode debugging
+10. **LESSON-UAT-CORPUS-DRIFT-01** — Classifier-side changes must include UAT-corpus revalidation step
+
+### Cost Observations
+
+- **Model mix estimate:** 70% Opus 4.6 (orchestration, planning, execution); 30% Sonnet (subagent work — verifier, integration auditor, codebase mapper, planner)
+- **Sessions:** ~12 primary sessions over 3 days
+- **Notable:** Phase 19 (Semantic Memory Search) was the most concentrated single-phase effort — 5 plans, ~50% of v1.4 commits, ended with empirical UAT calibration that shifted spec'd 0.72 → 0.55. The discuss-phase pre-research (4 parallel agents on Voyage embeddings + vector indexing for markdown corpora) prevented architecture rework during execution.
+- **Phase 21 shipped 5 PRs in <24 hours** (PRs #42-#46) — manifest-first protocol + Lock 5 fence discipline made the closeout work mechanical rather than adventurous.
+- **Audit cycle (PRs #47-#48) added ~1 hour** to milestone close but produced explicit gap inventory and closed the only user-facing partial — net positive.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -154,6 +214,7 @@
 | v1.1 | ~13 | 3 | UAT with real APIs, CI pipeline, branch hygiene discipline |
 | v1.2 | — | 4 | Hook ecosystem, security scanner agent, local LLM routing, context7 MCP |
 | v1.3 | 3 | 5 | Cross-AI audit-driven backlog, parallel phase workstreams, in-phase CI ratchet, hybrid mock reduction |
+| v1.4 | ~12 | 5 | Memory layer activation (read path), manifest-first governance, Path B for unsolvable-in-milestone work, audit-then-remediate (Option C) |
 
 ### Cumulative Quality
 
@@ -163,6 +224,7 @@
 | v1.1 | 547+ | 32/33 | ~17K | — |
 | v1.2 | 662 | 11/11 | ~19K | 73.77% (threshold 70%) |
 | v1.3 | 776 | 15/18 backlog (3 LOW deferred) | ~19K | 81.31% under CI (threshold 80%) |
+| v1.4 | 1127 (1044 + 38 skipped + 45 todo) | 19/19 mapped (18 SATISFIED + 1 PARTIAL closed in PR #48) | 9.6K (src/ only; ~21K total) | 81.28% (threshold 80%) |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -171,3 +233,6 @@
 3. Non-blocking enrichment stages let pipelines degrade gracefully instead of failing entirely
 4. Update traceability artifacts as work completes — stale tracking creates false signals at gate checks
 5. Squash-merge PRs require local master sync after each merge — accumulating divergence compounds reconciliation cost
+6. Manifest-first protocol catches ~15% drift in scoped governance work (v1.4 Plan 21-03) — make the manifest, validate it, *then* apply
+7. `CI=true npm test` is the production-correctness signal in projects with describe.skip CI guards — bare `npm test` is developer-mode debugging
+8. Path B for unsolvable-in-this-milestone work: stage `test.todo()` markers documenting the gap rather than asserting behavior the implementation cannot deliver, with explicit handoff to the next milestone
