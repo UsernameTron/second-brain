@@ -72,9 +72,21 @@ None — all v1.4 backlog items are now captured as v1.5 requirements in REQUIRE
 ## Session Continuity
 
 Last session: 2026-04-26
-Last activity: 2026-04-26 - Completed quick task 260426-mpy: Wire up slash commands + extract GSD knowledge
-Ship log: PRs #1–#53. Tags: v1.0, v1.1, v1.2.0, v1.3.0, v1.4, v1.5.
+Last activity: 2026-04-26 - Memory promotion (10 entries compounded) + shipped PR #55 (slash commands)
+Ship log: PRs #1–#55. Tags: v1.0, v1.1, v1.2.0, v1.3.0, v1.4, v1.5.
+
+### Session Handoff (2026-04-26)
+
+Completed this session:
+- Promoted 10 memory proposals to memory.md (8 deferred by dedup logic, 1 rejected)
+- Shipped PR #55: 5 slash commands + GSD quick task artifacts
+- Rebased chore/finalize-v1.5 onto updated master (PR #54 already merged)
+
+Pending:
+- Merge PR #55 when CI passes
+- 8 deferred memory proposals in memory-proposals.md — review in next session
+- Tag v1.5 on master after PR #55 merges (if not already tagged)
 
 ## Next Action
 
-Run `/gsd:new-milestone` to start v1.6 planning.
+Merge PR #55. Run `/gsd:new-milestone` to start v1.6 planning.
