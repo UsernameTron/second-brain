@@ -16,7 +16,7 @@
   "author": "C Pete Conner",
   "license": "ISC",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.90.0",
+    "@anthropic-ai/sdk": "^0.91.1",
     "chokidar": "^3.6.0",
     "dotenv": "^17.4.2",
     "gray-matter": "^4.0.3",
