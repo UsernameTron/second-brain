@@ -169,9 +169,7 @@ function createLlmClient(options = {}) {
 
     let rawText;
     try {
-      const messages = typeof userContent === 'string'
-        ? [{ role: 'user', content: userContent }]
-        : [{ role: 'user', content: userContent }];
+      const messages = [{ role: 'user', content: userContent }];
 
       const response = await anthropic.messages.create({
         model,

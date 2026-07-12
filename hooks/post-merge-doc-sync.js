@@ -201,6 +201,17 @@ function getLiveStats(projectRoot) {
  */
 function main() {
   try {
+    // Skip the expensive full-coverage run unless a doc file changed in this merge.
+    let changed = '';
+    try {
+      changed = execFileSync('git', ['diff', '--name-only', 'ORIG_HEAD', 'HEAD'],
+        { cwd: PROJECT_ROOT, encoding: 'utf8' });
+    } catch (_) { /* no ORIG_HEAD -> fall through and run */ }
+    if (changed && !/(^|\n)(CLAUDE\.md|README\.md)(\n|$)/.test(changed)) {
+      process.stdout.write('[post-merge] No doc files changed — skipping drift check.\n');
+      process.exit(0);
+    }
+
     // Load config
     const configPath = path.join(PROJECT_ROOT, 'config', 'docsync.json');
     let config = { warn_threshold_pct: 1.0 };
