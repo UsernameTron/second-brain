@@ -45,6 +45,7 @@ jest.mock('../src/memory-reader', () => ({
 
 jest.mock('../src/pipeline-infra', () => ({
   safeLoadPipelineConfig: (...args) => mockSafeLoadPipelineConfig(...args),
+  loadExcludedTerms: jest.fn(() => []),
 }));
 
 // ── Default config ─────────────────────────────────────────────────────────────
@@ -738,7 +739,7 @@ describe('Phase 20: top-1 cosine emit', () => {
       searchMemoryKeyword: (...args) => mockSearchMemoryKeyword(...args),
       getMemoryEcho: (...args) => mockGetMemoryEcho(...args),
     }));
-    jest.mock('../src/pipeline-infra', () => ({ safeLoadPipelineConfig: (...args) => mockSafeLoadPipelineConfig(...args) }));
+    jest.mock('../src/pipeline-infra', () => ({ safeLoadPipelineConfig: (...args) => mockSafeLoadPipelineConfig(...args), loadExcludedTerms: jest.fn(() => []) }));
     jest.mock('../src/daily-stats', () => ({ recordTopCosine: (...args) => mockRecordTopCosine(...args) }));
 
     // Reset shared mock return values for this group
