@@ -4,8 +4,8 @@ milestone: v1.5
 milestone_name: Internal Hardening
 status: archived
 stopped_at: "v1.5 milestone finalized — all 10 requirements complete, 4 phases shipped"
-last_updated: "2026-04-26T21:00:00.000Z"
-last_activity: 2026-04-26
+last_updated: "2026-07-12T00:00:00.000Z"
+last_activity: 2026-07-12
 progress:
   total_phases: 4
   completed_phases: 4
@@ -71,10 +71,13 @@ None — all v1.4 backlog items are now captured as v1.5 requirements in REQUIRE
 
 ## Session Continuity
 
-Last session: 2026-04-26
-Last activity: 2026-04-26 - Completed quick task 260426-mpy: Wire up slash commands + extract GSD knowledge
+Last session: 2026-07-12
+Last activity: 2026-07-12 — Resumed the paused Fable 5 audit remediation (HANDOFF.json, now consumed). Applied 14 of 16 Quick Wins on branch `docs/fable5-audit-2026-07-12`; shipped as a PR. Full suite green (1190 tests, coverage unchanged). Two findings changed during execution:
+- **F-01** (dead semantic excluded-terms gate) applied, but was NOT Effort-1 — it is a contract change requiring 4 test-file updates (mocks lacked `loadExcludedTerms`; integration scenario-5 injected via the now-dead pipelineConfig path).
+- **F-02** (delete "orphan" daily-stats-frontmatter schema) REFUTED and reverted: the schema is used dynamically by the pre-commit hook to validate daily-stats.md frontmatter (3 tests depend on it). The audit's literal-name grep missed the dynamic linkage.
+- A-01 and C-02 applied locally only (settings.local.json is gitignored; agent-memory dir was untracked — no git trace).
 Ship log: PRs #1–#53. Tags: v1.0, v1.1, v1.2.0, v1.3.0, v1.4, v1.5.
 
 ## Next Action
 
-Run `/gsd:new-milestone` to start v1.6 planning.
+Run `/gsd:new-milestone` to start v1.6 (Enforcement Integrity & Surface Completion) — audit §5 has the ready-to-paste block. The 3 v1.6 candidates: **C-01** (/reroute wrapper — use `r.to`), **E-02** (SessionStart staleness hook — needs threshold decision), **C-04** (wire docs-sync audit mode — needs lifecycle decision). Also reconsider F-02's schema_version type question (schema wants string; daily-stats.js may write integer) as a v1.6 item.
