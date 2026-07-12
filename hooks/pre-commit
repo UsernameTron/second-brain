@@ -2,7 +2,7 @@
 set -euo pipefail
 # Pre-commit hook orchestrator for Second Brain
 # Runs: schema validation, vault boundary check
-# Install: ln -sf ../../hooks/pre-commit .git/hooks/pre-commit
+# Install: git config core.hooksPath hooks  (see package.json "prepare")
 
 # Resolve to the hooks/ directory whether run directly or via .git/hooks symlink
 SELF="$(readlink -f "$0" 2>/dev/null || python3 -c "import os; print(os.path.realpath('$0'))")"
