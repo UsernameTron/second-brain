@@ -20,17 +20,18 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 
 ## Project Status
 
+> Last verified: 2026-07-12  <!-- refresh at each /gsd:sync-docs; a SessionStart staleness hook (v1.6 E-02) will read this date -->
+
 **Latest Release:** v1.5.0 Internal Hardening (2026-04-26)
 **Phase 22 complete:** NFKD Unicode Matcher (2026-04-26)
 **Phase 23 complete:** Pre-Commit Hooks (2026-04-26)
 **Phase 24 complete:** Doc Sync Agent (2026-04-26)
 **Phase 25 complete:** UAT Rebaseline (2026-04-26)
 
-- **Test count:** 1190 total across 56 test files (1152 passing, 38 skipped)
+- **Test count:** 1190 total across 60 test files (1152 passing, 38 skipped)
 - **Coverage:** Branch 81.28%, Statements 94.62%, Functions 96.94%, Lines 95.53%
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 20+22 matrix, coverage ≥80%, GitGuardian secrets scan
-- **Milestones shipped:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24), v1.4 Closeout Hygiene (2026-04-25), v1.5 Internal Hardening (2026-04-26)
 
 For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES.md).
 
@@ -43,7 +44,7 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 | `/wrap` | Session wrap with automatic memory extraction and proposal staging to `memory-proposals.md` |
 | `/promote-memories` | Human-in-the-loop memory promotion from staging to `memory.md` |
 | `/reroute` | Re-route previously classified item to different vault location |
-| `/promote-unrouted` | Bulk-promote unrouted items from staging |
+| `/promote-unrouted` | Re-route a single unrouted dead-letter file to a target vault path |
 | `/recall <query>` | Keyword search over `memory.md` via minisearch — AND semantics, quoted phrases, negation. Flags: `--category <name>`, `--since YYYY-MM-DD`, `--top N` (default 5) |
 | `/recall --semantic <query>` | Semantic search via Voyage AI embeddings with cosine similarity + recency decay (0.55 threshold). Same `--category` / `--since` / `--top N` flags apply |
 | `/recall --hybrid <query>` | RRF fusion of keyword + semantic results; falls back to keyword if Voyage unavailable. Same `--category` / `--since` / `--top N` flags apply |
@@ -53,7 +54,7 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 - **Vault:** Obsidian 1.7+ (local-first markdown, LOCAL REST API plugin required)
 - **Orchestration:** Claude Code (GSD framework for phases, planning, execution)
 - **Runtime:** Node.js 20+22 LTS (tested matrix in CI)
-- **Integrations:** Gmail/Calendar/GitHub via MCP (Docker MCP Gateway + Obsidian Local REST API)
+- **Integrations:** GitHub + Obsidian via Docker MCP Gateway (mcp__MCP_DOCKER__*); Gmail + Calendar via claude.ai connectors (mcp__claude_ai_*). Session/Desktop-connected — only context7 is registered in repo .mcp.json.
 - **AI models:** Anthropic Haiku/Sonnet, LM Studio for local fallback
 - **Testing:** Jest 30 (unit + integration), UAT tests guarded from CI via skip logic
 - **Quality gates:** ESLint 10, CodeQL SAST, AJV schema validation, coverage ≥80%
@@ -84,7 +85,7 @@ The system is deployed across five integration points:
 
 1. **Vault substrate:** Obsidian (local-first markdown at `~/Claude Cowork/`) with Local REST API plugin as HTTP bridge
 2. **Orchestration:** Claude Code via `/today`, `/new`, `/wrap` commands; GSD framework manages phases
-3. **External integrations:** Gmail, Google Calendar, GitHub via MCP (Docker MCP Gateway running in Claude Desktop)
+3. **External integrations:** GitHub + Obsidian via the Docker MCP Gateway (Claude Desktop); Gmail + Calendar via claude.ai connectors. None are registered in repo .mcp.json (context7 only).
 4. **AI models:** Anthropic Haiku (default) and Sonnet (heavier tasks), with LM Studio as local fallback
 5. **Scheduling:** Claude Desktop scheduled tasks with `ccdScheduledTasksEnabled: true`
 
@@ -125,9 +126,7 @@ The system is deployed across five integration points:
 <!-- GSD:architecture-start source:PROJECT.md -->
 ## Architecture
 
-See detailed architecture in [.planning/PROJECT.md](.planning/PROJECT.md) and release history in [.planning/MILESTONES.md](.planning/MILESTONES.md).
-
-**High-level:** Two-stage LLM classifier routes user input to LEFT (identity/reference) or RIGHT (active work) vault locations. Daily `/today` command aggregates slippage items, calendar events, Gmail subjects, and GitHub activity into a morning briefing. Session `/wrap` extracts memories for compounding knowledge base. All writes enforce LEFT/RIGHT permission boundary.
+See detailed architecture in [.planning/PROJECT.md](.planning/PROJECT.md); the "Architecture & Infrastructure" section above is the inline reference.
 <!-- GSD:architecture-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->

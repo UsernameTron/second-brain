@@ -19,11 +19,15 @@ node src/config-validator.js
 
 Dynamically discovers schemas in `config/schema/*.schema.json` and validates the corresponding config file in `config/`. Schema-to-config mapping: `config/schema/foo.schema.json` validates `config/foo.json`.
 
-Current schemas:
+Current schemas (8, each with a backing config in `config/`):
 - `connectors.schema.json` -> `config/connectors.json`
-- `memory-categories.schema.json` -> `config/memory-categories.json` (WARNING: file does not exist)
+- `docsync.schema.json` -> `config/docsync.json`
+- `excluded-terms.schema.json` -> `config/excluded-terms.json`
+- `memory-categories.schema.json` -> `config/memory-categories.json`
 - `pipeline.schema.json` -> `config/pipeline.json`
+- `scheduling.schema.json` -> `config/scheduling.json`
 - `templates.schema.json` -> `config/templates.json`
+- `vault-paths.schema.json` -> `config/vault-paths.json`
 
 ## Output
 
