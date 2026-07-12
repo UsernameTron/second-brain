@@ -31,7 +31,9 @@ Requirements for v1.5 Internal Hardening. All promoted from v1.4 backlog — no 
 
 ## Future Requirements
 
-None — v1.5 is a hardening milestone consuming the full v1.4 backlog. New feature work deferred to v1.6+.
+**v1.6 — SURFACE-REACH-01: Cross-surface reach for the memory layer.** The memory layer is invisible outside this repo: Desktop, Cowork, and chat sessions have no pointer to it, and on 2026-07-12 a Claude session with no knowledge of Second Brain spent ~4 hours independently redesigning it before discovering v1.5.0 already shipped equivalent components. Surface-level instructions must name `memory.md` as canonical and point at this project as its owner. Rationale and incident detail: [decisions/ADR-018-cross-surface-reach.md](../decisions/ADR-018-cross-surface-reach.md).
+
+Remaining v1.5 backlog: none — v1.5 was a hardening milestone consuming the full v1.4 backlog. Other new feature work deferred to v1.6+.
 
 ## Out of Scope
 
