@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Enforcement Integrity & Surface Completion
 status: executing
-stopped_at: "v1.6 opened (7 reqs, phases 26-28); PR #59 open — merge, then /gsd:discuss-phase 26"
-last_updated: "2026-07-12T00:00:00.000Z"
-last_activity: 2026-07-12
+stopped_at: "PR #59 + #60 merged; master clean. Next: /gsd:discuss-phase 26 (Promotion Safety)"
+last_updated: "2026-07-13T04:00:00.000Z"
+last_activity: 2026-07-13
 progress:
   total_phases: 3
   completed_phases: 0
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-04-26 after v1.5 milestone start)
 Milestone: v1.6 Enforcement Integrity & Surface Completion
 Phase: 26 — Promotion Safety (not started)
 Plan: —
-Status: Requirements defined (7 across phases 26-28). PR #59 open + mergeable. Ready for `/gsd:discuss-phase 26` after merge.
-Last activity: 2026-07-12 — Milestone v1.6 started
+Status: Requirements defined (7 across phases 26-28). PR #59 and #60 merged; master clean and green. Ready for `/gsd:discuss-phase 26`.
+Last activity: 2026-07-13 — F-02 refutation, CI unblock, PRs #59 + #60 shipped
 
 ```
 Progress: [..........] 0/3 phases complete
@@ -59,7 +59,13 @@ Full log in PROJECT.md Key Decisions table. Per-milestone summary:
 
 ### Open Blockers
 
-None active.
+**`master` has no branch protection.** `gh api repos/UsernameTron/second-brain/branches/master/protection` returns 404 "Branch not protected"; no ruleset exists either (`/rulesets` and `/rules/branches/master` both empty). This is a regression of BRANCH-PROT-01 (v1.4) — nothing currently stops a direct push to master with red CI, which is the exact failure `tasks/lessons.md` records twice (2026-04-24 entries on `required_pull_request_reviews` and web-UI edits). Not fixed this session: branch protection is a repo-level setting and Pete's call. Recommended restore: `required_pull_request_reviews` with `required_approving_review_count: 0` (per the v1.4 lesson — status checks alone do NOT block direct pushes), plus `test (20)` / `test (22)` as required checks.
+
+### Filed, not fixed — from the PR #59 review
+
+- **`loadExcludedTerms()` fails open** (`src/pipeline-infra.js:341-347`) — returns `[]` on any read/parse error, and `checkContent(query, [])` returns PASS with no model call. So a missing or corrupt `config/excluded-terms.json` silently re-opens the exact hole F-01 just closed: `/recall --semantic` ships ungated queries to Voyage. `vault-gateway` is not exposed (its config validation fails closed). Given the ISPN/Genesys/Asana exclusion is a hard rule, `semanticSearch` should degrade or throw on empty terms rather than pass. Candidate for Phase 27.
+- **`hooks/pre-push` recommends a destructive remedy** — on any local-vs-origin master mismatch it prints "local master is behind" and tells the user to `git reset --hard origin/master`. It only tests *inequality*, but session 61's actual failure was local master **ahead and diverged** (unpushed `b948d79`); following the hook's own advice there would have destroyed that commit. Use `git merge-base --is-ancestor` to distinguish behind from diverged. Candidate for Phase 28.
+- **Deferred hygiene:** `config/schema/daily-stats-frontmatter.schema.json` requires `schema_version` as a string while `daily-stats.js:192/241` writes an integer. Latent and harmless — nothing validates the written `.md` frontmatter against the schema. Fix the type only if frontmatter validation is ever wired into `readDailyStats`.
 
 ### Pending Todos
 
@@ -91,6 +97,18 @@ Last activity: 2026-07-12 — Fable 5 audit remediation (14 of 16 Quick Wins), m
 
 Ship log: PRs #1–#55. Tags: v1.0, v1.1, v1.2.0, v1.3.0, v1.4, v1.5.
 
+## Session Continuity — Session 62 (2026-07-13)
+
+PR #59 merged (`3873601`) and PR #60 merged (`f0e8cc4`). master is clean and green; both feature branches deleted.
+
+**F-02 refuted.** `config/schema/daily-stats-frontmatter.schema.json` is NOT an orphan — `src/config-validator.js:123` discovers schemas by `fs.readdirSync(schemaDir).filter(f => f.endsWith('.schema.json'))`, invoked by the pre-commit hook. The audit's literal-name grep could not see the readdir scan. The audit doc now records 21 proposed → 3 refuted → 18 confirmed. The refutation cascaded: the D-01 edit had already consumed the deletion premise and shipped a SKILL.md claiming 8 schemas against a directory of 9 — corrected to list all 9, with the benign WARNING on `daily-stats-frontmatter` documented so nobody "fixes" it by deleting the schema again.
+
+**CI unblocked.** PR #59's red CI was a pre-existing `npm audit --audit-level=high` failure (two new HIGH advisories against transitive `fast-uri` <=3.1.1), not a code regression. Dependabot PR #58 held the fix but could never merge — `claude-code-action` rejects bot actors AND bot PRs get an empty secret store. Bumped the lockfile directly to fast-uri 3.1.3 and shipped PR #60 to skip `claude-review` on bot PRs. **Close #58 as superseded if it's still open.**
+
+**Git auth gotcha:** two GitHub accounts are logged into `gh`. The active one was `peteconnorCTG`, which has no write access to `UsernameTron/second-brain` — pushes 403. Fix: `gh auth switch --user UsernameTron`.
+
 ## Next Action
 
 Run `/gsd:discuss-phase 26` to gather context for Phase 26 (Promotion Safety), then `/gsd:plan-phase 26`. Phase 26 is first because the promotion workflow went live on 2026-07-12 (97-entry corpus), which makes PROMOTE-FLAGS-01 (`--dry-run` performs a real write) an active data-loss risk rather than a theoretical one.
+
+Read the "Open Blockers" and "Filed, not fixed" sections above before planning — the unprotected `master` is the highest-severity open item and needs Pete's decision, not a phase.
