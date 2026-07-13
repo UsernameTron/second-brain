@@ -6,7 +6,9 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-**v1.5 milestone near-complete (2026-04-26).** Six milestones shipped: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4). v1.5 Internal Hardening all 4 phases (22-25) executed and verified. Phase 25 (Unicode Hardening & UAT Closeout) complete — NFKD-normalized matcher replaces ASCII-only matching, 45 test.todo entries promoted, UAT corpus confirmed at 100% accuracy, workflow smoke run passed.
+**v1.6 Enforcement Integrity & Surface Completion started (2026-07-12).** Six milestones shipped: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4), v1.5 Internal Hardening (2026-04-26, tag v1.5).
+
+**Memory corpus live at 97 entries (2026-07-12).** Seeded 27 → 97 by mining 70 durable proposals from the decision log, ADR register, CTG docs, standups, and philosophy corpus. Embeddings sidecar at 125 vectors; keyword, semantic, and hybrid `/recall` all verified against the new corpus. The compounding thesis is now testable against a real corpus rather than a near-empty one.
 
 **Stats post-Phase 25:** 1190 tests across 56 files (1152 passing, 38 skipped, 0 todo). Coverage 81.28% branch / 94.62% statements / 96.94% functions / 95.53% lines. 0 ESLint no-console warnings. JSDoc on 53 public exports. All 10 v1.5 requirements complete.
 
@@ -25,23 +27,24 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 - UAT workflow: weekly cron + manual `workflow_dispatch`, ANTHROPIC_API_KEY scoped step-only, 90-day artifact retention
 - Branch protection on master: PR-required-reviews, required CI checks (test (20)/test (22)/Analyze), force-push blocked
 
-**Known gaps:** FIX-02 (config hot-reload) — restart workaround sufficient. All v1.4 backlog items resolved in v1.5.
+**Known gaps:** FIX-02 (config hot-reload) — restart workaround sufficient. Two promotion-path defects open (PROMOTE-FLAGS-01, PROMOTE-DEFER-01) — see v1.6. The memory layer has no reach outside this repo (SURFACE-REACH-01).
 
-## Current Milestone: v1.5 Internal Hardening
+## Current Milestone: v1.6 Enforcement Integrity & Surface Completion
 
-**Goal:** Harden the development infrastructure — committed hooks, new agent surface, test corpus rebaseline, and Unicode-safe matching — closing every deferred backlog item from v1.4.
+**Goal:** Make the memory layer safe to operate and reachable from outside this repo — the two ways it can silently fail.
+
+The v1.5 hooks, agents, and gates all exist; this milestone closes the last places where the repo *declares* an enforcement it does not actually *perform*. Two of the six requirements are live defects found while seeding the corpus on 2026-07-12: `--dry-run` silently performs a real promotion, and any accepted batch larger than 10 permanently strands the remainder.
 
 **Target features:**
-- Pre-commit AJV schema validation on config/frontmatter (HOOK-SCHEMA-01)
-- Pre-commit LEFT/RIGHT boundary enforcement at git layer (HOOK-VAULT-01)
-- Post-merge documentation drift detection hook (HOOK-DOCSYNC-01)
-- Entry-point-only dotenv loading (HOOK-DOTENV-01)
-- Post-ship documentation drift detection agent (AGENT-DOCSYNC-01)
-- Requirement-level auto-verification via subagent fan-out (AGENT-VERIFY-01)
-- Memory health monitor surfacing anomalies in /today (AGENT-MEMORY-01)
-- Rebaseline UAT classification corpus (UAT-CORPUS-REFRESH-01)
-- Unicode-variant matcher upgrade for excluded terms (HYG-UNICODE-02)
-- UAT workflow smoke run (Phase 17 carry-forward)
+- `--dry-run` / `--auto` actually honored by promoteMemories (PROMOTE-FLAGS-01) — **P1, live data-loss risk**
+- Batch-cap deferral no longer strands accepted proposals (PROMOTE-DEFER-01)
+- Memory layer discoverable from Desktop/Cowork/chat surfaces (SURFACE-REACH-01)
+- SessionStart staleness guard, 14-day threshold (REQ-CTX-01 / E-02)
+- Source-of-truth hierarchy arbitrating `ABOUT ME/` > `memory.md` > `CLAUDE.md` > auto-memory blob (REQ-CTX-03) — **Pete's call on 2026-07-12**, accepted after the gap was flagged during milestone open
+- `/reroute` slash-command wrapper shipped (REQ-SURF-01 / C-01)
+- docs-sync Phase-Closure Audit Mode wired to the pre-push hook (REQ-SURF-02 / C-04)
+
+**Already shipped in the 2026-07-12 audit remediation** (dropped from the audit's original v1.6 block, verified against live code): B-01 tracked git hooks, B-03 post-merge coverage guard, F-01 semantic excluded-terms gate, E-01/E-03/E-04/A-03 CLAUDE.md de-volatilization, C-03 docs-sync scope guard. F-02 was refuted — the "orphan" schema has a dynamic consumer.
 
 ## Core Value
 

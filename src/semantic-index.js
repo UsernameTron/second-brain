@@ -16,7 +16,7 @@ const crypto = require('crypto');
 
 const { readMemory, searchMemoryKeyword } = require('./memory-reader');
 const { checkContent } = require('./content-policy');
-const { safeLoadPipelineConfig } = require('./pipeline-infra');
+const { safeLoadPipelineConfig, loadExcludedTerms } = require('./pipeline-infra');
 const voyageHealth = require('./utils/voyage-health');
 
 // ── Cache paths ───────────────────────────────────────────────────────────────
@@ -402,7 +402,7 @@ async function semanticSearch(query, options) {
     return { results: [], degraded: true, reason: 'config missing memory.semantic' };
   }
   const sem = pipelineConfig.memory.semantic;
-  const excludedTerms = (pipelineConfig.excludedTerms || []);
+  const excludedTerms = loadExcludedTerms();
 
   // Pattern 11 gate — run BEFORE Voyage call
   const policy = await checkContent(query, excludedTerms);

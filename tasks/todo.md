@@ -1,13 +1,35 @@
 # Todo
 
+## Session Handoff (2026-07-12, Session 61)
+
+**State:** v1.6 Enforcement Integrity & Surface Completion is open (Phases 26-28, 7 requirements). Memory corpus live at 97 entries. Branch `chore/fable5-audit-merge` → **PR #59, open and mergeable**.
+
+**Do first:**
+
+1. **Merge PR #59.** CI is red on a **pre-existing** failure — the `npm audit` step, not the tests (tests: 1154 passed / 1192 total, green on Node 20 + 22). Five CVEs live in transitive deps and this branch changes no dependency files; master's own last run failed identically.
+2. **Then `/gsd:discuss-phase 26`** — Promotion Safety. It leads the milestone because the promotion workflow is now live, which makes PROMOTE-FLAGS-01 an active data-loss risk.
+
+**Needs a decision, not just execution:**
+
+- **Dependency CVEs** (blocking CI): `fast-uri` (high), `@babel/core`, `brace-expansion`, `js-yaml` are safe `npm audit fix` bumps. `@anthropic-ai/sdk` requires a **breaking** major (0.90 → 0.111.0). Dependencies need explicit approval — recommend a separate `chore/dep-audit` PR rather than folding an SDK upgrade into unrelated work.
+
+**Live corpus caveats (read before touching promotion):**
+
+- Promote in batches of **exactly 10**. Accepting more strands the remainder permanently (PROMOTE-DEFER-01).
+- **`--dry-run` performs a real promotion.** The flag is parsed but ignored (PROMOTE-FLAGS-01). Do not trust it until Phase 26 lands.
+
 ## Active
 
-No active items. Run `/gsd:new-milestone` to start v1.6+ planning.
+- [ ] Merge PR #59, then `/gsd:discuss-phase 26`
+- [ ] Decide on the dependency-CVE remediation (see above)
 
 ## Accepted Flags (non-defects, awareness only)
 
-- F-01: chokidar v3.6.0 (2 majors behind, CJS compat — intentional)
-- F-02: docs-sync agent lacks scope_guard (cosmetic)
+- chokidar v3.6.0 (2 majors behind, CJS compat — intentional)
+
+<!-- Resolved 2026-07-12: docs-sync scope_guard shipped as C-03 in the audit remediation. -->
+<!-- Note: the F-01/F-02 IDs above collided with the Fable 5 audit's own F-01 (semantic gate) and F-02 (orphan schema). IDs dropped to avoid ambiguity. -->
+
 
 ## Completed
 

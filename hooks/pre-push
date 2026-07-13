@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -e
+git fetch origin master --quiet
+LOCAL_MASTER=$(git rev-parse master 2>/dev/null || echo "")
+REMOTE_MASTER=$(git rev-parse origin/master)
+if [ -n "$LOCAL_MASTER" ] && [ "$LOCAL_MASTER" != "$REMOTE_MASTER" ]; then
+  CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  if [ "$CURRENT_BRANCH" != "master" ]; then
+    BASE=$(git merge-base "$CURRENT_BRANCH" master)
+    if [ "$BASE" != "$REMOTE_MASTER" ]; then
+      echo "BLOCKED: local master ($LOCAL_MASTER) is behind origin/master ($REMOTE_MASTER)."
+      echo "Run: git checkout master && git reset --hard origin/master && git checkout $CURRENT_BRANCH && git rebase master"
+      echo "Then retry the push."
+      exit 1
+    fi
+  fi
+fi
+exit 0

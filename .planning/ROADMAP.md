@@ -12,8 +12,44 @@ Transform an Obsidian vault into a personal operating system with compounding me
 - ✅ **v1.3 Review Remediation** — Phases 12-16 (shipped 2026-04-24, tag v1.3.0)
 - ✅ **v1.4 Memory Activation & Final Closeout** — Phases 17-21 (shipped 2026-04-26, tag v1.4)
 - ✅ **v1.5 Internal Hardening** — Phases 22-25 (shipped 2026-04-26, tag v1.5)
+- 🔨 **v1.6 Enforcement Integrity & Surface Completion** — Phases 26-28 (started 2026-07-12)
 
 ## Phases
+
+### 🔨 v1.6 Enforcement Integrity & Surface Completion (Phases 26-28) — IN PROGRESS
+
+**Goal:** Make the memory layer safe to operate and reachable from outside this repo — the two ways it can silently fail.
+
+The v1.5 hooks, agents, and gates all exist. This milestone closes the last places where the repo *declares* an enforcement it does not actually *perform*. Phase 26 comes first because the promotion workflow is live as of 2026-07-12 (97-entry corpus), which turns both promotion defects from theoretical into load-bearing.
+
+| # | Phase | Goal | Requirements |
+|---|-------|------|--------------|
+| 26 | Promotion Safety | The human review gate cannot be bypassed or silently strand accepted memories | PROMOTE-FLAGS-01 (P1), PROMOTE-DEFER-01 |
+| 27 | Context Honesty | No surface reinvents what already ships; no status block goes stale unnoticed; conflicting sources have a defined winner | SURFACE-REACH-01, REQ-CTX-01, REQ-CTX-03 |
+| 28 | Surface Completion | Every command and agent mode the repo advertises actually fires | REQ-SURF-01, REQ-SURF-02 |
+
+**Phase 26: Promotion Safety** — [PROMOTE-FLAGS-01, PROMOTE-DEFER-01]
+Success criteria:
+1. `/promote-memories --dry-run` reports what *would* promote and leaves `memory.md` byte-identical (verified by hash).
+2. `/promote-memories --auto` accepts pending candidates; an unrecognized flag exits non-zero with a message rather than being ignored.
+3. Accepting 25 proposals and running promotion three times promotes all 25 — none left in a non-`pending` state that blocks re-promotion.
+4. Regression test covers the 2026-04-26 failure directly: >10 accepted must not strand the remainder.
+
+**Phase 27: Context Honesty** — [SURFACE-REACH-01, REQ-CTX-01, REQ-CTX-03]
+Success criteria:
+1. A session started on a *non-Claude-Code surface* (Desktop/Cowork/chat) surfaces a pointer naming `memory.md` as canonical and this repo as its owner.
+2. Starting a session with a `Last verified:` date older than 14 days prints a staleness warning naming the stale file; a fresh date prints nothing.
+3. A written authority hierarchy ranks `ABOUT ME/` > `memory.md` > `CLAUDE.md` > auto-memory blob, and a conflict between any two has one defined winner — no "it depends."
+4. Given a fact that contradicts `ABOUT ME/` canon, the system flags the conflict in-session rather than silently deferring to either side. (Rule 4 of AUTHORITY.md: *canon disagrees with Pete live → Pete wins and canon is stale.*)
+5. No fact-type has two homes: every claim about identity, company, architecture, or exclusions resolves to exactly one file.
+
+> **Scope note — REQ-CTX-03 was Pete's call.** During milestone open, `.planning/research/AUTHORITY.md` was flagged as naming a gap Second Brain does *not* solve (four stores assert facts about Pete; none outranks the others), and the recommendation was surfaced as an open question rather than acted on. Pete approved it into v1.6 on 2026-07-12. This is accepted, scoped, in-milestone work — **not an autopilot addition**, and not implemented in the pass that opened the milestone.
+
+**Phase 28: Surface Completion** — [REQ-SURF-01, REQ-SURF-02]
+Success criteria:
+1. `/reroute <file> --target <path>` moves a previously classified item and reports the new location (wrapper reads `r.to`, not `r.target`).
+2. A `git push` carrying documentation drift is caught by the pre-push docs-sync audit before it reaches the remote.
+3. No command or agent mode documented in CLAUDE.md is unreachable from its advertised entry point.
 
 <details>
 <summary>✅ v1.4 Memory Activation & Final Closeout (Phases 17-21) — SHIPPED 2026-04-26</summary>

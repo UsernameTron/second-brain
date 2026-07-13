@@ -3,6 +3,8 @@
 **Gathered:** 2026-04-22
 **Status:** Ready for planning
 
+> **Dependency note (2026-06-11):** `~/projects/gmail-mcp-pete` (D-01–D-05 below) does not exist — it was never built. Before executing this phase, either build gmail-mcp-pete or re-point the Gmail integration at an existing connector (e.g., the Cowork Gmail MCP). Decisions below are preserved as originally written.
+
 <domain>
 ## Phase Boundary
 

@@ -1,68 +1,84 @@
 # Requirements: Second Brain
 
-**Defined:** 2026-04-26
+**Defined:** 2026-07-12
+**Milestone:** v1.6 Enforcement Integrity & Surface Completion
 **Core Value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
 
-## v1.5 Requirements
+> v1.5 requirements archived to [milestones/v1.5-REQUIREMENTS.md](./milestones/v1.5-REQUIREMENTS.md) — all 10 complete.
 
-Requirements for v1.5 Internal Hardening. All promoted from v1.4 backlog — no new features.
+## v1.6 Requirements
 
-### Hooks
+This milestone closes the last places where the repo *declares* an enforcement it does not actually *perform*. Two requirements are live defects found on 2026-07-12 while seeding the memory corpus from 27 → 97 entries; the promotion workflow is now in daily use, which is what makes them urgent rather than theoretical.
 
-- [x] **HOOK-SCHEMA-01**: Pre-commit AJV validation catches malformed `daily-stats.md` frontmatter and out-of-bounds `config/pipeline.json` values before they land on master
-- [x] **HOOK-VAULT-01**: Pre-commit git-level path check prevents committing files to the wrong vault side, making the LEFT/RIGHT boundary structural at the git layer
-- [x] **HOOK-DOCSYNC-01**: Post-merge hook compares `CLAUDE.md`/`README.md` stats (test count, coverage) against live `jest --coverage` output and flags mismatches as non-blocking warnings
-- [x] **HOOK-DOTENV-01**: `dotenv.config()` calls move from library modules to entry-points only; `src/pipeline-infra.js:23` is the known root cause
+### Promotion Safety
 
-### Agents
+The human review gate is the entire safety model for long-term memory. Both of these break it.
 
-- [x] **AGENT-DOCSYNC-01**: Post-ship agent compares living-doc stats and narrative against `jest --coverage` and `git log` reality; blocks phase closure if drift exceeds threshold; pairs with HOOK-DOCSYNC-01
-- [x] **AGENT-VERIFY-01**: Requirement-level auto-verification expands `test-verifier` to spawn parallel sub-checks per REQ-ID at phase-close time, covering full requirements surface
-- [x] **AGENT-MEMORY-01**: Memory health monitor reads `daily-stats.md` counters and surfaces anomaly alerts (zero promotions 3+ days, backlog growth, recall usage drop, vault plateau) in `/today` briefing
+- [ ] **PROMOTE-FLAGS-01** *(P1)*: `/promote-memories --dry-run` previews without writing to `memory.md`, and `--auto` accepts pending candidates. Both flags are currently parsed by the command wrapper but ignored by `promoteMemories()`, which reads only `options.max` (`src/promote-memories.js:288`) — so `--dry-run` performs a **real promotion**. **Ranked P1: as of 2026-07-12 the proposals file contains live accept boxes, making this an unguarded write to the memory corpus. It destroys data, where PROMOTE-DEFER-01 only strands it recoverably.** Unknown flags must be rejected loudly rather than silently ignored.
+- [ ] **PROMOTE-DEFER-01**: Accepting more than `batchCapMax` (10) proposals promotes the first 10 and leaves the remainder promotable on the next run. Today they are stamped `status:: deferred` (`:342,385`) while the accept filter admits only `status:: pending` (`:326,333`), so they are locked out permanently. Fix by resetting `deferred` → `pending` at end of run, or by draining the queue in a loop. **This bug already caused a silent loss once:** the 2026-04-26 handoff recorded "8 deferred memory proposals — review in next session" and attributed it to dedup logic; it was this. Current workaround: promote in batches of exactly 10.
 
-### Test / Hygiene
+### Context Honesty
 
-- [x] **UAT-REFRESH-01**: Rebaseline UAT classification corpus against current classifier behavior so that `test/uat/uat-classification.test.js` produces a meaningful accuracy score locally
-- [x] **HYG-UNICODE-02**: Replace ASCII-only `.toLowerCase().includes()` at `src/content-policy.js:160,201` with NFKD-normalized matching; backfill 45 `test.todo()` blocks from Plan 21-01; full UAT sweep after matcher semantics change
+Both requirements answer the same failure mode: context that is confidently wrong, or absent, and no mechanism notices. They are the spine of this milestone — see [decisions/ADR-018-cross-surface-reach.md](../decisions/ADR-018-cross-surface-reach.md).
 
-### Audit Carry-Forward
+- [ ] **SURFACE-REACH-01**: The memory layer is discoverable from every Claude surface (Desktop, Cowork, chat), not only from inside this repo in Claude Code. Surface-level instructions must name `memory.md` as canonical and point at this project as its owner. **Evidence it matters:** on 2026-07-12 a Claude session with no knowledge of Second Brain spent ~4 hours independently designing a memory-governance system before discovering v1.5.0 had already shipped equivalent components. A memory system no other surface can see will be reinvented by the next surface that needs one. Prior art absorbed into `.planning/research/AUTHORITY.md` (a source-of-truth hierarchy across the auto-memory blob, userPreferences, ABOUT ME, and CLAUDE.md — a gap this project does **not** currently solve) and `.planning/research/LIFECYCLE.md` (countable retention/decay/promotion rules).
+- [ ] **REQ-CTX-01** *(E-02)*: A SessionStart hook warns when the CLAUDE.md status block's `Last verified:` date exceeds **14 days**. The block sat 77 days stale before the 2026-07-12 audit caught it, and nothing in the system noticed. 14 days chosen to catch drift early without firing during an active milestone, where docs update naturally.
 
-- [x] **UAT-SMOKE-01**: Run `gh workflow run uat.yml` and confirm the scheduled UAT workflow fires, executes, and produces an artifact — the Phase 17 carry-forward smoke test
+- [ ] **REQ-CTX-03**: A written source-of-truth hierarchy arbitrates conflicts between the four stores that currently claim to describe Pete, and Second Brain enforces it. Today `memory.md`, `CLAUDE.md`, the `ABOUT ME/` canon, and Anthropic's auto-memory blob all assert facts, and **none outranks the others** — so a conflict has no defined winner. Second Brain governs `memory.md` well and governs nothing else.
+
+  **Scope decision:** Pete accepted this into v1.6 on 2026-07-12, on the recommendation flagged during milestone open. It was surfaced as an open question, not added on autopilot. Adapt — do not redesign — the hierarchy in [`.planning/research/AUTHORITY.md`](./research/AUTHORITY.md), which was written for a `~/memory/canon|ledger|working/` layout that does not exist here. Map its rules onto the stores Second Brain actually has:
+
+  | Store | Proposed authority | Writable by |
+  |---|---|---|
+  | `ABOUT ME/` (LEFT canon) | **Highest** — identity, voice, company, standing rules. True until Pete changes it. | Human only (the LEFT/RIGHT boundary already enforces this) |
+  | `memory.md` | **Historical record** — decisions, learnings, principles with provenance. Explains canon; never contradicts it. | Agent, via the `/promote-memories` human gate |
+  | `CLAUDE.md` | **Router, not a fact store** — says *where to look*, never *what is true*. A fact appearing here is a defect. | Agent + human |
+  | Auto-memory blob | **Lowest — non-authoritative cache.** Recency-biased, flattens "considered X" into "decided X", cannot be written to. | Nobody (Anthropic generates it) |
+
+  The rules worth carrying over, each earning its place: **canon wins on any conflict** (recency is not authority — if canon is wrong, fix canon rather than route around it); **one fact, one home** (a conflict is structurally impossible if only one file may hold the fact); **provenance and status survive** (a suggestion is not a decision — the failure this prevents is Claude proposing an approach, Pete saying "interesting," and the system reporting it six weeks later as Pete's decision); and the load-bearing one — **when canon disagrees with Pete live in-session, Pete wins and canon is stale**: flag it immediately, never silently defer and never silently override. A memory system that asserts a stale fact with confidence is worse than no memory system, because confidently wrong beats forgetful for damage every time.
+
+  Pairs with SURFACE-REACH-01: reach without arbitration just distributes the ambiguity to more surfaces.
+
+### Surface Completion
+
+Commands and agent modes the repo advertises but never wired up.
+
+- [ ] **REQ-SURF-01** *(C-01)*: `/reroute` is invocable as a slash command and re-routes a previously classified item to a different vault location. The underlying `src/reroute.js` works; only the wrapper is missing. The return shape uses `r.to` — **not** `r.target`, which is what a naive wrapper would reach for (the audit's own proposed diff had exactly this bug; adversarial verification caught it).
+- [ ] **REQ-SURF-02** *(C-04)*: docs-sync Phase-Closure Audit Mode fires from the **pre-push hook**, so documentation drift is caught before it reaches the remote. The mode is fully implemented in the agent but wired to no trigger, which means the repo currently claims an automated docs-drift gate it does not have.
 
 ## Future Requirements
 
-None — v1.5 is a hardening milestone consuming the full v1.4 backlog. New feature work deferred to v1.6+.
+- **F-02 follow-up — `schema_version` type mismatch.** The daily-stats frontmatter schema declares `schema_version` as a string; `daily-stats.js` may write an integer. Deferred from the 2026-07-12 audit, which originally proposed deleting this schema as an orphan — **refuted**: the pre-commit hook discovers schemas by scanning `config/schema/*.schema.json` and matches by filename convention, so a literal-name grep could not see the linkage. Needs a decision on which side is authoritative before anything changes.
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| New vault commands | v1.5 is infrastructure-only — no user-facing command additions |
-| Connector changes | Gmail/Calendar/GitHub connectors stable since v1.1 |
-| Memory pipeline changes | Pipeline logic frozen — only monitoring (AGENT-MEMORY-01) added |
 | Config hot-reload (FIX-02) | Deferred permanently in v1.1 — restart workaround sufficient |
-| Automatic memory promotion | Out of scope since v1.0 — human review gate preserved |
+| Automatic memory promotion | Out of scope since v1.0 — the human review gate is the safety model, and PROMOTE-FLAGS-01 exists precisely because that gate turned out to be bypassable |
+| Re-mining the vault corpus | The 2026-07-12 batch seeded 97 entries. Further mining hits diminishing returns until daily use accumulates new material |
+| chokidar v4 upgrade | Pinned to v3 for CJS compat; v4 is an unneeded major bump requiring dependency approval |
+| Connector changes | Gmail/Calendar/GitHub connectors stable since v1.1 |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HOOK-SCHEMA-01 | Phase 22 | Complete |
-| HOOK-VAULT-01 | Phase 22 | Complete |
-| HOOK-DOTENV-01 | Phase 22 | Complete |
-| HOOK-DOCSYNC-01 | Phase 23 | Complete |
-| AGENT-DOCSYNC-01 | Phase 23 | Complete |
-| AGENT-VERIFY-01 | Phase 24 | Complete |
-| AGENT-MEMORY-01 | Phase 24 | Complete |
-| UAT-REFRESH-01 | Phase 25 | Complete |
-| HYG-UNICODE-02 | Phase 25 | Complete |
-| UAT-SMOKE-01 | Phase 25 | Complete |
+| PROMOTE-FLAGS-01 | Phase 26 | Pending |
+| PROMOTE-DEFER-01 | Phase 26 | Pending |
+| SURFACE-REACH-01 | Phase 27 | Pending |
+| REQ-CTX-01 | Phase 27 | Pending |
+| REQ-CTX-03 | Phase 27 | Pending |
+| REQ-SURF-01 | Phase 28 | Pending |
+| REQ-SURF-02 | Phase 28 | Pending |
 
 **Coverage:**
-- v1.5 requirements: 10 total
-- Mapped to phases: 10
+- v1.6 requirements: 7 total
+- Mapped to phases: 7
 - Unmapped: 0
 
+> REQ-CTX-02 is intentionally absent: the audit's original v1.6 block assigned that ID to CLAUDE.md de-volatilization (E-01/E-03/E-04/A-03), which already shipped in the 2026-07-12 remediation. The ID is retired rather than reused, so the audit's numbering stays traceable.
+
 ---
-*Requirements defined: 2026-04-26*
-*Last updated: 2026-04-26 after roadmap creation*
+*Requirements defined: 2026-07-12*
+*Last updated: 2026-07-12 at milestone open*
