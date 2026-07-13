@@ -40,6 +40,7 @@ The v1.5 hooks, agents, and gates all exist; this milestone closes the last plac
 - Batch-cap deferral no longer strands accepted proposals (PROMOTE-DEFER-01)
 - Memory layer discoverable from Desktop/Cowork/chat surfaces (SURFACE-REACH-01)
 - SessionStart staleness guard, 14-day threshold (REQ-CTX-01 / E-02)
+- Source-of-truth hierarchy arbitrating `ABOUT ME/` > `memory.md` > `CLAUDE.md` > auto-memory blob (REQ-CTX-03) — **Pete's call on 2026-07-12**, accepted after the gap was flagged during milestone open
 - `/reroute` slash-command wrapper shipped (REQ-SURF-01 / C-01)
 - docs-sync Phase-Closure Audit Mode wired to the pre-push hook (REQ-SURF-02 / C-04)
 

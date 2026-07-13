@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-26 after v1.5 milestone start)
 Milestone: v1.6 Enforcement Integrity & Surface Completion
 Phase: 26 — Promotion Safety (not started)
 Plan: —
-Status: Defining requirements complete; ready for `/gsd:discuss-phase 26`
+Status: Requirements defined (7 across phases 26-28); ready for `/gsd:discuss-phase 26`
 Last activity: 2026-07-12 — Milestone v1.6 started
 
 ```

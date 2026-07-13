@@ -24,6 +24,21 @@ Both requirements answer the same failure mode: context that is confidently wron
 - [ ] **SURFACE-REACH-01**: The memory layer is discoverable from every Claude surface (Desktop, Cowork, chat), not only from inside this repo in Claude Code. Surface-level instructions must name `memory.md` as canonical and point at this project as its owner. **Evidence it matters:** on 2026-07-12 a Claude session with no knowledge of Second Brain spent ~4 hours independently designing a memory-governance system before discovering v1.5.0 had already shipped equivalent components. A memory system no other surface can see will be reinvented by the next surface that needs one. Prior art absorbed into `.planning/research/AUTHORITY.md` (a source-of-truth hierarchy across the auto-memory blob, userPreferences, ABOUT ME, and CLAUDE.md — a gap this project does **not** currently solve) and `.planning/research/LIFECYCLE.md` (countable retention/decay/promotion rules).
 - [ ] **REQ-CTX-01** *(E-02)*: A SessionStart hook warns when the CLAUDE.md status block's `Last verified:` date exceeds **14 days**. The block sat 77 days stale before the 2026-07-12 audit caught it, and nothing in the system noticed. 14 days chosen to catch drift early without firing during an active milestone, where docs update naturally.
 
+- [ ] **REQ-CTX-03**: A written source-of-truth hierarchy arbitrates conflicts between the four stores that currently claim to describe Pete, and Second Brain enforces it. Today `memory.md`, `CLAUDE.md`, the `ABOUT ME/` canon, and Anthropic's auto-memory blob all assert facts, and **none outranks the others** — so a conflict has no defined winner. Second Brain governs `memory.md` well and governs nothing else.
+
+  **Scope decision:** Pete accepted this into v1.6 on 2026-07-12, on the recommendation flagged during milestone open. It was surfaced as an open question, not added on autopilot. Adapt — do not redesign — the hierarchy in [`.planning/research/AUTHORITY.md`](./research/AUTHORITY.md), which was written for a `~/memory/canon|ledger|working/` layout that does not exist here. Map its rules onto the stores Second Brain actually has:
+
+  | Store | Proposed authority | Writable by |
+  |---|---|---|
+  | `ABOUT ME/` (LEFT canon) | **Highest** — identity, voice, company, standing rules. True until Pete changes it. | Human only (the LEFT/RIGHT boundary already enforces this) |
+  | `memory.md` | **Historical record** — decisions, learnings, principles with provenance. Explains canon; never contradicts it. | Agent, via the `/promote-memories` human gate |
+  | `CLAUDE.md` | **Router, not a fact store** — says *where to look*, never *what is true*. A fact appearing here is a defect. | Agent + human |
+  | Auto-memory blob | **Lowest — non-authoritative cache.** Recency-biased, flattens "considered X" into "decided X", cannot be written to. | Nobody (Anthropic generates it) |
+
+  The rules worth carrying over, each earning its place: **canon wins on any conflict** (recency is not authority — if canon is wrong, fix canon rather than route around it); **one fact, one home** (a conflict is structurally impossible if only one file may hold the fact); **provenance and status survive** (a suggestion is not a decision — the failure this prevents is Claude proposing an approach, Pete saying "interesting," and the system reporting it six weeks later as Pete's decision); and the load-bearing one — **when canon disagrees with Pete live in-session, Pete wins and canon is stale**: flag it immediately, never silently defer and never silently override. A memory system that asserts a stale fact with confidence is worse than no memory system, because confidently wrong beats forgetful for damage every time.
+
+  Pairs with SURFACE-REACH-01: reach without arbitration just distributes the ambiguity to more surfaces.
+
 ### Surface Completion
 
 Commands and agent modes the repo advertises but never wired up.
@@ -53,13 +68,16 @@ Commands and agent modes the repo advertises but never wired up.
 | PROMOTE-DEFER-01 | Phase 26 | Pending |
 | SURFACE-REACH-01 | Phase 27 | Pending |
 | REQ-CTX-01 | Phase 27 | Pending |
+| REQ-CTX-03 | Phase 27 | Pending |
 | REQ-SURF-01 | Phase 28 | Pending |
 | REQ-SURF-02 | Phase 28 | Pending |
 
 **Coverage:**
-- v1.6 requirements: 6 total
-- Mapped to phases: 6
+- v1.6 requirements: 7 total
+- Mapped to phases: 7
 - Unmapped: 0
+
+> REQ-CTX-02 is intentionally absent: the audit's original v1.6 block assigned that ID to CLAUDE.md de-volatilization (E-01/E-03/E-04/A-03), which already shipped in the 2026-07-12 remediation. The ID is retired rather than reused, so the audit's numbering stays traceable.
 
 ---
 *Requirements defined: 2026-07-12*
