@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Enforcement Integrity & Surface Completion
 status: executing
-stopped_at: "v1.6 opened — Phase 26 (Promotion Safety) not started"
+stopped_at: "v1.6 opened (7 reqs, phases 26-28); PR #59 open — merge, then /gsd:discuss-phase 26"
 last_updated: "2026-07-12T00:00:00.000Z"
 last_activity: 2026-07-12
 progress:
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-26 after v1.5 milestone start)
 Milestone: v1.6 Enforcement Integrity & Surface Completion
 Phase: 26 — Promotion Safety (not started)
 Plan: —
-Status: Requirements defined (7 across phases 26-28); ready for `/gsd:discuss-phase 26`
+Status: Requirements defined (7 across phases 26-28). PR #59 open + mergeable. Ready for `/gsd:discuss-phase 26` after merge.
 Last activity: 2026-07-12 — Milestone v1.6 started
 
 ```
