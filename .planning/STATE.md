@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Internal Hardening
-status: archived
-stopped_at: "v1.5 milestone finalized — all 10 requirements complete, 4 phases shipped"
+milestone: v1.6
+milestone_name: Enforcement Integrity & Surface Completion
+status: executing
+stopped_at: "v1.6 opened — Phase 26 (Promotion Safety) not started"
 last_updated: "2026-07-12T00:00:00.000Z"
 last_activity: 2026-07-12
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -20,16 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-26 after v1.5 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Status:** v1.5 archived. No active milestone.
+**Status:** v1.6 open. Phase 26 (Promotion Safety) is next.
 
 ## Current Position
 
-Milestone: v1.5 Internal Hardening — ARCHIVED
-Status: All 4 phases complete, all 10 requirements satisfied
-Last activity: 2026-04-26
+Milestone: v1.6 Enforcement Integrity & Surface Completion
+Phase: 26 — Promotion Safety (not started)
+Plan: —
+Status: Defining requirements complete; ready for `/gsd:discuss-phase 26`
+Last activity: 2026-07-12 — Milestone v1.6 started
 
 ```
-Progress: [##########] 4/4 phases complete — MILESTONE SHIPPED
+Progress: [..........] 0/3 phases complete
 ```
 
 **Shipped milestones:**
@@ -41,7 +43,7 @@ Progress: [##########] 4/4 phases complete — MILESTONE SHIPPED
 - v1.4 Memory Activation & Final Closeout (2026-04-26) — tag v1.4
 - v1.5 Internal Hardening (2026-04-26) — tag v1.5
 
-**Current milestone:** None — run `/gsd:new-milestone` to start v1.6+
+**Current milestone:** v1.6 Enforcement Integrity & Surface Completion (Phases 26-28)
 
 ## Accumulated Context
 
@@ -91,4 +93,4 @@ Ship log: PRs #1–#55. Tags: v1.0, v1.1, v1.2.0, v1.3.0, v1.4, v1.5.
 
 ## Next Action
 
-Run `/gsd:new-milestone` to start v1.6 (Enforcement Integrity & Surface Completion) — audit §5 has the ready-to-paste block. Scope: the 3 original audit candidates (**C-01** /reroute wrapper — use `r.to`; **E-02** SessionStart staleness hook — needs threshold decision; **C-04** wire docs-sync audit mode — needs lifecycle decision) plus **SURFACE-REACH-01**, **PROMOTE-FLAGS-01**, and **PROMOTE-DEFER-01**. Also reconsider F-02's schema_version type question (schema wants string; daily-stats.js may write integer).
+Run `/gsd:discuss-phase 26` to gather context for Phase 26 (Promotion Safety), then `/gsd:plan-phase 26`. Phase 26 is first because the promotion workflow went live on 2026-07-12 (97-entry corpus), which makes PROMOTE-FLAGS-01 (`--dry-run` performs a real write) an active data-loss risk rather than a theoretical one.
