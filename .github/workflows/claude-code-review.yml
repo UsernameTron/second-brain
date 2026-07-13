@@ -12,11 +12,11 @@ on:
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    # Skip bot-authored PRs (dependabot). claude-code-action refuses non-human
+    # actors ("Workflow initiated by non-human actor"), and bot PRs run without
+    # repo secrets, so the review can never succeed — it just wedges the PR on a
+    # permanently red check. Lockfile bumps are covered by CI + CodeQL instead.
+    if: github.event.pull_request.user.type != 'Bot'
 
     runs-on: ubuntu-latest
     permissions:
