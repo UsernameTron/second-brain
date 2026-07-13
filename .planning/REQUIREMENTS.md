@@ -31,7 +31,15 @@ Requirements for v1.5 Internal Hardening. All promoted from v1.4 backlog — no 
 
 ## Future Requirements
 
-None — v1.5 is a hardening milestone consuming the full v1.4 backlog. New feature work deferred to v1.6+.
+Priority order below is deliberate: P1 items are data-loss or data-corruption risks in a workflow that is now live.
+
+**[P1] v1.6 — PROMOTE-FLAGS-01: `--dry-run` performs a real promotion.** The `/promote-memories` command wrapper parses `--dry-run` and `--auto` into an options object, but `promoteMemories(options)` reads only `options.max` (`src/promote-memories.js:288`) — both flags are silently ignored. A user typing `--dry-run` to preview gets an actual write to `memory.md`. **Ranked above PROMOTE-DEFER-01: as of 2026-07-12 the proposals file contains live accept boxes, so `--dry-run` is now an unguarded write to the memory corpus — it destroys data, where PROMOTE-DEFER-01 only strands it recoverably.** Fix: implement both flags, or reject unknown flags loudly.
+
+**[P2] v1.6 — PROMOTE-DEFER-01: Batch-cap deferral permanently strands proposals.** `promoteMemories()` stamps every accepted candidate beyond `batchCapMax` (10) as `status:: deferred` (`src/promote-memories.js:342,385`), but the accept filter only admits `status:: pending` (`:326,333`). A batch of >10 accepted proposals therefore promotes 10 and locks the remainder out permanently — re-running does nothing. This was misdiagnosed once already as dedup behavior (`state/decisions.md`, 2026-04-26: "deferred 8 of 17 accepted proposals" — the 2026-04-26 handoff's "8 deferred proposals, review next session" item was this bug, not dedup). Fix: reset `deferred` → `pending` at the end of a run, or drain the queue in a loop. Workaround in use: accept in batches of ≤10.
+
+**[P2] v1.6 — SURFACE-REACH-01: Cross-surface reach for the memory layer.** The memory layer is invisible outside this repo: Desktop, Cowork, and chat sessions have no pointer to it, and on 2026-07-12 a Claude session with no knowledge of Second Brain spent ~4 hours independently redesigning it before discovering v1.5.0 already shipped equivalent components. Surface-level instructions must name `memory.md` as canonical and point at this project as its owner. Pairs with E-02 (staleness guard) as the context-honesty spine of v1.6. Rationale and incident detail: [decisions/ADR-018-cross-surface-reach.md](../decisions/ADR-018-cross-surface-reach.md).
+
+Remaining v1.5 backlog: none — v1.5 was a hardening milestone consuming the full v1.4 backlog. Other new feature work deferred to v1.6+.
 
 ## Out of Scope
 

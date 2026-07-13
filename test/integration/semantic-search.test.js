@@ -343,22 +343,22 @@ describe('Scenario 4: hybrid cross-source overlap RRF score', () => {
 
 // ── Scenario 5: excluded-terms block (content-policy gate) ───────────────────
 //
-// Design note: semantic-index reads excludedTerms from pipelineConfig.excludedTerms.
-// The real pipeline.json schema uses additionalProperties:false so that key is not
-// present in production config (excluded-terms.json is loaded separately by other
-// modules). For these integration tests we explicitly supply the terms via
-// safeLoadPipelineConfig so we exercise the gate itself — not config file loading.
+// Design note: semantic-index reads excluded terms via loadExcludedTerms() (F-01;
+// previously it read the nonexistent pipelineConfig.excludedTerms key, so the gate
+// was dead in production). For these integration tests we supply the terms by spying
+// loadExcludedTerms() so we exercise the gate itself — not config file loading.
 
 describe('Scenario 5: excluded-terms block (content-policy gate)', () => {
   const SEM_CONFIG = { model: 'voyage-4-lite', threshold: 0.72, recencyDecay: 0.2, rrfK: 60, candidatesPerSource: 20, embedBatchSize: 128, timeoutMs: 3000, degradedModeMinutes: 15, embeddingDim: 1024 };
 
   test('semanticSearch with ISPN in query → blocked:true, results:[], 0 Voyage calls', async () => {
-    // Inject excludedTerms into the config so the gate sees them
+    // Inject terms via loadExcludedTerms() — the source the gate now reads (F-01)
     const mockPipelineInfra = require('../../src/pipeline-infra');
     jest.spyOn(mockPipelineInfra, 'safeLoadPipelineConfig').mockReturnValue({
-      config: { memory: { semantic: SEM_CONFIG }, excludedTerms: ['ISPN', 'Genesys', 'Asana'] },
+      config: { memory: { semantic: SEM_CONFIG } },
       errors: [],
     });
+    jest.spyOn(mockPipelineInfra, 'loadExcludedTerms').mockReturnValue(['ISPN', 'Genesys', 'Asana']);
 
     const { semanticSearch } = require('../../src/semantic-index');
     const result = await semanticSearch('ISPN pipeline status');
@@ -372,9 +372,10 @@ describe('Scenario 5: excluded-terms block (content-policy gate)', () => {
   test('hybridSearch with ISPN → blocked:true (gate runs inside semanticSearch)', async () => {
     const mockPipelineInfra = require('../../src/pipeline-infra');
     jest.spyOn(mockPipelineInfra, 'safeLoadPipelineConfig').mockReturnValue({
-      config: { memory: { semantic: SEM_CONFIG }, excludedTerms: ['ISPN', 'Genesys', 'Asana'] },
+      config: { memory: { semantic: SEM_CONFIG } },
       errors: [],
     });
+    jest.spyOn(mockPipelineInfra, 'loadExcludedTerms').mockReturnValue(['ISPN', 'Genesys', 'Asana']);
 
     const { hybridSearch } = require('../../src/semantic-index');
     const result = await hybridSearch('ISPN strategy', { top: 5 });

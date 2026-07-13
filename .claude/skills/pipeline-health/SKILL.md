@@ -1,6 +1,6 @@
 ---
 name: pipeline-health
-description: Checks operational health of the second-brain pipeline — connector reachability, config validity, vault REST API status, and scheduler state. Use when diagnosing pipeline issues, after config changes, or for routine health checks. Trigger phrases: pipeline health, pipeline status, system health, connector status.
+description: Checks operational health of the second-brain pipeline — connector reachability, config validity, vault REST API status, and scheduler state. Use when diagnosing pipeline or connector issues, checking vault/scheduler reachability, or for routine end-to-end health checks. Trigger phrases: pipeline health, pipeline status, system health, connector status.
 ---
 
 # Pipeline Health

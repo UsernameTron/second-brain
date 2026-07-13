@@ -112,9 +112,6 @@ function logDecision(action, filePath, decision, reason) {
 /** @type {{ left: string[], right: string[], excludedTerms: string[] } | null} */
 let _config = null;
 
-/** Active chokidar watcher instance (kept for cleanup in tests) */
-const _watcher = null;
-
 /**
  * Validate config object structure and constraints.
  * Throws descriptively on any validation failure (fail closed).
