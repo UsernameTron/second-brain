@@ -19,8 +19,9 @@ node src/config-validator.js
 
 Dynamically discovers schemas in `config/schema/*.schema.json` and validates the corresponding config file in `config/`. Schema-to-config mapping: `config/schema/foo.schema.json` validates `config/foo.json`.
 
-Current schemas (8, each with a backing config in `config/`):
+Current schemas (9 — 8 with a backing config in `config/`, plus one frontmatter schema):
 - `connectors.schema.json` -> `config/connectors.json`
+- `daily-stats-frontmatter.schema.json` -> no backing config — **expect a WARNING on every run.** This schema validates the frontmatter of the generated `daily-stats.md` (matched by filename convention through the pre-commit hook), not a file in `config/`. The WARNING is benign; do not delete the schema to silence it.
 - `docsync.schema.json` -> `config/docsync.json`
 - `excluded-terms.schema.json` -> `config/excluded-terms.json`
 - `memory-categories.schema.json` -> `config/memory-categories.json`
