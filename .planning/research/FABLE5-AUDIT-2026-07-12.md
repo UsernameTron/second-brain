@@ -7,13 +7,13 @@
 
 ## 1. Lede
 
-The core runtime is sound: the classifier fallback fails closed, the vault LEFT boundary has no write bypass, and Voyage degraded-mode fails safe to keyword search. Nineteen findings survived adversarial verification — 16 Quick Wins, 3 v1.6 candidates — and two proposed findings were refuted and killed. The single highest-ROI fix is **F-01**: the `/recall --semantic` pre-Voyage excluded-terms gate reads a config key that does not exist, so it blocks nothing and ships every semantic query ungated to the external embedding API.
+The core runtime is sound: the classifier fallback fails closed, the vault LEFT boundary has no write bypass, and Voyage degraded-mode fails safe to keyword search. Eighteen findings survived adversarial verification — 15 Quick Wins, 3 v1.6 candidates — and three proposed findings were refuted and killed. The single highest-ROI fix is **F-01**: the `/recall --semantic` pre-Voyage excluded-terms gate reads a config key that does not exist, so it blocks nothing and ships every semantic query ungated to the external embedding API.
 
 ---
 
 ## 2. Findings table
 
-Sorted Impact desc → Effort asc → dimension → file. All 19 confirmed by an independent skeptic; findings with Impact ≥4 or a Quick-Win diff also passed (or failed) a separate diff-applicability lens.
+Sorted Impact desc → Effort asc → dimension → file. All 18 confirmed by an independent skeptic; findings with Impact ≥4 or a Quick-Win diff also passed (or failed) a separate diff-applicability lens.
 
 | ID | Dim | File (repo-relative) | Summary | Imp | Eff | Class | Verified |
 |----|-----|----------------------|---------|-----|-----|-------|----------|
@@ -29,7 +29,6 @@ Sorted Impact desc → Effort asc → dimension → file. All 19 confirmed by an
 | D-01 | D | .claude/skills/config-validator/SKILL.md:22-26 | False WARNING (claims memory-categories.json missing — it exists) + lists 4 of 9 schemas | 2 | 1 | Quick Win | Confirmed · diff ✓ |
 | D-02 | D | .claude/skills/config-validator/SKILL.md:3 | Trigger collision with pipeline-health on "after config changes" | 2 | 1 | Quick Win | Confirmed · diff ✓ |
 | E-03 | E | CLAUDE.md:33 | Milestone list duplicates the linked MILESTONES.md — volatile content in the always-loaded file | 2 | 1 | Quick Win | Confirmed · diff ✓ |
-| F-02 | F | config/schema/daily-stats-frontmatter.schema.json | Orphan schema: no config, no src/test reference, and `schema_version` type contradicts what the code writes | 2 | 1 | Quick Win | Confirmed · diff ✓ |
 | C-03 | C | .claude/agents/docs-sync.md:4,26-32 | The only Write-capable agent has a prose-only write boundary (legacy flag F-02) | 2 | 2 | Quick Win | Confirmed · diff ✓ |
 | E-04 | E | CLAUDE.md:7,81,126 | Three overlapping "Architecture" headings in the always-loaded file | 2 | 2 | Quick Win | Confirmed · diff ✓ |
 | C-04 | C | .claude/agents/docs-sync.md:45-94 | docs-sync Phase-Closure Audit Mode (~50 lines) is wired to no hook/command/CI; only security-scanner has a live trigger | 2 | 3 | v1.6 Candidate | Confirmed |
@@ -41,6 +40,7 @@ Sorted Impact desc → Effort asc → dimension → file. All 19 confirmed by an
 
 - **A-02** (auto-test-on-every-edit friction) — REFUTED. `auto-test.sh:18-22` already path-scopes with `case "$FILE_PATH" in */src/*.js|src/*.js) ;; *) exit 0 ;; esac`, so markdown/planning edits exit immediately and pay no test tax. The hook wiring is fine.
 - **B-02** (lesson-capture-gate.log unbounded growth) — REFUTED. The append-without-rotation pattern is real (`writeDebugLog` in `~/.claude/hooks/lesson-capture-gate.cjs`), but the log is correctly gitignored (`.claude/hooks/*.log`), user-level, and its size is immaterial; the finding's impact rationale was false against the current file.
+- **F-02** (orphan daily-stats frontmatter schema) — REFUTED. The schema has a dynamic consumer the finder's literal-name grep could not see: `src/config-validator.js:123` enumerates the schema dir with `fs.readdirSync(schemaDir).filter(f => f.endsWith('.schema.json'))` and is invoked by the pre-commit hook (`hooks/pre-commit` → `pre-commit-schema-validate.js`), which validates `daily-stats.md` frontmatter by filename convention. Three tests depend on it. Deleting the file removes real validation. See §3 F-02 for the deferred type-mismatch note.
 
 ---
 
@@ -251,7 +251,7 @@ Removed: python3 one-liner (6), `awk` (20), `Bash(cat)` (25), `Bash(chmod ...)` 
 ```markdown
 Current schemas:
 - connectors.schema.json -> config/connectors.json
-- daily-stats-frontmatter.schema.json -> (no config file; reports WARNING — see F-02)
+- daily-stats-frontmatter.schema.json -> (no config file; reports WARNING — validates daily-stats.md frontmatter via the pre-commit hook, see F-02)
 - docsync.schema.json -> config/docsync.json
 - excluded-terms.schema.json -> config/excluded-terms.json
 - memory-categories.schema.json -> config/memory-categories.json
@@ -261,7 +261,7 @@ Current schemas:
 - vault-paths.schema.json -> config/vault-paths.json
 ```
 
-**Verification.** Skeptic confirmed the false WARNING and 4-of-9 undercount. Diff-applicability: ✓. Cross-ref F-02 (if the orphan schema is deleted, list 8 not 9).
+**Verification.** Skeptic confirmed the false WARNING and 4-of-9 undercount. Diff-applicability: ✓. Cross-ref F-02 (REFUTED — the schema stays, so the list stays at 9).
 
 ---
 
@@ -294,16 +294,19 @@ Leaves config-validator as the sole owner of the "after config changes" trigger.
 
 ---
 
-### F-02 — Orphan daily-stats frontmatter schema (Impact 2, Effort 1)
+### F-02 — Orphan daily-stats frontmatter schema — REFUTED (not a finding)
 
-**Current state.** `grep` across src/, test/, scripts/, .github/ returns zero references to `daily-stats-frontmatter`. It is the only `schema/*.schema.json` with no sibling config. `daily-stats.js` writes frontmatter via gray-matter but never validates against it — and the schema requires `schema_version` as type `string` while `daily-stats.js:192/241` writes it as an integer (`config.stats.schemaVersion || 1`), so the schema does not even match the code's output.
+**Refuted.** The "orphan" premise is false. `config/schema/daily-stats-frontmatter.schema.json` has a **dynamic consumer**: `src/config-validator.js:123` discovers schemas by directory scan —
 
-```bash
-git rm config/schema/daily-stats-frontmatter.schema.json
+```js
+schemaFiles = fs.readdirSync(schemaDir).filter(f => f.endsWith('.schema.json'));
 ```
-If defensive validation is actually wanted instead: wire it into `readDailyStats` and change `schema_version` to integer. Lazy-correct default: delete — machine-written frontmatter needs no runtime schema.
 
-**Verification.** Skeptic confirmed the type contradiction (schema `string` vs code integer) and zero references. Diff-applicability: ✓. Cross-ref D-01 (update the schema count after deletion).
+— and is invoked by the pre-commit hook (`hooks/pre-commit` → `pre-commit-schema-validate.js`), which matches `daily-stats.md` frontmatter to this schema by filename convention. Three tests depend on it. The finder's zero-references result came from a literal-name grep, which cannot see a `readdir`-by-extension scan. **Do not `git rm` it** — deleting it breaks those tests and removes live validation.
+
+**Deferred hygiene item (not v1.6 action).** The type mismatch is real but harmless: the schema requires `schema_version` as type `string` while `daily-stats.js:192/241` writes it as an integer (`config.stats.schemaVersion || 1`). Nothing currently validates the written `.md` frontmatter against the schema, so the mismatch is latent. If frontmatter validation is ever wired into `readDailyStats`, change `schema_version` to integer first.
+
+**Verification.** The type contradiction is confirmed; the orphan verdict is not. Cross-ref D-01: the config-validator schema list stays at 9 with `daily-stats-frontmatter` included.
 
 ---
 
@@ -448,15 +451,12 @@ node -e "const s=require('./src/semantic-index'); console.log('loads ok')"
 npx eslint src/pipeline-infra.js src/vault-gateway.js hooks/post-merge-doc-sync.js
 CI=true npx jest --forceExit                                     # full suite still green
 
-# ── F-02: delete the orphan schema ────────────────────────────────────────────
-git rm config/schema/daily-stats-frontmatter.schema.json
-
 # ── CLAUDE.md doc edits — E-01, A-03, C-05, E-03, E-04 (same file; apply in one pass) ─
 # apply §3 E-01 (status marker + refresh), A-03 (MCP claims x2), C-05 (promote-unrouted label),
 #           E-03 (drop milestone list), E-04 (collapse 3rd Architecture block)
 CI=true npm test >/dev/null 2>&1 && echo "re-count 'test/coverage' figures for E-01 from this run"
 
-# ── D-01, D-02: skill hygiene (D-01 lists 8 schemas after F-02 deletion) ──────
+# ── D-01, D-02: skill hygiene (D-01 lists all 9 schemas; F-02 refuted, none deleted) ──
 # apply §3 D-01 (config-validator schema list) and §3 D-02 (pipeline-health trigger)
 
 # ── C-03: docs-sync scope guard (optional hardening) ──────────────────────────
@@ -511,7 +511,7 @@ enforcement failures (local git hooks, semantic content gate) surfaced in the 20
   schema tests — candidate for a later hygiene pass, not a v1.6 blocker.
 
 ### Quick Wins (apply before/independent of phases — see audit §4)
-A-01, C-02, C-05, D-01, D-02, F-02, F-03, F-04 — all Effort 1, no design decisions.
+A-01, C-02, C-05, D-01, D-02, F-03, F-04 — all Effort 1, no design decisions.
 ```
 
 ---
@@ -520,7 +520,7 @@ A-01, C-02, C-05, D-01, D-02, F-02, F-03, F-04 — all Effort 1, no design decis
 
 - **Dimensions completed:** 6 of 6 (A–F), 0 errors, 0 silent dimensions.
 - **Agents:** 44 total = 6 finders + 21 skeptics + 17 diff-applicability checks. ~4.3M tokens.
-- **Findings:** 21 proposed → 2 refuted by adversarial verification (A-02 auto-test friction; B-02 log rotation) → **19 confirmed**. Classification: 16 Quick Wins, 3 v1.6 candidates.
+- **Findings:** 21 proposed → 3 refuted (A-02 auto-test friction; B-02 log rotation — both by adversarial verification. F-02 orphan schema — refuted post-audit on 2026-07-12: literal-name grep missed the `readdir`-by-extension consumer at `src/config-validator.js:123`) → **18 confirmed**. Classification: 15 Quick Wins, 3 v1.6 candidates.
 - **Diff-applicability lens:** 17 run; 1 caught buggy (C-01 `r.target`→`r.to`), correctly downgraded Quick Win → v1.6 candidate.
 - **Highest-ROI:** F-01 (one-line fix, restores a security gate).
 - **Content-exclusion attestation:** no excluded-entity content surfaced; configured excluded terms referenced only as the abstract list the gate is meant to guard.
