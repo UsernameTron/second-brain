@@ -87,6 +87,8 @@ second-brain project at \`${repoPath}\` (see \`decisions/ADR-018-cross-surface-r
 and \`decisions/ADR-019-reach-layer-mechanism.md\` there). Do not design or build a new
 memory system — one is already running; query it instead.
 
+**Authority:** on any conflict, \`ABOUT ME/\` canon > \`memory.md\` > \`CLAUDE.md\` > this cache — the higher-ranked store wins (see \`decisions/ADR-020-authority-hierarchy.md\` in the second-brain repo).
+
 **Query it live from any session on this machine:**
 
 \`\`\`bash

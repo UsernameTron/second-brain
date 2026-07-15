@@ -80,6 +80,12 @@ describe('renderReachFile', () => {
     expect(out).toContain('- **2026-07-14 · LEARNING** — A promoted fact.');
   });
 
+  test('renders the authority hierarchy one-liner referencing ADR-020', () => {
+    const out = reachExporter.renderReachFile([], meta);
+    expect(out).toContain('ADR-020');
+    expect(out).toContain('ABOUT ME/` canon > `memory.md` > `CLAUDE.md`');
+  });
+
   test('empty digest renders a placeholder instead of an empty section', () => {
     const out = reachExporter.renderReachFile([], meta);
     expect(out).toContain('(no entries passed the exclusion gate)');
