@@ -118,6 +118,9 @@ beforeEach(() => {
 
   process.env.VAULT_ROOT = tmpDir;
   process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+  // Reach isolation: point the reach export at a non-existent dir inside the
+  // temp vault so promotion runs never write into real auto-memory dirs.
+  process.env.REACH_TARGETS_OVERRIDE = path.join(tmpDir, 'reach-target');
 
   // Clear module cache and load module under test
   jest.resetModules();
@@ -128,6 +131,7 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
   delete process.env.VAULT_ROOT;
   delete process.env.CONFIG_DIR_OVERRIDE;
+  delete process.env.REACH_TARGETS_OVERRIDE;
   jest.restoreAllMocks();
 });
 
@@ -939,5 +943,236 @@ describe('Phase 20: proposals + promotions + confidence emits', () => {
     const result = await promoteMemoriesWithMocks.promoteMemories({ max: 5 });
     expect(result.error).toBeUndefined();
     expect(result.promoted).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ── PROMOTE-FLAGS-01: parsePromoteArgs ───────────────────────────────────────
+
+describe('parsePromoteArgs (PROMOTE-FLAGS-01)', () => {
+  test('parses --dry-run, --auto, and --max together', () => {
+    const opts = promoteMemories.parsePromoteArgs(['--dry-run', '--auto', '--max', '7']);
+    expect(opts).toEqual({ dryRun: true, auto: true, max: 7 });
+  });
+
+  test('empty argv returns empty options', () => {
+    expect(promoteMemories.parsePromoteArgs([])).toEqual({});
+  });
+
+  test('ignores the bare -- separator from the node -e wrapper', () => {
+    const opts = promoteMemories.parsePromoteArgs(['--', '--dry-run']);
+    expect(opts).toEqual({ dryRun: true });
+  });
+
+  test('unknown flag throws loudly, naming the flag', () => {
+    expect(() => promoteMemories.parsePromoteArgs(['--dryrun']))
+      .toThrow(/Unknown flag: --dryrun/);
+  });
+
+  test('--max without a value throws', () => {
+    expect(() => promoteMemories.parsePromoteArgs(['--max']))
+      .toThrow(/--max requires a numeric value/);
+  });
+});
+
+// ── PROMOTE-FLAGS-01: unknown option keys and --dry-run ─────────────────────
+
+describe('promoteMemories --dry-run (PROMOTE-FLAGS-01)', () => {
+  test('unknown option key returns an error, never a silent run', async () => {
+    const candidates = makeCandidates(2);
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ bogus: true });
+    expect(result.error).toMatch(/Unknown option\(s\): bogus/);
+    // Nothing was written
+    expect(fs.existsSync(path.join(memoryDir, 'memory.md'))).toBe(false);
+  });
+
+  test('dry-run performs ZERO writes: memory.md, proposals file, archives all untouched', async () => {
+    const candidates = makeCandidates(3);
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    const originalProposals = buildProposalsFile(candidates);
+    fs.writeFileSync(proposalsFile, originalProposals, 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ dryRun: true });
+
+    expect(result.error).toBeUndefined();
+    expect(result.dryRun).toBe(true);
+    expect(result.promoted).toBe(3);
+    // The exact failure PROMOTE-FLAGS-01 describes: dry-run must not write.
+    expect(fs.existsSync(path.join(memoryDir, 'memory.md'))).toBe(false);
+    expect(fs.readFileSync(proposalsFile, 'utf8')).toBe(originalProposals);
+    expect(fs.readdirSync(archiveDir)).toEqual([]);
+    expect(fs.readdirSync(proposalArchiveDir)).toEqual([]);
+  });
+
+  test('dry-run does not trigger the reach export', async () => {
+    // Point reach at an EXISTING dir — dry-run must still not write into it.
+    const reachDir = path.join(tmpDir, 'reach-target');
+    fs.mkdirSync(reachDir, { recursive: true });
+    const candidates = makeCandidates(2);
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ dryRun: true });
+
+    expect(result.dryRun).toBe(true);
+    expect(result.reach).toBeUndefined();
+    expect(fs.existsSync(path.join(reachDir, 'second-brain.md'))).toBe(false);
+  });
+
+  test('dry-run report lists wouldPromote and wouldDefer over the batch cap', async () => {
+    const candidates = makeCandidates(12);
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ dryRun: true, max: 10 });
+
+    expect(result.promoted).toBe(10);
+    expect(result.deferred).toBe(2);
+    expect(result.wouldPromote).toHaveLength(10);
+    expect(result.wouldPromote[0]).toEqual(
+      expect.objectContaining({ candidateId: expect.stringMatching(/^mem-/), category: 'LEARNING' })
+    );
+    expect(result.wouldDefer).toHaveLength(2);
+  });
+
+  test('dry-run still detects duplicates against existing memory.md', async () => {
+    const candidates = makeCandidates(1);
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    // Seed memory.md with the same content hash
+    const hash = computeHash(candidates[0].content);
+    fs.writeFileSync(
+      path.join(memoryDir, 'memory.md'),
+      `## 2026-07\n\n### 2026-07-01 · LEARNING · session:abc\n\n${candidates[0].content}\n\ncontent_hash:: ${hash}\n`,
+      'utf8'
+    );
+    const memoryBefore = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ dryRun: true });
+
+    expect(result.duplicates).toBe(1);
+    expect(result.promoted).toBe(0);
+    expect(fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8')).toBe(memoryBefore);
+  });
+});
+
+// ── PROMOTE-FLAGS-01: --auto ─────────────────────────────────────────────────
+
+describe('promoteMemories --auto (PROMOTE-FLAGS-01)', () => {
+  test('auto promotes unreviewed candidates (no checkbox ticked)', async () => {
+    const candidates = makeCandidates(3, { status: 'pending' }); // no boxes ticked
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const withoutAuto = await promoteMemories.promoteMemories({ dryRun: true });
+    expect(withoutAuto.promoted).toBe(0);
+
+    const result = await promoteMemories.promoteMemories({ auto: true });
+    expect(result.error).toBeUndefined();
+    expect(result.promoted).toBe(3);
+    expect(fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8')).toContain('Memory candidate number 1');
+  });
+
+  test('auto still honors an explicit reject checkbox', async () => {
+    const candidates = [
+      ...makeCandidates(2, { status: 'pending' }),
+      ...makeCandidates(1, { status: 'rejected' }).map(c => ({ ...c, candidateId: 'mem-20260422-099', content: 'Rejected content that must not promote under auto.' })),
+    ];
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ auto: true });
+    expect(result.promoted).toBe(2);
+    expect(result.rejected).toBe(1);
+    expect(fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8')).not.toContain('Rejected content');
+  });
+
+  test('auto still honors an explicit defer checkbox', async () => {
+    const candidates = makeCandidates(1, { status: 'deferred' }); // defer box ticked
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ auto: true });
+    expect(result.promoted).toBe(0);
+  });
+
+  test('auto composes with dry-run: reports would-promote, writes nothing', async () => {
+    const candidates = makeCandidates(2, { status: 'pending' });
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    const original = buildProposalsFile(candidates);
+    fs.writeFileSync(proposalsFile, original, 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ auto: true, dryRun: true });
+    expect(result.promoted).toBe(2);
+    expect(result.dryRun).toBe(true);
+    expect(fs.existsSync(path.join(memoryDir, 'memory.md'))).toBe(false);
+    expect(fs.readFileSync(proposalsFile, 'utf8')).toBe(original);
+  });
+});
+
+// ── PROMOTE-DEFER-01: deferred candidates stay promotable ───────────────────
+
+describe('promoteMemories deferred recovery (PROMOTE-DEFER-01)', () => {
+  test('two-run drain: 12 accepted → 10 promoted, then remaining 2 on the next run', async () => {
+    const candidates = makeCandidates(12);
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const run1 = await promoteMemories.promoteMemories({ max: 10 });
+    expect(run1.promoted).toBe(10);
+    expect(run1.deferred).toBe(2);
+
+    // The regression: before the fix, run 2 promoted 0 — deferred was terminal.
+    const run2 = await promoteMemories.promoteMemories({ max: 10 });
+    expect(run2.promoted).toBe(2);
+    expect(run2.deferred).toBe(0);
+
+    const memory = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
+    for (let i = 1; i <= 12; i++) {
+      expect(memory).toContain(`Memory candidate number ${i} `);
+    }
+  });
+
+  test('backfill: pre-stranded status:: deferred with accepted checkbox is rescued', async () => {
+    // Simulates the 2026-04-26 loss: stamped deferred by an earlier run,
+    // accept checkbox still ticked.
+    const candidates = makeCandidates(1, { processedStatus: 'deferred' });
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result.promoted).toBe(1);
+    expect(fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8')).toContain('Memory candidate number 1');
+  });
+
+  test('a deferred candidate can still be rejected', async () => {
+    const candidates = makeCandidates(1, { processedStatus: 'deferred', status: 'rejected' });
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemories.promoteMemories({ max: 5 });
+    expect(result.promoted).toBe(0);
+    expect(result.rejected).toBe(1);
+  });
+
+  test('proposal archive sweep does not archive away deferred candidates', async () => {
+    // Over proposalArchiveThreshold (100): processed candidates archive,
+    // the deferred-but-accepted one must survive and promote.
+    const processed = makeCandidates(60, { processedStatus: 'accepted', status: 'pending' })
+      .map((c, i) => ({ ...c, candidateId: `mem-20260301-${String(i + 1).padStart(3, '0')}`, content: `Old processed entry ${i + 1}.` }));
+    const pending = makeCandidates(41, { status: 'pending' })
+      .map((c, i) => ({ ...c, candidateId: `mem-20260401-${String(i + 1).padStart(3, '0')}`, content: `Unreviewed pending entry ${i + 1}.` }));
+    const stranded = makeCandidates(1, { processedStatus: 'deferred' })
+      .map(c => ({ ...c, candidateId: 'mem-20260426-001', content: 'Stranded deferred entry that must survive the sweep.' }));
+
+    fs.writeFileSync(
+      path.join(proposalsDir, 'memory-proposals.md'),
+      buildProposalsFile([...processed, ...pending, ...stranded]),
+      'utf8'
+    );
+
+    const result = await promoteMemories.promoteMemories({ max: 10 });
+    expect(result.promoted).toBe(1);
+    expect(fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8')).toContain('Stranded deferred entry');
+
+    // The stranded candidate must not appear in any proposal-archive file.
+    const archiveFiles = fs.readdirSync(proposalArchiveDir);
+    for (const f of archiveFiles) {
+      const archived = fs.readFileSync(path.join(proposalArchiveDir, f), 'utf8');
+      expect(archived).not.toContain('mem-20260426-001');
+    }
   });
 });
