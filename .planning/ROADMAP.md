@@ -30,7 +30,7 @@ The v1.5 hooks, agents, and gates all exist. This milestone closes the last plac
 
 - [x] Phase 26: Promotion Safety — completed 2026-07-15 (PR #62)
 - [x] Phase 27: Context Honesty (3/3 plans) — completed 2026-07-15
-- [ ] Phase 28: Surface Completion
+- [x] Phase 28: Surface Completion (3/3 plans) — completed 2026-07-15
 
 ### Phase 26: Promotion Safety
 
@@ -71,9 +71,9 @@ Success criteria:
 **Plans:** 3 plans (28-01 and 28-02 wave 1 — disjoint file sets; 28-03 wave 2 — depends on 28-02 gate)
 
 Plans:
-- [ ] 28-01-PLAN.md — /reroute slash-command wrapper (reads r.to) + command-table reachability check (REQ-SURF-01)
-- [ ] 28-02-PLAN.md — pre-push docsync blocking gate + hooks/pre-push behind-vs-diverged remedy fix (REQ-SURF-02)
-- [ ] 28-03-PLAN.md — live doc-stat refresh so the new gate passes on next push (supports REQ-SURF-02)
+- [x] 28-01-PLAN.md — /reroute slash-command wrapper (reads r.to) + command-table reachability check (REQ-SURF-01)
+- [x] 28-02-PLAN.md — pre-push docsync blocking gate + hooks/pre-push behind-vs-diverged remedy fix (REQ-SURF-02)
+- [x] 28-03-PLAN.md — live doc-stat refresh so the new gate passes on next push (supports REQ-SURF-02)
 
 <details>
 <summary>✅ v1.4 Memory Activation & Final Closeout (Phases 17-21) — SHIPPED 2026-04-26</summary>
