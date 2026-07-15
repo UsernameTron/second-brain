@@ -129,8 +129,8 @@ Full details: [milestones/v1.5-phases/](milestones/v1.5-phases/)
 **Plans**: 2 plans
 
 Plans:
-- [ ] 29-01-PLAN.md — Counter-store integrity: JEST_WORKER_ID pollution guard + tripwire test, polluted-file cleanup, missed-day flush + 14-day retention
-- [ ] 29-02-PLAN.md — launchd weekday scheduler (com.secondbrain.today) + RemoteTrigger disabled-by-design documentation
+- [x] 29-01-PLAN.md — Counter-store integrity: JEST_WORKER_ID pollution guard + tripwire test, polluted-file cleanup, missed-day flush + 14-day retention
+- [x] 29-02-PLAN.md — launchd weekday scheduler (com.secondbrain.today) + RemoteTrigger disabled-by-design documentation
 
 ### Phase 30: Outcome Instrumentation
 **Goal**: Daily-stats rows capture whether retrieval returned value, not just that it ran
@@ -242,6 +242,6 @@ Plans:
 | 26. Promotion Safety | v1.6 | — | Complete | 2026-07-15 |
 | 27. Context Honesty | v1.6 | 3/3 | Complete | 2026-07-15 |
 | 28. Surface Completion | v1.6 | 3/3 | Complete | 2026-07-15 |
-| 29. Series Integrity | v1.7 | 0/2 | Planned | - |
+| 29. Series Integrity | v1.7 | 2/2 | Complete    | 2026-07-15 |
 | 30. Outcome Instrumentation | v1.7 | 0/TBD | Not started | - |
 | 31. Trend & Report | v1.7 | 0/TBD | Not started | - |
