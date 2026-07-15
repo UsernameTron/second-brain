@@ -115,7 +115,7 @@ CLAUDE.md                    # Project governance, commands, conventions
 
 **Latest Release:** v1.5.0 Internal Hardening (2026-04-26) | Phase 22-25 complete: Unicode Hardening, Pre-Commit Hooks, Doc Sync, UAT Rebaseline
 - **1245 total tests** across 64 test files (1207 passing, 38 skipped in CI)
-- **Branch coverage:** 80.95% (threshold: ≥80% enforced in CI)
+- **Branch coverage:** 81.15% (threshold: ≥80% enforced in CI)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 20+22 matrix, GitGuardian secrets scan
 - **Shipped milestones:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24), v1.4 Closeout Hygiene (2026-04-25), v1.5 Internal Hardening (2026-04-26)
@@ -156,7 +156,7 @@ npm run test:uat           # UAT tests (requires CI= to unblock)
 - Critical modules (auth, vault boundary): ≥95%
 - All other modules: ≥80%
 
-Current coverage: Statements 91.73%, Functions 95.83%, Lines 92.32%, Branch 80.95%
+Current coverage: Statements 92.74%, Functions 96.02%, Lines 93.37%, Branch 81.15%
 
 ### Project Governance
 

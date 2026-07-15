@@ -30,7 +30,7 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 **v1.6 in progress:** Promotion Safety (PROMOTE-FLAGS-01, PROMOTE-DEFER-01) + Cross-Surface Reach (SURFACE-REACH-01, ADR-019) — 2026-07-15
 
 - **Test count:** 1245 total across 64 test files (1207 passing, 38 skipped)
-- **Coverage:** Branch 80.95%, Statements 91.73%, Functions 95.83%, Lines 92.32%
+- **Coverage:** Branch 81.15%, Statements 92.74%, Functions 96.02%, Lines 93.37%
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 20+22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
 
