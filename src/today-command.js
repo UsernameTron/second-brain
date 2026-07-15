@@ -311,7 +311,7 @@ async function runToday(options = {}) {
     // Skip in dry-run mode to avoid polluting daily-stats.md with practice runs.
     if (mode !== 'dry-run') {
       try {
-        const { recordDailyStats, readDailyCounters } = require('./daily-stats');
+        const { recordDailyStats, readDailyCounters, flushMissedDays } = require('./daily-stats');
         const { readMemory } = require('./memory-reader');
 
         // Aggregate inputs — each sub-fetch in its own try/catch with safe defaults.
@@ -332,6 +332,12 @@ async function runToday(options = {}) {
           const entries = await readMemory();
           totalEntries = Array.isArray(entries) ? entries.length : 0;
         } catch (_) { /* totalEntries stays 0 */ }
+
+        // Phase 29 (STATS-PIPE-02): flush any past days whose counters never became a row,
+        // then prune counter files >14 days old. Non-fatal — briefing already written.
+        try {
+          flushMissedDays({ totalEntries, memoryKb });
+        } catch (_) { /* non-fatal */ }
 
         recordDailyStats({
           proposals: counters.proposals,

@@ -54,6 +54,34 @@ describe('dateKey()', () => {
   });
 });
 
+// ── counter-store test isolation (regression tripwire) ────────────────────────
+describe('counter-store test isolation (regression tripwire)', () => {
+  const os = require('os');
+  const fs = require('fs');
+  const path = require('path');
+
+  it('routes counter writes under os.tmpdir when JEST_WORKER_ID is set and no CACHE_DIR_OVERRIDE', () => {
+    const saved = process.env.CACHE_DIR_OVERRIDE;
+    delete process.env.CACHE_DIR_OVERRIDE;
+    expect(process.env.JEST_WORKER_ID).toBeDefined();
+
+    jest.resetModules();
+    const { recordProposalsBatch } = require('../src/daily-stats');
+    const now = new Date('2026-05-01T18:00:00.000Z'); // 2026-05-01 Chicago
+    recordProposalsBatch(1, { now });
+
+    const workerDir = path.join(os.tmpdir(), 'second-brain-jest', String(process.env.JEST_WORKER_ID));
+    const expected = path.join(workerDir, 'daily-counters-2026-05-01.json');
+    expect(fs.existsSync(expected)).toBe(true);
+
+    const realCache = path.join(os.homedir(), '.cache', 'second-brain', 'daily-counters-2026-05-01.json');
+    expect(fs.existsSync(realCache)).toBe(false);
+
+    try { fs.unlinkSync(expected); } catch (_) { /* best-effort */ }
+    if (saved !== undefined) process.env.CACHE_DIR_OVERRIDE = saved;
+  });
+});
+
 // ── recordDailyStats() ────────────────────────────────────────────────────────
 describe('recordDailyStats()', () => {
   const os = require('os');
@@ -501,5 +529,136 @@ describe('counter helpers', () => {
     ds.recordRecallInvocation({ now: day2 });
     const counterFiles = fs2.readdirSync(cacheDir).filter(f => f.startsWith('daily-counters-'));
     expect(counterFiles.length).toBe(2);
+  });
+});
+
+// ── flushMissedDays() ──────────────────────────────────────────────────────────
+
+describe('flushMissedDays()', () => {
+  const os = require('os');
+  const fs = require('fs');
+  const path = require('path');
+
+  let cacheDir;
+  let vaultDir;
+
+  /** Build a minimal configOverride that routes stats to the tmp vault path */
+  function makeFlushConfig() {
+    return {
+      stats: {
+        enabled: true,
+        path: 'RIGHT/daily-stats.md',
+        timezone: 'America/Chicago',
+        schemaVersion: 1,
+      },
+    };
+  }
+
+  function writeCounterFile(dateStr, state) {
+    fs.writeFileSync(
+      path.join(cacheDir, `daily-counters-${dateStr}.json`),
+      JSON.stringify({ date: dateStr, ...state }),
+      'utf8',
+    );
+  }
+
+  beforeEach(() => {
+    cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-flush-test-'));
+    process.env.CACHE_DIR_OVERRIDE = cacheDir;
+    vaultDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-flush-vault-'));
+    fs.mkdirSync(path.join(vaultDir, 'RIGHT'), { recursive: true });
+    process.env.VAULT_ROOT = vaultDir;
+    jest.resetModules();
+  });
+
+  afterEach(() => {
+    delete process.env.CACHE_DIR_OVERRIDE;
+    delete process.env.VAULT_ROOT;
+    try { fs.rmSync(cacheDir, { recursive: true, force: true }); } catch (_) { /* best-effort */ }
+    try { fs.rmSync(vaultDir, { recursive: true, force: true }); } catch (_) { /* best-effort */ }
+    jest.restoreAllMocks();
+  });
+
+  it('flushes an orphan past-day counter into an idempotent daily-stats row', () => {
+    const { flushMissedDays, readDailyStats } = require('../src/daily-stats');
+
+    writeCounterFile('2026-06-01', {
+      proposals: 2, promotions: 1, recallCount: 3, confidenceSum: 1.6, confidenceCount: 2,
+    });
+
+    flushMissedDays({
+      now: new Date('2026-06-15T18:00:00.000Z'),
+      totalEntries: 50,
+      memoryKb: 12.3,
+      configOverride: makeFlushConfig(),
+    });
+
+    const absPath = path.join(vaultDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    const row = rows.find(r => r.date === '2026-06-01');
+    expect(row).toBeDefined();
+    expect(row.recall_count).toBe('3');
+    expect(row.avg_latency_ms).toBe('—');
+    expect(row.total_entries).toBe('50');
+  });
+
+  it('is idempotent — calling twice does not duplicate the flushed row', () => {
+    const { flushMissedDays, readDailyStats } = require('../src/daily-stats');
+
+    writeCounterFile('2026-06-01', {
+      proposals: 2, promotions: 1, recallCount: 3, confidenceSum: 1.6, confidenceCount: 2,
+    });
+
+    const opts = {
+      now: new Date('2026-06-15T18:00:00.000Z'),
+      totalEntries: 50,
+      memoryKb: 12.3,
+      configOverride: makeFlushConfig(),
+    };
+    flushMissedDays(opts);
+    flushMissedDays(opts);
+
+    const absPath = path.join(vaultDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    expect(rows.filter(r => r.date === '2026-06-01')).toHaveLength(1);
+  });
+
+  it('skips a counter file dated today or in the future', () => {
+    const { flushMissedDays, readDailyStats } = require('../src/daily-stats');
+
+    // Counter file dated the same day as `now` — must never be flushed.
+    writeCounterFile('2026-06-15', {
+      proposals: 1, promotions: 0, recallCount: 0, confidenceSum: 0, confidenceCount: 0,
+    });
+
+    flushMissedDays({
+      now: new Date('2026-06-15T18:00:00.000Z'),
+      configOverride: makeFlushConfig(),
+    });
+
+    const absPath = path.join(vaultDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    expect(rows.find(r => r.date === '2026-06-15')).toBeUndefined();
+  });
+
+  it('prunes counter files older than ~14 days, keeping recent ones', () => {
+    const { flushMissedDays } = require('../src/daily-stats');
+
+    // 20 days before 2026-06-15 → past retention, must be deleted.
+    writeCounterFile('2026-05-20', {
+      proposals: 0, promotions: 0, recallCount: 0, confidenceSum: 0, confidenceCount: 0,
+    });
+    // 5 days before 2026-06-15 → within retention, must survive.
+    writeCounterFile('2026-06-10', {
+      proposals: 0, promotions: 0, recallCount: 0, confidenceSum: 0, confidenceCount: 0,
+    });
+
+    flushMissedDays({
+      now: new Date('2026-06-15T18:00:00.000Z'),
+      configOverride: makeFlushConfig(),
+    });
+
+    expect(fs.existsSync(path.join(cacheDir, 'daily-counters-2026-05-20.json'))).toBe(false);
+    expect(fs.existsSync(path.join(cacheDir, 'daily-counters-2026-06-10.json'))).toBe(true);
   });
 });

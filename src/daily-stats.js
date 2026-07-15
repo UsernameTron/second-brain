@@ -271,15 +271,27 @@ const _COUNTER_DEFAULTS = {
 };
 
 /**
+ * Resolve the cache directory for counter files.
+ * Precedence: CACHE_DIR_OVERRIDE > jest temp dir (JEST_WORKER_ID) > ~/.cache/second-brain.
+ * The jest branch keeps the real user cache clean when tests call record*() without an override.
+ * @returns {string}
+ */
+function _cacheDir() {
+  if (process.env.CACHE_DIR_OVERRIDE) return process.env.CACHE_DIR_OVERRIDE;
+  if (process.env.JEST_WORKER_ID) {
+    return path.join(os.tmpdir(), 'second-brain-jest', String(process.env.JEST_WORKER_ID));
+  }
+  return path.join(os.homedir(), '.cache', 'second-brain');
+}
+
+/**
  * Resolve the counter file path for a given date.
  * Honors CACHE_DIR_OVERRIDE for test isolation.
  * @param {Date} now
  * @returns {string} absolute path to daily-counters-YYYY-MM-DD.json
  */
 function _counterPath(now) {
-  const cacheDir = process.env.CACHE_DIR_OVERRIDE
-    || path.join(os.homedir(), '.cache', 'second-brain');
-  return path.join(cacheDir, `daily-counters-${dateKey(now)}.json`);
+  return path.join(_cacheDir(), `daily-counters-${dateKey(now)}.json`);
 }
 
 /**
@@ -421,10 +433,81 @@ function readDailyCounters(opts = {}) {
   }
 }
 
+/**
+ * Delete counter files whose date is older than retentionDays before `now`.
+ * @param {Date} now
+ * @param {string} cacheDir
+ * @param {number} [retentionDays=14]
+ */
+function _cleanupOldCounters(now, cacheDir, retentionDays = 14) {
+  const cutoffKey = dateKey(new Date(now.getTime() - retentionDays * 86400000));
+  let files;
+  try { files = fs.readdirSync(cacheDir); } catch (_) { return; }
+  for (const f of files) {
+    const m = f.match(/^daily-counters-(\d{4}-\d{2}-\d{2})\.json$/);
+    if (m && m[1] < cutoffKey) {
+      try { fs.unlinkSync(path.join(cacheDir, f)); } catch (_) { /* best-effort */ }
+    }
+  }
+}
+
+/**
+ * Flush counters from past days that never produced a daily-stats row.
+ * Idempotent: recordDailyStats dedupes by date, so re-running is safe.
+ * total_entries / memory_kb use current state (caller-supplied); avg_latency_ms is '—'.
+ * After flushing, prunes counter files older than ~14 days.
+ * Never throws — stats failure must not break /today.
+ * @param {object} [opts={}] - { now?: Date, totalEntries?: number, memoryKb?: number, configOverride?: object }
+ */
+function flushMissedDays(opts = {}) {
+  try {
+    const now = opts.now || new Date();
+    const todayKey = dateKey(now);
+    const cacheDir = _cacheDir();
+
+    const config = opts.configOverride
+      || require('./pipeline-infra').loadConfigWithOverlay('pipeline', { validate: true });
+    if (!config.stats || !config.stats.enabled) return;
+
+    const { VAULT_ROOT } = require('./vault-gateway');
+    const absStatsPath = path.join(VAULT_ROOT, config.stats.path);
+    const { rows } = readDailyStats(absStatsPath);
+    const existingDates = new Set(rows.map(r => r.date));
+
+    let files;
+    try { files = fs.readdirSync(cacheDir); } catch (_) { return; }
+    for (const f of files) {
+      const m = f.match(/^daily-counters-(\d{4}-\d{2}-\d{2})\.json$/);
+      if (!m) continue;
+      const dateStr = m[1];
+      if (dateStr >= todayKey) continue;        // only strictly past days
+      if (existingDates.has(dateStr)) continue; // already flushed (idempotent)
+
+      let state;
+      try { state = JSON.parse(fs.readFileSync(path.join(cacheDir, f), 'utf8')); } catch (_) { continue; }
+      const avgConfidence = (state.confidenceCount > 0)
+        ? state.confidenceSum / state.confidenceCount : null;
+
+      recordDailyStats({
+        proposals: state.proposals || 0,
+        promotions: state.promotions || 0,
+        totalEntries: (opts.totalEntries != null) ? opts.totalEntries : 0,
+        memoryKb: (opts.memoryKb != null) ? opts.memoryKb : 0,
+        recallCount: state.recallCount || 0,
+        avgLatencyMs: null, // renders as em dash
+        avgConfidence,
+      }, { now: new Date(dateStr + 'T12:00:00.000Z'), configOverride: opts.configOverride });
+    }
+
+    _cleanupOldCounters(now, cacheDir);
+  } catch (_) { /* non-fatal — briefing-is-the-product */ }
+}
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 
 module.exports = {
   recordDailyStats, dateKey, readDailyStats,
   recordRecallInvocation, recordProposalsBatch, recordPromotion,
   recordTopCosine, recordTopRrf, readDailyCounters,
+  flushMissedDays,
 };
