@@ -433,10 +433,81 @@ function readDailyCounters(opts = {}) {
   }
 }
 
+/**
+ * Delete counter files whose date is older than retentionDays before `now`.
+ * @param {Date} now
+ * @param {string} cacheDir
+ * @param {number} [retentionDays=14]
+ */
+function _cleanupOldCounters(now, cacheDir, retentionDays = 14) {
+  const cutoffKey = dateKey(new Date(now.getTime() - retentionDays * 86400000));
+  let files;
+  try { files = fs.readdirSync(cacheDir); } catch (_) { return; }
+  for (const f of files) {
+    const m = f.match(/^daily-counters-(\d{4}-\d{2}-\d{2})\.json$/);
+    if (m && m[1] < cutoffKey) {
+      try { fs.unlinkSync(path.join(cacheDir, f)); } catch (_) { /* best-effort */ }
+    }
+  }
+}
+
+/**
+ * Flush counters from past days that never produced a daily-stats row.
+ * Idempotent: recordDailyStats dedupes by date, so re-running is safe.
+ * total_entries / memory_kb use current state (caller-supplied); avg_latency_ms is '—'.
+ * After flushing, prunes counter files older than ~14 days.
+ * Never throws — stats failure must not break /today.
+ * @param {object} [opts={}] - { now?: Date, totalEntries?: number, memoryKb?: number, configOverride?: object }
+ */
+function flushMissedDays(opts = {}) {
+  try {
+    const now = opts.now || new Date();
+    const todayKey = dateKey(now);
+    const cacheDir = _cacheDir();
+
+    const config = opts.configOverride
+      || require('./pipeline-infra').loadConfigWithOverlay('pipeline', { validate: true });
+    if (!config.stats || !config.stats.enabled) return;
+
+    const { VAULT_ROOT } = require('./vault-gateway');
+    const absStatsPath = path.join(VAULT_ROOT, config.stats.path);
+    const { rows } = readDailyStats(absStatsPath);
+    const existingDates = new Set(rows.map(r => r.date));
+
+    let files;
+    try { files = fs.readdirSync(cacheDir); } catch (_) { return; }
+    for (const f of files) {
+      const m = f.match(/^daily-counters-(\d{4}-\d{2}-\d{2})\.json$/);
+      if (!m) continue;
+      const dateStr = m[1];
+      if (dateStr >= todayKey) continue;        // only strictly past days
+      if (existingDates.has(dateStr)) continue; // already flushed (idempotent)
+
+      let state;
+      try { state = JSON.parse(fs.readFileSync(path.join(cacheDir, f), 'utf8')); } catch (_) { continue; }
+      const avgConfidence = (state.confidenceCount > 0)
+        ? state.confidenceSum / state.confidenceCount : null;
+
+      recordDailyStats({
+        proposals: state.proposals || 0,
+        promotions: state.promotions || 0,
+        totalEntries: (opts.totalEntries != null) ? opts.totalEntries : 0,
+        memoryKb: (opts.memoryKb != null) ? opts.memoryKb : 0,
+        recallCount: state.recallCount || 0,
+        avgLatencyMs: null, // renders as em dash
+        avgConfidence,
+      }, { now: new Date(dateStr + 'T12:00:00.000Z'), configOverride: opts.configOverride });
+    }
+
+    _cleanupOldCounters(now, cacheDir);
+  } catch (_) { /* non-fatal — briefing-is-the-product */ }
+}
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 
 module.exports = {
   recordDailyStats, dateKey, readDailyStats,
   recordRecallInvocation, recordProposalsBatch, recordPromotion,
   recordTopCosine, recordTopRrf, readDailyCounters,
+  flushMissedDays,
 };
