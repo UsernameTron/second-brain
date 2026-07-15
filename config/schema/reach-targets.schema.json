@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "reach-targets",
+  "title": "Reach Targets Configuration",
+  "description": "Validates config/reach-targets.json — allowlist of Claude Code auto-memory directories that receive the second-brain pointer + digest cache (v1.6 SURFACE-REACH-01, ADR-019)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["enabled", "digestMax", "targets"],
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "description": "Master switch for the reach export; false makes runReachExport a no-op"
+    },
+    "digestMax": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "description": "Maximum number of recent promoted entries included in the digest"
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 50,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[^`]+$"
+      },
+      "description": "Auto-memory directories to write into; ~ is expanded at load. Missing directories are skipped, never created."
+    }
+  }
+}

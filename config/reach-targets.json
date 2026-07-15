@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "digestMax": 10,
+  "targets": [
+    "~/.claude/projects/-Users-cpconnor/memory",
+    "~/.claude/projects/-Users-cpconnor-projects/memory"
+  ]
+}
