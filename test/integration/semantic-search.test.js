@@ -115,6 +115,10 @@ beforeEach(() => {
   // Use a temp config dir with excludedTerms in pipeline.json
   process.env.CONFIG_DIR_OVERRIDE = tmpConfigDir;
   fs.writeFileSync(path.join(tmpConfigDir, 'pipeline.json'), INTEGRATION_PIPELINE_JSON, 'utf8');
+  // REQ-CTX-03 fail-closed guard reads real excluded terms via loadExcludedTerms();
+  // scenarios that don't spy on it (1, 4, 6) need a real config file so the gate
+  // doesn't fail closed on an empty/missing list.
+  fs.writeFileSync(path.join(tmpConfigDir, 'excluded-terms.json'), JSON.stringify(['ISPN', 'Genesys', 'Asana']), 'utf8');
 
   mockEmbed.mockReset();
 });

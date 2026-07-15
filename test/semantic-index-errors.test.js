@@ -49,7 +49,7 @@ jest.mock('../src/memory-reader', () => ({
 
 jest.mock('../src/pipeline-infra', () => ({
   safeLoadPipelineConfig: (...args) => mockSafeLoadPipelineConfig(...args),
-  loadExcludedTerms: jest.fn(() => []),
+  loadExcludedTerms: jest.fn(() => ['ISPN', 'Genesys', 'Asana']),
 }));
 
 // ── Default config ─────────────────────────────────────────────────────────────

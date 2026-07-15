@@ -45,7 +45,7 @@ jest.mock('../src/memory-reader', () => ({
 
 jest.mock('../src/pipeline-infra', () => ({
   safeLoadPipelineConfig: (...args) => mockSafeLoadPipelineConfig(...args),
-  loadExcludedTerms: jest.fn(() => []),
+  loadExcludedTerms: jest.fn(() => ['ISPN', 'Genesys', 'Asana']),
 }));
 
 // ── Default config ─────────────────────────────────────────────────────────────
@@ -252,6 +252,17 @@ describe('semanticSearch', () => {
     const result = await semanticSearch('ISPN pipeline status');
     expect(result.blocked).toBe(true);
     expect(result.results).toEqual([]);
+    expect(mockEmbed).not.toHaveBeenCalled();
+  });
+
+  test('empty/unloadable excluded terms → fail-closed blocked result, no checkContent or Voyage call', async () => {
+    const { loadExcludedTerms } = require('../src/pipeline-infra');
+    loadExcludedTerms.mockReturnValueOnce([]);
+    const result = await semanticSearch('any query', {});
+    expect(result.blocked).toBe(true);
+    expect(result.failClosed).toBe(true);
+    expect(result.results).toEqual([]);
+    expect(mockCheckContent).not.toHaveBeenCalled();
     expect(mockEmbed).not.toHaveBeenCalled();
   });
 
@@ -739,7 +750,7 @@ describe('Phase 20: top-1 cosine emit', () => {
       searchMemoryKeyword: (...args) => mockSearchMemoryKeyword(...args),
       getMemoryEcho: (...args) => mockGetMemoryEcho(...args),
     }));
-    jest.mock('../src/pipeline-infra', () => ({ safeLoadPipelineConfig: (...args) => mockSafeLoadPipelineConfig(...args), loadExcludedTerms: jest.fn(() => []) }));
+    jest.mock('../src/pipeline-infra', () => ({ safeLoadPipelineConfig: (...args) => mockSafeLoadPipelineConfig(...args), loadExcludedTerms: jest.fn(() => ['ISPN', 'Genesys', 'Asana']) }));
     jest.mock('../src/daily-stats', () => ({ recordTopCosine: (...args) => mockRecordTopCosine(...args) }));
 
     // Reset shared mock return values for this group
