@@ -20,7 +20,7 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 
 ## Project Status
 
-> Last verified: 2026-07-15  <!-- refresh at each /gsd:sync-docs; a SessionStart staleness hook (v1.6 E-02) will read this date -->
+> Last verified: 2026-07-15  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
 
 **Latest Release:** v1.5.0 Internal Hardening (2026-04-26)
 **Phase 22 complete:** NFKD Unicode Matcher (2026-04-26)
@@ -29,7 +29,7 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 **Phase 25 complete:** UAT Rebaseline (2026-04-26)
 **v1.6 in progress:** Promotion Safety (PROMOTE-FLAGS-01, PROMOTE-DEFER-01) + Cross-Surface Reach (SURFACE-REACH-01, ADR-019) — 2026-07-15
 
-- **Test count:** 1234 total across 62 test files (1205 passing, 29 skipped)
+- **Test count:** 1245 total across 64 test files (1207 passing, 38 skipped)
 - **Coverage:** Branch 81.15%, Statements 92.74%, Functions 96.02%, Lines 93.37%
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 20+22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
@@ -52,6 +52,8 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 | `node scripts/recall.js "<query>"` | Standalone recall CLI — same flags as `/recall`, runnable from any directory/session on this machine (v1.6 reach layer, ADR-019) |
 
 **Reach layer (v1.6, SURFACE-REACH-01):** every real promotion regenerates a pointer + digest cache (`second-brain.md` + `MEMORY.md` index line) in the auto-memory dirs allowlisted in `config/reach-targets.json`, via `src/reach-exporter.js`. Digest entries re-pass the content-policy exclusion gate at egress, fail-closed. See `decisions/ADR-019-reach-layer-mechanism.md`.
+
+> **Source-of-truth hierarchy:** `ABOUT ME/` canon > `memory.md` > this file > auto-memory blob. This file is a router, not a fact store — see [decisions/ADR-020-authority-hierarchy.md](decisions/ADR-020-authority-hierarchy.md).
 
 ## Tech Stack
 

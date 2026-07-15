@@ -24,7 +24,7 @@ Built for a technical executive who directs AI. The project code lives in this r
 ```bash
 npm install
 npm run lint  # ESLint 10 (flat config)
-npm test      # Jest 30 — 1234 total tests (1205 pass, 29 skipped in CI)
+npm test      # Jest 30 — 1245 total tests (1207 pass, 38 skipped in CI)
 ```
 
 **Optional: Semantic memory search** — Set `VOYAGE_API_KEY` in `.env` to enable `/recall --semantic` and `/recall --hybrid`. Without the key, `/recall` falls back to keyword search. See [docs/DEVOPS-HANDOFF.md](docs/DEVOPS-HANDOFF.md) for acquisition steps and configuration.
@@ -73,7 +73,7 @@ src/                          # Core modules (27 .js files total)
     ├── github.js            # UsernameTron repo activity
     └── types.js             # Connector registry + SOURCE enum
 
-test/                         # 1234 tests across 62 files
+test/                         # 1245 tests across 64 files
 ├── unit/                    # Module-level tests
 ├── integration/             # Cross-module flow tests
 └── uat/                     # End-to-end command behavior (guarded from CI)
@@ -114,7 +114,7 @@ CLAUDE.md                    # Project governance, commands, conventions
 ## Status
 
 **Latest Release:** v1.5.0 Internal Hardening (2026-04-26) | Phase 22-25 complete: Unicode Hardening, Pre-Commit Hooks, Doc Sync, UAT Rebaseline
-- **1234 total tests** across 62 test files (1205 passing, 29 skipped in CI)
+- **1245 total tests** across 64 test files (1207 passing, 38 skipped in CI)
 - **Branch coverage:** 81.15% (threshold: ≥80% enforced in CI)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 20+22 matrix, GitGuardian secrets scan
@@ -146,7 +146,7 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 ### Test Coverage
 
 ```bash
-npm test                    # Run all tests (1234 total; set CI=true to skip UAT)
+npm test                    # Run all tests (1245 total; set CI=true to skip UAT)
 npm run lint               # ESLint validation
 npm run test:uat           # UAT tests (requires CI= to unblock)
 ```
