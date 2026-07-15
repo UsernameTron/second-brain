@@ -6,7 +6,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-**v1.6 Enforcement Integrity & Surface Completion started (2026-07-12).** Six milestones shipped: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4), v1.5 Internal Hardening (2026-04-26, tag v1.5).
+**v1.7 Prove Compounding started (2026-07-15).** Seven milestones shipped: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4), v1.5 Internal Hardening (2026-04-26, tag v1.5), v1.6 Enforcement Integrity & Surface Completion (2026-07-15).
 
 **Memory corpus live at 97 entries (2026-07-12).** Seeded 27 → 97 by mining 70 durable proposals from the decision log, ADR register, CTG docs, standups, and philosophy corpus. Embeddings sidecar at 125 vectors; keyword, semantic, and hybrid `/recall` all verified against the new corpus. The compounding thesis is now testable against a real corpus rather than a near-empty one.
 
@@ -27,24 +27,21 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 - UAT workflow: weekly cron + manual `workflow_dispatch`, ANTHROPIC_API_KEY scoped step-only, 90-day artifact retention
 - Branch protection on master: PR-required-reviews, required CI checks (test (20)/test (22)/Analyze), force-push blocked
 
-**Known gaps:** FIX-02 (config hot-reload) — restart workaround sufficient. Two promotion-path defects open (PROMOTE-FLAGS-01, PROMOTE-DEFER-01) — see v1.6. The memory layer has no reach outside this repo (SURFACE-REACH-01).
+**Known gaps:** FIX-02 (config hot-reload) — restart workaround sufficient. `master` branch protection regression (BRANCH-PROT-01) — Pete's call, not a phase. The compounding thesis itself is unproven — see v1.7.
 
-## Current Milestone: v1.6 Enforcement Integrity & Surface Completion
+## Current Milestone: v1.7 Prove Compounding
 
-**Goal:** Make the memory layer safe to operate and reachable from outside this repo — the two ways it can silently fail.
+**Goal:** Prove (or honestly refute) the core thesis — "memory compounds daily" — with real evidence instead of assumed instrumentation.
 
-The v1.5 hooks, agents, and gates all exist; this milestone closes the last places where the repo *declares* an enforcement it does not actually *perform*. Two of the six requirements are live defects found while seeding the corpus on 2026-07-12: `--dry-run` silently performs a real promotion, and any accepted batch larger than 10 permanently strands the remainder.
+Investigation on 2026-07-15 found the evidence layer empty and partially broken: `RIGHT/daily-stats.md` has never been written (no real `/today` has ever run — the RemoteTrigger is disabled AND runs in a cloud environment that cannot reach the local vault), the per-day counter cache is polluted by the jest suite, no retrieval-utility signal (recall hit/miss, echo shown-rate) is captured, and nothing computes trends. Code ships in phases 29–31; the verdict lands as a calendar-gated follow-up after ~14 weekday rows of real data.
 
 **Target features:**
-- `--dry-run` / `--auto` actually honored by promoteMemories (PROMOTE-FLAGS-01) — **P1, live data-loss risk**
-- Batch-cap deferral no longer strands accepted proposals (PROMOTE-DEFER-01)
-- Memory layer discoverable from Desktop/Cowork/chat surfaces (SURFACE-REACH-01)
-- SessionStart staleness guard, 14-day threshold (REQ-CTX-01 / E-02)
-- Source-of-truth hierarchy arbitrating `ABOUT ME/` > `memory.md` > `CLAUDE.md` > auto-memory blob (REQ-CTX-03) — **Pete's call on 2026-07-12**, accepted after the gap was flagged during milestone open
-- `/reroute` slash-command wrapper shipped (REQ-SURF-01 / C-01)
-- docs-sync Phase-Closure Audit Mode wired to the pre-push hook (REQ-SURF-02 / C-04)
+- Daily-stats series actually generated: jest-pollution guard, missed-day counter flush, local launchd scheduler replacing the vault-unreachable RemoteTrigger (STATS-PIPE-01/02/03)
+- Retrieval utility recorded: recall hit/miss + result count, Memory Echo shown/score — three new columns, query text never persisted (STATS-OUTCOME-01/02)
+- Trend computation + report surfaces: pure `computeCompoundingTrend` verdict function, `/today` Compounding section, `scripts/compounding-report.js` CLI (TREND-01/02)
+- Verdict follow-up ~3 weeks post-ship: archived compounding report, honest refuted/flat accepted (VERDICT-01, non-blocking)
 
-**Already shipped in the 2026-07-12 audit remediation** (dropped from the audit's original v1.6 block, verified against live code): B-01 tracked git hooks, B-03 post-merge coverage guard, F-01 semantic excluded-terms gate, E-01/E-03/E-04/A-03 CLAUDE.md de-volatilization, C-03 docs-sync scope guard. F-02 was refuted — the "orphan" schema has a dynamic consumer.
+**Verdict thresholds (Pete accepted 2026-07-15, last 14-row window):** entries +5 and kb growth; recall used ≥40% of days; hit rate ≥60%; week-2 utility ≥ week-1 − 10pts.
 
 ## Core Value
 
@@ -113,7 +110,7 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 
 ### Active
 
-(Defined in REQUIREMENTS.md — see v1.5 Internal Hardening scope.)
+(Defined in REQUIREMENTS.md — see v1.7 Prove Compounding scope.)
 
 <details>
 <summary>v1.4 Memory Activation & Final Closeout (shipped 2026-04-26, tag v1.4)</summary>
@@ -262,4 +259,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-15 after v1.6 milestone completion*
+*Last updated: 2026-07-15 after v1.7 milestone start*
