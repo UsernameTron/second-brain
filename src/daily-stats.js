@@ -271,15 +271,27 @@ const _COUNTER_DEFAULTS = {
 };
 
 /**
+ * Resolve the cache directory for counter files.
+ * Precedence: CACHE_DIR_OVERRIDE > jest temp dir (JEST_WORKER_ID) > ~/.cache/second-brain.
+ * The jest branch keeps the real user cache clean when tests call record*() without an override.
+ * @returns {string}
+ */
+function _cacheDir() {
+  if (process.env.CACHE_DIR_OVERRIDE) return process.env.CACHE_DIR_OVERRIDE;
+  if (process.env.JEST_WORKER_ID) {
+    return path.join(os.tmpdir(), 'second-brain-jest', String(process.env.JEST_WORKER_ID));
+  }
+  return path.join(os.homedir(), '.cache', 'second-brain');
+}
+
+/**
  * Resolve the counter file path for a given date.
  * Honors CACHE_DIR_OVERRIDE for test isolation.
  * @param {Date} now
  * @returns {string} absolute path to daily-counters-YYYY-MM-DD.json
  */
 function _counterPath(now) {
-  const cacheDir = process.env.CACHE_DIR_OVERRIDE
-    || path.join(os.homedir(), '.cache', 'second-brain');
-  return path.join(cacheDir, `daily-counters-${dateKey(now)}.json`);
+  return path.join(_cacheDir(), `daily-counters-${dateKey(now)}.json`);
 }
 
 /**

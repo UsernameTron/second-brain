@@ -54,6 +54,34 @@ describe('dateKey()', () => {
   });
 });
 
+// ── counter-store test isolation (regression tripwire) ────────────────────────
+describe('counter-store test isolation (regression tripwire)', () => {
+  const os = require('os');
+  const fs = require('fs');
+  const path = require('path');
+
+  it('routes counter writes under os.tmpdir when JEST_WORKER_ID is set and no CACHE_DIR_OVERRIDE', () => {
+    const saved = process.env.CACHE_DIR_OVERRIDE;
+    delete process.env.CACHE_DIR_OVERRIDE;
+    expect(process.env.JEST_WORKER_ID).toBeDefined();
+
+    jest.resetModules();
+    const { recordProposalsBatch } = require('../src/daily-stats');
+    const now = new Date('2026-05-01T18:00:00.000Z'); // 2026-05-01 Chicago
+    recordProposalsBatch(1, { now });
+
+    const workerDir = path.join(os.tmpdir(), 'second-brain-jest', String(process.env.JEST_WORKER_ID));
+    const expected = path.join(workerDir, 'daily-counters-2026-05-01.json');
+    expect(fs.existsSync(expected)).toBe(true);
+
+    const realCache = path.join(os.homedir(), '.cache', 'second-brain', 'daily-counters-2026-05-01.json');
+    expect(fs.existsSync(realCache)).toBe(false);
+
+    try { fs.unlinkSync(expected); } catch (_) { /* best-effort */ }
+    if (saved !== undefined) process.env.CACHE_DIR_OVERRIDE = saved;
+  });
+});
+
 // ── recordDailyStats() ────────────────────────────────────────────────────────
 describe('recordDailyStats()', () => {
   const os = require('os');
