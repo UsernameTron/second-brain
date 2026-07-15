@@ -29,7 +29,7 @@ The v1.5 hooks, agents, and gates all exist. This milestone closes the last plac
 | 28 | Surface Completion | Every command and agent mode the repo advertises actually fires | REQ-SURF-01, REQ-SURF-02 |
 
 - [x] Phase 26: Promotion Safety — completed 2026-07-15 (PR #62)
-- [ ] Phase 27: Context Honesty
+- [ ] Phase 27: Context Honesty — SURFACE-REACH-01 done 2026-07-15 (PR #62 + live export + instruction-layer pointers in `~/.claude/CLAUDE.md` and `~/projects/CLAUDE.md`); REQ-CTX-01 and REQ-CTX-03 remain
 - [ ] Phase 28: Surface Completion
 
 ### Phase 26: Promotion Safety
@@ -51,6 +51,11 @@ Success criteria:
 3. A written authority hierarchy ranks `ABOUT ME/` > `memory.md` > `CLAUDE.md` > auto-memory blob, and a conflict between any two has one defined winner — no "it depends."
 4. Given a fact that contradicts `ABOUT ME/` canon, the system flags the conflict in-session rather than silently deferring to either side. (Rule 4 of AUTHORITY.md: *canon disagrees with Pete live → Pete wins and canon is stale.*)
 5. No fact-type has two homes: every claim about identity, company, architecture, or exclusions resolves to exactly one file.
+
+Plans (3, all wave 1 — disjoint file sets):
+- [ ] 27-01-PLAN.md — SessionStart staleness hook (REQ-CTX-01)
+- [ ] 27-02-PLAN.md — ADR-020 authority hierarchy + reach/CLAUDE.md pointers (REQ-CTX-03)
+- [ ] 27-03-PLAN.md — semantic-search fail-closed on empty exclusion terms (absorbed debt, supports REQ-CTX-03)
 
 > **Scope note — REQ-CTX-03 was Pete's call.** During milestone open, `.planning/research/AUTHORITY.md` was flagged as naming a gap Second Brain does *not* solve (four stores assert facts about Pete; none outranks the others), and the recommendation was surfaced as an open question rather than acted on. Pete approved it into v1.6 on 2026-07-12. This is accepted, scoped, in-milestone work — **not an autopilot addition**, and not implemented in the pass that opened the milestone.
 
@@ -222,10 +227,5 @@ Plans:
 | 21. Closeout Hygiene | v1.4 | 4/4 | Complete | 2026-04-26 |
 | 22. Committed Hooks | v1.5 | 0/2 | Complete    | 2026-04-26 |
 | 23. Doc Sync Layer | v1.5 | 2/2 | Complete    | 2026-04-26 |
-<<<<<<< HEAD
 | 24. Agent Surface | v1.5 | 2/2 | Complete    | 2026-04-26 |
 | 25. Unicode Hardening & UAT Closeout | v1.5 | 2/2 | Complete    | 2026-04-26 |
-=======
-| 24. Agent Surface | v1.5 | 1/2 | Complete    | 2026-04-26 |
-| 25. Unicode Hardening & UAT Closeout | v1.5 | 0/TBD | Complete    | 2026-04-26 |
->>>>>>> 2bb974d (docs(phase-25): complete phase execution — Unicode hardening and UAT closeout)
