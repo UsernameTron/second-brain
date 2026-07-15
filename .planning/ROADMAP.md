@@ -29,7 +29,7 @@ The v1.5 hooks, agents, and gates all exist. This milestone closes the last plac
 | 28 | Surface Completion | Every command and agent mode the repo advertises actually fires | REQ-SURF-01, REQ-SURF-02 |
 
 - [x] Phase 26: Promotion Safety — completed 2026-07-15 (PR #62)
-- [ ] Phase 27: Context Honesty — SURFACE-REACH-01 done 2026-07-15 (PR #62 + live export + instruction-layer pointers in `~/.claude/CLAUDE.md` and `~/projects/CLAUDE.md`); REQ-CTX-01 and REQ-CTX-03 remain
+- [x] Phase 27: Context Honesty (3/3 plans) — completed 2026-07-15
 - [ ] Phase 28: Surface Completion
 
 ### Phase 26: Promotion Safety
