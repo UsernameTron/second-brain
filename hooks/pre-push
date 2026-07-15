@@ -8,11 +8,26 @@ if [ -n "$LOCAL_MASTER" ] && [ "$LOCAL_MASTER" != "$REMOTE_MASTER" ]; then
   if [ "$CURRENT_BRANCH" != "master" ]; then
     BASE=$(git merge-base "$CURRENT_BRANCH" master)
     if [ "$BASE" != "$REMOTE_MASTER" ]; then
-      echo "BLOCKED: local master ($LOCAL_MASTER) is behind origin/master ($REMOTE_MASTER)."
-      echo "Run: git checkout master && git reset --hard origin/master && git checkout $CURRENT_BRANCH && git rebase master"
+      echo "BLOCKED: $CURRENT_BRANCH was based on local master ($LOCAL_MASTER), which differs from origin/master ($REMOTE_MASTER)."
+      if git merge-base --is-ancestor master origin/master; then
+        echo "Local master is behind origin/master. Run: git checkout master && git pull --ff-only"
+        echo "Then: git checkout $CURRENT_BRANCH && git rebase master"
+      else
+        echo "Local master has unpushed or diverged commits — it is not safe to force it to match origin."
+        echo "Push or reconcile master manually first (do not discard local commits), then: git checkout $CURRENT_BRANCH && git rebase master"
+      fi
       echo "Then retry the push."
       exit 1
     fi
   fi
 fi
+
+if [ -z "$SKIP_DOCSYNC" ]; then
+  if ! node "$(dirname "$0")/pre-push-docsync.js"; then
+    exit 1
+  fi
+else
+  echo "[pre-push] SKIP_DOCSYNC set — bypassing docsync gate."
+fi
+
 exit 0
