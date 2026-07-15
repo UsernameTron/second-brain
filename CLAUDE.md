@@ -22,12 +22,12 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 
 > Last verified: 2026-07-15  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
 
-**Latest Release:** v1.5.0 Internal Hardening (2026-04-26)
+**Latest Release:** v1.6 Enforcement Integrity & Surface Completion (2026-07-15)
 **Phase 22 complete:** NFKD Unicode Matcher (2026-04-26)
 **Phase 23 complete:** Pre-Commit Hooks (2026-04-26)
 **Phase 24 complete:** Doc Sync Agent (2026-04-26)
 **Phase 25 complete:** UAT Rebaseline (2026-04-26)
-**v1.6 in progress:** Promotion Safety (PROMOTE-FLAGS-01, PROMOTE-DEFER-01) + Cross-Surface Reach (SURFACE-REACH-01, ADR-019) — 2026-07-15
+**v1.6 complete (2026-07-15):** Promotion Safety, Cross-Surface Reach (ADR-018/019), Context Honesty (staleness hook, ADR-020 authority hierarchy, fail-closed exclusions), Surface Completion (/reroute, pre-push docs gate)
 
 - **Test count:** 1245 total across 64 test files (1207 passing, 38 skipped)
 - **Coverage:** Branch 81.15%, Statements 92.74%, Functions 96.02%, Lines 93.37%

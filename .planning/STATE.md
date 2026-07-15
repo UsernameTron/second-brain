@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Enforcement Integrity & Surface Completion
-status: milestone-code-complete
-last_updated: "2026-07-15T21:40:32.766Z"
-last_activity: 2026-07-15 -- v1.6 phases 27+28 executed and verified; PR pending
+status: completed
+last_updated: "2026-07-15T22:18:39.073Z"
+last_activity: 2026-07-15
 progress:
   total_phases: 7
-  completed_phases: 5
-  total_plans: 11
-  completed_plans: 11
+  completed_phases: 6
+  total_plans: 14
+  completed_plans: 14
 ---
 
 # Project State
@@ -19,7 +19,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-26 after v1.5 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Status:** v1.6 code-complete. All 7 requirements shipped and verified. Awaiting PR review + merge, then complete-milestone/tag.
+**Status:** v1.6 milestone complete
 
 ## Current Position
 
@@ -27,7 +27,7 @@ Milestone: v1.6 Enforcement Integrity & Surface Completion
 Phase: 28 (Surface Completion) — COMPLETE (verified passed)
 Plan: 3/3
 Status: v1.6 code-complete; milestone audit passed (.planning/v1.6-MILESTONE-AUDIT.md)
-Last activity: 2026-07-15 -- Phases 27+28 executed, verified, audited
+Last activity: 2026-07-15
 
 ```
 Progress: [██████████] 3/3 phases complete

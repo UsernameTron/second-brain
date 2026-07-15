@@ -204,6 +204,27 @@
 
 ---
 
+## Milestone: v1.6 — Enforcement Integrity & Surface Completion
+
+**Shipped:** 2026-07-15
+**Phases:** 3 (26-28) | **Plans:** 7 (26: PR #62; 27: 3; 28: 3) | **PRs:** #62, #63
+
+### What Was Built
+Promotion safety (--dry-run honored, unknown flags rejected, deferred proposals un-stranded); cross-surface reach layer (ADR-019 exporter + recall CLI + instruction-layer pointers); SessionStart staleness hook; ADR-020 authority hierarchy with router pointers on three surfaces; fail-closed exclusion guard in semanticSearch; /reroute wrapper; blocking pre-push docs-drift gate with the destructive reset --hard remedy removed.
+
+### What Worked
+- Per-phase gsd-verifier runs against the LIVE system (not plan text) caught nothing post-hoc because executors verified acceptance criteria inline — the lesson-driven prompts (LESSON-AUDIT-QUICKWIN-TEST-IMPACT-01, worktree gotchas) prevented the failure modes they encode.
+- Sequential executor scheduling (one jest at a time) honored the 2026-04-23 parallel-jest lesson with zero hung processes.
+- Absorbing filed debt (fail-closed guard, pre-push remedy) into in-scope phases shipped 3 extra fixes at near-zero marginal cost.
+
+### What Was Inefficient
+- Subagent worktree sandboxes spawned pinned at stale master three times — each needed an ff-merge recovery and explicit merge-back with ancestry asserts. Executor prompts now carry the gotcha, but the isolation default cost real time.
+- Worktree-captured coverage numbers (91.73%) drifted from main-tree truth (92.74%) and had to be re-captured — worktree jest runs are not authoritative.
+- Two executor runs were cut off mid-plan and needed SendMessage resumption; spot-check-then-resume worked but added round-trips.
+
+### Verification
+Phase 27: passed 5/5 criteria. Phase 28: passed 4/4 must-haves. Milestone audit: passed 7/7 requirements. Suite at close: 1245 tests / 1207 passing / 0 failed; coverage 92.74/81.15/96.02/93.37.
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
