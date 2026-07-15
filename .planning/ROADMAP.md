@@ -28,14 +28,23 @@ The v1.5 hooks, agents, and gates all exist. This milestone closes the last plac
 | 27 | Context Honesty | No surface reinvents what already ships; no status block goes stale unnoticed; conflicting sources have a defined winner | SURFACE-REACH-01, REQ-CTX-01, REQ-CTX-03 |
 | 28 | Surface Completion | Every command and agent mode the repo advertises actually fires | REQ-SURF-01, REQ-SURF-02 |
 
-**Phase 26: Promotion Safety** — [PROMOTE-FLAGS-01, PROMOTE-DEFER-01]
+- [x] Phase 26: Promotion Safety — completed 2026-07-15 (PR #62)
+- [ ] Phase 27: Context Honesty
+- [ ] Phase 28: Surface Completion
+
+### Phase 26: Promotion Safety
+
+**Goal:** The human review gate cannot be bypassed or silently strand accepted memories — [PROMOTE-FLAGS-01, PROMOTE-DEFER-01]
 Success criteria:
 1. `/promote-memories --dry-run` reports what *would* promote and leaves `memory.md` byte-identical (verified by hash).
 2. `/promote-memories --auto` accepts pending candidates; an unrecognized flag exits non-zero with a message rather than being ignored.
 3. Accepting 25 proposals and running promotion three times promotes all 25 — none left in a non-`pending` state that blocks re-promotion.
 4. Regression test covers the 2026-04-26 failure directly: >10 accepted must not strand the remainder.
 
-**Phase 27: Context Honesty** — [SURFACE-REACH-01, REQ-CTX-01, REQ-CTX-03]
+### Phase 27: Context Honesty
+
+**Goal:** No surface reinvents what already ships; no status block goes stale unnoticed; conflicting sources have a defined winner — [SURFACE-REACH-01, REQ-CTX-01, REQ-CTX-03]
+**Depends on**: Phase 26
 Success criteria:
 1. A session started on a *non-Claude-Code surface* (Desktop/Cowork/chat) surfaces a pointer naming `memory.md` as canonical and this repo as its owner.
 2. Starting a session with a `Last verified:` date older than 14 days prints a staleness warning naming the stale file; a fresh date prints nothing.
@@ -45,7 +54,10 @@ Success criteria:
 
 > **Scope note — REQ-CTX-03 was Pete's call.** During milestone open, `.planning/research/AUTHORITY.md` was flagged as naming a gap Second Brain does *not* solve (four stores assert facts about Pete; none outranks the others), and the recommendation was surfaced as an open question rather than acted on. Pete approved it into v1.6 on 2026-07-12. This is accepted, scoped, in-milestone work — **not an autopilot addition**, and not implemented in the pass that opened the milestone.
 
-**Phase 28: Surface Completion** — [REQ-SURF-01, REQ-SURF-02]
+### Phase 28: Surface Completion
+
+**Goal:** Every command and agent mode the repo advertises actually fires — [REQ-SURF-01, REQ-SURF-02]
+**Depends on**: Phase 27
 Success criteria:
 1. `/reroute <file> --target <path>` moves a previously classified item and reports the new location (wrapper reads `r.to`, not `r.target`).
 2. A `git push` carrying documentation drift is caught by the pre-push docs-sync audit before it reaches the remote.
