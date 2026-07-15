@@ -22,9 +22,9 @@ The human review gate is the entire safety model for long-term memory. Both of t
 Both requirements answer the same failure mode: context that is confidently wrong, or absent, and no mechanism notices. They are the spine of this milestone — see [decisions/ADR-018-cross-surface-reach.md](../decisions/ADR-018-cross-surface-reach.md).
 
 - [x] **SURFACE-REACH-01** — **Code shipped 2026-07-15** (ADR-019, feat/v1.6-reach-and-promotion-safety): push-on-promotion pointer + capped-digest export (`src/reach-exporter.js`, `config/reach-targets.json`) into allowlisted Claude Code auto-memory dirs, plus standalone `scripts/recall.js` pull CLI. Egress re-applies the exclusion gate fail-closed. Remaining manual step per ADR-018: add the one-line pointer to Desktop/Cowork instruction layers. Original text: The memory layer is discoverable from every Claude surface (Desktop, Cowork, chat), not only from inside this repo in Claude Code. Surface-level instructions must name `memory.md` as canonical and point at this project as its owner. **Evidence it matters:** on 2026-07-12 a Claude session with no knowledge of Second Brain spent ~4 hours independently designing a memory-governance system before discovering v1.5.0 had already shipped equivalent components. A memory system no other surface can see will be reinvented by the next surface that needs one. Prior art absorbed into `.planning/research/AUTHORITY.md` (a source-of-truth hierarchy across the auto-memory blob, userPreferences, ABOUT ME, and CLAUDE.md — a gap this project does **not** currently solve) and `.planning/research/LIFECYCLE.md` (countable retention/decay/promotion rules).
-- [ ] **REQ-CTX-01** *(E-02)*: A SessionStart hook warns when the CLAUDE.md status block's `Last verified:` date exceeds **14 days**. The block sat 77 days stale before the 2026-07-12 audit caught it, and nothing in the system noticed. 14 days chosen to catch drift early without firing during an active milestone, where docs update naturally.
+- [x] **REQ-CTX-01** *(E-02)*: **Shipped 2026-07-15** (Phase 27, plan 27-01): `.claude/hooks/staleness-check.js` on SessionStart, warn-only, 14-day threshold, 6 Jest cases. Original text: A SessionStart hook warns when the CLAUDE.md status block's `Last verified:` date exceeds **14 days**. The block sat 77 days stale before the 2026-07-12 audit caught it, and nothing in the system noticed. 14 days chosen to catch drift early without firing during an active milestone, where docs update naturally.
 
-- [ ] **REQ-CTX-03**: A written source-of-truth hierarchy arbitrates conflicts between the four stores that currently claim to describe Pete, and Second Brain enforces it. Today `memory.md`, `CLAUDE.md`, the `ABOUT ME/` canon, and Anthropic's auto-memory blob all assert facts, and **none outranks the others** — so a conflict has no defined winner. Second Brain governs `memory.md` well and governs nothing else.
+- [x] **REQ-CTX-03**: **Shipped 2026-07-15** (Phase 27, plans 27-02/27-03): `decisions/ADR-020-authority-hierarchy.md` ranks ABOUT ME/ > memory.md > CLAUDE.md > auto-memory blob with all six pairwise winners + Rule-4 flag-in-session; router pointers in project CLAUDE.md, reach template, Cowork CLAUDE.md; corollary fail-closed guard on empty excluded terms in semanticSearch. Original text: A written source-of-truth hierarchy arbitrates conflicts between the four stores that currently claim to describe Pete, and Second Brain enforces it. Today `memory.md`, `CLAUDE.md`, the `ABOUT ME/` canon, and Anthropic's auto-memory blob all assert facts, and **none outranks the others** — so a conflict has no defined winner. Second Brain governs `memory.md` well and governs nothing else.
 
   **Scope decision:** Pete accepted this into v1.6 on 2026-07-12, on the recommendation flagged during milestone open. It was surfaced as an open question, not added on autopilot. Adapt — do not redesign — the hierarchy in [`.planning/research/AUTHORITY.md`](./research/AUTHORITY.md), which was written for a `~/memory/canon|ledger|working/` layout that does not exist here. Map its rules onto the stores Second Brain actually has:
 
@@ -43,8 +43,8 @@ Both requirements answer the same failure mode: context that is confidently wron
 
 Commands and agent modes the repo advertises but never wired up.
 
-- [ ] **REQ-SURF-01** *(C-01)*: `/reroute` is invocable as a slash command and re-routes a previously classified item to a different vault location. The underlying `src/reroute.js` works; only the wrapper is missing. The return shape uses `r.to` — **not** `r.target`, which is what a naive wrapper would reach for (the audit's own proposed diff had exactly this bug; adversarial verification caught it).
-- [ ] **REQ-SURF-02** *(C-04)*: docs-sync Phase-Closure Audit Mode fires from the **pre-push hook**, so documentation drift is caught before it reaches the remote. The mode is fully implemented in the agent but wired to no trigger, which means the repo currently claims an automated docs-drift gate it does not have.
+- [x] **REQ-SURF-01** *(C-01)*: **Shipped 2026-07-15** (Phase 28, plan 28-01): `.claude/commands/reroute.md` reads `r.to`/`r.from`; command-table reachability sweep ALL COMMANDS REACHABLE. Original text: `/reroute` is invocable as a slash command and re-routes a previously classified item to a different vault location. The underlying `src/reroute.js` works; only the wrapper is missing. The return shape uses `r.to` — **not** `r.target`, which is what a naive wrapper would reach for (the audit's own proposed diff had exactly this bug; adversarial verification caught it).
+- [x] **REQ-SURF-02** *(C-04)*: **Shipped 2026-07-15** (Phase 28, plans 28-02/28-03): `hooks/pre-push-docsync.js` blocking gate (reuses post-merge-doc-sync exports, SKIP_DOCSYNC bypass) wired into `hooks/pre-push`; destructive reset --hard remedy replaced with merge-base --is-ancestor logic; doc stats refreshed from live run. Original text: docs-sync Phase-Closure Audit Mode fires from the **pre-push hook**, so documentation drift is caught before it reaches the remote. The mode is fully implemented in the agent but wired to no trigger, which means the repo currently claims an automated docs-drift gate it does not have.
 
 ## Future Requirements
 
@@ -67,10 +67,10 @@ Commands and agent modes the repo advertises but never wired up.
 | PROMOTE-FLAGS-01 | Phase 26 | Complete (2026-07-15) |
 | PROMOTE-DEFER-01 | Phase 26 | Complete (2026-07-15) |
 | SURFACE-REACH-01 | Phase 27 | Code complete (2026-07-15); surface-instruction pointers pending |
-| REQ-CTX-01 | Phase 27 | Pending |
-| REQ-CTX-03 | Phase 27 | Pending |
-| REQ-SURF-01 | Phase 28 | Pending |
-| REQ-SURF-02 | Phase 28 | Pending |
+| REQ-CTX-01 | Phase 27 | Complete (2026-07-15) |
+| REQ-CTX-03 | Phase 27 | Complete (2026-07-15) |
+| REQ-SURF-01 | Phase 28 | Complete (2026-07-15) |
+| REQ-SURF-02 | Phase 28 | Complete (2026-07-15) |
 
 **Coverage:**
 - v1.6 requirements: 7 total
