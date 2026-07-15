@@ -3,14 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Enforcement Integrity & Surface Completion
 status: executing
-stopped_at: "PR #59 + #60 merged; master clean. Next: /gsd:discuss-phase 26 (Promotion Safety)"
-last_updated: "2026-07-13T04:00:00.000Z"
-last_activity: 2026-07-13
+last_updated: "2026-07-15T21:15:03.841Z"
+last_activity: 2026-07-15 -- Phase 27 execution started
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 7
+  completed_phases: 4
+  total_plans: 11
+  completed_plans: 8
 ---
 
 # Project State
@@ -20,15 +19,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-26 after v1.5 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Status:** v1.6 open. Phase 26 (Promotion Safety) is next.
+**Status:** Executing Phase 27
 
 ## Current Position
 
 Milestone: v1.6 Enforcement Integrity & Surface Completion
-Phase: 26 — Promotion Safety (not started)
-Plan: —
-Status: Requirements defined (7 across phases 26-28). PR #59 and #60 merged; master clean and green. Ready for `/gsd:discuss-phase 26`.
-Last activity: 2026-07-13 — F-02 refutation, CI unblock, PRs #59 + #60 shipped
+Phase: 27 (Context Honesty) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 27
+Last activity: 2026-07-15 -- Phase 27 execution started
 
 ```
 Progress: [..........] 0/3 phases complete
@@ -83,6 +82,7 @@ Last session: 2026-07-12
 Last activity: 2026-07-12 — Fable 5 audit remediation (14 of 16 Quick Wins), memory-corpus seeding, and v1.6 backlog capture. Full suite green (1190 tests, coverage unchanged).
 
 **Audit remediation.** Two findings changed during execution:
+
 - **F-01** (dead semantic excluded-terms gate) applied, but was NOT Effort-1 — it is a contract change requiring 4 test-file updates (mocks lacked `loadExcludedTerms`; integration scenario-5 injected via the now-dead pipelineConfig path).
 - **F-02** (delete "orphan" daily-stats-frontmatter schema) REFUTED and reverted: the schema is used dynamically by the pre-commit hook to validate daily-stats.md frontmatter (3 tests depend on it). The audit's literal-name grep missed the dynamic linkage.
 - A-01 and C-02 applied locally only (settings.local.json is gitignored; agent-memory dir was untracked — no git trace).
@@ -90,6 +90,7 @@ Last activity: 2026-07-12 — Fable 5 audit remediation (14 of 16 Quick Wins), m
 **Memory corpus seeded: 27 → 97 entries.** Mined 70 durable proposals from state/decisions.md, the ADR log, CTG docs, standups, and the philosophy corpus; all accepted and promoted; embeddings sidecar at 125 vectors. Keyword, semantic, and hybrid `/recall` verified against the new corpus.
 
 **Two promotion defects found and filed for v1.6** (see REQUIREMENTS.md):
+
 - **PROMOTE-FLAGS-01 (higher priority)** — `--dry-run` performs a REAL promotion; the flag is parsed by the wrapper but ignored by `promoteMemories()`.
 - **PROMOTE-DEFER-01** — accepted candidates past the batch cap are stamped `deferred` and never re-admitted (the accept filter only takes `pending`), so a >10 batch strands the remainder permanently. This is the actual cause of the "8 deferred memory proposals" recorded in the 2026-04-26 handoff — it was misdiagnosed then as dedup logic. Worked around by promoting in batches of exactly 10.
 
