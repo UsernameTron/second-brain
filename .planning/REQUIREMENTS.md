@@ -44,18 +44,18 @@ Full investigation and file-level design: approved plan at `/Users/cpconnor/.cla
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STATS-PIPE-01 | — | Pending |
-| STATS-PIPE-02 | — | Pending |
-| STATS-PIPE-03 | — | Pending |
-| STATS-OUTCOME-01 | — | Pending |
-| STATS-OUTCOME-02 | — | Pending |
-| TREND-01 | — | Pending |
-| TREND-02 | — | Pending |
+| STATS-PIPE-01 | Phase 29 | Pending |
+| STATS-PIPE-02 | Phase 29 | Pending |
+| STATS-PIPE-03 | Phase 29 | Pending |
+| STATS-OUTCOME-01 | Phase 30 | Pending |
+| STATS-OUTCOME-02 | Phase 30 | Pending |
+| TREND-01 | Phase 31 | Pending |
+| TREND-02 | Phase 31 | Pending |
 
 **Coverage:**
 - v1.7 requirements: 7 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 7 ⚠️
+- Mapped to phases: 7
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-07-15*

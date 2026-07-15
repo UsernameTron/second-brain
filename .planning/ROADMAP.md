@@ -13,8 +13,20 @@ Transform an Obsidian vault into a personal operating system with compounding me
 - ✅ **v1.4 Memory Activation & Final Closeout** — Phases 17-21 (shipped 2026-04-26, tag v1.4)
 - ✅ **v1.5 Internal Hardening** — Phases 22-25 (shipped 2026-04-26, tag v1.5)
 - ✅ **v1.6 Enforcement Integrity & Surface Completion** — Phases 26-28 (shipped 2026-07-15, tag v1.6)
+- 🚧 **v1.7 Prove Compounding** — Phases 29-31 (in progress)
 
 ## Phases
+
+<details open>
+<summary>🚧 v1.7 Prove Compounding (Phases 29-31) — IN PROGRESS</summary>
+
+- [ ] Phase 29: Series Integrity
+- [ ] Phase 30: Outcome Instrumentation
+- [ ] Phase 31: Trend & Report
+
+Post-milestone follow-up (calendar-gated, ~3 weeks after ship, not a roadmap phase): VERDICT-01 — confirm scheduler alive over a trailing week, observe `computeMemoryHealth` live, archive `scripts/compounding-report.js` output with the verdict to `.planning/`.
+
+</details>
 
 <details>
 <summary>✅ v1.6 Enforcement Integrity & Surface Completion (Phases 26-28) — SHIPPED 2026-07-15</summary>
@@ -104,6 +116,40 @@ Full details: [milestones/v1.5-phases/](milestones/v1.5-phases/)
 
 ## Phase Details
 
+### Phase 29: Series Integrity
+**Goal**: A clean daily-stats row lands every weekday without test-suite pollution corrupting the counter cache
+**Depends on**: Phase 28 (v1.6 complete)
+**Requirements**: STATS-PIPE-01, STATS-PIPE-02, STATS-PIPE-03
+**Success Criteria** (what must be TRUE):
+  1. Running the jest suite leaves `~/.cache/second-brain` daily-counter files untouched — a regression tripwire test asserts counter writes resolve under a temp dir when `JEST_WORKER_ID` is set (unless `CACHE_DIR_OVERRIDE` is explicitly set)
+  2. A day where `/today` never ran has its counters flushed into a `daily-stats.md` row on the next real `/today`, without duplicating rows already present (idempotent via existing `recordDailyStats`)
+  3. Counter files older than ~14 days are deleted after a successful flush
+  4. `launchctl list | grep secondbrain` shows the `com.secondbrain.today` job loaded for weekday 06:45 local execution, and `config/scheduling.json` documents RemoteTrigger as vault-unreachable (disabled by design, not a config bug)
+  5. The 5 pre-existing jest-polluted counter files are deleted from `~/.cache/second-brain/`
+**Plans**: TBD
+
+### Phase 30: Outcome Instrumentation
+**Goal**: Daily-stats rows capture whether retrieval returned value, not just that it ran
+**Depends on**: Phase 29
+**Requirements**: STATS-OUTCOME-01, STATS-OUTCOME-02
+**Success Criteria** (what must be TRUE):
+  1. Every `/recall` invocation increments a new `recall_hits` counter when at least one result was returned and the query wasn't blocked, alongside the existing `recall_count`; the query text itself is never written to any counter or stats file
+  2. Every non-dry-run `/today` records whether Memory Echo was shown and its top score, in new `echo_shown` / `echo_score` fields
+  3. A real `/today` run produces a `daily-stats.md` row with 11 columns (8 existing + `recall_hits`, `echo_shown`, `echo_score`)
+  4. `readDailyStats()` returns numeric types for numeric cells and preserves `—` as a string for missing data, verified by a round-trip test
+**Plans**: TBD
+
+### Phase 31: Trend & Report
+**Goal**: A pure trend function turns the daily-stats series into an honest verdict, surfaced in both `/today` and a standalone CLI
+**Depends on**: Phase 30
+**Requirements**: TREND-01, TREND-02
+**Success Criteria** (what must be TRUE):
+  1. `computeCompoundingTrend(rows, { windowDays })` returns supply/demand/utility metrics and a `compounding | flat | insufficient-data` verdict per the accepted thresholds, with no I/O (pure, unit-testable with synthetic rows)
+  2. With fewer than 7 rows, the verdict is `insufficient-data` and the `/today` Compounding section is suppressed (matches the Memory Echo null-suppression precedent)
+  3. With ≥7 rows, `/today` displays a `## Compounding` section reflecting the same verdict the pure function computes for the same rows
+  4. `node scripts/compounding-report.js` prints the full evidence table plus verdict as markdown, reading `daily-stats.md` via the existing `readDailyStats`; at <7 rows it correctly prints the `insufficient-data` verdict with the evidence table
+**Plans**: TBD
+
 ### Phase 22: Committed Hooks
 **Goal**: The git pre-commit layer enforces schema validity, vault boundary integrity, and dotenv discipline automatically — no manual review needed to catch these classes of defects
 **Depends on**: Phase 21 (v1.4 complete)
@@ -192,3 +238,6 @@ Plans:
 | 26. Promotion Safety | v1.6 | — | Complete | 2026-07-15 |
 | 27. Context Honesty | v1.6 | 3/3 | Complete | 2026-07-15 |
 | 28. Surface Completion | v1.6 | 3/3 | Complete | 2026-07-15 |
+| 29. Series Integrity | v1.7 | 0/TBD | Not started | - |
+| 30. Outcome Instrumentation | v1.7 | 0/TBD | Not started | - |
+| 31. Trend & Report | v1.7 | 0/TBD | Not started | - |

@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Prove Compounding
-status: defining-requirements
+status: roadmap-created
 last_updated: "2026-07-15"
 last_activity: 2026-07-15
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -24,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 ## Current Position
 
 Milestone: v1.7 Prove Compounding
-Phase: Not started (defining requirements)
+Phase: 29 (Series Integrity) — not started
 Plan: —
-Status: Defining requirements
-Last activity: 2026-07-15 — Milestone v1.7 started
+Status: Roadmap created (phases 29-31), ready to plan Phase 29
+Last activity: 2026-07-15 — Milestone v1.7 started, requirements + roadmap committed
 
 **Shipped milestones:**
 
@@ -89,4 +89,4 @@ Plan-mode investigation findings that ground the v1.7 requirements (verified aga
 
 ## Next Action
 
-Write REQUIREMENTS.md (STATS-PIPE-01/02/03, STATS-OUTCOME-01/02, TREND-01/02, VERDICT-01), spawn roadmapper for phases 29–31, then `/gsd:plan-phase 29`.
+`/gsd:plan-phase 29` (Series Integrity). Merge `chore/v1.7-milestone-init` via PR first.
