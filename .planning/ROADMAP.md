@@ -126,7 +126,11 @@ Full details: [milestones/v1.5-phases/](milestones/v1.5-phases/)
   3. Counter files older than ~14 days are deleted after a successful flush
   4. `launchctl list | grep secondbrain` shows the `com.secondbrain.today` job loaded for weekday 06:45 local execution, and `config/scheduling.json` documents RemoteTrigger as vault-unreachable (disabled by design, not a config bug)
   5. The 5 pre-existing jest-polluted counter files are deleted from `~/.cache/second-brain/`
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 29-01-PLAN.md — Counter-store integrity: JEST_WORKER_ID pollution guard + tripwire test, polluted-file cleanup, missed-day flush + 14-day retention
+- [ ] 29-02-PLAN.md — launchd weekday scheduler (com.secondbrain.today) + RemoteTrigger disabled-by-design documentation
 
 ### Phase 30: Outcome Instrumentation
 **Goal**: Daily-stats rows capture whether retrieval returned value, not just that it ran
@@ -238,6 +242,6 @@ Plans:
 | 26. Promotion Safety | v1.6 | — | Complete | 2026-07-15 |
 | 27. Context Honesty | v1.6 | 3/3 | Complete | 2026-07-15 |
 | 28. Surface Completion | v1.6 | 3/3 | Complete | 2026-07-15 |
-| 29. Series Integrity | v1.7 | 0/TBD | Not started | - |
+| 29. Series Integrity | v1.7 | 0/2 | Planned | - |
 | 30. Outcome Instrumentation | v1.7 | 0/TBD | Not started | - |
 | 31. Trend & Report | v1.7 | 0/TBD | Not started | - |
