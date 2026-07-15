@@ -404,6 +404,13 @@ async function semanticSearch(query, options) {
   const sem = pipelineConfig.memory.semantic;
   const excludedTerms = loadExcludedTerms();
 
+  // Fail-closed guard (REQ-CTX-03): an empty/unloadable exclusion list must never
+  // silently pass queries through to Voyage. Mirrors vault-gateway's fail-closed
+  // config pattern — an unloadable safety config denies the operation.
+  if (!Array.isArray(excludedTerms) || excludedTerms.length === 0) {
+    return { results: [], blocked: true, failClosed: true, reason: 'exclusion terms empty or unloadable — failing closed (config/excluded-terms.json)' };
+  }
+
   // Pattern 11 gate — run BEFORE Voyage call
   const policy = await checkContent(query, excludedTerms);
   if (policy && policy.decision === 'BLOCK') {
