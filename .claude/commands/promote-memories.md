@@ -10,14 +10,32 @@ Reference implementation:
 
 ```bash
 node -e "
-  const { promoteMemories } = require('./src/promote-memories');
-  const args = process.argv.slice(1);
-  const opts = {};
-  if (args.includes('--dry-run')) opts.dryRun = true;
-  if (args.includes('--auto')) opts.auto = true;
+  const { promoteMemories, parsePromoteArgs } = require('./src/promote-memories');
+  let opts;
+  try {
+    opts = parsePromoteArgs(process.argv.slice(1));
+  } catch (err) {
+    process.stderr.write(err.message + '\n');
+    process.exit(1);
+  }
   promoteMemories(opts).then(r => {
-    process.stdout.write('Promoted ' + (r.promoted || 0) + ' candidate(s) to memory/memory.md\n');
-    if (r.archived) process.stdout.write('Archived ' + r.archived + ' processed entries.\n');
+    if (r.error) {
+      process.stderr.write('promote-memories failed: ' + r.error + '\n');
+      process.exit(1);
+    }
+    if (r.dryRun) {
+      process.stdout.write('DRY RUN — no writes performed\n');
+      process.stdout.write('Would promote ' + r.promoted + ', defer ' + r.deferred + ', duplicates ' + r.duplicates + ', rejected ' + r.rejected + '\n');
+      (r.wouldPromote || []).forEach(c => process.stdout.write('  would promote: ' + c.candidateId + ' [' + c.category + ']\n'));
+      (r.wouldDefer || []).forEach(id => process.stdout.write('  would defer: ' + id + '\n'));
+    } else {
+      process.stdout.write('Promoted ' + r.promoted + ' candidate(s) to memory/memory.md\n');
+      if (r.reach && r.reach.targets) {
+        const written = r.reach.targets.filter(t => t.status === 'written').length;
+        process.stdout.write('Reach export: ' + written + ' of ' + r.reach.targets.length + ' target(s) updated\n');
+      }
+      if (r.archived) process.stdout.write('Archived processed entries.\n');
+    }
   }).catch(err => {
     process.stderr.write('promote-memories failed: ' + err.message + '\n');
     process.exit(1);
@@ -26,5 +44,7 @@ node -e "
 ```
 
 Flags:
-- `--dry-run` — show what would be promoted without writing.
-- `--auto` — auto-accept all pending candidates (skip human review).
+- `--dry-run` — full pipeline preview with zero writes: no memory.md append, no embedding, no reach export, no proposals rewrite, no archives.
+- `--auto` — treat unreviewed pending candidates (no checkbox) as accepted. Explicit reject/defer checkboxes are still honored. Composes with `--dry-run`.
+- `--max <n>` — override the batch cap (within `batchCapMin`..`batchCapMax` from `config/pipeline.json`).
+- Unknown flags are rejected with a non-zero exit — a mistyped flag never falls through to a real promotion.

@@ -20,6 +20,43 @@ const MEMORY_FILE = () => path.join(VAULT_ROOT(), 'memory', 'memory.md');
 const ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'memory-archive');
 const PROPOSAL_ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'memory-proposals-archive');
 
+// PROMOTE-DEFER-01: statuses still eligible for processing on a later run.
+// `deferred` marks batch-cap overflow — it must stay promotable, not terminal,
+// or over-cap acceptances are stranded permanently (2026-04-26 silent loss).
+const LIVE_STATUSES = new Set(['pending', 'deferred']);
+
+// PROMOTE-FLAGS-01: the full options contract for promoteMemories().
+// Anything outside this set is rejected loudly instead of silently ignored.
+const ALLOWED_OPTIONS = new Set(['max', 'dryRun', 'auto']);
+
+/**
+ * Parse process.argv-style flags for /promote-memories.
+ * Unknown flags throw — a mistyped flag must never fall through to a real
+ * promotion run (PROMOTE-FLAGS-01).
+ * @param {string[]} argv - argv slice starting AFTER the command name
+ * @returns {{ dryRun?: boolean, auto?: boolean, max?: number }} Options for promoteMemories().
+ * @throws {Error} On an unrecognized flag or a --max with no value.
+ */
+function parsePromoteArgs(argv) {
+  const options = {};
+  for (let i = 0; i < argv.length; i++) {
+    const tok = argv[i];
+    if (tok === '--dry-run') {
+      options.dryRun = true;
+    } else if (tok === '--auto') {
+      options.auto = true;
+    } else if (tok === '--max') {
+      if (i + 1 >= argv.length) throw new Error('--max requires a numeric value');
+      options.max = parseInt(argv[++i], 10);
+    } else if (tok === '--') {
+      // argv separator from the node -e wrapper — ignore
+    } else {
+      throw new Error(`Unknown flag: ${tok} (supported: --dry-run, --auto, --max <n>)`);
+    }
+  }
+  return options;
+}
+
 function loadPromotionConfig() {
   const CONFIG_DIR = process.env.CONFIG_DIR_OVERRIDE || path.join(__dirname, '..', 'config');
   const raw = fs.readFileSync(path.join(CONFIG_DIR, 'pipeline.json'), 'utf8');
@@ -134,8 +171,10 @@ async function runProposalArchive(allCandidates, proposalArchiveThreshold) {
   if (allCandidates.length <= proposalArchiveThreshold) {
     return { pending: allCandidates, archived: [], proposalArchived: false };
   }
-  const pendingCandidates = allCandidates.filter(c => c.currentStatus === 'pending');
-  const nonPendingCandidates = allCandidates.filter(c => c.currentStatus !== 'pending');
+  // PROMOTE-DEFER-01: deferred candidates are live, not processed — archiving
+  // them here would strand batch-cap overflow in the proposal archive.
+  const pendingCandidates = allCandidates.filter(c => LIVE_STATUSES.has(c.currentStatus));
+  const nonPendingCandidates = allCandidates.filter(c => !LIVE_STATUSES.has(c.currentStatus));
   if (nonPendingCandidates.length === 0) return { pending: allCandidates, archived: [], proposalArchived: false };
 
   const byMonth = {};
@@ -283,9 +322,22 @@ function runMemoryArchive(archiveSizeThresholdKB, archiveEntriesThreshold) {
  * @param {Object} [options] - Promotion options.
  * @param {number} [options.max] - Override batch cap (must fall within
  *   `pipeline.json` `promotion.batchCapMin`..`batchCapMax`); defaults to `batchCapMax`.
- * @returns {Promise<{promoted: number, deferred: number, duplicates: number, rejected: number, skipped: number, archived: boolean, error?: string}>} Promotion outcome.
+ * @param {boolean} [options.dryRun] - Run the full pipeline (filters, dedup,
+ *   batch-cap computation) with ZERO side effects — no memory.md append, no
+ *   embedding, no reach export, no proposals rewrite, no archives, no stats.
+ * @param {boolean} [options.auto] - Treat unreviewed (no checkbox) live candidates
+ *   as accepted. Explicit reject / defer checkboxes are still honored.
+ * @returns {Promise<{promoted: number, deferred: number, duplicates: number, rejected: number, skipped: number, archived: boolean, dryRun?: boolean, wouldPromote?: Array<{candidateId: string, category: string}>, wouldDefer?: string[], reach?: Object, error?: string}>} Promotion outcome.
  */
 async function promoteMemories(options = {}) {
+  // PROMOTE-FLAGS-01: unknown option keys are an error, never a silent no-op.
+  const unknownKeys = Object.keys(options).filter(k => !ALLOWED_OPTIONS.has(k));
+  if (unknownKeys.length > 0) {
+    return { error: `Unknown option(s): ${unknownKeys.join(', ')} (supported: max, dryRun, auto)` };
+  }
+  const dryRun = options.dryRun === true;
+  const auto = options.auto === true;
+
   let config;
   try { config = loadPromotionConfig(); } catch (err) { return { error: 'Failed to load pipeline config: ' + err.message }; }
 
@@ -311,26 +363,33 @@ async function promoteMemories(options = {}) {
 
   // Phase 20 (STATS-DAILY-01): emit proposals count — how many proposals were
   // staged (available in memory-proposals.md) at the time of this promotion run.
-  if (allCandidates.length > 0) {
+  if (allCandidates.length > 0 && !dryRun) {
     try {
       const { recordProposalsBatch } = require('./daily-stats');
       recordProposalsBatch(allCandidates.length);
     } catch (_) { /* briefing-is-the-product: never break promotion on stats failure */ }
   }
 
-  const { pending: remainingCandidates, proposalArchived } = await runProposalArchive(allCandidates, proposalArchiveThreshold);
+  // Dry-run must not write proposal archives — skip the sweep entirely.
+  const { pending: remainingCandidates, proposalArchived } = dryRun
+    ? { pending: allCandidates, proposalArchived: false }
+    : await runProposalArchive(allCandidates, proposalArchiveThreshold);
 
   const acceptedCandidates = allCandidates.filter(c => {
     if (c.ambiguous) return false;
-    // Only process candidates still in pending state — skip already-promoted/rejected
-    if (c.currentStatus !== 'pending') return false;
+    // Only process live candidates — skip already-promoted/rejected/duplicates.
+    // `deferred` is live (PROMOTE-DEFER-01): batch-cap overflow from a prior
+    // run keeps its accepted checkbox and must promote on this run.
+    if (!LIVE_STATUSES.has(c.currentStatus)) return false;
     if (c.checkboxStatus === 'accepted' || c.checkboxStatus === 'edit-then-accept') return true;
+    // --auto: unreviewed candidates (no checkbox at all) are treated as accepted.
+    if (auto && c.checkboxStatus === null) return true;
     return false;
   });
 
   const rejectedCandidates = allCandidates.filter(c => {
     if (c.ambiguous) return false;
-    if (c.currentStatus !== 'pending') return false;
+    if (!LIVE_STATUSES.has(c.currentStatus)) return false;
     if (c.checkboxStatus === 'rejected') return true;
     return false;
   });
@@ -360,7 +419,7 @@ async function promoteMemories(options = {}) {
     }
   }
 
-  if (promoted.length > 0) {
+  if (promoted.length > 0 && !dryRun) {
     await appendToMemoryFile(promoted);
     // Phase 20 (STATS-DAILY-01): emit one recordPromotion per promoted entry.
     // D-03: confidence = memory-extractor classifier confidence on the proposal.
@@ -393,16 +452,32 @@ async function promoteMemories(options = {}) {
     updatedBody = updateProposalsFile(originalBody, replacements);
   }
 
-  const newPendingCount = (updatedBody.match(/status:: pending/g) || []).length;
-  const newProcessedCount = totalProcessed + promoted.length + duplicates.length + rejectedCandidates.length + toDefer.length;
-  const newFrontmatter = buildProposalsFrontmatter(newPendingCount, newProcessedCount);
+  let memoryArchived = false;
+  if (!dryRun) {
+    const newPendingCount = (updatedBody.match(/status:: pending/g) || []).length;
+    const newProcessedCount = totalProcessed + promoted.length + duplicates.length + rejectedCandidates.length + toDefer.length;
+    const newFrontmatter = buildProposalsFrontmatter(newPendingCount, newProcessedCount);
 
-  fs.mkdirSync(path.dirname(PROPOSALS_FILE()), { recursive: true });
-  fs.writeFileSync(PROPOSALS_FILE(), newFrontmatter + updatedBody, 'utf8');
+    fs.mkdirSync(path.dirname(PROPOSALS_FILE()), { recursive: true });
+    fs.writeFileSync(PROPOSALS_FILE(), newFrontmatter + updatedBody, 'utf8');
 
-  const memoryArchived = runMemoryArchive(archiveSizeThresholdKB, archiveEntriesThreshold);
+    memoryArchived = runMemoryArchive(archiveSizeThresholdKB, archiveEntriesThreshold);
+  }
 
-  return {
+  // v1.6 SURFACE-REACH-01: non-fatal reach export after a real promotion —
+  // plants the pointer + digest cache into configured auto-memory targets.
+  let reach = null;
+  if (!dryRun && promoted.length > 0) {
+    try {
+      const { runReachExport } = require('./reach-exporter');
+      reach = await runReachExport();
+    } catch (err) {
+      process.stderr.write(`[promote-memories] Reach export failed (non-fatal): ${err && err.message ? err.message : err}\n`);
+      reach = { success: false, error: String((err && err.message) || err) };
+    }
+  }
+
+  const result = {
     promoted: promoted.length,
     deferred: toDefer.length,
     duplicates: duplicates.length,
@@ -410,6 +485,13 @@ async function promoteMemories(options = {}) {
     skipped: skippedCandidates.length,
     archived: memoryArchived,
   };
+  if (reach) result.reach = reach;
+  if (dryRun) {
+    result.dryRun = true;
+    result.wouldPromote = promoted.map(c => ({ candidateId: c.candidateId, category: c.category }));
+    result.wouldDefer = toDefer.map(c => c.candidateId);
+  }
+  return result;
 }
 
-module.exports = { promoteMemories };
+module.exports = { promoteMemories, parsePromoteArgs };
