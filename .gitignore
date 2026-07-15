@@ -4,6 +4,9 @@
 state/
 context/
 .env
+.env.bak-*
+/STATUS.md
+/engineering-status/
 .claude/*
 !.claude/hooks/
 !.claude/agents/
