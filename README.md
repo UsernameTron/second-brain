@@ -113,7 +113,7 @@ CLAUDE.md                    # Project governance, commands, conventions
 
 ## Status
 
-**Latest Release:** v1.5.0 Internal Hardening (2026-04-26) | Phase 22-25 complete: Unicode Hardening, Pre-Commit Hooks, Doc Sync, UAT Rebaseline
+**Latest Release:** v1.6 Enforcement Integrity & Surface Completion (2026-07-15) | Phases 26-28: Promotion Safety, Context Honesty, Surface Completion
 - **1245 total tests** across 64 test files (1207 passing, 38 skipped in CI)
 - **Branch coverage:** 81.15% (threshold: ≥80% enforced in CI)
 - **Lint:** 0 ESLint no-console warnings

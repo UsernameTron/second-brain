@@ -1,5 +1,22 @@
 # Milestones
 
+## v1.6 Enforcement Integrity & Surface Completion (Shipped: 2026-07-15)
+
+**Phases completed:** 6 phases, 14 plans, 19 tasks
+
+**Key accomplishments:**
+
+- test-verifier agent extended with Phase-Closure Verification Mode that emits a per-REQ-ID PASS/FAIL/UNTESTED verdict table, triggered by "phase-close N" or "verify requirements: ..." invocation phrasing
+- Four-condition anomaly detector wired into /today briefing — surfaces zero promotions, backlog growth, recall drop, and vault plateau when streakDays consecutive days trigger
+- Warn-only SessionStart hook (`checkStaleness`) flags a CLAUDE.md `Last verified:` date older than 14 days, printing the file name and age without ever blocking a session.
+- Written authority hierarchy (ADR-020) ranking ABOUT ME/ canon > memory.md > CLAUDE.md > auto-memory blob, wired into the reach-exporter pointer template and both CLAUDE.md router files.
+- semanticSearch now fails closed with `{blocked:true, failClosed:true}` when `loadExcludedTerms()` returns empty/unloadable, closing the silent-ungated-Voyage-query hole that reopened the F-01 exclusion bypass.
+- Closed the last unreachable command on the advertised surface — `/reroute` now wraps `src/reroute.rerouteFile`, reading `r.to`/`r.from` (never the nonexistent `r.target`).
+- Added a blocking pre-push docs-drift gate reusing existing post-merge-doc-sync machinery, and replaced `hooks/pre-push`'s `git reset --hard` remedy with a non-destructive `merge-base --is-ancestor` check.
+- Refreshed CLAUDE.md/README.md to a single live `jest --coverage` run: 1245 total tests (1207 passing, 38 skipped) across 64 test files, Statements 92.74% / Branches 81.15% / Functions 96.02% / Lines 93.37% (corrected to the main-tree run; the worktree capture drifted).
+
+---
+
 ## v1.5 Internal Hardening (Shipped: 2026-04-26)
 
 **Phases:** 4 (22-25) | **Plans:** 8 | **Commits:** 12 in v1.5 range | **Files changed:** 14 (+1,122 / -75) | **PRs merged:** #50-#53 | **Requirements:** 10/10 complete
@@ -14,12 +31,14 @@
 - **Phase 25: Unicode Hardening & UAT Closeout** — Replaced ASCII-only `.toLowerCase().includes()` with NFKD-normalized `normalizeForMatch()` that blocks full-width Latin, soft-hyphen, and NBSP bypass attacks (HYG-UNICODE-02). 45 test.todo entries promoted to passing assertions. UAT corpus rebaselined at 100% accuracy (UAT-REFRESH-01). GitHub Actions UAT workflow smoke run confirmed end-to-end (UAT-SMOKE-01).
 
 **Stats:**
+
 - **Test count:** 1190 (1152 passing, 38 skipped, 0 todo) across 56 files
 - **Coverage:** 81.28% branch / 94.62% statements / 96.94% functions / 95.53% lines
 - **src/ LOC:** ~9,700 (minimal growth — hardening milestone, not feature work)
 - **Timeline:** 2026-04-26 (1 day — all 4 phases planned and executed same day)
 
 **Locked decisions:**
+
 - normalizeForMatch strips ALL whitespace (not just NBSP) for multi-word term consistency
 - UAT tests require Anthropic API, not local LM Studio — pipeline.local.json routing documented as pre-existing config interaction
 - test-verifier dual-mode: invocation phrasing triggers Phase-Closure Verification Mode
@@ -46,12 +65,14 @@
 - **Phase 21: Closeout Hygiene** — 0 ESLint no-console warnings (35 category-tagged disables across 4 categories per D-LOCK-2). JSDoc on 53 public exports + 2 `_testOnly` carve-outs across 10 named source files. 45 `test.todo` markers staged for v1.5 HYG-UNICODE-02 (Path B per D-LOCK-5-AMEND-A — ASCII-only contract for v1.4). All 8 living docs synced.
 
 **Stats:**
+
 - **Test count:** 1127 (1044 passing, 38 skipped, 45 todo) across 55 files
 - **Coverage:** 81.28% branch / 94.62% statements / 96.94% functions / 95.53% lines
 - **src/ LOC:** 9,617 (post-v1.4)
 - **Timeline:** 2026-04-24 to 2026-04-26 (3 days)
 
 **Locked decisions:**
+
 - Voyage `voyage-4-lite` model + 0.55 threshold (calibrated empirically post-UAT)
 - `schema_version = hash(model || dimension)` only — threshold/decay are query-time math, no re-embed needed
 - `/new` behavior untouched — retrieval surfaces only via `/recall` and `/today` Memory Echo
@@ -59,6 +80,7 @@
 - America/Chicago timezone for daily-stats date boundaries
 
 **Known gaps (carried to v1.5 backlog in `tasks/todo.md`):**
+
 - **HYG-UNICODE-02** — Unicode-variant matcher upgrade (45 test.todo entries staged in test/content-policy.test.js)
 - **HOOK-VAULT-01 / HOOK-SCHEMA-01 / HOOK-DOCSYNC-01** — Committed pre-commit/post-merge hooks for vault boundary, schema validation, doc drift detection
 - **AGENT-DOCSYNC-01 / AGENT-VERIFY-01 / AGENT-MEMORY-01** — New agent surface for documentation sync, independent verification, memory health
@@ -69,6 +91,7 @@
 - **Phase 21 missing VERIFICATION.md** — substituted by `.planning/v1.4-MILESTONE-AUDIT.md` (now archived to milestones/v1.4-MILESTONE-AUDIT.md)
 
 **Process lessons captured (16 total in `tasks/lessons.md`):**
+
 - LESSON-LIVE-RECOUNT-AT-EXECUTE-01 — Re-count live numbers at Task 1 of any doc-refresh plan
 - LESSON-MANIFEST-FIRST-VALIDATED-01 — Manifest-first protocol mandatory for scoped governance work
 - LESSON-OPTION-A-SCOPE-CORRECTION-01 — Bring out-of-scope adjacent debt into scope when Lock-fence permits
