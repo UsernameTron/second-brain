@@ -259,6 +259,24 @@ async function runToday(options = {}) {
       }
     } catch (_) { /* non-fatal — briefing-is-the-product */ }
 
+    // ── Compounding trend (Phase 31, TREND-02) ───────────────────────────
+    // Pure verdict from daily-stats rows. Suppressed under 7 rows (insufficient-data),
+    // matching the Memory Echo / Memory Health null-suppression precedent.
+    // Non-fatal — briefing-is-the-product. Lazy requires per Pattern 12.
+    let compoundingBody = null;
+    try {
+      if (config && config.stats && config.stats.enabled) {
+        const { computeCompoundingTrend, renderCompoundingReport } = require('./today/compounding-trend');
+        const { readDailyStats } = require('./daily-stats');
+        const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'RIGHT/daily-stats.md');
+        const { rows } = readDailyStats(statsAbsPath);
+        const trend = computeCompoundingTrend(rows, { windowDays: 14 });
+        if (trend.verdict !== 'insufficient-data') {
+          compoundingBody = renderCompoundingReport(trend);
+        }
+      }
+    } catch (_) { /* non-fatal — briefing-is-the-product */ }
+
     // ── Source health (D-08) ──────────────────────────────────────────────
     const sourceHealth = buildSourceHealth(connectorResults, pipelineState.ok);
 
@@ -284,6 +302,7 @@ async function runToday(options = {}) {
       frog: frogData,
       memoryEcho,
       memoryHealth,
+      compounding: compoundingBody,
       mode,
       synthesis,
     });
