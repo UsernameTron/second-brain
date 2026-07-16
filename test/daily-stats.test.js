@@ -148,8 +148,8 @@ describe('recordDailyStats()', () => {
     expect(parsed.data).toHaveProperty('last_updated');
     expect(parsed.data).toHaveProperty('timezone');
 
-    // columns array has exactly 8 entries
-    expect(parsed.data.columns).toHaveLength(8);
+    // columns array has exactly 11 entries
+    expect(parsed.data.columns).toHaveLength(11);
 
     // Exactly one data row
     const { rows } = readDailyStats(absPath);
@@ -188,7 +188,7 @@ describe('recordDailyStats()', () => {
     const { rows } = readDailyStats(absPath);
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].proposals).toBe('99');
+    expect(rows[0].proposals).toBe(99);
   });
 
   it('writes via vault-gateway vaultWriteAtomic (atomic + boundary-enforced)', () => {
@@ -273,7 +273,7 @@ describe('recordDailyStats()', () => {
 
     const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
     const raw = fs.readFileSync(absPath, 'utf8');
-    const expectedHeader = '| date | proposals | promotions | total_entries | memory_kb | recall_count | avg_latency_ms | avg_confidence |';
+    const expectedHeader = '| date | proposals | promotions | total_entries | memory_kb | recall_count | avg_latency_ms | avg_confidence | recall_hits | echo_shown | echo_score |';
     expect(raw).toContain(expectedHeader);
   });
 
@@ -374,11 +374,11 @@ describe('recordDailyStats()', () => {
     const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
     expect(rows).toHaveLength(1);
-    expect(rows[0].proposals).toBe('0');
-    expect(rows[0].promotions).toBe('0');
-    expect(rows[0].total_entries).toBe('0');
-    expect(rows[0].recall_count).toBe('0');
-    expect(rows[0].memory_kb).toBe('0');
+    expect(rows[0].proposals).toBe(0);
+    expect(rows[0].promotions).toBe(0);
+    expect(rows[0].total_entries).toBe(0);
+    expect(rows[0].recall_count).toBe(0);
+    expect(rows[0].memory_kb).toBe(0);
   });
 
   it('applies timezone and schemaVersion defaults when absent from config', () => {
@@ -402,6 +402,55 @@ describe('recordDailyStats()', () => {
     const { frontmatter } = readDailyStats(absPath);
     expect(frontmatter.timezone).toBe('America/Chicago');
     expect(frontmatter.schema_version).toBe(1);
+  });
+
+  // ── 11-column schema + numeric coercion (STATS-OUTCOME-01/02) ──────────────
+
+  it('writes recall_hits/echo_shown/echo_score and round-trips numeric coercion', () => {
+    const config = makeConfig(tmpDir);
+    recordDailyStats({
+      ...baseStats,
+      avgLatencyMs: null,
+      recallHits: 2,
+      echoShown: 1,
+      echoScore: 0.912,
+    }, {
+      now: new Date('2026-04-24T18:00:00.000Z'),
+      configOverride: config,
+    });
+
+    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    const row = rows[0];
+
+    // 11 columns present on the written+read row
+    expect(Object.keys(row)).toHaveLength(11);
+
+    // Numeric cells coerce to Number; the em dash survives as a string
+    expect(typeof row.recall_count).toBe('number');
+    expect(row.avg_latency_ms).toBe('—');
+
+    // recall_hits/echo_shown/echo_score render as numbers when supplied
+    expect(row.recall_hits).toBe(2);
+    expect(row.echo_shown).toBe(1);
+    expect(row.echo_score).toBe(0.91);
+
+    // recall_hits <= recall_count invariant
+    expect(row.recall_hits).toBeLessThanOrEqual(row.recall_count);
+  });
+
+  it('renders echo_shown/echo_score as em dash when not supplied', () => {
+    const config = makeConfig(tmpDir);
+    recordDailyStats(baseStats, {
+      now: new Date('2026-04-24T18:00:00.000Z'),
+      configOverride: config,
+    });
+
+    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    expect(rows[0].echo_shown).toBe('—');
+    expect(rows[0].echo_score).toBe('—');
+    expect(rows[0].recall_hits).toBe(0);
   });
 });
 
@@ -530,6 +579,70 @@ describe('counter helpers', () => {
     const counterFiles = fs2.readdirSync(cacheDir).filter(f => f.startsWith('daily-counters-'));
     expect(counterFiles.length).toBe(2);
   });
+
+  // ── recall hit tracking + Memory Echo outcome (STATS-OUTCOME-01/02) ─────────
+
+  it('recordRecallInvocation with no hit: recallCount +1, recallHits unchanged', () => {
+    const { recordRecallInvocation: rri, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ now });
+    const counters = rdc({ now });
+    expect(counters.recallCount).toBe(1);
+    expect(counters.recallHits).toBe(0);
+  });
+
+  it('recordRecallInvocation with hit:true increments both recallCount and recallHits', () => {
+    const { recordRecallInvocation: rri, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ hit: true, resultCount: 3, now });
+    const counters = rdc({ now });
+    expect(counters.recallCount).toBe(1);
+    expect(counters.recallHits).toBe(1);
+  });
+
+  it('recordRecallInvocation with hit:false leaves recallHits unchanged', () => {
+    const { recordRecallInvocation: rri, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ hit: false, now });
+    const counters = rdc({ now });
+    expect(counters.recallCount).toBe(1);
+    expect(counters.recallHits).toBe(0);
+  });
+
+  it('recordEchoShown(true, 0.83) persists echoShown === 1 and echoScore === 0.83', () => {
+    const { recordEchoShown: res, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    res(true, 0.83, { now });
+    const counters = rdc({ now });
+    expect(counters.echoShown).toBe(1);
+    expect(counters.echoScore).toBe(0.83);
+  });
+
+  it('recordEchoShown(false, 0) persists echoShown === 0 and echoScore === 0', () => {
+    const { recordEchoShown: res, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    res(false, 0, { now });
+    const counters = rdc({ now });
+    expect(counters.echoShown).toBe(0);
+    expect(counters.echoScore).toBe(0);
+  });
+
+  it('readDailyCounters returns recallHits/echoShown/echoScore alongside existing fields', () => {
+    const { recordRecallInvocation: rri, recordEchoShown: res, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ hit: true, now });
+    res(true, 0.7, { now });
+    const counters = rdc({ now });
+    expect(counters).toEqual(expect.objectContaining({
+      proposals: 0,
+      promotions: 0,
+      recallCount: 1,
+      recallHits: 1,
+      echoShown: 1,
+      echoScore: 0.7,
+      avgConfidence: null,
+    }));
+  });
 });
 
 // ── flushMissedDays() ──────────────────────────────────────────────────────────
@@ -597,9 +710,9 @@ describe('flushMissedDays()', () => {
     const { rows } = readDailyStats(absPath);
     const row = rows.find(r => r.date === '2026-06-01');
     expect(row).toBeDefined();
-    expect(row.recall_count).toBe('3');
+    expect(row.recall_count).toBe(3);
     expect(row.avg_latency_ms).toBe('—');
-    expect(row.total_entries).toBe('50');
+    expect(row.total_entries).toBe(50);
   });
 
   it('is idempotent — calling twice does not duplicate the flushed row', () => {

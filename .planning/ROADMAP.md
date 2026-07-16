@@ -144,7 +144,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 30-01-PLAN.md — daily-stats data layer: counters, recordEchoShown, 11-column schema, numeric coercion
+- [x] 30-01-PLAN.md — daily-stats data layer: counters, recordEchoShown, 11-column schema, numeric coercion
 - [ ] 30-02-PLAN.md — command wiring: /recall hit/miss + /today echo outcome and 11-column row
 - [ ] 30-03-PLAN.md — live human-verify checkpoint: 11-column row, no query-text leakage
 
@@ -168,7 +168,7 @@ Plans:
   2. Attempting to commit a file to the wrong vault side (LEFT vs RIGHT) is blocked by the pre-commit hook before the commit lands
   3. `dotenv.config()` calls exist only at entry points; no library module re-loads env at import time; `src/pipeline-infra.js:23` root cause is resolved
   4. All three hooks are committed to `.git/hooks/` (or equivalent project hook config) and activate automatically for new checkouts
-**Plans:** 2/2 plans complete
+**Plans:** 1/3 plans executed
 
 Plans:
 - [x] 22-01-PLAN.md -- Pre-commit schema validation (AJV) and vault boundary enforcement hooks
@@ -248,5 +248,5 @@ Plans:
 | 27. Context Honesty | v1.6 | 3/3 | Complete | 2026-07-15 |
 | 28. Surface Completion | v1.6 | 3/3 | Complete | 2026-07-15 |
 | 29. Series Integrity | v1.7 | 2/2 | Complete    | 2026-07-15 |
-| 30. Outcome Instrumentation | v1.7 | 0/TBD | Not started | - |
+| 30. Outcome Instrumentation | v1.7 | 1/3 | In Progress|  |
 | 31. Trend & Report | v1.7 | 0/TBD | Not started | - |
