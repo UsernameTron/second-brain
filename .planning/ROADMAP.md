@@ -160,7 +160,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 31-01-PLAN.md — Pure computeCompoundingTrend verdict function + renderCompoundingReport markdown renderer (TDD)
+- [x] 31-01-PLAN.md — Pure computeCompoundingTrend verdict function + renderCompoundingReport markdown renderer (TDD)
 - [ ] 31-02-PLAN.md — /today ## Compounding section with <7-row null-suppression
 - [ ] 31-03-PLAN.md — Standalone scripts/compounding-report.js CLI (evidence table + verdict, always prints table)
 
@@ -173,7 +173,7 @@ Plans:
   2. Attempting to commit a file to the wrong vault side (LEFT vs RIGHT) is blocked by the pre-commit hook before the commit lands
   3. `dotenv.config()` calls exist only at entry points; no library module re-loads env at import time; `src/pipeline-infra.js:23` root cause is resolved
   4. All three hooks are committed to `.git/hooks/` (or equivalent project hook config) and activate automatically for new checkouts
-**Plans:** 3/3 plans complete
+**Plans:** 1/3 plans executed
 
 Plans:
 - [x] 22-01-PLAN.md -- Pre-commit schema validation (AJV) and vault boundary enforcement hooks
@@ -254,4 +254,4 @@ Plans:
 | 28. Surface Completion | v1.6 | 3/3 | Complete | 2026-07-15 |
 | 29. Series Integrity | v1.7 | 2/2 | Complete    | 2026-07-15 |
 | 30. Outcome Instrumentation | v1.7 | 3/3 | Complete    | 2026-07-16 |
-| 31. Trend & Report | v1.7 | 0/TBD | Not started | - |
+| 31. Trend & Report | v1.7 | 1/3 | In Progress|  |

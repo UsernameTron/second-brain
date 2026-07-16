@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Prove Compounding
 status: planning
-last_updated: "2026-07-16T08:30:29.618Z"
+last_updated: "2026-07-16T09:24:22.739Z"
 last_activity: 2026-07-16
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 13
-  completed_plans: 13
+  total_plans: 16
+  completed_plans: 14
 ---
 
 # Project State
@@ -56,6 +56,7 @@ Full log in PROJECT.md Key Decisions table. Per-milestone summary:
 - **v1.7 (2026-07-15, Pete):** launchd scheduler (RemoteTrigger is vault-unreachable — cloud env cannot write local vault); milestone closes at code-ship, verdict is a dated follow-up; delete 5 jest-polluted daily-counter cache files; verdict thresholds accepted (14 rows: entries +5, recall days ≥40%, hit rate ≥60%, week-2 ≥ week-1 − 10pts); query text never persisted (content policy)
 - [Phase 30]: recordRecallInvocation moved to after results are known so hit/miss and resultCount are captured in the same call
 - [Phase 30]: recordEchoShown guarded by mode !== 'dry-run' so practice /today runs never pollute echo counters
+- [Phase 31-trend-report]: Pure compute/render split for compounding-trend engine (no I/O), thresholds hardcoded as Pete-accepted literals
 
 ### Open Blockers
 

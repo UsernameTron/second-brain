@@ -20,8 +20,8 @@ Full investigation and file-level design: approved plan at `/Users/cpconnor/.cla
 
 ### Trend Computation & Report (TREND)
 
-- [ ] **TREND-01**: Pure `computeCompoundingTrend(rows, {windowDays})` returns supply/demand/utility metrics and a `compounding | flat | insufficient-data` verdict per the accepted thresholds (insufficient below 7 rows; missed days are gaps, not zeros)
-- [ ] **TREND-02**: The verdict surfaces in two places: a `## Compounding` section in `/today` (suppressed under 7 rows, Memory Echo null-suppression precedent) and a standalone `scripts/compounding-report.js` CLI printing the full evidence table + verdict as markdown
+- [x] **TREND-01**: Pure `computeCompoundingTrend(rows, {windowDays})` returns supply/demand/utility metrics and a `compounding | flat | insufficient-data` verdict per the accepted thresholds (insufficient below 7 rows; missed days are gaps, not zeros)
+- [x] **TREND-02**: The verdict surfaces in two places: a `## Compounding` section in `/today` (suppressed under 7 rows, Memory Echo null-suppression precedent) and a standalone `scripts/compounding-report.js` CLI printing the full evidence table + verdict as markdown
 
 ## Follow-Up (calendar-gated, not in roadmap phases)
 
@@ -49,8 +49,8 @@ Full investigation and file-level design: approved plan at `/Users/cpconnor/.cla
 | STATS-PIPE-03 | Phase 29 | Pending |
 | STATS-OUTCOME-01 | Phase 30 | Complete |
 | STATS-OUTCOME-02 | Phase 30 | Complete |
-| TREND-01 | Phase 31 | Pending |
-| TREND-02 | Phase 31 | Pending |
+| TREND-01 | Phase 31 | Complete |
+| TREND-02 | Phase 31 | Complete |
 
 **Coverage:**
 - v1.7 requirements: 7 total
