@@ -25,13 +25,15 @@ updated: 2026-07-16T10:30:00.000Z
 
 ## Current Test
 
-number: 2
-name: /today suppresses Compounding below 7 rows
+number: 3
+name: Verdict honesty spot-check
 expected: |
-  Run /today in dry-run mode. The briefing renders normally with NO
-  "## Compounding" heading anywhere — the vault has only 1 daily-stats row,
-  so the section is suppressed entirely (Memory Echo precedent). The briefing
-  itself is not broken by the new code.
+  The verdict logic matches Pete's accepted thresholds (entries +5 and kb
+  growth; recall on >=40% of days; hit rate >=60%; wk2 >= wk1 - 10pts) and a
+  7-13 row verdict is labeled "provisional — N of 14 rows". Real data has only
+  1 row, so this cannot be observed live yet — accept the unit-test evidence
+  now (16 tests assert exactly these literal thresholds and the provisional
+  label), or defer to the calendar-gated VERDICT-01 follow-up.
 awaiting: user response
 
 ## Tests
@@ -42,7 +44,8 @@ result: pass
 
 ### 2. /today suppresses Compounding below 7 rows
 expected: Run `/today --dry-run` (or node src/cli.js equivalent). The briefing renders normally with NO `## Compounding` heading anywhere — the vault has only 1 daily-stats row, so the section is suppressed entirely (Memory Echo precedent). The briefing itself is not broken by the new code.
-result: [pending]
+result: pass
+evidence: Live dry-run 2026-07-16 — full briefing rendered (frontmatter, Meetings/VIP/Slippage/Frog/GitHub/Pipeline), connectors degraded gracefully (no mcpClient in terminal context), `## Compounding` absent at 1 row.
 
 ### 3. Verdict honesty spot-check
 expected: The verdict logic matches Pete's accepted thresholds (entries +5 and kb growth; recall on >=40% of days; hit rate >=60%; wk2 >= wk1 - 10pts) and a 7-13 row verdict is labeled "provisional — N of 14 rows". Confirm the thresholds in the CLI output header/bullets look right once >=7 rows exist, or accept the unit-test evidence now.
@@ -51,9 +54,9 @@ result: [pending]
 ## Summary
 
 total: 3
-passed: 1
+passed: 2
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
