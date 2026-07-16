@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Prove Compounding
 status: executing
-last_updated: "2026-07-16T07:34:41.908Z"
+last_updated: "2026-07-16T07:40:28.866Z"
 last_activity: 2026-07-16
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 
 Milestone: v1.7 Prove Compounding
 Phase: 30 (outcome-instrumentation) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-07-16
 
@@ -54,6 +54,8 @@ Full log in PROJECT.md Key Decisions table. Per-milestone summary:
 - **v1.5:** test-verifier dual-mode (Phase-Closure Verification Mode); memory health anomaly detector reads daily-stats rows
 - **v1.6:** promotion safety (dry-run zero-side-effects, deferred-as-live-status), reach layer (ADR-019 pointer+digest, fail-closed egress), authority hierarchy (ADR-020), fail-closed semantic exclusions
 - **v1.7 (2026-07-15, Pete):** launchd scheduler (RemoteTrigger is vault-unreachable — cloud env cannot write local vault); milestone closes at code-ship, verdict is a dated follow-up; delete 5 jest-polluted daily-counter cache files; verdict thresholds accepted (14 rows: entries +5, recall days ≥40%, hit rate ≥60%, week-2 ≥ week-1 − 10pts); query text never persisted (content policy)
+- [Phase 30]: recordRecallInvocation moved to after results are known so hit/miss and resultCount are captured in the same call
+- [Phase 30]: recordEchoShown guarded by mode !== 'dry-run' so practice /today runs never pollute echo counters
 
 ### Open Blockers
 
