@@ -248,5 +248,5 @@ Plans:
 | 27. Context Honesty | v1.6 | 3/3 | Complete | 2026-07-15 |
 | 28. Surface Completion | v1.6 | 3/3 | Complete | 2026-07-15 |
 | 29. Series Integrity | v1.7 | 2/2 | Complete    | 2026-07-15 |
-| 30. Outcome Instrumentation | v1.7 | 3/3 | Complete   | 2026-07-16 |
+| 30. Outcome Instrumentation | v1.7 | 3/3 | Complete    | 2026-07-16 |
 | 31. Trend & Report | v1.7 | 0/TBD | Not started | - |
