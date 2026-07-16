@@ -148,8 +148,8 @@ describe('recordDailyStats()', () => {
     expect(parsed.data).toHaveProperty('last_updated');
     expect(parsed.data).toHaveProperty('timezone');
 
-    // columns array has exactly 8 entries
-    expect(parsed.data.columns).toHaveLength(8);
+    // columns array has exactly 11 entries
+    expect(parsed.data.columns).toHaveLength(11);
 
     // Exactly one data row
     const { rows } = readDailyStats(absPath);
@@ -188,7 +188,7 @@ describe('recordDailyStats()', () => {
     const { rows } = readDailyStats(absPath);
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].proposals).toBe('99');
+    expect(rows[0].proposals).toBe(99);
   });
 
   it('writes via vault-gateway vaultWriteAtomic (atomic + boundary-enforced)', () => {
@@ -273,7 +273,7 @@ describe('recordDailyStats()', () => {
 
     const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
     const raw = fs.readFileSync(absPath, 'utf8');
-    const expectedHeader = '| date | proposals | promotions | total_entries | memory_kb | recall_count | avg_latency_ms | avg_confidence |';
+    const expectedHeader = '| date | proposals | promotions | total_entries | memory_kb | recall_count | avg_latency_ms | avg_confidence | recall_hits | echo_shown | echo_score |';
     expect(raw).toContain(expectedHeader);
   });
 
@@ -374,11 +374,11 @@ describe('recordDailyStats()', () => {
     const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
     expect(rows).toHaveLength(1);
-    expect(rows[0].proposals).toBe('0');
-    expect(rows[0].promotions).toBe('0');
-    expect(rows[0].total_entries).toBe('0');
-    expect(rows[0].recall_count).toBe('0');
-    expect(rows[0].memory_kb).toBe('0');
+    expect(rows[0].proposals).toBe(0);
+    expect(rows[0].promotions).toBe(0);
+    expect(rows[0].total_entries).toBe(0);
+    expect(rows[0].recall_count).toBe(0);
+    expect(rows[0].memory_kb).toBe(0);
   });
 
   it('applies timezone and schemaVersion defaults when absent from config', () => {
@@ -402,6 +402,55 @@ describe('recordDailyStats()', () => {
     const { frontmatter } = readDailyStats(absPath);
     expect(frontmatter.timezone).toBe('America/Chicago');
     expect(frontmatter.schema_version).toBe(1);
+  });
+
+  // ── 11-column schema + numeric coercion (STATS-OUTCOME-01/02) ──────────────
+
+  it('writes recall_hits/echo_shown/echo_score and round-trips numeric coercion', () => {
+    const config = makeConfig(tmpDir);
+    recordDailyStats({
+      ...baseStats,
+      avgLatencyMs: null,
+      recallHits: 2,
+      echoShown: 1,
+      echoScore: 0.912,
+    }, {
+      now: new Date('2026-04-24T18:00:00.000Z'),
+      configOverride: config,
+    });
+
+    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    const row = rows[0];
+
+    // 11 columns present on the written+read row
+    expect(Object.keys(row)).toHaveLength(11);
+
+    // Numeric cells coerce to Number; the em dash survives as a string
+    expect(typeof row.recall_count).toBe('number');
+    expect(row.avg_latency_ms).toBe('—');
+
+    // recall_hits/echo_shown/echo_score render as numbers when supplied
+    expect(row.recall_hits).toBe(2);
+    expect(row.echo_shown).toBe(1);
+    expect(row.echo_score).toBe(0.91);
+
+    // recall_hits <= recall_count invariant
+    expect(row.recall_hits).toBeLessThanOrEqual(row.recall_count);
+  });
+
+  it('renders echo_shown/echo_score as em dash when not supplied', () => {
+    const config = makeConfig(tmpDir);
+    recordDailyStats(baseStats, {
+      now: new Date('2026-04-24T18:00:00.000Z'),
+      configOverride: config,
+    });
+
+    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    expect(rows[0].echo_shown).toBe('—');
+    expect(rows[0].echo_score).toBe('—');
+    expect(rows[0].recall_hits).toBe(0);
   });
 });
 
@@ -661,9 +710,9 @@ describe('flushMissedDays()', () => {
     const { rows } = readDailyStats(absPath);
     const row = rows.find(r => r.date === '2026-06-01');
     expect(row).toBeDefined();
-    expect(row.recall_count).toBe('3');
+    expect(row.recall_count).toBe(3);
     expect(row.avg_latency_ms).toBe('—');
-    expect(row.total_entries).toBe('50');
+    expect(row.total_entries).toBe(50);
   });
 
   it('is idempotent — calling twice does not duplicate the flushed row', () => {

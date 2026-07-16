@@ -62,6 +62,9 @@ const COLUMNS = [
   'recall_count',
   'avg_latency_ms',
   'avg_confidence',
+  'recall_hits',
+  'echo_shown',
+  'echo_score',
 ];
 
 // ── readDailyStats() ──────────────────────────────────────────────────────────
@@ -116,7 +119,9 @@ function readDailyStats(absPath) {
 
     const row = {};
     for (let i = 0; i < columns.length; i++) {
-      row[columns[i]] = cells[i];
+      const cell = cells[i];
+      const asNum = Number(cell);
+      row[columns[i]] = (cell !== '' && Number.isFinite(asNum)) ? asNum : cell;
     }
     rows.push(row);
   }
@@ -212,6 +217,11 @@ function recordDailyStats(stats, opts = {}) {
     avg_latency_ms: fmtOptional(stats.avgLatencyMs !== undefined ? stats.avgLatencyMs : null),
     avg_confidence: stats.avgConfidence !== undefined && stats.avgConfidence !== null
       ? Number(stats.avgConfidence).toFixed(2)
+      : '\u2014',
+    recall_hits: stats.recallHits !== undefined ? stats.recallHits : 0,
+    echo_shown: fmtOptional(stats.echoShown !== undefined ? stats.echoShown : null),
+    echo_score: (stats.echoScore !== undefined && stats.echoScore !== null)
+      ? Number(stats.echoScore).toFixed(2)
       : '\u2014',
   };
 
@@ -525,6 +535,7 @@ function flushMissedDays(opts = {}) {
         totalEntries: (opts.totalEntries != null) ? opts.totalEntries : 0,
         memoryKb: (opts.memoryKb != null) ? opts.memoryKb : 0,
         recallCount: state.recallCount || 0,
+        recallHits: state.recallHits || 0,
         avgLatencyMs: null, // renders as em dash
         avgConfidence,
       }, { now: new Date(dateStr + 'T12:00:00.000Z'), configOverride: opts.configOverride });
