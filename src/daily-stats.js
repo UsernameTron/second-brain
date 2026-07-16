@@ -532,8 +532,8 @@ function flushMissedDays(opts = {}) {
       recordDailyStats({
         proposals: state.proposals || 0,
         promotions: state.promotions || 0,
-        totalEntries: (opts.totalEntries != null) ? opts.totalEntries : 0,
-        memoryKb: (opts.memoryKb != null) ? opts.memoryKb : 0,
+        totalEntries: opts.totalEntries ?? 0,
+        memoryKb: opts.memoryKb ?? 0,
         recallCount: state.recallCount || 0,
         recallHits: state.recallHits || 0,
         echoShown: state.echoShown || 0,
