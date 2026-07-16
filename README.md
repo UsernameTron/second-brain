@@ -24,7 +24,7 @@ Built for a technical executive who directs AI. The project code lives in this r
 ```bash
 npm install
 npm run lint  # ESLint 10 (flat config)
-npm test      # Jest 30 — 1245 total tests (1207 pass, 38 skipped in CI)
+npm test      # Jest 30 — 1285 total tests (1247 pass, 38 skipped in CI)
 ```
 
 **Optional: Semantic memory search** — Set `VOYAGE_API_KEY` in `.env` to enable `/recall --semantic` and `/recall --hybrid`. Without the key, `/recall` falls back to keyword search. See [docs/DEVOPS-HANDOFF.md](docs/DEVOPS-HANDOFF.md) for acquisition steps and configuration.
@@ -114,7 +114,7 @@ CLAUDE.md                    # Project governance, commands, conventions
 ## Status
 
 **Latest Release:** v1.6 Enforcement Integrity & Surface Completion (2026-07-15) | Phases 26-28: Promotion Safety, Context Honesty, Surface Completion
-- **1245 total tests** across 64 test files (1207 passing, 38 skipped in CI)
+- **1285 total tests** across 67 test files (1247 passing, 38 skipped in CI)
 - **Branch coverage:** 81.15% (threshold: ≥80% enforced in CI)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 20+22 matrix, GitGuardian secrets scan
@@ -146,7 +146,7 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 ### Test Coverage
 
 ```bash
-npm test                    # Run all tests (1245 total; set CI=true to skip UAT)
+npm test                    # Run all tests (1285 total; set CI=true to skip UAT)
 npm run lint               # ESLint validation
 npm run test:uat           # UAT tests (requires CI= to unblock)
 ```
@@ -156,7 +156,7 @@ npm run test:uat           # UAT tests (requires CI= to unblock)
 - Critical modules (auth, vault boundary): ≥95%
 - All other modules: ≥80%
 
-Current coverage: Statements 92.74%, Functions 96.02%, Lines 93.37%, Branch 81.15%
+Current coverage: Statements 91.95%, Functions 96.00%, Lines 92.64%, Branch 81.44%
 
 ### Project Governance
 
