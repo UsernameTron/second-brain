@@ -15,8 +15,8 @@ Full investigation and file-level design: approved plan at `/Users/cpconnor/.cla
 
 ### Retrieval Outcome Instrumentation (STATS-OUTCOME)
 
-- [ ] **STATS-OUTCOME-01**: Every `/recall` invocation records hit/miss (≥1 result and not blocked) alongside the existing count; new `recall_hits` column in daily-stats; query text is never persisted (excluded-terms content policy)
-- [ ] **STATS-OUTCOME-02**: Every non-dry-run `/today` records whether Memory Echo was shown and its top score; new `echo_shown` and `echo_score` columns; `readDailyStats` returns numeric cells (coercion at the root, `—` survives as string)
+- [x] **STATS-OUTCOME-01**: Every `/recall` invocation records hit/miss (≥1 result and not blocked) alongside the existing count; new `recall_hits` column in daily-stats; query text is never persisted (excluded-terms content policy)
+- [x] **STATS-OUTCOME-02**: Every non-dry-run `/today` records whether Memory Echo was shown and its top score; new `echo_shown` and `echo_score` columns; `readDailyStats` returns numeric cells (coercion at the root, `—` survives as string)
 
 ### Trend Computation & Report (TREND)
 
@@ -47,8 +47,8 @@ Full investigation and file-level design: approved plan at `/Users/cpconnor/.cla
 | STATS-PIPE-01 | Phase 29 | Pending |
 | STATS-PIPE-02 | Phase 29 | Pending |
 | STATS-PIPE-03 | Phase 29 | Pending |
-| STATS-OUTCOME-01 | Phase 30 | Pending |
-| STATS-OUTCOME-02 | Phase 30 | Pending |
+| STATS-OUTCOME-01 | Phase 30 | Complete |
+| STATS-OUTCOME-02 | Phase 30 | Complete |
 | TREND-01 | Phase 31 | Pending |
 | TREND-02 | Phase 31 | Pending |
 
