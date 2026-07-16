@@ -2,9 +2,9 @@
 
 ## Project Summary
 
-Personal operating system built on an Obsidian vault. Runs locally — no cloud hosting, no deployment infrastructure. Three CLI commands (`/today`, `/new`, `/wrap`) orchestrate memory compounding, daily briefing, and input routing via Claude Code and Docker MCP Gateway.
+Personal operating system built on an Obsidian vault. Runs locally — no cloud hosting, no deployment infrastructure. Three core CLI commands (`/today`, `/new`, `/wrap`) orchestrate memory compounding, daily briefing, and input routing via Claude Code and Docker MCP Gateway.
 
-v1.5 (2026-04-26) adds NFKD Unicode hardening, pre-commit hooks for schema and vault validation, doc-sync agent, and UAT rebaseline. Semantic memory retrieval via Voyage AI embeddings (`/recall --semantic`, `/recall --hybrid`) added in Phase 19 with graceful degradation to keyword search when the API is unavailable.
+v1.7 (2026-07-16) adds compounding evidence metrics to daily briefing, outcome instrumentation (11-column daily-stats), compounding verdict surfaces, and launchd weekday scheduler (com.secondbrain.today, 06:45 local). Semantic memory retrieval via Voyage AI embeddings (`/recall --semantic`, `/recall --hybrid`) added in Phase 19 with graceful degradation to keyword search when the API is unavailable.
 
 ## Environment Requirements
 
@@ -21,13 +21,15 @@ git clone <repo>
 cd second-brain
 npm install
 cp .env.example .env   # add ANTHROPIC_API_KEY and optionally VOYAGE_API_KEY
-npm test               # verify 1190 tests pass (1152 active + 38 CI-skipped)
+npm test               # verify 1285 tests pass (1247 active + 38 CI-skipped)
 npm run lint           # verify ESLint 10 clean
 ```
 
 All commands are Claude Code `/` commands invoked from the project terminal. No server process to start; commands run on-demand.
 
-**User command surface (full flag inventory in README.md and CLAUDE.md):** `/today`, `/new`, `/wrap`, `/promote-memories`, `/reroute`, `/promote-unrouted`, `/recall <query> [--category <name>] [--since YYYY-MM-DD] [--top N]`, `/recall --semantic <query>`, `/recall --hybrid <query>`. The `--category`, `--since`, and `--top N` flags apply uniformly across keyword, semantic, and hybrid recall modes.
+**Automated daily briefing:** `/today` runs weekdays at 06:45 local time (StartCalendarInterval) via macOS launchd scheduler (`com.secondbrain.today`). See `~/Library/LaunchAgents/com.secondbrain.today.plist` for schedule configuration (documented in `config/scheduling.json`). RemoteTrigger is disabled by design (runs only on local machine wake).
+
+**User command surface (full flag inventory in README.md and CLAUDE.md):** `/today` (with compounding section), `/new`, `/wrap`, `/promote-memories`, `/reroute`, `/promote-unrouted`, `/recall <query> [--category <name>] [--since YYYY-MM-DD] [--top N]`, `/recall --semantic <query>`, `/recall --hybrid <query>`, `node scripts/compounding-report.js` (standalone CLI). The `--category`, `--since`, and `--top N` flags apply uniformly across keyword, semantic, and hybrid recall modes.
 
 ## Environment Variables
 
@@ -164,7 +166,7 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 | Gate | Tool | Threshold |
 |---|---|---|
 | Lint | ESLint 10 (flat config) | 0 errors |
-| Unit + integration tests | Jest 30, Node 20+22 matrix | 1190 total, 1152 passing |
+| Unit + integration tests | Jest 30, Node 20+22 matrix | 1285 total, 1247 passing |
 | Branch coverage | Jest coverage | ≥81% enforced |
 | Security scan | CodeQL SAST | 0 high/critical |
 | Secrets scan | GitGuardian | 0 secrets |
@@ -172,13 +174,14 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 
 UAT tests (`test/uat/`) are guarded by `CI=true` skip logic and run on a separate schedule (Monday 13:00 UTC) to avoid runner contention. `VOYAGE_API_KEY` is not provisioned in CI — semantic UAT tests use the dual skip guard (`CI=true OR no VOYAGE_API_KEY`).
 
-### Post-Phase-19 Deployment Checklist
+### Pre-Operations Deployment Checklist
 
 - [ ] `ANTHROPIC_API_KEY` provisioned in `.env`
 - [ ] `VOYAGE_API_KEY` provisioned in `.env` (if semantic features are enabled)
 - [ ] Obsidian Local REST API plugin running on port 27123
 - [ ] Docker MCP Gateway running (for Gmail/Calendar/GitHub connectors)
-- [ ] `npm test` passes (1190 tests, 1152 passing)
+- [ ] launchd scheduler installed (weekday `/today` at 06:45 local): `launchctl load ~/Library/LaunchAgents/com.secondbrain.today.plist`
+- [ ] `npm test` passes (1285 tests, 1247 passing)
 - [ ] `npm run lint` exits 0
 - [ ] `~/.cache/second-brain/` writable (auto-created on first `/recall --semantic`)
 

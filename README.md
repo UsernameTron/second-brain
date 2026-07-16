@@ -113,12 +113,13 @@ CLAUDE.md                    # Project governance, commands, conventions
 
 ## Status
 
-**Latest Release:** v1.6 Enforcement Integrity & Surface Completion (2026-07-15) | Phases 26-28: Promotion Safety, Context Honesty, Surface Completion
+**Latest Release:** v1.7 Prove Compounding (2026-07-16) | Phases 29-31: Series Integrity, Outcome Instrumentation, Trend & Report
 - **1285 total tests** across 67 test files (1247 passing, 38 skipped in CI)
-- **Branch coverage:** 81.15% (threshold: ≥80% enforced in CI)
+- **Branch coverage:** 81.44% (threshold: ≥80% enforced in CI)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 20+22 matrix, GitGuardian secrets scan
-- **Shipped milestones:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24), v1.4 Closeout Hygiene (2026-04-25), v1.5 Internal Hardening (2026-04-26)
+- **Operational components:** `/today` daily briefing (weekdays 06:45 local via launchd), memory compounding metrics, outcome instrumentation (11-column daily-stats), compounding verdict surfaces
+- **Shipped milestones:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24), v1.4 Closeout Hygiene (2026-04-25), v1.5 Internal Hardening (2026-04-26), v1.6 Enforcement Integrity (2026-07-15), v1.7 Prove Compounding (2026-07-16)
 
 For detailed release history and known gaps, see [.planning/MILESTONES.md](.planning/MILESTONES.md).
 
@@ -184,7 +185,7 @@ For complete architecture details, see [.planning/PROJECT.md](.planning/PROJECT.
 
 | Command | When to Use | What It Does |
 |---------|-------------|--------------|
-| `/today` | Morning routine | Generate 6-section briefing: slippage, meetings, emails, GitHub, memory, weather |
+| `/today` | Morning routine | Generate 7-section briefing: slippage, meetings, emails, GitHub, memory, compounding metrics, weather. Compounding section shows last 7 entries added/modified, cumulative promotion count, memory growth trend |
 | `/new` | Capture mixed input | Route to LEFT (identity) or RIGHT (work) vault via two-stage LLM |
 | `/wrap` | End of session | Extract learnings, decisions, patterns into `memory-proposals.md` |
 | `/promote-memories` | Review daily | Human-approve memory candidates from staging to `memory.md` |
@@ -193,6 +194,7 @@ For complete architecture details, see [.planning/PROJECT.md](.planning/PROJECT.
 | `/recall <query>` | Keyword recall | Minisearch over `memory.md` — AND semantics, quoted phrases, negation. Flags: `--category <name>`, `--since YYYY-MM-DD`, `--top N` (default 5) |
 | `/recall --semantic <query>` | Semantic search | Voyage AI embedding search with cosine similarity + recency decay (0.55 threshold; requires `VOYAGE_API_KEY`). Accepts the same `--category` / `--since` / `--top N` flags |
 | `/recall --hybrid <query>` | Hybrid search | RRF fusion of keyword + semantic results; degrades gracefully to keyword if Voyage unavailable. Accepts the same `--category` / `--since` / `--top N` flags |
+| `node scripts/compounding-report.js` | Standalone reporting | Generate compounding evidence report: memory growth metrics, promotion velocity, verdict. Runnable from any directory on this machine |
 
 ## Known Gaps and Deferred Work
 
