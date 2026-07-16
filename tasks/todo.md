@@ -1,22 +1,12 @@
 # Todo
 
-## Session Handoff (2026-07-12, Session 61)
+## Session Handoff (2026-07-16)
 
-**State:** v1.6 Enforcement Integrity & Surface Completion is open (Phases 26-28, 7 requirements). Memory corpus live at 97 entries. Branch `chore/fable5-audit-merge` → **PR #59, open and mergeable**.
+**State:** v1.7 Prove Compounding SHIPPED — PR #66 merged, tag `v1.7` pushed, milestone archived to `.planning/milestones/`. Master clean at the sync-docs merge (#68). 1285 tests (1247 pass, 38 CI-skipped), branch coverage 81.47%. The evidence pipeline now runs itself: launchd writes a daily-stats row every weekday 06:45 local.
 
-**Do first:**
+**Do first next session:** probably nothing — see Next Steps below. The only dated item is VERDICT-01 (~2026-08-06).
 
-1. **Merge PR #59.** CI is red on a **pre-existing** failure — the `npm audit` step, not the tests (tests: 1154 passed / 1192 total, green on Node 20 + 22). Five CVEs live in transitive deps and this branch changes no dependency files; master's own last run failed identically.
-2. **Then `/gsd:discuss-phase 26`** — Promotion Safety. It leads the milestone because the promotion workflow is now live, which makes PROMOTE-FLAGS-01 an active data-loss risk.
-
-**Needs a decision, not just execution:**
-
-- **Dependency CVEs** (blocking CI): `fast-uri` (high), `@babel/core`, `brace-expansion`, `js-yaml` are safe `npm audit fix` bumps. `@anthropic-ai/sdk` requires a **breaking** major (0.90 → 0.111.0). Dependencies need explicit approval — recommend a separate `chore/dep-audit` PR rather than folding an SDK upgrade into unrelated work.
-
-**Live corpus caveats (read before touching promotion):**
-
-- Promote in batches of **exactly 10**. Accepting more strands the remainder permanently (PROMOTE-DEFER-01).
-- **`--dry-run` performs a real promotion.** The flag is parsed but ignored (PROMOTE-FLAGS-01). Do not trust it until Phase 26 lands.
+**Environment caveat:** `gh` CLI keeps reverting its active account to `peteconnorCTG` (no repo access). Before any push: `gh auth switch --user UsernameTron`. Root cause not found — worth a look if it keeps biting.
 
 ## Next Steps (written 2026-07-16, post-v1.7 closeout)
 
