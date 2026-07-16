@@ -536,6 +536,8 @@ function flushMissedDays(opts = {}) {
         memoryKb: (opts.memoryKb != null) ? opts.memoryKb : 0,
         recallCount: state.recallCount || 0,
         recallHits: state.recallHits || 0,
+        echoShown: state.echoShown || 0,
+        echoScore: state.echoScore || 0,
         avgLatencyMs: null, // renders as em dash
         avgConfidence,
       }, { now: new Date(dateStr + 'T12:00:00.000Z'), configOverride: opts.configOverride });
