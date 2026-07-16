@@ -264,6 +264,9 @@ const _COUNTER_DEFAULTS = {
   proposals: 0,
   promotions: 0,
   recallCount: 0,
+  recallHits: 0,
+  echoShown: 0,
+  echoScore: 0,
   confidenceSum: 0,
   confidenceCount: 0,
   topCosineScores: [],
@@ -333,6 +336,26 @@ function recordRecallInvocation(opts = {}) {
     const now = opts.now || new Date();
     const state = _readCounters(now);
     state.recallCount = (state.recallCount || 0) + 1;
+    if (opts.hit) state.recallHits = (state.recallHits || 0) + 1;
+    state.date = dateKey(now);
+    _writeCounters(now, state);
+  } catch (_) { /* non-fatal */ }
+}
+
+/**
+ * Record whether Memory Echo was shown in today's /today run, and its top score.
+ * Overwrites (not accumulates) — one /today invocation per day is the norm (D-05).
+ * @param {boolean} shown - whether the Memory Echo section rendered
+ * @param {number} score - top echo score (0 when not shown or invalid)
+ * @param {object} [opts={}] - { now: Date }
+ * @returns {void}
+ */
+function recordEchoShown(shown, score, opts = {}) {
+  try {
+    const now = opts.now || new Date();
+    const state = _readCounters(now);
+    state.echoShown = shown ? 1 : 0;
+    state.echoScore = (typeof score === 'number' && Number.isFinite(score)) ? score : 0;
     state.date = dateKey(now);
     _writeCounters(now, state);
   } catch (_) { /* non-fatal */ }
@@ -412,7 +435,8 @@ function recordTopRrf(score, opts = {}) {
 
 /**
  * Read today's accumulated counters.
- * Returns { proposals, promotions, recallCount, avgConfidence } with zeros/null defaults.
+ * Returns { proposals, promotions, recallCount, recallHits, echoShown, echoScore, avgConfidence }
+ * with zeros/null defaults.
  * @param {object} [opts={}] - { now: Date }
  * @returns {{ proposals: number, promotions: number, recallCount: number, avgConfidence: number|null }}
  */
@@ -424,12 +448,19 @@ function readDailyCounters(opts = {}) {
       proposals: state.proposals || 0,
       promotions: state.promotions || 0,
       recallCount: state.recallCount || 0,
+      recallHits: state.recallHits || 0,
+      echoShown: state.echoShown || 0,
+      echoScore: state.echoScore || 0,
       avgConfidence: (state.confidenceCount > 0)
         ? state.confidenceSum / state.confidenceCount
         : null,
     };
   } catch (_) {
-    return { proposals: 0, promotions: 0, recallCount: 0, avgConfidence: null };
+    return {
+      proposals: 0, promotions: 0, recallCount: 0,
+      recallHits: 0, echoShown: 0, echoScore: 0,
+      avgConfidence: null,
+    };
   }
 }
 
@@ -508,6 +539,6 @@ function flushMissedDays(opts = {}) {
 module.exports = {
   recordDailyStats, dateKey, readDailyStats,
   recordRecallInvocation, recordProposalsBatch, recordPromotion,
-  recordTopCosine, recordTopRrf, readDailyCounters,
+  recordTopCosine, recordTopRrf, recordEchoShown, readDailyCounters,
   flushMissedDays,
 };

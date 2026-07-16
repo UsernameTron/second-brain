@@ -530,6 +530,70 @@ describe('counter helpers', () => {
     const counterFiles = fs2.readdirSync(cacheDir).filter(f => f.startsWith('daily-counters-'));
     expect(counterFiles.length).toBe(2);
   });
+
+  // ── recall hit tracking + Memory Echo outcome (STATS-OUTCOME-01/02) ─────────
+
+  it('recordRecallInvocation with no hit: recallCount +1, recallHits unchanged', () => {
+    const { recordRecallInvocation: rri, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ now });
+    const counters = rdc({ now });
+    expect(counters.recallCount).toBe(1);
+    expect(counters.recallHits).toBe(0);
+  });
+
+  it('recordRecallInvocation with hit:true increments both recallCount and recallHits', () => {
+    const { recordRecallInvocation: rri, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ hit: true, resultCount: 3, now });
+    const counters = rdc({ now });
+    expect(counters.recallCount).toBe(1);
+    expect(counters.recallHits).toBe(1);
+  });
+
+  it('recordRecallInvocation with hit:false leaves recallHits unchanged', () => {
+    const { recordRecallInvocation: rri, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ hit: false, now });
+    const counters = rdc({ now });
+    expect(counters.recallCount).toBe(1);
+    expect(counters.recallHits).toBe(0);
+  });
+
+  it('recordEchoShown(true, 0.83) persists echoShown === 1 and echoScore === 0.83', () => {
+    const { recordEchoShown: res, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    res(true, 0.83, { now });
+    const counters = rdc({ now });
+    expect(counters.echoShown).toBe(1);
+    expect(counters.echoScore).toBe(0.83);
+  });
+
+  it('recordEchoShown(false, 0) persists echoShown === 0 and echoScore === 0', () => {
+    const { recordEchoShown: res, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    res(false, 0, { now });
+    const counters = rdc({ now });
+    expect(counters.echoShown).toBe(0);
+    expect(counters.echoScore).toBe(0);
+  });
+
+  it('readDailyCounters returns recallHits/echoShown/echoScore alongside existing fields', () => {
+    const { recordRecallInvocation: rri, recordEchoShown: res, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ hit: true, now });
+    res(true, 0.7, { now });
+    const counters = rdc({ now });
+    expect(counters).toEqual(expect.objectContaining({
+      proposals: 0,
+      promotions: 0,
+      recallCount: 1,
+      recallHits: 1,
+      echoShown: 1,
+      echoScore: 0.7,
+      avgConfidence: null,
+    }));
+  });
 });
 
 // ── flushMissedDays() ──────────────────────────────────────────────────────────
