@@ -314,6 +314,28 @@ describe('renderBriefing', () => {
     expect(doc).toMatch(/Proposals pending: 5/);
     expect(doc).toMatch(/Dead-letter: 3/);
   });
+
+  // ── Phase 31: Compounding trend section (TREND-02) ──────────────────────
+  test('renders ## Compounding when a compounding body is provided', () => {
+    const doc = renderBriefing(baseData({
+      compounding: '**Verdict: compounding**\n\n- ✓ Supply: entries +12, memory_kb +6',
+    }));
+
+    expect(doc).toMatch(/## Compounding/);
+    expect(doc).toMatch(/\*\*Verdict: compounding\*\*/);
+  });
+
+  test('omits ## Compounding when compounding is null', () => {
+    const doc = renderBriefing(baseData({ compounding: null }));
+
+    expect(doc).not.toMatch(/## Compounding/);
+  });
+
+  test('omits ## Compounding when compounding is not provided', () => {
+    const doc = renderBriefing(baseData());
+
+    expect(doc).not.toMatch(/## Compounding/);
+  });
 });
 
 // ── Phase 20: yesterday summary line (TODAY-SUMMARY-01) ──────────────────────

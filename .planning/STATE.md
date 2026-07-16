@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Prove Compounding
-status: roadmap-created
-last_updated: "2026-07-15"
-last_activity: 2026-07-15
+status: completed
+last_updated: "2026-07-16T16:44:53.893Z"
+last_activity: 2026-07-16
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 7
+  completed_phases: 7
+  total_plans: 16
+  completed_plans: 16
 ---
 
 # Project State
@@ -19,15 +19,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Status:** v1.7 milestone started
+**Status:** v1.7 milestone complete
 
 ## Current Position
 
 Milestone: v1.7 Prove Compounding
-Phase: 29 (Series Integrity) — not started
-Plan: —
-Status: Roadmap created (phases 29-31), ready to plan Phase 29
-Last activity: 2026-07-15 — Milestone v1.7 started, requirements + roadmap committed
+Phase: 31
+Plan: Not started
+Status: Phase complete — ready for verification
+Last activity: 2026-07-16
 
 **Shipped milestones:**
 
@@ -54,6 +54,10 @@ Full log in PROJECT.md Key Decisions table. Per-milestone summary:
 - **v1.5:** test-verifier dual-mode (Phase-Closure Verification Mode); memory health anomaly detector reads daily-stats rows
 - **v1.6:** promotion safety (dry-run zero-side-effects, deferred-as-live-status), reach layer (ADR-019 pointer+digest, fail-closed egress), authority hierarchy (ADR-020), fail-closed semantic exclusions
 - **v1.7 (2026-07-15, Pete):** launchd scheduler (RemoteTrigger is vault-unreachable — cloud env cannot write local vault); milestone closes at code-ship, verdict is a dated follow-up; delete 5 jest-polluted daily-counter cache files; verdict thresholds accepted (14 rows: entries +5, recall days ≥40%, hit rate ≥60%, week-2 ≥ week-1 − 10pts); query text never persisted (content policy)
+- [Phase 30]: recordRecallInvocation moved to after results are known so hit/miss and resultCount are captured in the same call
+- [Phase 30]: recordEchoShown guarded by mode !== 'dry-run' so practice /today runs never pollute echo counters
+- [Phase 31-trend-report]: Pure compute/render split for compounding-trend engine (no I/O), thresholds hardcoded as Pete-accepted literals
+- [Phase 31-trend-report]: CLI always prints the evidence table, including insufficient-data verdicts at <7 rows — Deliberately unlike the /today section (31-02), which suppresses the section below 7 rows -- the CLI is the archived audit trail and must show its work even when the verdict is inconclusive
 
 ### Open Blockers
 

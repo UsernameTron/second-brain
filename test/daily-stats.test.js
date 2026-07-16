@@ -54,6 +54,34 @@ describe('dateKey()', () => {
   });
 });
 
+// ── counter-store test isolation (regression tripwire) ────────────────────────
+describe('counter-store test isolation (regression tripwire)', () => {
+  const os = require('os');
+  const fs = require('fs');
+  const path = require('path');
+
+  it('routes counter writes under os.tmpdir when JEST_WORKER_ID is set and no CACHE_DIR_OVERRIDE', () => {
+    const saved = process.env.CACHE_DIR_OVERRIDE;
+    delete process.env.CACHE_DIR_OVERRIDE;
+    expect(process.env.JEST_WORKER_ID).toBeDefined();
+
+    jest.resetModules();
+    const { recordProposalsBatch } = require('../src/daily-stats');
+    const now = new Date('2026-05-01T18:00:00.000Z'); // 2026-05-01 Chicago
+    recordProposalsBatch(1, { now });
+
+    const workerDir = path.join(os.tmpdir(), 'second-brain-jest', String(process.env.JEST_WORKER_ID));
+    const expected = path.join(workerDir, 'daily-counters-2026-05-01.json');
+    expect(fs.existsSync(expected)).toBe(true);
+
+    const realCache = path.join(os.homedir(), '.cache', 'second-brain', 'daily-counters-2026-05-01.json');
+    expect(fs.existsSync(realCache)).toBe(false);
+
+    try { fs.unlinkSync(expected); } catch (_) { /* best-effort */ }
+    if (saved !== undefined) process.env.CACHE_DIR_OVERRIDE = saved;
+  });
+});
+
 // ── recordDailyStats() ────────────────────────────────────────────────────────
 describe('recordDailyStats()', () => {
   const os = require('os');
@@ -120,8 +148,8 @@ describe('recordDailyStats()', () => {
     expect(parsed.data).toHaveProperty('last_updated');
     expect(parsed.data).toHaveProperty('timezone');
 
-    // columns array has exactly 8 entries
-    expect(parsed.data.columns).toHaveLength(8);
+    // columns array has exactly 11 entries
+    expect(parsed.data.columns).toHaveLength(11);
 
     // Exactly one data row
     const { rows } = readDailyStats(absPath);
@@ -160,7 +188,7 @@ describe('recordDailyStats()', () => {
     const { rows } = readDailyStats(absPath);
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].proposals).toBe('99');
+    expect(rows[0].proposals).toBe(99);
   });
 
   it('writes via vault-gateway vaultWriteAtomic (atomic + boundary-enforced)', () => {
@@ -245,7 +273,7 @@ describe('recordDailyStats()', () => {
 
     const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
     const raw = fs.readFileSync(absPath, 'utf8');
-    const expectedHeader = '| date | proposals | promotions | total_entries | memory_kb | recall_count | avg_latency_ms | avg_confidence |';
+    const expectedHeader = '| date | proposals | promotions | total_entries | memory_kb | recall_count | avg_latency_ms | avg_confidence | recall_hits | echo_shown | echo_score |';
     expect(raw).toContain(expectedHeader);
   });
 
@@ -346,11 +374,11 @@ describe('recordDailyStats()', () => {
     const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
     expect(rows).toHaveLength(1);
-    expect(rows[0].proposals).toBe('0');
-    expect(rows[0].promotions).toBe('0');
-    expect(rows[0].total_entries).toBe('0');
-    expect(rows[0].recall_count).toBe('0');
-    expect(rows[0].memory_kb).toBe('0');
+    expect(rows[0].proposals).toBe(0);
+    expect(rows[0].promotions).toBe(0);
+    expect(rows[0].total_entries).toBe(0);
+    expect(rows[0].recall_count).toBe(0);
+    expect(rows[0].memory_kb).toBe(0);
   });
 
   it('applies timezone and schemaVersion defaults when absent from config', () => {
@@ -374,6 +402,55 @@ describe('recordDailyStats()', () => {
     const { frontmatter } = readDailyStats(absPath);
     expect(frontmatter.timezone).toBe('America/Chicago');
     expect(frontmatter.schema_version).toBe(1);
+  });
+
+  // ── 11-column schema + numeric coercion (STATS-OUTCOME-01/02) ──────────────
+
+  it('writes recall_hits/echo_shown/echo_score and round-trips numeric coercion', () => {
+    const config = makeConfig(tmpDir);
+    recordDailyStats({
+      ...baseStats,
+      avgLatencyMs: null,
+      recallHits: 2,
+      echoShown: 1,
+      echoScore: 0.912,
+    }, {
+      now: new Date('2026-04-24T18:00:00.000Z'),
+      configOverride: config,
+    });
+
+    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    const row = rows[0];
+
+    // 11 columns present on the written+read row
+    expect(Object.keys(row)).toHaveLength(11);
+
+    // Numeric cells coerce to Number; the em dash survives as a string
+    expect(typeof row.recall_count).toBe('number');
+    expect(row.avg_latency_ms).toBe('—');
+
+    // recall_hits/echo_shown/echo_score render as numbers when supplied
+    expect(row.recall_hits).toBe(2);
+    expect(row.echo_shown).toBe(1);
+    expect(row.echo_score).toBe(0.91);
+
+    // recall_hits <= recall_count invariant
+    expect(row.recall_hits).toBeLessThanOrEqual(row.recall_count);
+  });
+
+  it('renders echo_shown/echo_score as em dash when not supplied', () => {
+    const config = makeConfig(tmpDir);
+    recordDailyStats(baseStats, {
+      now: new Date('2026-04-24T18:00:00.000Z'),
+      configOverride: config,
+    });
+
+    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    expect(rows[0].echo_shown).toBe('—');
+    expect(rows[0].echo_score).toBe('—');
+    expect(rows[0].recall_hits).toBe(0);
   });
 });
 
@@ -501,5 +578,200 @@ describe('counter helpers', () => {
     ds.recordRecallInvocation({ now: day2 });
     const counterFiles = fs2.readdirSync(cacheDir).filter(f => f.startsWith('daily-counters-'));
     expect(counterFiles.length).toBe(2);
+  });
+
+  // ── recall hit tracking + Memory Echo outcome (STATS-OUTCOME-01/02) ─────────
+
+  it('recordRecallInvocation with no hit: recallCount +1, recallHits unchanged', () => {
+    const { recordRecallInvocation: rri, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ now });
+    const counters = rdc({ now });
+    expect(counters.recallCount).toBe(1);
+    expect(counters.recallHits).toBe(0);
+  });
+
+  it('recordRecallInvocation with hit:true increments both recallCount and recallHits', () => {
+    const { recordRecallInvocation: rri, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ hit: true, resultCount: 3, now });
+    const counters = rdc({ now });
+    expect(counters.recallCount).toBe(1);
+    expect(counters.recallHits).toBe(1);
+  });
+
+  it('recordRecallInvocation with hit:false leaves recallHits unchanged', () => {
+    const { recordRecallInvocation: rri, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ hit: false, now });
+    const counters = rdc({ now });
+    expect(counters.recallCount).toBe(1);
+    expect(counters.recallHits).toBe(0);
+  });
+
+  it('recordEchoShown(true, 0.83) persists echoShown === 1 and echoScore === 0.83', () => {
+    const { recordEchoShown: res, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    res(true, 0.83, { now });
+    const counters = rdc({ now });
+    expect(counters.echoShown).toBe(1);
+    expect(counters.echoScore).toBe(0.83);
+  });
+
+  it('recordEchoShown(false, 0) persists echoShown === 0 and echoScore === 0', () => {
+    const { recordEchoShown: res, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    res(false, 0, { now });
+    const counters = rdc({ now });
+    expect(counters.echoShown).toBe(0);
+    expect(counters.echoScore).toBe(0);
+  });
+
+  it('readDailyCounters returns recallHits/echoShown/echoScore alongside existing fields', () => {
+    const { recordRecallInvocation: rri, recordEchoShown: res, readDailyCounters: rdc } = freshModule();
+    const now = new Date('2026-04-24T18:00:00.000Z');
+    rri({ hit: true, now });
+    res(true, 0.7, { now });
+    const counters = rdc({ now });
+    expect(counters).toEqual(expect.objectContaining({
+      proposals: 0,
+      promotions: 0,
+      recallCount: 1,
+      recallHits: 1,
+      echoShown: 1,
+      echoScore: 0.7,
+      avgConfidence: null,
+    }));
+  });
+});
+
+// ── flushMissedDays() ──────────────────────────────────────────────────────────
+
+describe('flushMissedDays()', () => {
+  const os = require('os');
+  const fs = require('fs');
+  const path = require('path');
+
+  let cacheDir;
+  let vaultDir;
+
+  /** Build a minimal configOverride that routes stats to the tmp vault path */
+  function makeFlushConfig() {
+    return {
+      stats: {
+        enabled: true,
+        path: 'RIGHT/daily-stats.md',
+        timezone: 'America/Chicago',
+        schemaVersion: 1,
+      },
+    };
+  }
+
+  function writeCounterFile(dateStr, state) {
+    fs.writeFileSync(
+      path.join(cacheDir, `daily-counters-${dateStr}.json`),
+      JSON.stringify({ date: dateStr, ...state }),
+      'utf8',
+    );
+  }
+
+  beforeEach(() => {
+    cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-flush-test-'));
+    process.env.CACHE_DIR_OVERRIDE = cacheDir;
+    vaultDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-flush-vault-'));
+    fs.mkdirSync(path.join(vaultDir, 'RIGHT'), { recursive: true });
+    process.env.VAULT_ROOT = vaultDir;
+    jest.resetModules();
+  });
+
+  afterEach(() => {
+    delete process.env.CACHE_DIR_OVERRIDE;
+    delete process.env.VAULT_ROOT;
+    try { fs.rmSync(cacheDir, { recursive: true, force: true }); } catch (_) { /* best-effort */ }
+    try { fs.rmSync(vaultDir, { recursive: true, force: true }); } catch (_) { /* best-effort */ }
+    jest.restoreAllMocks();
+  });
+
+  it('flushes an orphan past-day counter into an idempotent daily-stats row', () => {
+    const { flushMissedDays, readDailyStats } = require('../src/daily-stats');
+
+    writeCounterFile('2026-06-01', {
+      proposals: 2, promotions: 1, recallCount: 3, confidenceSum: 1.6, confidenceCount: 2,
+    });
+
+    flushMissedDays({
+      now: new Date('2026-06-15T18:00:00.000Z'),
+      totalEntries: 50,
+      memoryKb: 12.3,
+      configOverride: makeFlushConfig(),
+    });
+
+    const absPath = path.join(vaultDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    const row = rows.find(r => r.date === '2026-06-01');
+    expect(row).toBeDefined();
+    expect(row.recall_count).toBe(3);
+    expect(row.avg_latency_ms).toBe('—');
+    expect(row.total_entries).toBe(50);
+  });
+
+  it('is idempotent — calling twice does not duplicate the flushed row', () => {
+    const { flushMissedDays, readDailyStats } = require('../src/daily-stats');
+
+    writeCounterFile('2026-06-01', {
+      proposals: 2, promotions: 1, recallCount: 3, confidenceSum: 1.6, confidenceCount: 2,
+    });
+
+    const opts = {
+      now: new Date('2026-06-15T18:00:00.000Z'),
+      totalEntries: 50,
+      memoryKb: 12.3,
+      configOverride: makeFlushConfig(),
+    };
+    flushMissedDays(opts);
+    flushMissedDays(opts);
+
+    const absPath = path.join(vaultDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    expect(rows.filter(r => r.date === '2026-06-01')).toHaveLength(1);
+  });
+
+  it('skips a counter file dated today or in the future', () => {
+    const { flushMissedDays, readDailyStats } = require('../src/daily-stats');
+
+    // Counter file dated the same day as `now` — must never be flushed.
+    writeCounterFile('2026-06-15', {
+      proposals: 1, promotions: 0, recallCount: 0, confidenceSum: 0, confidenceCount: 0,
+    });
+
+    flushMissedDays({
+      now: new Date('2026-06-15T18:00:00.000Z'),
+      configOverride: makeFlushConfig(),
+    });
+
+    const absPath = path.join(vaultDir, 'RIGHT', 'daily-stats.md');
+    const { rows } = readDailyStats(absPath);
+    expect(rows.find(r => r.date === '2026-06-15')).toBeUndefined();
+  });
+
+  it('prunes counter files older than ~14 days, keeping recent ones', () => {
+    const { flushMissedDays } = require('../src/daily-stats');
+
+    // 20 days before 2026-06-15 → past retention, must be deleted.
+    writeCounterFile('2026-05-20', {
+      proposals: 0, promotions: 0, recallCount: 0, confidenceSum: 0, confidenceCount: 0,
+    });
+    // 5 days before 2026-06-15 → within retention, must survive.
+    writeCounterFile('2026-06-10', {
+      proposals: 0, promotions: 0, recallCount: 0, confidenceSum: 0, confidenceCount: 0,
+    });
+
+    flushMissedDays({
+      now: new Date('2026-06-15T18:00:00.000Z'),
+      configOverride: makeFlushConfig(),
+    });
+
+    expect(fs.existsSync(path.join(cacheDir, 'daily-counters-2026-05-20.json'))).toBe(false);
+    expect(fs.existsSync(path.join(cacheDir, 'daily-counters-2026-06-10.json'))).toBe(true);
   });
 });

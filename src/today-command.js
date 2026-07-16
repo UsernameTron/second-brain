@@ -236,6 +236,15 @@ async function runToday(options = {}) {
     }
     latencies.memoryEcho = Date.now() - memEchoStart;
 
+    // STATS-OUTCOME-02: record whether Memory Echo was shown and its top score.
+    // Skip in dry-run so practice runs don't pollute the day's counters. Non-fatal.
+    if (mode !== 'dry-run') {
+      try {
+        const { recordEchoShown } = require('./daily-stats');
+        recordEchoShown(memoryEcho.entries.length > 0, memoryEcho.score);
+      } catch (_) { /* briefing-is-the-product */ }
+    }
+
     // ── Memory Health (Phase 24, AGENT-MEMORY-01) ────────────────────────
     // Anomaly detection from daily-stats rows. Non-fatal — briefing is the product.
     // All requires are lazy (inside function body) per Pattern 12.
@@ -247,6 +256,24 @@ async function runToday(options = {}) {
         const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'RIGHT/daily-stats.md');
         const { rows } = readDailyStats(statsAbsPath);
         memoryHealth = computeMemoryHealth(rows, config.memoryHealth);
+      }
+    } catch (_) { /* non-fatal — briefing-is-the-product */ }
+
+    // ── Compounding trend (Phase 31, TREND-02) ───────────────────────────
+    // Pure verdict from daily-stats rows. Suppressed under 7 rows (insufficient-data),
+    // matching the Memory Echo / Memory Health null-suppression precedent.
+    // Non-fatal — briefing-is-the-product. Lazy requires per Pattern 12.
+    let compoundingBody = null;
+    try {
+      if (config && config.stats && config.stats.enabled) {
+        const { computeCompoundingTrend, renderCompoundingReport } = require('./today/compounding-trend');
+        const { readDailyStats } = require('./daily-stats');
+        const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'RIGHT/daily-stats.md');
+        const { rows } = readDailyStats(statsAbsPath);
+        const trend = computeCompoundingTrend(rows, { windowDays: 14 });
+        if (trend.verdict !== 'insufficient-data') {
+          compoundingBody = renderCompoundingReport(trend);
+        }
       }
     } catch (_) { /* non-fatal — briefing-is-the-product */ }
 
@@ -275,6 +302,7 @@ async function runToday(options = {}) {
       frog: frogData,
       memoryEcho,
       memoryHealth,
+      compounding: compoundingBody,
       mode,
       synthesis,
     });
@@ -311,11 +339,11 @@ async function runToday(options = {}) {
     // Skip in dry-run mode to avoid polluting daily-stats.md with practice runs.
     if (mode !== 'dry-run') {
       try {
-        const { recordDailyStats, readDailyCounters } = require('./daily-stats');
+        const { recordDailyStats, readDailyCounters, flushMissedDays } = require('./daily-stats');
         const { readMemory } = require('./memory-reader');
 
         // Aggregate inputs — each sub-fetch in its own try/catch with safe defaults.
-        let counters = { proposals: 0, promotions: 0, recallCount: 0, avgConfidence: null };
+        let counters = { proposals: 0, promotions: 0, recallCount: 0, recallHits: 0, echoShown: 0, echoScore: 0, avgConfidence: null };
         try { counters = readDailyCounters(); } catch (_) { /* defaults retained */ }
 
         let memoryKb = 0;
@@ -333,6 +361,12 @@ async function runToday(options = {}) {
           totalEntries = Array.isArray(entries) ? entries.length : 0;
         } catch (_) { /* totalEntries stays 0 */ }
 
+        // Phase 29 (STATS-PIPE-02): flush any past days whose counters never became a row,
+        // then prune counter files >14 days old. Non-fatal — briefing already written.
+        try {
+          flushMissedDays({ totalEntries, memoryKb });
+        } catch (_) { /* non-fatal */ }
+
         recordDailyStats({
           proposals: counters.proposals,
           promotions: counters.promotions,
@@ -341,6 +375,9 @@ async function runToday(options = {}) {
           recallCount: counters.recallCount,
           avgLatencyMs,
           avgConfidence: counters.avgConfidence,
+          recallHits: counters.recallHits,
+          echoShown: counters.echoShown,
+          echoScore: counters.echoScore,
         });
       } catch (_) {
         // Briefing already written; stats failure is non-fatal.

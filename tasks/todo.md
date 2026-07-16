@@ -20,8 +20,14 @@
 
 ## Active
 
-- [ ] Merge PR #59, then `/gsd:discuss-phase 26`
-- [ ] Decide on the dependency-CVE remediation (see above)
+- [ ] Merge PR #66 (Milestone v1.7: Prove Compounding) when CI is green
+- [ ] Decide next milestone (`/gsd:new-milestone`) — or wait for VERDICT-01 (~3 weeks post-ship: archive compounding-report output with the verdict)
+- [ ] Dependency-upgrade phase: @anthropic-ai/sdk 0.90→0.111 (moderate CVE, breaking major), eslint/jest transitive fixes, chokidar 5.x, voyageai 0.4.x — see .planning/dependencies/DEPENDENCIES-REPORT.md
+
+## Completed
+
+- [x] Merge PR #59, /gsd:discuss-phase 26 — v1.6 shipped 2026-07-15 (stale handoff item)
+- [x] Milestone v1.7 Prove Compounding finalized via /gsd:finalize (2026-07-16) — phases 29-31 verified, UAT 3/3, PR #66
 
 ## Accepted Flags (non-defects, awareness only)
 

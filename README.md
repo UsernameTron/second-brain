@@ -24,7 +24,7 @@ Built for a technical executive who directs AI. The project code lives in this r
 ```bash
 npm install
 npm run lint  # ESLint 10 (flat config)
-npm test      # Jest 30 — 1245 total tests (1207 pass, 38 skipped in CI)
+npm test      # Jest 30 — 1285 total tests (1247 pass, 38 skipped in CI)
 ```
 
 **Optional: Semantic memory search** — Set `VOYAGE_API_KEY` in `.env` to enable `/recall --semantic` and `/recall --hybrid`. Without the key, `/recall` falls back to keyword search. See [docs/DEVOPS-HANDOFF.md](docs/DEVOPS-HANDOFF.md) for acquisition steps and configuration.
@@ -113,12 +113,13 @@ CLAUDE.md                    # Project governance, commands, conventions
 
 ## Status
 
-**Latest Release:** v1.6 Enforcement Integrity & Surface Completion (2026-07-15) | Phases 26-28: Promotion Safety, Context Honesty, Surface Completion
-- **1245 total tests** across 64 test files (1207 passing, 38 skipped in CI)
-- **Branch coverage:** 81.15% (threshold: ≥80% enforced in CI)
+**Latest Release:** v1.7 Prove Compounding (2026-07-16) | Phases 29-31: Series Integrity, Outcome Instrumentation, Trend & Report
+- **1285 total tests** across 67 test files (1247 passing, 38 skipped in CI)
+- **Branch coverage:** 81.44% (threshold: ≥80% enforced in CI)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 20+22 matrix, GitGuardian secrets scan
-- **Shipped milestones:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24), v1.4 Closeout Hygiene (2026-04-25), v1.5 Internal Hardening (2026-04-26)
+- **Operational components:** `/today` daily briefing (weekdays 06:45 local via launchd), memory compounding metrics, outcome instrumentation (11-column daily-stats), compounding verdict surfaces
+- **Shipped milestones:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24), v1.4 Closeout Hygiene (2026-04-25), v1.5 Internal Hardening (2026-04-26), v1.6 Enforcement Integrity (2026-07-15), v1.7 Prove Compounding (2026-07-16)
 
 For detailed release history and known gaps, see [.planning/MILESTONES.md](.planning/MILESTONES.md).
 
@@ -146,7 +147,7 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 ### Test Coverage
 
 ```bash
-npm test                    # Run all tests (1245 total; set CI=true to skip UAT)
+npm test                    # Run all tests (1285 total; set CI=true to skip UAT)
 npm run lint               # ESLint validation
 npm run test:uat           # UAT tests (requires CI= to unblock)
 ```
@@ -156,7 +157,7 @@ npm run test:uat           # UAT tests (requires CI= to unblock)
 - Critical modules (auth, vault boundary): ≥95%
 - All other modules: ≥80%
 
-Current coverage: Statements 92.74%, Functions 96.02%, Lines 93.37%, Branch 81.15%
+Current coverage: Statements 91.95%, Functions 96.00%, Lines 92.64%, Branch 81.44%
 
 ### Project Governance
 
@@ -184,7 +185,7 @@ For complete architecture details, see [.planning/PROJECT.md](.planning/PROJECT.
 
 | Command | When to Use | What It Does |
 |---------|-------------|--------------|
-| `/today` | Morning routine | Generate 6-section briefing: slippage, meetings, emails, GitHub, memory, weather |
+| `/today` | Morning routine | Generate 7-section briefing: slippage, meetings, emails, GitHub, memory, compounding metrics, weather. Compounding section shows last 7 entries added/modified, cumulative promotion count, memory growth trend |
 | `/new` | Capture mixed input | Route to LEFT (identity) or RIGHT (work) vault via two-stage LLM |
 | `/wrap` | End of session | Extract learnings, decisions, patterns into `memory-proposals.md` |
 | `/promote-memories` | Review daily | Human-approve memory candidates from staging to `memory.md` |
@@ -193,6 +194,7 @@ For complete architecture details, see [.planning/PROJECT.md](.planning/PROJECT.
 | `/recall <query>` | Keyword recall | Minisearch over `memory.md` — AND semantics, quoted phrases, negation. Flags: `--category <name>`, `--since YYYY-MM-DD`, `--top N` (default 5) |
 | `/recall --semantic <query>` | Semantic search | Voyage AI embedding search with cosine similarity + recency decay (0.55 threshold; requires `VOYAGE_API_KEY`). Accepts the same `--category` / `--since` / `--top N` flags |
 | `/recall --hybrid <query>` | Hybrid search | RRF fusion of keyword + semantic results; degrades gracefully to keyword if Voyage unavailable. Accepts the same `--category` / `--since` / `--top N` flags |
+| `node scripts/compounding-report.js` | Standalone reporting | Generate compounding evidence report: memory growth metrics, promotion velocity, verdict. Runnable from any directory on this machine |
 
 ## Known Gaps and Deferred Work
 

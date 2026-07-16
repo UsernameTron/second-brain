@@ -1,0 +1,1 @@
+- [ ] Dependency upgrade phase: @anthropic-ai/sdk 0.90→0.111 (CVE), eslint/jest transitive fixes, chokidar 5.x, voyageai 0.4.x — see .planning/dependencies/DEPENDENCIES-REPORT.md (2026-07-16)

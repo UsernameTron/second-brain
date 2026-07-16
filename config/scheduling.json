@@ -27,11 +27,13 @@
     "action": "Update trigger.schedule value and re-create the RemoteTrigger with the new cron expression. Use: RemoteTrigger update trig_01KvxeDfYDAEwAzw9zw9DKKB with new cron_expression."
   },
   "fallback_chain": [
-    "RemoteTrigger (primary — server-side cron, no local machine needed)",
+    "macOS launchd (PRIMARY — com.secondbrain.today, weekday 06:45 local, only path that reaches the local vault)",
     "CronCreate (secondary — .claude/scheduled_tasks.json, 7-day auto-expiry)",
-    "macOS launchd (tertiary — system-level, requires plist management)"
+    "RemoteTrigger (disabled — cloud env cannot reach local vault; see notes.remote_trigger_disabled)"
   ],
   "notes": {
-    "test_trigger_deleted": "Test trigger trig_01NHx3Uz8ni8eZSfsMph4miY deleted 2026-04-22."
+    "test_trigger_deleted": "Test trigger trig_01NHx3Uz8ni8eZSfsMph4miY deleted 2026-04-22.",
+    "remote_trigger_disabled": "RemoteTrigger runs in cloud environment env_01TjBJLSRwHfpUPcNVUK99Kb which cannot reach local VAULT_ROOT (~/Claude Cowork); its /today writes go into the void. Disabled by design (trigger.enabled=false), not a config bug. v1.7 Phase 29 STATS-PIPE-03.",
+    "local_scheduler": "Primary scheduler is macOS launchd job com.secondbrain.today (~/Library/LaunchAgents/com.secondbrain.today.plist), weekday 06:45 America/Chicago local, running /today scheduled mode with WorkingDirectory=/Users/cpconnor/projects/second-brain. Added v1.7 Phase 29."
   }
 }

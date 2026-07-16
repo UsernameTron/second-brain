@@ -139,6 +139,24 @@ describe('Phase 20: recall_count instrumentation', () => {
     expect(mockRecordRecallInvocation).not.toHaveBeenCalled();
   });
 
+  it('records a hit with resultCount when a keyword search returns >=1 result', async () => {
+    mockSearchMemoryKeyword.mockResolvedValue([makeHit(), makeHit({ id: 'e2' })]);
+    await runRecall(['test query']);
+    expect(mockRecordRecallInvocation).toHaveBeenCalledWith({ hit: true, resultCount: 2 });
+  });
+
+  it('records hit: false (invocation still counted) when a hybrid recall is blocked', async () => {
+    mockHybridSearch.mockResolvedValue({ blocked: true, reason: 'excluded-terms policy' });
+    await runRecall(['test', '--hybrid']);
+    expect(mockRecordRecallInvocation).toHaveBeenCalledWith({ hit: false, resultCount: 0 });
+  });
+
+  it('records hit: false when the result set is empty', async () => {
+    mockSearchMemoryKeyword.mockResolvedValue([]);
+    await runRecall(['test query']);
+    expect(mockRecordRecallInvocation).toHaveBeenCalledWith({ hit: false, resultCount: 0 });
+  });
+
   it('--hybrid emits top-1 RRF score on non-empty results', async () => {
     const hit = makeHit({ rrfScore: 0.042 });
     mockHybridSearch.mockResolvedValue({ results: [hit], degraded: false, mode: 'hybrid' });

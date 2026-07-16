@@ -20,17 +20,14 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 
 ## Project Status
 
-> Last verified: 2026-07-15  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
+> Last verified: 2026-07-16  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
 
-**Latest Release:** v1.6 Enforcement Integrity & Surface Completion (2026-07-15)
-**Phase 22 complete:** NFKD Unicode Matcher (2026-04-26)
-**Phase 23 complete:** Pre-Commit Hooks (2026-04-26)
-**Phase 24 complete:** Doc Sync Agent (2026-04-26)
-**Phase 25 complete:** UAT Rebaseline (2026-04-26)
+**Latest Release:** v1.7 Prove Compounding (2026-07-16)
+**v1.7 complete (2026-07-16):** Series Integrity (Phase 29), Outcome Instrumentation (Phase 30), Trend & Report (Phase 31)
 **v1.6 complete (2026-07-15):** Promotion Safety, Cross-Surface Reach (ADR-018/019), Context Honesty (staleness hook, ADR-020 authority hierarchy, fail-closed exclusions), Surface Completion (/reroute, pre-push docs gate)
 
-- **Test count:** 1245 total across 64 test files (1207 passing, 38 skipped)
-- **Coverage:** Branch 81.15%, Statements 92.74%, Functions 96.02%, Lines 93.37%
+- **Test count:** 1285 total across 67 test files (1247 passing, 38 skipped)
+- **Coverage:** Branch 81.44%, Statements 91.95%, Functions 96.00%, Lines 92.64%
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 20+22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
 
@@ -50,6 +47,8 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 | `/recall --semantic <query>` | Semantic search via Voyage AI embeddings with cosine similarity + recency decay (0.55 threshold). Same `--category` / `--since` / `--top N` flags apply |
 | `/recall --hybrid <query>` | RRF fusion of keyword + semantic results; falls back to keyword if Voyage unavailable. Same `--category` / `--since` / `--top N` flags apply |
 | `node scripts/recall.js "<query>"` | Standalone recall CLI — same flags as `/recall`, runnable from any directory/session on this machine (v1.6 reach layer, ADR-019) |
+| `/today` (with `## Compounding` section) | Daily briefing includes compounding evidence when available: last 7 entries added/modified, cumulative promotion count, memory growth trend (v1.7 Phase 30) |
+| `node scripts/compounding-report.js` | Standalone compounding evidence report CLI — summarizes memory growth metrics, promotion velocity, and verdict (v1.7 Phase 31) |
 
 **Reach layer (v1.6, SURFACE-REACH-01):** every real promotion regenerates a pointer + digest cache (`second-brain.md` + `MEMORY.md` index line) in the auto-memory dirs allowlisted in `config/reach-targets.json`, via `src/reach-exporter.js`. Digest entries re-pass the content-policy exclusion gate at egress, fail-closed. See `decisions/ADR-019-reach-layer-mechanism.md`.
 
@@ -109,6 +108,7 @@ The system is deployed across five integration points:
 
 **Deployed agents (`.claude/agents/`):**
 - `docs-sync.md` — documentation consistency checks
+- `memory-specialist.md` — memory pipeline diagnostics
 - `pipeline-reviewer.md` — CI/CD validation
 - `security-scanner.md` — SAST and permission audits
 - `test-runner.md` — test execution and failure diagnosis

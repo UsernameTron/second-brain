@@ -1,5 +1,24 @@
 # Milestones
 
+## v1.7 Prove Compounding (Shipped: 2026-07-16)
+
+**Phases completed:** 7 phases, 16 plans, 18 tasks
+
+**Key accomplishments:**
+
+- test-verifier agent extended with Phase-Closure Verification Mode that emits a per-REQ-ID PASS/FAIL/UNTESTED verdict table, triggered by "phase-close N" or "verify requirements: ..." invocation phrasing
+- Four-condition anomaly detector wired into /today briefing — surfaces zero promotions, backlog growth, recall drop, and vault plateau when streakDays consecutive days trigger
+- JEST_WORKER_ID-guarded counter cache plus flushMissedDays() idempotent recovery, closing both the jest-pollution bug and the vault-unreachable orphan-day gap in one pass.
+- macOS launchd job com.secondbrain.today loaded and scheduled weekday 06:45 local to run `/today` in scheduled mode, replacing the vault-unreachable cloud RemoteTrigger as primary scheduler.
+- Extended src/daily-stats.js with a recall-hit counter, Memory Echo outcome counter, 11-column schema, and root-level numeric coercion in readDailyStats — the interface Plan 02 wires /recall and /today into.
+- Wired /recall and /today to the Plan 01 daily-stats contracts — /recall now records hit/miss + resultCount after search results are known, and /today records Memory Echo shown/score plus flows recallHits/echoShown/echoScore into the 11-column daily-stats row.
+- Human-verified checkpoint: a real /recall recorded a hit and a real non-dry-run /today wrote an 11-column daily-stats row to the live vault with valid values and zero query-text leakage. Operator approved 2026-07-16.
+- Pure `computeCompoundingTrend`/`renderCompoundingReport` pair in `src/today/compounding-trend.js` turning daily-stats rows into a compounding\|flat\|insufficient-data verdict plus a markdown evidence report — zero I/O, 16 unit tests, shared verbatim by both the `/today` section (31-02) and the CLI (31-03).
+- `/today` now computes the compounding trend from daily-stats rows and renders a `## Compounding` section (verdict, three metric bullets, evidence table), suppressed entirely when fewer than 7 rows exist — following the Memory Echo / Memory Health null-suppression precedent.
+- `scripts/compounding-report.js` — a standalone CLI mirroring `scripts/recall.js`'s entry-point pattern, printing the full compounding evidence table plus verdict as markdown, unconditionally including at insufficient-data (<7 rows).
+
+---
+
 ## v1.6 Enforcement Integrity & Surface Completion (Shipped: 2026-07-15)
 
 **Phases completed:** 6 phases, 14 plans, 19 tasks

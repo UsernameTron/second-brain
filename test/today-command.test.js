@@ -1265,8 +1265,10 @@ describe('Phase 20: latency timing', () => {
  */
 function setupRecordStatsMocks({
   recordDailyStatsImpl = jest.fn(),
-  readDailyCountersImpl = jest.fn().mockReturnValue({ proposals: 5, promotions: 3, recallCount: 2, avgConfidence: 0.85 }),
+  readDailyCountersImpl = jest.fn().mockReturnValue({ proposals: 5, promotions: 3, recallCount: 2, recallHits: 1, echoShown: 1, echoScore: 0.72, avgConfidence: 0.85 }),
   readMemoryImpl = jest.fn().mockResolvedValue([{}, {}, {}]), // 3 entries
+  recordEchoShownImpl = jest.fn(),
+  flushMissedDaysImpl = jest.fn(),
 } = {}) {
   jest.resetModules();
 
@@ -1310,11 +1312,20 @@ function setupRecordStatsMocks({
   jest.doMock('../src/daily-stats', () => ({
     recordDailyStats: recordDailyStatsImpl,
     readDailyCounters: readDailyCountersImpl,
+    recordEchoShown: recordEchoShownImpl,
+    flushMissedDays: flushMissedDaysImpl,
   }));
 
   const { runToday } = require('../src/today-command');
 
-  return { runToday, recordDailyStatsMock: recordDailyStatsImpl, readDailyCountersMock: readDailyCountersImpl, readMemoryMock: readMemoryImpl };
+  return {
+    runToday,
+    recordDailyStatsMock: recordDailyStatsImpl,
+    readDailyCountersMock: readDailyCountersImpl,
+    readMemoryMock: readMemoryImpl,
+    recordEchoShownMock: recordEchoShownImpl,
+    flushMissedDaysMock: flushMissedDaysImpl,
+  };
 }
 
 describe('Phase 20: recordStats orchestrator step', () => {
@@ -1490,6 +1501,41 @@ describe('Phase 20: recordStats orchestrator step', () => {
     expect(recordDailyStatsMock).toHaveBeenCalledTimes(1);
     const payload = recordDailyStatsMock.mock.calls[0][0];
     expect(payload.avgLatencyMs).toBe(returnedAvgLatency);
+  });
+
+  it('calls recordEchoShown once and passes recallHits/echoShown/echoScore into recordDailyStats (non-dry-run)', async () => {
+    const recordDailyStatsMock = jest.fn();
+    const { runToday, recordEchoShownMock } = setupRecordStatsMocks({ recordDailyStatsImpl: recordDailyStatsMock });
+
+    await runToday({
+      mcpClient: null,
+      mode: 'scheduled',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_STATS,
+    });
+
+    expect(recordEchoShownMock).toHaveBeenCalledTimes(1);
+    expect(recordEchoShownMock).toHaveBeenCalledWith(false, 0);
+
+    const payload = recordDailyStatsMock.mock.calls[0][0];
+    expect(payload.recallHits).toBe(1);
+    expect(payload.echoShown).toBe(1);
+    expect(payload.echoScore).toBe(0.72);
+  });
+
+  it('does NOT call recordEchoShown in dry-run mode', async () => {
+    const { runToday, recordEchoShownMock } = setupRecordStatsMocks();
+
+    await runToday({
+      mcpClient: null,
+      mode: 'dry-run',
+      projectsDir: tempProjectsDir,
+      vaultRoot: tempVaultRoot,
+      date: FIXED_DATE_STATS,
+    });
+
+    expect(recordEchoShownMock).not.toHaveBeenCalled();
   });
 
   it('require to ./daily-stats happens lazily inside runToday, not at module top', () => {

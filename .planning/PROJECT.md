@@ -6,7 +6,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
-**v1.7 Prove Compounding started (2026-07-15).** Seven milestones shipped: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4), v1.5 Internal Hardening (2026-04-26, tag v1.5), v1.6 Enforcement Integrity & Surface Completion (2026-07-15).
+**v1.7 Prove Compounding — all phases complete. Phase 31 (Trend & Report) complete (2026-07-16):** pure `computeCompoundingTrend` verdict engine (supply/demand/utility gates, `compounding | flat | insufficient-data`) surfaced in `/today` as a null-suppressed `## Compounding` section (<7 rows suppressed) and in a standalone `scripts/compounding-report.js` CLI that always prints the evidence table (TREND-01/02 validated). Remaining: VERDICT-01 calendar-gated follow-up (~3 weeks post-ship). Phase 30 (Outcome Instrumentation) complete (2026-07-16): retrieval-outcome layer live — `/recall` records hit/miss + result count after results are known, `/today` records Memory Echo shown/score, and the daily-stats row is now 11 columns with root-level numeric coercion; first live row human-verified on the vault with zero query-text leakage (STATS-OUTCOME-01/02 validated). Phase 29 (Series Integrity, 2026-07-15) shipped the jest-pollution guard, idempotent missed-day flush with 14-day cleanup, and a local launchd weekday scheduler replacing the vault-unreachable RemoteTrigger (STATS-PIPE-01/02/03 validated). Seven milestones shipped: v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4), v1.5 Internal Hardening (2026-04-26, tag v1.5), v1.6 Enforcement Integrity & Surface Completion (2026-07-15).
 
 **Memory corpus live at 97 entries (2026-07-12).** Seeded 27 → 97 by mining 70 durable proposals from the decision log, ADR register, CTG docs, standups, and philosophy corpus. Embeddings sidecar at 125 vectors; keyword, semantic, and hybrid `/recall` all verified against the new corpus. The compounding thesis is now testable against a real corpus rather than a near-empty one.
 
@@ -19,10 +19,10 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 - `/recall --semantic <query>` Voyage AI cosine search (calibrated 0.55 threshold, post-UAT)
 - `/recall --hybrid <query>` RRF fusion of keyword + semantic
 - `/promote-memories` writes to `memory.md` AND embeds new entries to `~/.cache/second-brain/embeddings.jsonl`
-- `/today` records per-day stats row in `RIGHT/daily-stats.md` (8 columns: date/proposals/promotions/total_entries/memory_kb/recall_count/avg_latency_ms/avg_confidence)
+- `/today` records per-day stats row in `RIGHT/daily-stats.md` (11 columns: date/proposals/promotions/total_entries/memory_kb/recall_count/avg_latency_ms/avg_confidence/recall_hits/echo_shown/echo_score)
 - Voyage degradation: 3-failure threshold → 15-min cross-invocation window persisted to `voyage-health.json`; falls back to keyword with banner
 - Gmail (OAuth, draft-only), Calendar (read-only), GitHub (UsernameTron-scoped) connectors with per-connector latency captured
-- RemoteTrigger active for weekday pre-morning `/today` execution
+- Scheduled `/today` via local launchd agent `com.secondbrain.today` (weekdays 06:45); RemoteTrigger disabled by design (cloud env cannot reach the local vault — documented in `config/scheduling.json`)
 - GitHub Actions CI: Node 20+22 matrix, ESLint, CodeQL SAST, license-checker, coverage ≥80%, GitGuardian secrets scan
 - UAT workflow: weekly cron + manual `workflow_dispatch`, ANTHROPIC_API_KEY scoped step-only, 90-day artifact retention
 - Branch protection on master: PR-required-reviews, required CI checks (test (20)/test (22)/Analyze), force-push blocked
@@ -107,6 +107,7 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 - ✓ Pre-commit AJV schema validation on config/*.json and daily-stats.md frontmatter (HOOK-SCHEMA-01) — v1.5 Phase 22
 - ✓ Pre-commit LEFT/RIGHT vault boundary enforcement at git layer (HOOK-VAULT-01) — v1.5 Phase 22
 - ✓ Entry-point-only dotenv loading discipline (HOOK-DOTENV-01) — v1.5 Phase 22
+- ✓ Daily-stats series integrity: JEST_WORKER_ID counter-cache guard, idempotent flushMissedDays with 14-day cleanup, launchd weekday 06:45 scheduler + RemoteTrigger documented as vault-unreachable (STATS-PIPE-01/02/03) — v1.7 Phase 29
 
 ### Active
 
@@ -259,4 +260,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-15 after v1.7 milestone start*
+*Last updated: 2026-07-16 after Phase 31 (Trend & Report) completion*
