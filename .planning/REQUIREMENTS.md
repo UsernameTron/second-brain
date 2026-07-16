@@ -9,9 +9,9 @@ Full investigation and file-level design: approved plan at `/Users/cpconnor/.cla
 
 ### Stats Pipeline Integrity (STATS-PIPE)
 
-- [ ] **STATS-PIPE-01**: Daily-counter cache is never polluted by the test suite — counter writes under jest resolve to a temp dir unless `CACHE_DIR_OVERRIDE` is set, with a regression tripwire test
-- [ ] **STATS-PIPE-02**: Counters from days where `/today` never ran are flushed into `daily-stats.md` rows on the next real `/today` (idempotent, via existing `recordDailyStats`), and counter files older than ~14 days are cleaned up after flush
-- [ ] **STATS-PIPE-03**: A local launchd job runs `/today` scheduled mode weekday mornings (06:45 local) so a daily-stats row lands without manual action; `config/scheduling.json` documents that RemoteTrigger is vault-unreachable and stays disabled
+- [x] **STATS-PIPE-01**: Daily-counter cache is never polluted by the test suite — counter writes under jest resolve to a temp dir unless `CACHE_DIR_OVERRIDE` is set, with a regression tripwire test
+- [x] **STATS-PIPE-02**: Counters from days where `/today` never ran are flushed into `daily-stats.md` rows on the next real `/today` (idempotent, via existing `recordDailyStats`), and counter files older than ~14 days are cleaned up after flush
+- [x] **STATS-PIPE-03**: A local launchd job runs `/today` scheduled mode weekday mornings (06:45 local) so a daily-stats row lands without manual action; `config/scheduling.json` documents that RemoteTrigger is vault-unreachable and stays disabled
 
 ### Retrieval Outcome Instrumentation (STATS-OUTCOME)
 
@@ -44,9 +44,9 @@ Full investigation and file-level design: approved plan at `/Users/cpconnor/.cla
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STATS-PIPE-01 | Phase 29 | Pending |
-| STATS-PIPE-02 | Phase 29 | Pending |
-| STATS-PIPE-03 | Phase 29 | Pending |
+| STATS-PIPE-01 | Phase 29 | Complete |
+| STATS-PIPE-02 | Phase 29 | Complete |
+| STATS-PIPE-03 | Phase 29 | Complete |
 | STATS-OUTCOME-01 | Phase 30 | Complete |
 | STATS-OUTCOME-02 | Phase 30 | Complete |
 | TREND-01 | Phase 31 | Complete |
