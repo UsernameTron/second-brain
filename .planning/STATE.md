@@ -2,7 +2,7 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Prove Compounding
-status: completed
+status: archived
 last_updated: "2026-07-16T16:44:53.893Z"
 last_activity: 2026-07-16
 progress:
@@ -23,10 +23,9 @@ See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 
 ## Current Position
 
-Milestone: v1.7 Prove Compounding
-Phase: 31
-Plan: Not started
-Status: Phase complete — ready for verification
+Milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16)
+Phase: none active (between milestones)
+Status: Awaiting VERDICT-01 window and/or next-milestone decision
 Last activity: 2026-07-16
 
 **Shipped milestones:**
@@ -38,6 +37,7 @@ Last activity: 2026-07-16
 - v1.4 Memory Activation & Final Closeout (2026-04-26) — tag v1.4
 - v1.5 Internal Hardening (2026-04-26) — tag v1.5
 - v1.6 Enforcement Integrity & Surface Completion (2026-07-15)
+- v1.7 Prove Compounding (2026-07-16) — PR #66
 
 **Current milestone:** v1.7 Prove Compounding (Phases 29-31 + calendar-gated verdict follow-up)
 
