@@ -1,9 +1,9 @@
 ---
-status: testing
+status: passed
 phase: 31-trend-report
 source: [31-01-SUMMARY.md, 31-02-SUMMARY.md, 31-03-SUMMARY.md]
 started: 2026-07-16T10:30:00.000Z
-updated: 2026-07-16T10:30:00.000Z
+updated: 2026-07-16T16:15:00.000Z
 ---
 
 ## Schema Quality Check
@@ -25,16 +25,7 @@ updated: 2026-07-16T10:30:00.000Z
 
 ## Current Test
 
-number: 3
-name: Verdict honesty spot-check
-expected: |
-  The verdict logic matches Pete's accepted thresholds (entries +5 and kb
-  growth; recall on >=40% of days; hit rate >=60%; wk2 >= wk1 - 10pts) and a
-  7-13 row verdict is labeled "provisional — N of 14 rows". Real data has only
-  1 row, so this cannot be observed live yet — accept the unit-test evidence
-  now (16 tests assert exactly these literal thresholds and the provisional
-  label), or defer to the calendar-gated VERDICT-01 follow-up.
-awaiting: user response
+[complete — all tests finished]
 
 ## Tests
 
@@ -49,14 +40,15 @@ evidence: Live dry-run 2026-07-16 — full briefing rendered (frontmatter, Meeti
 
 ### 3. Verdict honesty spot-check
 expected: The verdict logic matches Pete's accepted thresholds (entries +5 and kb growth; recall on >=40% of days; hit rate >=60%; wk2 >= wk1 - 10pts) and a 7-13 row verdict is labeled "provisional — N of 14 rows". Confirm the thresholds in the CLI output header/bullets look right once >=7 rows exist, or accept the unit-test evidence now.
-result: [pending]
+result: pass
+evidence: Unit-test evidence accepted (16 tests assert the literal thresholds and provisional labeling); live threshold observation lands with VERDICT-01 (~3 weeks post-ship).
 
 ## Summary
 
 total: 3
-passed: 2
+passed: 3
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
