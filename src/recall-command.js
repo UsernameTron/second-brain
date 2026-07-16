@@ -60,18 +60,13 @@ async function runRecall(argv, options = {}) {
   let blocked = false;
   let blockedReason = null;
 
-  // D-04: Increment recall_count for every explicit /recall invocation.
+  // D-04: recall_count is recorded once results (and hit/miss) are known —
+  // see the recordRecallInvocation call after `empty` is computed, below.
   // Internal callers (e.g. Memory Echo in getMemoryEcho()) pass { _internal: true }
   // to suppress the counter — Memory Echo's automatic morning hit is NOT counted.
   // Memory Echo calls searchMemoryKeyword/semanticSearch directly and does NOT
   // call runRecall at all, so D-04 is naturally satisfied even without the flag.
   // The flag provides an explicit gate for any future internal callers.
-  if (!options._internal) {
-    try {
-      const { recordRecallInvocation } = require('./daily-stats');
-      recordRecallInvocation();
-    } catch (_) { /* briefing-is-the-product: never break recall on stats failure */ }
-  }
 
   try {
     if (flags.hybrid) {
@@ -123,6 +118,17 @@ async function runRecall(argv, options = {}) {
 
   const topN = hits.slice(0, flags.top);
   const empty = topN.length === 0 && !blocked;
+
+  // STATS-OUTCOME-01: record hit/miss AFTER results are known. Internal callers
+  // (Memory Echo morning hit) still suppress the counter via _internal.
+  // Query text is NEVER passed — content policy (daily-stats.md is exportable).
+  if (!options._internal) {
+    try {
+      const { recordRecallInvocation } = require('./daily-stats');
+      recordRecallInvocation({ hit: topN.length > 0 && !blocked, resultCount: topN.length });
+    } catch (_) { /* briefing-is-the-product: never break recall on stats failure */ }
+  }
+
   // Keyword-only path (no flags): preserve byte-for-byte existing snippet behavior so legacy tests pass untouched.
   // Semantic / hybrid paths: fall back to content slice because semantic-index results don't carry a pre-computed snippet.
   const usedSemanticPath = flags.semantic || flags.hybrid;
