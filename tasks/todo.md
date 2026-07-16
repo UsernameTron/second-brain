@@ -18,14 +18,27 @@
 - Promote in batches of **exactly 10**. Accepting more strands the remainder permanently (PROMOTE-DEFER-01).
 - **`--dry-run` performs a real promotion.** The flag is parsed but ignored (PROMOTE-FLAGS-01). Do not trust it until Phase 26 lands.
 
+## Next Steps (written 2026-07-16, post-v1.7 closeout)
+
+**Nothing is blocking. The system now runs itself — let it collect evidence.**
+
+1. **Let the scheduler work (no action, ~3 weeks).** launchd job `com.secondbrain.today` writes a daily-stats row every weekday 06:45. Spot-check occasionally: `node scripts/compounding-report.js` — row count should grow.
+2. **VERDICT-01 (~Aug 6, when ≥14 weekday rows exist):**
+   - Confirm scheduler alive: a row for every weekday in the trailing week
+   - Run `node scripts/compounding-report.js > .planning/reports/COMPOUNDING-VERDICT-$(date +%Y-%m-%d).md` and commit it
+   - Accept the verdict honestly — `flat`/`refuted` is a valid result; it decides whether the next milestone doubles down on memory or pivots
+3. **Dependency-upgrade phase (whenever, needs your approval — breaking changes):** @anthropic-ai/sdk 0.90→0.111 (moderate CVE GHSA-p7fg-763f-g4gf), eslint/jest bumps (clears 3 dev CVEs), chokidar 5.x, voyageai 0.4.x. Run as its own `chore/dep-audit` PR: `/gsd:new-milestone` or `/gsd:quick`. See `.planning/dependencies/DEPENDENCIES-REPORT.md`.
+4. **Small debt, fold into any future phase:** add `scripts/**` block to `eslint.config.js` (scripts/ files unlinted); 3 v1.0-era subjective UAT items in `02-HUMAN-UAT.md` (test in Obsidian someday or close as accepted).
+5. **Branch debris (optional):** 4 local unmerged branches with no remote (`chore/session-64-wrap`, `docs/fable5-audit-2026-07-12`, 2 `worktree-agent-*`) — v1.6-era. Inspect + delete when convenient.
+6. **Next milestone:** `/gsd:new-milestone` when the verdict is in — the verdict data should shape it.
+
 ## Active
 
-- [ ] Merge PR #66 (Milestone v1.7: Prove Compounding) when CI is green
-- [ ] Decide next milestone (`/gsd:new-milestone`) — or wait for VERDICT-01 (~3 weeks post-ship: archive compounding-report output with the verdict)
-- [ ] Dependency-upgrade phase: @anthropic-ai/sdk 0.90→0.111 (moderate CVE, breaking major), eslint/jest transitive fixes, chokidar 5.x, voyageai 0.4.x — see .planning/dependencies/DEPENDENCIES-REPORT.md
+- [ ] VERDICT-01 (~2026-08-06): archive compounding-report output with the real verdict (step 2 above)
 
 ## Completed
 
+- [x] Merge PR #66 — Milestone v1.7 Prove Compounding merged to master (2026-07-16)
 - [x] Merge PR #59, /gsd:discuss-phase 26 — v1.6 shipped 2026-07-15 (stale handoff item)
 - [x] Milestone v1.7 Prove Compounding finalized via /gsd:finalize (2026-07-16) — phases 29-31 verified, UAT 3/3, PR #66
 
