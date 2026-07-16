@@ -25,21 +25,20 @@ updated: 2026-07-16T10:30:00.000Z
 
 ## Current Test
 
-number: 1
-name: Standalone compounding report CLI
+number: 2
+name: /today suppresses Compounding below 7 rows
 expected: |
-  From ~/projects/second-brain, run: node scripts/compounding-report.js
-  It prints a markdown report to stdout: "# Compounding Report" header,
-  "**Verdict: insufficient-data** (1 of 7 rows required)" (your vault has 1 real
-  daily-stats row today), and the 7-column evidence table showing that row
-  (2026-07-16, 97 entries). Exit code 0, no stack traces.
+  Run /today in dry-run mode. The briefing renders normally with NO
+  "## Compounding" heading anywhere — the vault has only 1 daily-stats row,
+  so the section is suppressed entirely (Memory Echo precedent). The briefing
+  itself is not broken by the new code.
 awaiting: user response
 
 ## Tests
 
 ### 1. Standalone compounding report CLI
 expected: From ~/projects/second-brain, `node scripts/compounding-report.js` prints "# Compounding Report", "**Verdict: insufficient-data** (1 of 7 rows required)", and the evidence table with today's real row (2026-07-16, 97 entries). Exit 0, no stack traces.
-result: [pending]
+result: pass
 
 ### 2. /today suppresses Compounding below 7 rows
 expected: Run `/today --dry-run` (or node src/cli.js equivalent). The briefing renders normally with NO `## Compounding` heading anywhere — the vault has only 1 daily-stats row, so the section is suppressed entirely (Memory Echo precedent). The briefing itself is not broken by the new code.
@@ -52,9 +51,9 @@ result: [pending]
 ## Summary
 
 total: 3
-passed: 0
+passed: 1
 issues: 0
-pending: 3
+pending: 2
 skipped: 0
 blocked: 0
 
