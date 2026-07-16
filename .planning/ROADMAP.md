@@ -157,7 +157,12 @@ Plans:
   2. With fewer than 7 rows, the verdict is `insufficient-data` and the `/today` Compounding section is suppressed (matches the Memory Echo null-suppression precedent)
   3. With ≥7 rows, `/today` displays a `## Compounding` section reflecting the same verdict the pure function computes for the same rows
   4. `node scripts/compounding-report.js` prints the full evidence table plus verdict as markdown, reading `daily-stats.md` via the existing `readDailyStats`; at <7 rows it correctly prints the `insufficient-data` verdict with the evidence table
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 31-01-PLAN.md — Pure computeCompoundingTrend verdict function + renderCompoundingReport markdown renderer (TDD)
+- [ ] 31-02-PLAN.md — /today ## Compounding section with <7-row null-suppression
+- [ ] 31-03-PLAN.md — Standalone scripts/compounding-report.js CLI (evidence table + verdict, always prints table)
 
 ### Phase 22: Committed Hooks
 **Goal**: The git pre-commit layer enforces schema validity, vault boundary integrity, and dotenv discipline automatically — no manual review needed to catch these classes of defects
