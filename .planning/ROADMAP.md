@@ -141,7 +141,12 @@ Plans:
   2. Every non-dry-run `/today` records whether Memory Echo was shown and its top score, in new `echo_shown` / `echo_score` fields
   3. A real `/today` run produces a `daily-stats.md` row with 11 columns (8 existing + `recall_hits`, `echo_shown`, `echo_score`)
   4. `readDailyStats()` returns numeric types for numeric cells and preserves `—` as a string for missing data, verified by a round-trip test
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 30-01-PLAN.md — daily-stats data layer: counters, recordEchoShown, 11-column schema, numeric coercion
+- [ ] 30-02-PLAN.md — command wiring: /recall hit/miss + /today echo outcome and 11-column row
+- [ ] 30-03-PLAN.md — live human-verify checkpoint: 11-column row, no query-text leakage
 
 ### Phase 31: Trend & Report
 **Goal**: A pure trend function turns the daily-stats series into an honest verdict, surfaced in both `/today` and a standalone CLI
