@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Prove Compounding
-status: planning
-last_updated: "2026-07-16T09:24:22.739Z"
+status: verifying
+last_updated: "2026-07-16T09:31:03.111Z"
 last_activity: 2026-07-16
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 16
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -19,14 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Status:** Ready to plan
+**Status:** Phase complete — ready for verification
 
 ## Current Position
 
 Milestone: v1.7 Prove Compounding
 Phase: 31
-Plan: Not started
-Status: Ready to execute
+Plan: 3 of 3
+Status: Phase complete — ready for verification
 Last activity: 2026-07-16
 
 **Shipped milestones:**
@@ -57,6 +57,7 @@ Full log in PROJECT.md Key Decisions table. Per-milestone summary:
 - [Phase 30]: recordRecallInvocation moved to after results are known so hit/miss and resultCount are captured in the same call
 - [Phase 30]: recordEchoShown guarded by mode !== 'dry-run' so practice /today runs never pollute echo counters
 - [Phase 31-trend-report]: Pure compute/render split for compounding-trend engine (no I/O), thresholds hardcoded as Pete-accepted literals
+- [Phase 31-trend-report]: CLI always prints the evidence table, including insufficient-data verdicts at <7 rows — Deliberately unlike the /today section (31-02), which suppresses the section below 7 rows -- the CLI is the archived audit trail and must show its work even when the verdict is inconclusive
 
 ### Open Blockers
 
