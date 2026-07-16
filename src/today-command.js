@@ -236,6 +236,15 @@ async function runToday(options = {}) {
     }
     latencies.memoryEcho = Date.now() - memEchoStart;
 
+    // STATS-OUTCOME-02: record whether Memory Echo was shown and its top score.
+    // Skip in dry-run so practice runs don't pollute the day's counters. Non-fatal.
+    if (mode !== 'dry-run') {
+      try {
+        const { recordEchoShown } = require('./daily-stats');
+        recordEchoShown(memoryEcho.entries.length > 0, memoryEcho.score);
+      } catch (_) { /* briefing-is-the-product */ }
+    }
+
     // ── Memory Health (Phase 24, AGENT-MEMORY-01) ────────────────────────
     // Anomaly detection from daily-stats rows. Non-fatal — briefing is the product.
     // All requires are lazy (inside function body) per Pattern 12.
@@ -315,7 +324,7 @@ async function runToday(options = {}) {
         const { readMemory } = require('./memory-reader');
 
         // Aggregate inputs — each sub-fetch in its own try/catch with safe defaults.
-        let counters = { proposals: 0, promotions: 0, recallCount: 0, avgConfidence: null };
+        let counters = { proposals: 0, promotions: 0, recallCount: 0, recallHits: 0, echoShown: 0, echoScore: 0, avgConfidence: null };
         try { counters = readDailyCounters(); } catch (_) { /* defaults retained */ }
 
         let memoryKb = 0;
@@ -347,6 +356,9 @@ async function runToday(options = {}) {
           recallCount: counters.recallCount,
           avgLatencyMs,
           avgConfidence: counters.avgConfidence,
+          recallHits: counters.recallHits,
+          echoShown: counters.echoShown,
+          echoScore: counters.echoScore,
         });
       } catch (_) {
         // Briefing already written; stats failure is non-fatal.
