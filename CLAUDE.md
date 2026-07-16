@@ -109,6 +109,7 @@ The system is deployed across five integration points:
 
 **Deployed agents (`.claude/agents/`):**
 - `docs-sync.md` — documentation consistency checks
+- `memory-specialist.md` — memory pipeline diagnostics
 - `pipeline-reviewer.md` — CI/CD validation
 - `security-scanner.md` — SAST and permission audits
 - `test-runner.md` — test execution and failure diagnosis
