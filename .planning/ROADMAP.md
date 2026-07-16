@@ -161,7 +161,7 @@ Plans:
 
 Plans:
 - [x] 31-01-PLAN.md — Pure computeCompoundingTrend verdict function + renderCompoundingReport markdown renderer (TDD)
-- [ ] 31-02-PLAN.md — /today ## Compounding section with <7-row null-suppression
+- [x] 31-02-PLAN.md — /today ## Compounding section with <7-row null-suppression
 - [x] 31-03-PLAN.md — Standalone scripts/compounding-report.js CLI (evidence table + verdict, always prints table)
 
 ### Phase 22: Committed Hooks

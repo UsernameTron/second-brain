@@ -272,7 +272,7 @@ function _renderFrontmatter(date, sources, degradedCount, mode) {
  * @returns {string} Full markdown string
  */
 function renderBriefing(data) {
-  const { date, sourceHealth, connectorResults, pipelineState, slippage, frog, memoryEcho, memoryHealth, mode, synthesis } = data;
+  const { date, sourceHealth, connectorResults, pipelineState, slippage, frog, memoryEcho, memoryHealth, compounding, mode, synthesis } = data;
   const { sources, degradedCount } = sourceHealth;
 
   const frontmatter = _renderFrontmatter(date, sources, degradedCount, mode);
@@ -286,6 +286,7 @@ function renderBriefing(data) {
   // memoryHealth is a pre-computed markdown string or null (from memory-health.js).
   // No rendering function needed — the module already returns ready-to-embed markdown.
   const memoryHealthBody = memoryHealth || null;
+  const compoundingBody = compounding || null;
   const githubSection = _renderGitHubSection(connectorResults.github);
   const pipelineSection = _renderPipelineSection(pipelineState);
 
@@ -328,6 +329,9 @@ function renderBriefing(data) {
     // Memory Health (Phase 24, AGENT-MEMORY-01) — heading and body absent when
     // no anomaly conditions are met. Follows Memory Echo pattern (Phase 18).
     ...(memoryHealthBody !== null ? ['## Memory Health', '', memoryHealthBody, ''] : []),
+    // Compounding (Phase 31, TREND-02) — heading and body absent when verdict is
+    // insufficient-data (<7 rows). Follows Memory Echo / Memory Health precedent.
+    ...(compoundingBody !== null ? ['## Compounding', '', compoundingBody, ''] : []),
   ].join('\n');
 
   // ── Phase 20: Yesterday summary line prefix (TODAY-SUMMARY-01, D-05/D-06) ──
