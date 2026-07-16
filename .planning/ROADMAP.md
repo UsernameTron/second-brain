@@ -173,7 +173,7 @@ Plans:
   2. Attempting to commit a file to the wrong vault side (LEFT vs RIGHT) is blocked by the pre-commit hook before the commit lands
   3. `dotenv.config()` calls exist only at entry points; no library module re-loads env at import time; `src/pipeline-infra.js:23` root cause is resolved
   4. All three hooks are committed to `.git/hooks/` (or equivalent project hook config) and activate automatically for new checkouts
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 22-01-PLAN.md -- Pre-commit schema validation (AJV) and vault boundary enforcement hooks
@@ -254,4 +254,4 @@ Plans:
 | 28. Surface Completion | v1.6 | 3/3 | Complete | 2026-07-15 |
 | 29. Series Integrity | v1.7 | 2/2 | Complete    | 2026-07-15 |
 | 30. Outcome Instrumentation | v1.7 | 3/3 | Complete    | 2026-07-16 |
-| 31. Trend & Report | v1.7 | 2/3 | In Progress|  |
+| 31. Trend & Report | v1.7 | 2/3 | Complete    | 2026-07-16 |
