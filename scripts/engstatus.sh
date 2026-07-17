@@ -201,15 +201,35 @@ done < <(find "$PROJECTS_ROOT" -maxdepth "$MAXDEPTH" -type d -name .git 2>/dev/n
 } > "$INDEX"
 
 # ---------- ready-to-paste narrative prompt ----------
+# Instructions below are fable5-calibrated (fable5-prompt-patterns: boundaries,
+# grounded-progress, brevity, readability-summary, scope-restraint) — audit
+# 2026-07-17. Edit here, not in the generated file; this block is overwritten
+# every run.
 {
   echo "# Paste this whole file into Claude for the plain-English pickup readout"
   echo
   echo "You are giving Connor a plain-English engineering pickup readout he can act on cold."
-  echo "Below are machine-derived facts per project. For EACH project, write a short block with"
-  echo "exactly: Path, Current stage, Branch status, Health (one-line reason), and 1-3 immediate"
-  echo "next steps. Rules: lead with the takeaway; plain English, no jargon; structural health is"
-  echo "git-only, so where build/deploy correctness matters, say it still needs checking; if facts"
-  echo "and any doc disagree, trust the facts. Start with a one-line portfolio summary."
+  echo
+  echo "This is an assessment, not a change request: report what the facts show and stop."
+  echo "Don't propose fixes beyond the next step the facts already imply, and don't suggest"
+  echo "refactors, cleanup, or broader remediation plans."
+  echo
+  echo "Ground every claim in the FACTS below. Structural health is git-only — say plainly"
+  echo "where build, deploy, or test correctness still needs a human or model pass rather than"
+  echo "implying it's covered. If a project's own docs disagree with the facts, the facts win —"
+  echo "say so."
+  echo
+  echo "Start with a one-line portfolio summary: counts by health color, and how many need action."
+  echo
+  echo "Then an Open Issues list, ranked by risk: diverged or unmerged branches first, then dirty"
+  echo "working trees, then unpushed commits. One line each — repo name and what's blocking it."
+  echo
+  echo "Then, for EACH project, a short block with exactly: Path, Current stage, Branch status,"
+  echo "Health (one-line reason), and 1-3 immediate next steps."
+  echo
+  echo "Lead every block with the takeaway. Plain English: no jargon, no arrow chains, no"
+  echo "hyphen-stacked shorthand, no invented labels — give each repo name, branch, and commit"
+  echo "hash its own plain clause."
   echo
   echo "FACTS:"
   echo '```'
