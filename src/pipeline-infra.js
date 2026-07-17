@@ -107,7 +107,11 @@ function createLlmClient(options = {}) {
             { role: 'user', content: typeof userContent === 'string' ? userContent : JSON.stringify(userContent) },
           ],
           max_tokens: maxTokens,
-          response_format: { type: 'json_object' },
+          // ponytail: LM Studio dropped 'json_object' (now only 'json_schema'|'text').
+          // classifyLocal is generic across callers (array for extraction, object for
+          // routing), so a fixed json_schema can't fit both — 'text' + the JSON-only
+          // system prompt + the fence-stripping parser below is the generic choice.
+          response_format: { type: 'text' },
         }),
       });
       clearTimeout(timeoutId);
