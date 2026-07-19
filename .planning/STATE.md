@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 Milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16)
 Phase: none active (between milestones)
 Status: Awaiting VERDICT-01 window and/or next-milestone decision
-Last activity: 2026-07-16
+Last activity: 2026-07-19 - Completed quick tasks 260719-lfn (capture fixes) and 260719-llv (memory reorg)
 
 **Shipped milestones:**
 
@@ -78,6 +78,8 @@ None.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260426-mpy | Wire up missing slash commands and extract GSD knowledge into memory proposals | 2026-04-26 | 6dccf0b | [260426-mpy](./quick/260426-mpy-wire-up-missing-slash-commands-and-extra/) |
+| 260719-lfn | Capture fixes: dotenv gate, embed counts, category validation, daily-sweep transcript+inbox capture, reach expansion (15 targets), launchd schedule | 2026-07-19 | 8c2a21c | [260719-lfn](./quick/260719-lfn-capture-fixes-dotenv-gate-embed-counts-c/) |
+| 260719-llv | Memory reorg: 21 entries archived (archive-not-delete), 24 recategorized, auto-index, sidecar prune+heal to 135/135 parity | 2026-07-19 | 1f32e8b | [260719-llv](./quick/260719-llv-memory-reorg-archive-seed-dup-entries-re/) |
 
 ## Session Continuity — Session 66 (2026-07-15)
 
