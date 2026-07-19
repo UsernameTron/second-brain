@@ -70,4 +70,25 @@
 <!-- session harvest 2026-07-19 -->
 - [2026-07-19] [Tooling] LESSON-CURL-X-POST-FORCES-METHOD-THROUGH-REDIRECTS-01: Probing an Apps Script web app with `curl -L -X POST` returns 405 + Google's "Page Not Found" page even when the app is healthy — explicit `-X POST` forces POST onto the 302 redirect hop to `script.googleusercontent.com/macros/echo`, which only serves GET. Why: the 2026-07-19 content-engine refuse-half probe first read as endpoint-down; a no-follow probe showed POST→302 with a valid `user_content_key`, and re-running with `-d` (implicit POST; curl switches to GET on 302) returned the app's real refusal card at HTTP 200. Server-side, doPost had executed on every attempt — the failure was only in retrieving the result. How to apply: probe Apps Script `/exec` with `curl -sS -L -d '<body>'`, never `-X POST`; treat a 405/"Page Not Found" from script.google.com as a client redirect-method artifact until the executions dashboard confirms doPost didn't run.
 - [2026-07-19] [Verification] LESSON-CHAT-APP-FAILURES-SPLIT-AT-THE-EXECUTIONS-DASHBOARD-01: For a Google Chat HTTP-endpoint app, the Apps Script executions dashboard separates "token mismatch" from "delivery dead" in one look — and dashboard currency is provable from a later time-driven row. Why: a live `/status` in the CTG Content Engine space (2026-07-19 ~02:42) produced no reply; executions showed ZERO doPost rows from Chat while the 02:44:59 poller row proved the view was current past the send — so Chat never delivered (broken config URL). A stale token would instead deliver → doPost → AUTH_FAIL refusal card (and this session's own curls appeared as doPost rows, confirming row-level visibility). How to apply: on Chat-app silence, read executions before touching tokens — doPost + AUTH_FAIL log = token side (rotate/re-match); zero web-app rows with a later row proving currency = Chat config/delivery side (re-save the endpoint URL); different owners, different fixes.
+  **CORRECTION 2026-07-19 (later same day): this lesson's worked example was a misdiagnosis and its prescribed fix was never needed.** The zero-doPost result came from sending `/status` in a Chat *space* — documented content-engine tech debt F1: slash commands in a space never reach the app; DM or @mention required. Field-by-field inspection of the live Chat config found every value correct (right deployment URL, matching token, LIVE, commands registered); nothing was re-saved, and a DM `/status` replied immediately. The diagnostic *split* above (doPost+AUTH_FAIL = token side; zero rows = delivery side) remains valid, but "delivery side" has a third branch it missed: **the message was sent on a surface that never delivers**. On zero doPost rows, check the sending surface against the app's supported surfaces BEFORE touching the config — an unsupported-surface test manufactures a false outage, and an unnecessary config re-save is itself a risk when the save step is known-flaky.
 - [2026-07-19] [Verification] LESSON-DELEGATED-VERIFICATION-DIES-SILENTLY-01 (reinforces LESSON-OPERATION-SUCCEEDED-VS-DID-ITS-JOB): A check delegated to another session is unverified until its evidence artifact is findable somewhere; when the artifact is absent, re-run the check instead of propagating the claim. Why: the content-engine rotation-#2 refuse/succeed verify pair was delegated to session `e805525d…`, which left no report anywhere (CCD transcript search, session list, repo commits, second-brain recall — all empty); re-running it found the succeed half actually FAILS (Chat→endpoint delivery dead). Same session, same shape: WAITING-ON-ME item 12's "remaining: delete the origin branch" had never run — `git ls-remote` still showed `feat/mcp-research-agent` live despite a boot summary over-reading the strike-through as fully closed. How to apply: at reconciliation, demand the artifact (report, log row, remote state) for every delegated or struck-through item; absence of artifact = still open; for cheap checks, re-run rather than chase.
+
+## [2026-07-19] [Cross-session claims revert to unverified]
+
+A claim that crosses a session boundary reverts to unverified — the receiving
+session re-grounds it against disk before acting on it.
+
+Two-layer failure on 2026-07-19: a triage session matched archived memories
+against live ones by *wording similarity* and never followed the
+`superseded_by::` pointers sitting in the archive entries themselves,
+producing a false "3 stranded memories, restore them" finding. The
+orchestrating session then relayed that finding downstream as established
+fact, and an approved 3-item remediation was scoped on top of it. The
+receiving session's pointer-following disk check (three `grep content_hash`
+runs, ~seconds) killed the premise before any wrong restore was executed.
+Rule: provenance is not verification — however trusted the sender, a factual
+claim about disk state is re-checked against disk by whoever acts on it.
+
+Triggered by: second-brain archive remediation 2026-07-19 — Item 1 of the
+approved plan reversed from "restore three entries" to "correct the false
+record" after the hash-pair check.
