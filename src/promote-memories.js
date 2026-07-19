@@ -197,11 +197,65 @@ async function runProposalArchive(allCandidates, proposalArchiveThreshold) {
   return { pending: pendingCandidates, archived: nonPendingCandidates, proposalArchived: true };
 }
 
+// CAT-VALIDATE-01: unsanctioned categories are coerced to OTHER, not written verbatim.
+function loadSanctionedCategories() {
+  const CONFIG_DIR = process.env.CONFIG_DIR_OVERRIDE || path.join(__dirname, '..', 'config');
+  const raw = fs.readFileSync(path.join(CONFIG_DIR, 'memory-categories.json'), 'utf8');
+  return new Set(Object.keys(JSON.parse(raw)));
+}
+
+function coerceCategory(candidate, sanctionedCategories) {
+  if (sanctionedCategories.has(candidate.category)) return candidate;
+  return {
+    ...candidate,
+    category: 'OTHER',
+    content: `${candidate.content}\n\n(justification: original category "${candidate.category}" is not sanctioned; coerced to OTHER)`,
+  };
+}
+
 function buildMemoryEntry(candidate) {
   const today = todayString();
   const shortRef = sourceRefShort(candidate.sourceRef);
   const addedAt = nowISO();
   return `### ${today} · ${candidate.category} · ${shortRef}\n\n${candidate.content}\n\ncategory:: ${candidate.category}\nsource-ref:: ${candidate.sourceRef || ''}\ntags:: ${candidate.tags || ''}\nadded:: ${addedAt}\nrelated:: ${candidate.related || ''}\ncontent_hash:: ${candidate.contentHash || ''}\n`;
+}
+
+// INDEX-AUTO-01: compact regenerated index block at the top of memory.md.
+const INDEX_START = '<!-- INDEX:AUTO -->';
+const INDEX_END = '<!-- /INDEX:AUTO -->';
+
+function buildAutoIndex(content) {
+  const entryCount = countMemoryEntries(content);
+  const categoryCounts = {};
+  const categoryRegex = /^category:: (\w+)/gm;
+  let cm;
+  while ((cm = categoryRegex.exec(content)) !== null) {
+    categoryCounts[cm[1]] = (categoryCounts[cm[1]] || 0) + 1;
+  }
+  const monthHeaders = [...content.matchAll(/^## (\d{4}-\d{2})$/gm)].map(m => m[1]);
+  const lines = [
+    INDEX_START,
+    `**Total entries:** ${entryCount}`,
+    `**By category:** ${Object.entries(categoryCounts).map(([k, v]) => `${k}:${v}`).join(', ') || 'none'}`,
+    `**Sections:** ${monthHeaders.join(', ') || 'none'}`,
+    `**Last promoted:** ${todayString()}`,
+    `**Archive:** ${ARCHIVE_DIR()}`,
+    INDEX_END,
+  ];
+  return lines.join('\n');
+}
+
+function regenerateAutoIndex() {
+  const memoryFile = MEMORY_FILE();
+  let content;
+  try { content = fs.readFileSync(memoryFile, 'utf8'); } catch (_) { return; }
+
+  const body = content.includes(INDEX_START) && content.includes(INDEX_END)
+    ? content.slice(0, content.indexOf(INDEX_START)) + content.slice(content.indexOf(INDEX_END) + INDEX_END.length).replace(/^\n/, '')
+    : content;
+
+  const indexBlock = buildAutoIndex(body);
+  fs.writeFileSync(memoryFile, `${indexBlock}\n\n${body}`, 'utf8');
 }
 
 async function appendToMemoryFile(promotedCandidates) {
@@ -226,14 +280,22 @@ async function appendToMemoryFile(promotedCandidates) {
 
   fs.writeFileSync(memoryFile, newContent, 'utf8');
 
-  // Phase 19 (MEM-EMBED-01): non-fatal embed-on-promotion; failure tracked in voyage-health.json
+  // Phase 19 (MEM-EMBED-01): embed-on-promotion; non-fatal but counts are
+  // surfaced to the caller so a run with embedded < promoted is visibly not-green.
+  let embedded = 0;
+  let failed = 0;
   try {
     const { indexNewEntries } = require('./semantic-index');
-    await indexNewEntries(promotedCandidates);
+    const result = await indexNewEntries(promotedCandidates);
+    embedded = (result && result.embedded) || 0;
+    failed = (result && result.failed) || 0;
   } catch (err) {
+    failed = promotedCandidates.length;
     // eslint-disable-next-line no-console -- degradation-warning: semantic indexing failed; promotion continues
     console.error(`[promote-memories] Semantic indexing failed (non-fatal): ${err && err.message ? err.message : err}`);
   }
+
+  return { embedded, failed };
 }
 
 function updateProposalsFile(body, replacements) {
@@ -419,8 +481,14 @@ async function promoteMemories(options = {}) {
     }
   }
 
+  let embedResult = { embedded: 0, failed: 0 };
   if (promoted.length > 0 && !dryRun) {
-    await appendToMemoryFile(promoted);
+    let sanctionedCategories;
+    try { sanctionedCategories = loadSanctionedCategories(); } catch (_) { sanctionedCategories = new Set(); }
+    const coercedPromoted = promoted.map(c => coerceCategory(c, sanctionedCategories));
+
+    embedResult = await appendToMemoryFile(coercedPromoted);
+    regenerateAutoIndex();
     // Phase 20 (STATS-DAILY-01): emit one recordPromotion per promoted entry.
     // D-03: confidence = memory-extractor classifier confidence on the proposal.
     // null-confidence promotions are counted but excluded from avg_confidence mean.
@@ -488,6 +556,8 @@ async function promoteMemories(options = {}) {
     rejected: rejectedCandidates.length,
     skipped: skippedCandidates.length,
     archived: memoryArchived,
+    embedded: embedResult.embedded,
+    embedFailed: embedResult.failed,
   };
   if (reach) result.reach = reach;
   if (dryRun) {

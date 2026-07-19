@@ -475,3 +475,32 @@ describe('memory-extraction-hook.js', () => {
     });
   });
 });
+
+// ── quick-260719-lfn: ingress exclusion gate ───────────────────────────────────
+
+describe('quick-260719-lfn: ingress exclusion gate', () => {
+  test('extractFromTranscript drops a candidate whose content trips checkContent BLOCK', async () => {
+    const transcriptPath = path.join(tmpDir, 'transcript.jsonl');
+    fs.writeFileSync(transcriptPath, makeMessage('user', 'This is a message long enough to pass the length filter') + '\n');
+
+    const haiku = mockHaiku([
+      { category: 'LEARNING', content: 'A candidate mentioning Genesys contact center integration.', confidence: 0.9, rationale: 'test' },
+    ]);
+
+    const result = await extractor.extractFromTranscript(transcriptPath, 'session-block', { _haikuClient: haiku });
+    expect(result).toHaveLength(0);
+  });
+
+  test('extractFromTranscript stages a PASS candidate normally', async () => {
+    const transcriptPath = path.join(tmpDir, 'transcript.jsonl');
+    fs.writeFileSync(transcriptPath, makeMessage('user', 'This is a message long enough to pass the length filter') + '\n');
+
+    const haiku = mockHaiku([
+      { category: 'LEARNING', content: 'A clean candidate with no excluded terms whatsoever.', confidence: 0.9, rationale: 'test' },
+    ]);
+
+    const result = await extractor.extractFromTranscript(transcriptPath, 'session-pass', { _haikuClient: haiku });
+    expect(result).toHaveLength(1);
+    expect(result[0].written).toBe(true);
+  });
+});
