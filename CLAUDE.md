@@ -54,6 +54,27 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 
 > **Source-of-truth hierarchy:** `ABOUT ME/` canon > `memory.md` > this file > auto-memory blob. This file is a router, not a fact store — see [decisions/ADR-020-authority-hierarchy.md](decisions/ADR-020-authority-hierarchy.md).
 
+## Development
+
+```bash
+npm test                                  # full Jest suite (verbose)
+npx jest test/promote-memories.test.js    # single file
+npx jest -t "promotes accepted candidates" # single test by name
+npm run lint                              # ESLint 10 flat config over src/ test/
+npm run test:uat                          # UAT suite (CI= unsets CI so skip-logic runs them)
+npm run test:integration:voyage           # live Voyage embeddings; no-ops without VOYAGE_API_KEY
+npm run license-check                     # production dep license allowlist
+```
+
+There is no build step — plain CJS Node, run directly.
+
+**Git hooks are repo-managed** (`npm run prepare` sets `core.hooksPath=hooks`, so `hooks/` is live, not `.git/hooks/`):
+- `pre-commit` — AJV schema validation of `config/*.json` + vault LEFT/RIGHT boundary check
+- `pre-push` — blocks branches based on a stale local master, then runs the docs-sync gate (`SKIP_DOCSYNC=1` bypasses only the docs half)
+- `post-merge` — docs drift warning, non-blocking by design (never exits non-zero)
+
+Claude Code hooks live separately in `.claude/hooks/` (auto-test, protected-file-guard, security-scan-gate, memory-extraction, staleness-check).
+
 ## Tech Stack
 
 - **Vault:** Obsidian 1.7+ (local-first markdown, LOCAL REST API plugin required)
