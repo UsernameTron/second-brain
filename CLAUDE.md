@@ -20,14 +20,15 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 
 ## Project Status
 
-> Last verified: 2026-07-16  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
+> Last verified: 2026-07-19  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
 
 **Latest Release:** v1.7 Prove Compounding (2026-07-16)
+**v1.8 Measured Memory (in progress):** Phase 32 Retrieval Eval Baseline shipped 2026-07-19 (PR #74) — `npm run eval:recall`, golden set, frozen seed vault, first baseline. Phases 33-36 planned.
 **v1.7 complete (2026-07-16):** Series Integrity (Phase 29), Outcome Instrumentation (Phase 30), Trend & Report (Phase 31)
 **v1.6 complete (2026-07-15):** Promotion Safety, Cross-Surface Reach (ADR-018/019), Context Honesty (staleness hook, ADR-020 authority hierarchy, fail-closed exclusions), Surface Completion (/reroute, pre-push docs gate)
 
-- **Test count:** 1301 total across 68 test files (1272 passing, 29 skipped)
-- **Coverage:** Branch 81.47%, Statements 91.95%, Functions 96.00%, Lines 92.64%
+- **Test count:** 1306 total across 69 test files (1267 passing, 39 skipped in CI)
+- **Coverage:** Branch 80.66%, Statements 90.59%, Functions 95.45%, Lines 91.24% (CI-measured; branch is 0.66pt above the enforced floor — see `scripts/daily-sweep.js` at 35.7% branch)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 20+22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
 
@@ -49,6 +50,7 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 | `node scripts/recall.js "<query>"` | Standalone recall CLI — same flags as `/recall`, runnable from any directory/session on this machine (v1.6 reach layer, ADR-019) |
 | `/today` (with `## Compounding` section) | Daily briefing includes compounding evidence when available: last 7 entries added/modified, cumulative promotion count, memory growth trend (v1.7 Phase 30) |
 | `node scripts/compounding-report.js` | Standalone compounding evidence report CLI — summarizes memory growth metrics, promotion velocity, and verdict (v1.7 Phase 31) |
+| `npm run eval:recall` | Retrieval eval over the frozen seed vault (`eval/seed-vault/`) + golden set (`eval/golden-recall.json`) — recall@5 + MRR across keyword/semantic/hybrid, compared against `eval/baseline-*.json`. `-- --baseline` re-anchors. Exit 1 on regression (v1.8 Phase 32) |
 
 **Reach layer (v1.6, SURFACE-REACH-01):** every real promotion regenerates a pointer + digest cache (`second-brain.md` + `MEMORY.md` index line) in the auto-memory dirs allowlisted in `config/reach-targets.json`, via `src/reach-exporter.js`. Digest entries re-pass the content-policy exclusion gate at egress, fail-closed. See `decisions/ADR-019-reach-layer-mechanism.md`.
 

@@ -29,7 +29,11 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 **Known gaps:** FIX-02 (config hot-reload) — restart workaround sufficient. `master` branch protection regression (BRANCH-PROT-01) — Pete's call, not a phase. The compounding thesis itself is unproven — see v1.7.
 
-## Current Milestone: v1.7 Prove Compounding
+## Current Milestone: v1.8 Measured Memory
+
+**Status (2026-07-19):** Phase 32 Retrieval Eval Baseline shipped (PR #74) — `npm run eval:recall` scores a 20-question golden set over a frozen 135-entry seed vault across keyword/semantic/hybrid; first baseline committed before any tuning at keyword 0.900 / semantic 0.800 / hybrid 0.900 recall@5. Phases 33-36 planned (33 capture reliability, 34 promotion integrity + lifecycle, 35 SessionStart injection, 36 Drive connector — decision-gated). Open lead: semantic misses 2 questions by returning nothing above the 0.55 threshold — the measured tuning headroom Phase 33+ must justify itself against.
+
+## Previous Milestone: v1.7 Prove Compounding
 
 **Goal:** Prove (or honestly refute) the core thesis — "memory compounds daily" — with real evidence instead of assumed instrumentation.
 

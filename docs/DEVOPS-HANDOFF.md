@@ -4,7 +4,7 @@
 
 Personal operating system built on an Obsidian vault. Runs locally — no cloud hosting, no deployment infrastructure. Three core CLI commands (`/today`, `/new`, `/wrap`) orchestrate memory compounding, daily briefing, and input routing via Claude Code and Docker MCP Gateway.
 
-v1.7 (2026-07-16) adds compounding evidence metrics to daily briefing, outcome instrumentation (11-column daily-stats), compounding verdict surfaces, and launchd weekday scheduler (com.secondbrain.today, 06:45 local). Semantic memory retrieval via Voyage AI embeddings (`/recall --semantic`, `/recall --hybrid`) added in Phase 19 with graceful degradation to keyword search when the API is unavailable.
+v1.8 Phase 32 (2026-07-19) adds a retrieval eval harness (`npm run eval:recall`) that scores recall quality over a frozen seed vault against a committed baseline, fully isolated from the live vault and live embeddings cache. v1.7 (2026-07-16) adds compounding evidence metrics to daily briefing, outcome instrumentation (11-column daily-stats), compounding verdict surfaces, and launchd weekday scheduler (com.secondbrain.today, 06:45 local). Semantic memory retrieval via Voyage AI embeddings (`/recall --semantic`, `/recall --hybrid`) added in Phase 19 with graceful degradation to keyword search when the API is unavailable.
 
 ## Environment Requirements
 
@@ -21,7 +21,7 @@ git clone <repo>
 cd second-brain
 npm install
 cp .env.example .env   # add ANTHROPIC_API_KEY and optionally VOYAGE_API_KEY
-npm test               # verify 1285 tests pass (1247 active + 38 CI-skipped)
+npm test               # verify 1306 tests pass (1267 active + 39 CI-skipped)
 npm run lint           # verify ESLint 10 clean
 ```
 
@@ -29,7 +29,7 @@ All commands are Claude Code `/` commands invoked from the project terminal. No 
 
 **Automated daily briefing:** `/today` runs weekdays at 06:45 local time (StartCalendarInterval) via macOS launchd scheduler (`com.secondbrain.today`). See `~/Library/LaunchAgents/com.secondbrain.today.plist` for schedule configuration (documented in `config/scheduling.json`). RemoteTrigger is disabled by design (runs only on local machine wake).
 
-**User command surface (full flag inventory in README.md and CLAUDE.md):** `/today` (with compounding section), `/new`, `/wrap`, `/promote-memories`, `/reroute`, `/promote-unrouted`, `/recall <query> [--category <name>] [--since YYYY-MM-DD] [--top N]`, `/recall --semantic <query>`, `/recall --hybrid <query>`, `node scripts/compounding-report.js` (standalone CLI). The `--category`, `--since`, and `--top N` flags apply uniformly across keyword, semantic, and hybrid recall modes.
+**User command surface (full flag inventory in README.md and CLAUDE.md):** `/today` (with compounding section), `/new`, `/wrap`, `/promote-memories`, `/reroute`, `/promote-unrouted`, `/recall <query> [--category <name>] [--since YYYY-MM-DD] [--top N]`, `/recall --semantic <query>`, `/recall --hybrid <query>`, `node scripts/compounding-report.js` (standalone CLI), `npm run eval:recall [-- --baseline]` (retrieval eval, v1.8 Phase 32). The `--category`, `--since`, and `--top N` flags apply uniformly across keyword, semantic, and hybrid recall modes.
 
 ## Environment Variables
 
@@ -166,8 +166,8 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 | Gate | Tool | Threshold |
 |---|---|---|
 | Lint | ESLint 10 (flat config) | 0 errors |
-| Unit + integration tests | Jest 30, Node 20+22 matrix | 1285 total, 1247 passing |
-| Branch coverage | Jest coverage | ≥81% enforced |
+| Unit + integration tests | Jest 30, Node 20+22 matrix | 1306 total, 1267 passing |
+| Branch coverage | Jest coverage | ≥80% enforced (currently 80.66%) |
 | Security scan | CodeQL SAST | 0 high/critical |
 | Secrets scan | GitGuardian | 0 secrets |
 | License check | license-checker | MIT/ISC/Apache/BSD only |
@@ -181,7 +181,7 @@ UAT tests (`test/uat/`) are guarded by `CI=true` skip logic and run on a separat
 - [ ] Obsidian Local REST API plugin running on port 27123
 - [ ] Docker MCP Gateway running (for Gmail/Calendar/GitHub connectors)
 - [ ] launchd scheduler installed (weekday `/today` at 06:45 local): `launchctl load ~/Library/LaunchAgents/com.secondbrain.today.plist`
-- [ ] `npm test` passes (1285 tests, 1247 passing)
+- [ ] `npm test` passes (1306 tests, 1267 passing)
 - [ ] `npm run lint` exits 0
 - [ ] `~/.cache/second-brain/` writable (auto-created on first `/recall --semantic`)
 

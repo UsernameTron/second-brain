@@ -14,16 +14,16 @@ Transform an Obsidian vault into a personal operating system with compounding me
 - ✅ **v1.5 Internal Hardening** — Phases 22-25 (shipped 2026-04-26, tag v1.5)
 - ✅ **v1.6 Enforcement Integrity & Surface Completion** — Phases 26-28 (shipped 2026-07-15, tag v1.6)
 - ✅ **v1.7 Prove Compounding** — Phases 29-31 (shipped 2026-07-16, PR #66)
-- 🚧 **v1.8 Measured Memory** — Phases 32-36 (planned 2026-07-19; Phase 36 decision-gated)
+- 🚧 **v1.8 Measured Memory** — Phases 32-36 (Phase 32 shipped 2026-07-19 via PR #74; 33-35 planned, 36 decision-gated)
 
 ## Phases
 
 <details open>
-<summary>🚧 v1.8 Measured Memory (Phases 32-36) — PLANNED 2026-07-19</summary>
+<summary>🚧 v1.8 Measured Memory (Phases 32-36) — IN PROGRESS (planned 2026-07-19; Phase 32 shipped 2026-07-19)</summary>
 
-**Prerequisite:** merge `feat/second-brain-capture-verification` (11 commits ahead of origin/master at planning time) to master before execution.
+**Prerequisite:** merge `feat/second-brain-capture-verification` (11 commits ahead of origin/master at planning time) to master before execution. — DONE.
 
-- [ ] Phase 32: Retrieval Eval Baseline — golden ~20-question eval (`eval/golden-recall.json` keyed by `content_hash`), frozen seed vault + isolated embeddings cache, `npm run eval:recall` scoring keyword/semantic/hybrid (recall@5 + MRR), baseline committed BEFORE any tuning. Plan: `milestones/v1.8-phases/32-retrieval-eval/32-01-PLAN.md`
+- [x] Phase 32: Retrieval Eval Baseline — SHIPPED 2026-07-19 (PR #74). `npm run eval:recall` scores a 20-question golden set (`eval/golden-recall.json`, keyed by `content_hash`) over a frozen 135-entry seed vault with an isolated embeddings cache; recall@5 + MRR across keyword/semantic/hybrid. Baseline committed before any tuning: **keyword 0.900 / semantic 0.800 / hybrid 0.900 recall@5** (`eval/baseline-2026-07-19.json`). Two consecutive runs agreed exactly; live cache byte-identical; gate drills confirm the harness cannot silently pass. Open lead for tuning: semantic misses q10/q17 by returning nothing above the 0.55 threshold. Plan: `milestones/v1.8-phases/32-retrieval-eval/32-01-PLAN.md` · Notes: `32-01-NOTES.md`
 - [ ] Phase 33: Capture Reliability — fix + version the `com.secondbrain.daily-sweep` launchd plist (verified never-fired at planning: no log file; bare `node`, no env/WorkingDirectory) and observe one real 23:45 fire FIRST; persist `state/daily-sweep-last-run.json`; `/today` Compounding line "sweep ran/staged N | STALE | NEVER RAN"; `src/utils/classifier-health.js` (voyage-health clone) gating local-27B → `classifyAnthropic` fallback, extended to HTTP/parse errors, with per-night Haiku call cap.
 - [ ] Phase 34: Promotion Integrity & Lifecycle — land filed backlog PROMOTE-PARSE-01 / PROMOTE-VAULT-01 / PROMOTE-ID-01 / VERIFY-SENTINEL-01 (`scripts/verify-baseline.js`, real exit code); contradiction check at promotion (hybrid top-5, flag-only, never block/auto-resolve); `superseded-by::` entry convention (readMemory downranks); monthly snapshot-first dream-consolidation script + launchd plist (stages for human review, no auto-apply) codifying the 2026-07-19 manual reorg.
 - [ ] Phase 35: Proactive Memory — SessionStart hook `.claude/hooks/session-memory-inject.js` (fail-open on infra, exit 0 always) shelling to `scripts/recall.js "<project-derived query>" --hybrid --top 5`, entries passed through the reach exporter's fail-closed `checkContent` egress loop; ~750-token hard cap; kill switch `sessionInject.enabled` + `SB_SESSION_INJECT=0`; latency gate (<1s Voyage-up, <250ms degraded).
@@ -274,3 +274,4 @@ Plans:
 | 29. Series Integrity | v1.7 | 2/2 | Complete    | 2026-07-15 |
 | 30. Outcome Instrumentation | v1.7 | 3/3 | Complete    | 2026-07-16 |
 | 31. Trend & Report | v1.7 | 2/3 | Complete    | 2026-07-16 |
+| 32. Retrieval Eval Baseline | v1.8 | 1/1 | Complete    | 2026-07-19 |
