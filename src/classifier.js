@@ -232,7 +232,7 @@ async function runStage2(content, stage1Result, correlationId, _options = {}) {
     'content': 'Blog posts, articles, presentations, external-facing content',
     'research': 'Research notes, analysis, reference material',
     'ideas': 'Ideas, concepts, brainstorming, speculative thinking',
-    'memory-archive': 'Archived memory entries from previous years',
+    'memory-archive': 'Archived memory entries superseded by live entries in memory.md',
   };
 
   const labelList = labels
