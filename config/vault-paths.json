@@ -15,7 +15,8 @@
     "proposals/left-proposals",
     "proposals/left-proposals/archive",
     "memory-proposals-archive",
-    "memory-archive"
+    "memory-archive",
+    "inbox"
   ],
   "haikuContextChars": 100
 }
