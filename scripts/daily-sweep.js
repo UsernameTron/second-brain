@@ -21,16 +21,168 @@
  *   node scripts/daily-sweep.js --dry-run # Report what would run (no side effects)
  */
 
-const { extractMemories } = require('../src/memory-extractor');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const readline = require('readline');
+
+const { extractMemories, extractFromTranscript } = require('../src/memory-extractor');
 const { retryDeadLetters, archiveStaleLeftProposals } = require('../src/lifecycle');
 
 const dryRun = process.argv.includes('--dry-run');
+
+// ── Transcript sweep (D-21 trigger, HOOK-DOTENV-01 caller) ──────────────────
+
+const TRANSCRIPTS_ROOT = process.env.TRANSCRIPTS_ROOT_OVERRIDE || path.join(os.homedir(), '.claude', 'projects');
+const LEDGER_PATH = process.env.LEDGER_PATH_OVERRIDE || path.join(__dirname, '..', 'state', 'transcripts-swept.json');
+const TRANSCRIPT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+// ponytail: cheap keyword heuristic mirrors memory-extractor's HIGH_SIGNAL_PATTERNS
+// intent (git/PR/decision language) — good enough to skip a stream-grep on files
+// with zero signal; the real classification still happens inside extractFromTranscript.
+const SIGNAL_PATTERN = /decided|learned|prefer|constraint|pattern|git diff|pull request|merged/i;
+
+function loadLedger() {
+  try {
+    return JSON.parse(fs.readFileSync(LEDGER_PATH, 'utf8'));
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveLedger(entries) {
+  fs.mkdirSync(path.dirname(LEDGER_PATH), { recursive: true });
+  fs.writeFileSync(LEDGER_PATH, JSON.stringify(entries, null, 2), 'utf8');
+}
+
+function findRecentTranscripts() {
+  const cutoff = Date.now() - TRANSCRIPT_MAX_AGE_MS;
+  const found = [];
+  let projectDirs;
+  try {
+    projectDirs = fs.readdirSync(TRANSCRIPTS_ROOT, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+  } catch (_) {
+    return found;
+  }
+
+  for (const dirName of projectDirs) {
+    if (dirName.includes('worktrees')) continue; // skip worktree/subagent dirs
+    const dirPath = path.join(TRANSCRIPTS_ROOT, dirName);
+    let files;
+    try {
+      files = fs.readdirSync(dirPath).filter((f) => f.endsWith('.jsonl'));
+    } catch (_) {
+      continue;
+    }
+    for (const file of files) {
+      const filePath = path.join(dirPath, file);
+      let stat;
+      try {
+        stat = fs.statSync(filePath);
+      } catch (_) {
+        continue;
+      }
+      if (stat.mtimeMs >= cutoff) {
+        found.push({ path: filePath, mtime: stat.mtimeMs });
+      }
+    }
+  }
+  return found;
+}
+
+// Stream-grep: readline over the file, never load the whole transcript into memory.
+async function hasSignal(filePath) {
+  const rl = readline.createInterface({
+    input: fs.createReadStream(filePath),
+    crlfDelay: Infinity,
+  });
+  for await (const line of rl) {
+    if (SIGNAL_PATTERN.test(line)) {
+      rl.close();
+      return true;
+    }
+  }
+  return false;
+}
+
+async function sweepTranscripts() {
+  const ledger = loadLedger();
+  const swept = new Map(ledger.map((e) => [e.path, e.mtime]));
+  const candidates = findRecentTranscripts();
+
+  const unswept = candidates.filter((c) => swept.get(c.path) !== c.mtime);
+
+  if (dryRun) {
+    return { dryRun: true, candidates: candidates.length, unswept: unswept.length };
+  }
+
+  let extracted = 0;
+  const newLedgerEntries = [...ledger];
+  for (const candidate of unswept) {
+    let signal = false;
+    try {
+      signal = await hasSignal(candidate.path);
+    } catch (err) {
+      console.error(`[daily-sweep] Signal scan failed for ${candidate.path}: ${err.message}`);
+    }
+    if (signal) {
+      try {
+        const sessionId = path.basename(candidate.path, '.jsonl');
+        const results = await extractFromTranscript(candidate.path, sessionId);
+        extracted += Array.isArray(results) ? results.length : 0;
+      } catch (err) {
+        console.error(`[daily-sweep] Transcript extraction failed for ${candidate.path}: ${err.message}`);
+      }
+    }
+    const existingIdx = newLedgerEntries.findIndex((e) => e.path === candidate.path);
+    const entry = { path: candidate.path, mtime: candidate.mtime };
+    if (existingIdx >= 0) newLedgerEntries[existingIdx] = entry;
+    else newLedgerEntries.push(entry);
+  }
+
+  saveLedger(newLedgerEntries);
+  return { swept: unswept.length, extracted };
+}
+
+// ── Inbox ingest (RIGHT side — Cowork inbox/) ────────────────────────────────
+
+function inboxDir() {
+  const vaultRoot = process.env.VAULT_ROOT || path.join(os.homedir(), 'Claude Cowork');
+  return path.join(vaultRoot, 'inbox');
+}
+
+async function sweepInbox() {
+  const inbox = inboxDir();
+  const archiveDir = path.join(inbox, 'archive');
+
+  if (dryRun) {
+    return { dryRun: true };
+  }
+
+  fs.mkdirSync(inbox, { recursive: true });
+  fs.mkdirSync(archiveDir, { recursive: true });
+
+  const files = fs.readdirSync(inbox).filter((f) => f.endsWith('.md'));
+  const results = await extractMemories({ dir: 'inbox' });
+
+  for (const file of files) {
+    try {
+      fs.renameSync(path.join(inbox, file), path.join(archiveDir, file));
+    } catch (err) {
+      console.error(`[daily-sweep] Failed to archive inbox file ${file}: ${err.message}`);
+    }
+  }
+
+  return { processed: files.length, extracted: Array.isArray(results) ? results.length : 0 };
+}
 
 async function main() {
   const today = new Date().toISOString().slice(0, 10);
   console.error(`[daily-sweep] Starting sweep for ${today}${dryRun ? ' (DRY RUN)' : ''}`);
 
-  const results = { extraction: null, retry: null, archive: null };
+  const results = { extraction: null, retry: null, archive: null, transcriptSweep: null, inboxSweep: null };
 
   // 1. Extract memories from today's Daily/ notes
   try {
@@ -74,13 +226,41 @@ async function main() {
     results.archive = { error: err.message };
   }
 
+  // 4. Sweep recent non-worktree transcripts (D-21 trigger 3)
+  try {
+    if (dryRun) {
+      console.error('[daily-sweep] Would sweep recent transcripts');
+    }
+    results.transcriptSweep = await sweepTranscripts();
+    console.error(`[daily-sweep] Transcript sweep complete: ${JSON.stringify(results.transcriptSweep)}`);
+  } catch (err) {
+    console.error(`[daily-sweep] Transcript sweep failed: ${err.message}`);
+    results.transcriptSweep = { error: err.message };
+  }
+
+  // 5. Ingest Cowork inbox/
+  try {
+    if (dryRun) {
+      console.error('[daily-sweep] Would ingest inbox/');
+    }
+    results.inboxSweep = await sweepInbox();
+    console.error(`[daily-sweep] Inbox sweep complete: ${JSON.stringify(results.inboxSweep)}`);
+  } catch (err) {
+    console.error(`[daily-sweep] Inbox sweep failed: ${err.message}`);
+    results.inboxSweep = { error: err.message };
+  }
+
   console.error(`[daily-sweep] Sweep complete for ${today}`);
   return results;
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error(`[daily-sweep] Fatal error: ${err.message}`);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error(`[daily-sweep] Fatal error: ${err.message}`);
+      process.exit(1);
+    });
+}
+
+module.exports = { main, sweepTranscripts, sweepInbox, findRecentTranscripts, hasSignal, loadLedger, saveLedger };
