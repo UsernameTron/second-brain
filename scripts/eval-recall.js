@@ -56,7 +56,9 @@ const LIVE_EMBEDDINGS = path.join(os.homedir(), '.cache', 'second-brain', 'embed
 const liveBefore = fingerprint(LIVE_EMBEDDINGS);
 
 const { runRecall } = require('../src/recall-command');
-const { indexNewEntries } = require('../src/semantic-index');
+const {
+  indexNewEntries, computeSchemaVersion, getEmbeddingsPath, getMetadataPath,
+} = require('../src/semantic-index');
 const { loadExcludedTerms } = require('../src/pipeline-infra');
 const { readMemory } = require('../src/memory-reader');
 
@@ -137,6 +139,21 @@ async function main() {
   // degraded window — killing the whole run. Chunked + paced, it never 429s, and
   // once eval/.cache is warm this loop is a no-op (indexNewEntries dedupes).
   if (hasKey) {
+    // Stale-schema guard: indexNewEntries dedupes by content_hash, which is model-independent,
+    // so a changed model/embeddingDim would make warm-up a no-op and leave selfHealIfNeeded to
+    // truncate and re-embed all 135 entries in one 128-entry batch — a guaranteed 429 on the
+    // free tier, exactly when evaluating a new embedding schema. Clear first, then pace.
+    const sem = JSON.parse(fs.readFileSync(path.join(REPO, 'config', 'pipeline.json'), 'utf8')).memory.semantic;
+    let storedVersion = null;
+    try {
+      storedVersion = JSON.parse(fs.readFileSync(getMetadataPath(), 'utf8')).schema_version;
+    } catch (_) { /* no metadata yet — nothing to invalidate */ }
+    if (storedVersion && storedVersion !== computeSchemaVersion(sem)) {
+      fs.rmSync(getEmbeddingsPath(), { force: true });
+      fs.rmSync(getMetadataPath(), { force: true });
+      console.log('embedding schema changed — cleared eval/.cache before warm-up');
+    }
+
     const toEmbed = entries.map((e) => ({
       contentHash: e.contentHash, content: e.content, addedAt: e.addedAt, category: e.category,
     }));
@@ -205,6 +222,20 @@ async function main() {
       `${mode.padEnd(8)}  ${recallAt5 === null ? 'n/a   ' : recallAt5.toFixed(3) + ' '}  ` +
       `${mrr === null ? 'n/a  ' : mrr.toFixed(3)}  ${String(m.hits).padEnd(4)}  ${String(m.scored).padEnd(6)}  ${m.skipped}`
     );
+  }
+
+  // A mode that was CONFIGURED to run but skipped questions is a failed evaluation, not a
+  // smaller one: dropping skipped questions from the denominator inflates recall@5, and a
+  // fully-degraded mode would otherwise print "not comparable" and exit 0 — letting the gate
+  // pass without ever evaluating semantic retrieval. Keyword-only runs never reach this
+  // (semantic/hybrid are not in `modes` at all when the key is absent).
+  const incomplete = modes.filter((mode) => results[mode].skipped > 0);
+  if (incomplete.length) {
+    for (const mode of incomplete) {
+      console.error(`eval-recall: ${mode} skipped ${results[mode].skipped}/${questions.length} questions — provider degraded or blocked mid-run`);
+    }
+    console.error('eval-recall: refusing to score or compare an incomplete run (metrics would be inflated by the dropped questions)');
+    return exitWith(2);
   }
 
   const goldenSha = sha256(goldenPath);

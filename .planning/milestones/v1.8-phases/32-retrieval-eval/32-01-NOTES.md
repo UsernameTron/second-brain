@@ -69,4 +69,13 @@ Multi-hash expected sets: q09 (2 hashes), q19 (3 hashes) — exercise set-member
 | B | golden/vault untouched; keyword search temporarily degraded (`prefix: false, fuzzy: false` in `src/memory-reader.js`) | keyword 0.900 → 0.700 `-0.200 REGRESSION`, names `regressed questions: q02, q03, q15, q20`, **exit 1** |
 | B-revert | restore `memory-reader.js` | `(=)`, **exit 0** |
 
+### Post-review hardening (PR #74, Codex findings)
+
+| finding | defect | fix | drill |
+|---------|--------|-----|-------|
+| P1 | A configured mode that degraded mid-run had its failed questions dropped from the denominator — inflating recall@5, and a fully-degraded mode printed "not comparable" and exited **0**, letting the gate pass without ever evaluating semantic retrieval | any mode in `modes` with `skipped > 0` now refuses to score or compare, exit 2 | warm cache + bogus key: semantic/hybrid skip 20/20 → **exit 2** (was exit 0) |
+| P2 | `indexNewEntries` dedupes on content_hash, which is model-independent, so a changed `model`/`embeddingDim` made warm-up a no-op and left `selfHealIfNeeded()` to truncate and re-embed all 135 in one 128-entry batch — a guaranteed 429 on the free tier, precisely when testing a new schema | harness compares stored `schema_version` against `computeSchemaVersion(sem)` and clears `eval/.cache` before the paced warm-up | faked stale `schema_version` → "embedding schema changed — cleared eval/.cache before warm-up", warm-up then runs paced |
+
+Neither fix touches scoring math, so the 2026-07-19 baseline remains valid.
+
 Drill A2 also documents intended behavior worth knowing: changing the golden set or seed vault makes deltas incomparable and suppresses the gate (exit 0) — the regression gate fires on **code/config** changes, which is exactly the tuning scenario it guards. Re-anchor with `--baseline` after any deliberate golden/vault edit.
