@@ -18,3 +18,4 @@ node_modules/
 coverage/
 .cache/
 config/*.local.json
+eval/.cache/
