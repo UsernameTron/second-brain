@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: Prove Compounding
-status: archived
-last_updated: "2026-07-16T16:44:53.893Z"
-last_activity: 2026-07-16
+milestone: v1.8
+milestone_name: Measured Memory
+status: in_progress
+last_updated: "2026-07-19T23:45:00.000Z"
+last_activity: 2026-07-19
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 16
-  completed_plans: 16
+  total_phases: 5
+  completed_phases: 1
+  total_plans: 5
+  completed_plans: 1
 ---
 
 # Project State
@@ -19,14 +19,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Status:** v1.7 milestone complete
+**Status:** v1.8 Measured Memory in progress (1 of 5 phases complete)
 
 ## Current Position
 
-Milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16)
-Phase: none active (between milestones)
-Status: Awaiting VERDICT-01 window and/or next-milestone decision
-Last activity: 2026-07-19 - Completed quick tasks 260719-lfn (capture fixes) and 260719-llv (memory reorg)
+Milestone: v1.8 Measured Memory — IN PROGRESS (Phases 32-36; Phase 36 decision-gated)
+Phase: 32 Retrieval Eval Baseline — COMPLETE, shipped 2026-07-19 (PR #74). Baseline: keyword 0.900 / semantic 0.800 / hybrid 0.900 recall@5.
+Status: Phase 33 (Capture Reliability) is next — requires observing one real 23:45 daily-sweep fire before changes
+Last activity: 2026-07-19 - Shipped Phase 32 (PR #74); fixed master CI lint blocker (PR #75); doc sync
+Prior milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16); VERDICT-01 calendar-gated follow-up still open
 
 **Shipped milestones:**
 
@@ -39,7 +40,7 @@ Last activity: 2026-07-19 - Completed quick tasks 260719-lfn (capture fixes) and
 - v1.6 Enforcement Integrity & Surface Completion (2026-07-15)
 - v1.7 Prove Compounding (2026-07-16) — PR #66
 
-**Current milestone:** v1.7 Prove Compounding (Phases 29-31 + calendar-gated verdict follow-up)
+**Current milestone:** v1.8 Measured Memory (Phases 32-36) — Phase 32 complete 2026-07-19
 
 ## Accumulated Context
 

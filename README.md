@@ -24,7 +24,7 @@ Built for a technical executive who directs AI. The project code lives in this r
 ```bash
 npm install
 npm run lint  # ESLint 10 (flat config)
-npm test      # Jest 30 — 1301 total tests (1272 pass, 29 skipped in CI)
+npm test      # Jest 30 — 1306 total tests (1267 pass, 39 skipped in CI)
 ```
 
 **Optional: Semantic memory search** — Set `VOYAGE_API_KEY` in `.env` to enable `/recall --semantic` and `/recall --hybrid`. Without the key, `/recall` falls back to keyword search. See [docs/DEVOPS-HANDOFF.md](docs/DEVOPS-HANDOFF.md) for acquisition steps and configuration.
@@ -114,8 +114,9 @@ CLAUDE.md                    # Project governance, commands, conventions
 ## Status
 
 **Latest Release:** v1.7 Prove Compounding (2026-07-16) | Phases 29-31: Series Integrity, Outcome Instrumentation, Trend & Report
-- **1301 total tests** across 68 test files (1272 passing, 29 skipped in CI)
-- **Branch coverage:** 81.47% (threshold: ≥80% enforced in CI)
+**In progress:** v1.8 Measured Memory — Phase 32 Retrieval Eval Baseline shipped 2026-07-19 (PR #74); Phases 33-36 planned
+- **1306 total tests** across 69 test files (1267 passing, 39 skipped in CI)
+- **Branch coverage:** 80.66% (threshold: ≥80% enforced in CI — 0.66pt margin)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 20+22 matrix, GitGuardian secrets scan
 - **Operational components:** `/today` daily briefing (weekdays 06:45 local via launchd), memory compounding metrics, outcome instrumentation (11-column daily-stats), compounding verdict surfaces
@@ -147,7 +148,7 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 ### Test Coverage
 
 ```bash
-npm test                    # Run all tests (1301 total; set CI=true to skip UAT)
+npm test                    # Run all tests (1306 total; set CI=true to skip UAT)
 npm run lint               # ESLint validation
 npm run test:uat           # UAT tests (requires CI= to unblock)
 ```
@@ -157,7 +158,7 @@ npm run test:uat           # UAT tests (requires CI= to unblock)
 - Critical modules (auth, vault boundary): ≥95%
 - All other modules: ≥80%
 
-Current coverage: Statements 91.95%, Functions 96.00%, Lines 92.64%, Branch 81.47%
+Current coverage (CI-measured 2026-07-19): Statements 90.59%, Functions 95.45%, Lines 91.24%, Branch 80.66%
 
 ### Retrieval eval
 
