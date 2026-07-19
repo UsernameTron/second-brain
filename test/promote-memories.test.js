@@ -243,6 +243,29 @@ describe('promoteMemories - promotion logic', () => {
     const result = await promoteMemories.promoteMemories({ max: 5 });
     expect(result.promoted).toBe(1);
     expect(result.rejected).toBe(1);
+
+    // PROMOTE-REJECT-01: the reject must be terminal in the rewritten file,
+    // not left status:: pending.
+    const updated = fs.readFileSync(proposalsFile, 'utf8');
+    const rejectedSection = updated.slice(updated.indexOf('### mem-20260422-002'));
+    expect(rejectedSection).toMatch(/status:: rejected/);
+  });
+
+  test('PROMOTE-REJECT-01: rejects are not re-counted on a second run', async () => {
+    const candidates = [
+      { candidateId: 'mem-20260422-001', category: 'LEARNING', confidence: 0.8, content: 'Rejected once entry content.', status: 'rejected', sourceRef: 'session:abc' },
+    ];
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    fs.writeFileSync(proposalsFile, buildProposalsFile(candidates), 'utf8');
+
+    const first = await promoteMemories.promoteMemories({ max: 5 });
+    expect(first.rejected).toBe(1);
+    const processedAfterFirst = fs.readFileSync(proposalsFile, 'utf8').match(/total_processed: (\d+)/)[1];
+
+    const second = await promoteMemories.promoteMemories({ max: 5 });
+    expect(second.rejected).toBe(0);
+    const processedAfterSecond = fs.readFileSync(proposalsFile, 'utf8').match(/total_processed: (\d+)/)[1];
+    expect(processedAfterSecond).toBe(processedAfterFirst);
   });
 
   test('edit-then-accept treated as accepted', async () => {

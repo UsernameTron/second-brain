@@ -443,6 +443,10 @@ async function promoteMemories(options = {}) {
   for (const c of promoted) replacements[c.candidateId] = 'accepted';
   for (const c of toDefer) replacements[c.candidateId] = 'deferred';
   for (const c of duplicates) replacements[c.candidateId] = 'duplicate-of-existing-memory';
+  // PROMOTE-REJECT-01: rejects must reach a terminal status (not in LIVE_STATUSES),
+  // or every later run re-counts them into total_processed and they never archive
+  // (observed drift 2026-07-19: same two rejects counted on consecutive runs).
+  for (const c of rejectedCandidates) replacements[c.candidateId] = 'rejected';
 
   let updatedBody;
   if (proposalArchived) {
