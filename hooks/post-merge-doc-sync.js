@@ -135,6 +135,12 @@ function compareStats(docStats, liveStats, warnThreshold) {
  * Cleans up temp file in all cases (success + failure).
  * Returns null on any failure — the hook must never block a merge.
  *
+ * Runs with CI=true so the measurement matches what CI's coverage gate
+ * enforces. Without it the UAT suite runs locally and inflates coverage
+ * (~2pt), so the docs — which quote the CI-gated number — would be flagged
+ * as drifted on every merge. Developer-mode coverage is optimistic by
+ * exactly the CI-skipped test paths.
+ *
  * @param {string} projectRoot - absolute path to project root
  * @returns {{ testCount: number, coverageStatements: number, coverageBranches: number } | null}
  */
@@ -149,6 +155,7 @@ function getLiveStats(projectRoot) {
         cwd: projectRoot,
         timeout: 60000,
         stdio: ['ignore', 'ignore', 'ignore'],
+        env: { ...process.env, CI: 'true' },
       }
     );
   } catch (_) {
