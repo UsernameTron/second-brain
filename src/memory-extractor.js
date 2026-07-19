@@ -21,9 +21,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const { createHaikuClient, loadPipelineConfig, loadMemoryCategoriesConfig } = require('./pipeline-infra');
+const { createHaikuClient, loadPipelineConfig, loadMemoryCategoriesConfig, loadExcludedTerms } = require('./pipeline-infra');
 const { computeHash } = require('./utils/memory-utils');
 const { writeCandidate } = require('./memory-proposals');
+const { checkContent } = require('./content-policy');
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -173,6 +174,12 @@ async function processCandidates(candidates, sessionId, sourceFile, extractionTr
       continue;
     }
     seenHashes.add(hash);
+
+    // INGRESS-GATE-01: fail-closed exclusion check before staging (ISPN/Genesys/Asana).
+    const verdict = await checkContent(candidate.content, loadExcludedTerms());
+    if (verdict.decision !== 'PASS') {
+      continue;
+    }
 
     const sourceRef = 'session:' + sessionId;
 
@@ -383,6 +390,12 @@ async function extractFromFile(relativePath, options = {}) {
     const hash = computeHash(candidate.content);
     if (seenHashes.has(hash)) continue;
     seenHashes.add(hash);
+
+    // INGRESS-GATE-01: fail-closed exclusion check before staging (ISPN/Genesys/Asana).
+    const verdict = await checkContent(candidate.content, loadExcludedTerms());
+    if (verdict.decision !== 'PASS') {
+      continue;
+    }
 
     const sourceRef = 'file:' + relativePath;
     const result = await writeCandidate({

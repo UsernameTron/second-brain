@@ -1199,3 +1199,67 @@ describe('promoteMemories deferred recovery (PROMOTE-DEFER-01)', () => {
     }
   });
 });
+
+// ── quick-260719-lfn: embed counts, category coercion, auto-index ─────────────
+
+describe('quick-260719-lfn: promotion honesty fixes', () => {
+  test('a stubbed indexNewEntries returning {embedded:0,failed:1} makes the run report not-green', async () => {
+    jest.resetModules();
+    jest.mock('../src/semantic-index', () => ({
+      indexNewEntries: jest.fn().mockResolvedValue({ success: false, embedded: 0, failed: 1 }),
+    }));
+    process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+    const promoteMemoriesFailEmbed = require('../src/promote-memories');
+
+    const candidates = makeCandidates(1);
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemoriesFailEmbed.promoteMemories({ max: 5 });
+    expect(result.promoted).toBe(1);
+    expect(result.embedded).toBe(0);
+    expect(result.embedFailed).toBe(1);
+  });
+
+  test('candidate with unsanctioned category "INSIGHT" is written as OTHER with a justification', async () => {
+    jest.resetModules();
+    jest.mock('../src/semantic-index', () => ({
+      indexNewEntries: jest.fn().mockResolvedValue({ success: true, embedded: 1, failed: 0 }),
+    }));
+    process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+    const promoteMemoriesCoerce = require('../src/promote-memories');
+
+    const candidates = makeCandidates(1, { category: 'INSIGHT', content: 'A candidate with an unsanctioned category label.' });
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    await promoteMemoriesCoerce.promoteMemories({ max: 5 });
+    const memoryContent = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
+    expect(memoryContent).toContain('category:: OTHER');
+    expect(memoryContent).toContain('INSIGHT');
+    expect(memoryContent).toContain('justification');
+  });
+
+  test('memory.md gets an INDEX:AUTO block after promote, regenerated (not duplicated) on a second run', async () => {
+    jest.resetModules();
+    jest.mock('../src/semantic-index', () => ({
+      indexNewEntries: jest.fn().mockResolvedValue({ success: true, embedded: 1, failed: 0 }),
+    }));
+    process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+    const promoteMemoriesIdx = require('../src/promote-memories');
+
+    const first = makeCandidates(1, { candidateId: 'mem-20260501-001', content: 'First index-test entry unique content.' });
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(first), 'utf8');
+    await promoteMemoriesIdx.promoteMemories({ max: 5 });
+
+    let memoryContent = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
+    expect((memoryContent.match(/<!-- INDEX:AUTO -->/g) || []).length).toBe(1);
+    expect(memoryContent).toContain('Total entries:');
+
+    const second = makeCandidates(1, { candidateId: 'mem-20260502-001', content: 'Second index-test entry unique content.' });
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(second), 'utf8');
+    await promoteMemoriesIdx.promoteMemories({ max: 5 });
+
+    memoryContent = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
+    expect((memoryContent.match(/<!-- INDEX:AUTO -->/g) || []).length).toBe(1);
+    expect(memoryContent).toContain('Total entries:** 2');
+  });
+});

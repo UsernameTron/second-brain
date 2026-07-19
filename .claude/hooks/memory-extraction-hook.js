@@ -16,6 +16,10 @@
  * Always exits 0 — memory extraction is non-blocking enrichment (D-39).
  */
 
+const path = require('path');
+
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
+
 const { extractFromTranscript } = require('../../src/memory-extractor');
 
 let inputData = '';

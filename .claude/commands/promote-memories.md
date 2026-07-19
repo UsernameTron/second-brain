@@ -10,6 +10,7 @@ Reference implementation:
 
 ```bash
 node -e "
+  require('dotenv').config({ path: require('path').join(__dirname, '.env') });
   const { promoteMemories, parsePromoteArgs } = require('./src/promote-memories');
   let opts;
   try {
@@ -30,6 +31,7 @@ node -e "
       (r.wouldDefer || []).forEach(id => process.stdout.write('  would defer: ' + id + '\n'));
     } else {
       process.stdout.write('Promoted ' + r.promoted + ' candidate(s) to memory/memory.md\n');
+      process.stdout.write('Embedded ' + r.embedded + ' of ' + r.promoted + ' (failed: ' + r.embedFailed + ')\n');
       if (r.reach && r.reach.targets) {
         const written = r.reach.targets.filter(t => t.status === 'written').length;
         process.stdout.write('Reach export: ' + written + ' of ' + r.reach.targets.length + ' target(s) updated\n');
