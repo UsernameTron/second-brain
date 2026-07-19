@@ -84,15 +84,21 @@ describe('validate-archive', () => {
   });
 
   const realArchive = path.join(process.env.HOME, 'Claude Cowork', 'memory-archive');
-  (fs.existsSync(realArchive) ? test : test.skip)('the current real archive passes', () => {
-    const prev = process.env.VAULT_ROOT;
-    delete process.env.VAULT_ROOT;
-    try {
-      const r = validateArchive();
-      expect(r.ok).toBe(true);
-      expect(r.entries).toBeGreaterThan(0);
-    } finally {
-      if (prev !== undefined) process.env.VAULT_ROOT = prev;
-    }
+  // Conditional describe (not a conditional test): jest/no-standalone-expect does not
+  // recognize `(cond ? test : test.skip)(...)` as a test block. Same pattern as
+  // test/uat/semantic-search.uat.test.js.
+  const describeMaybe = fs.existsSync(realArchive) ? describe : describe.skip;
+  describeMaybe('live archive', () => {
+    test('the current real archive passes', () => {
+      const prev = process.env.VAULT_ROOT;
+      delete process.env.VAULT_ROOT;
+      try {
+        const r = validateArchive();
+        expect(r.ok).toBe(true);
+        expect(r.entries).toBeGreaterThan(0);
+      } finally {
+        if (prev !== undefined) process.env.VAULT_ROOT = prev;
+      }
+    });
   });
 });
