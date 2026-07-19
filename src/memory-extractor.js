@@ -280,7 +280,10 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
     if (messages.length <= oversizeThresholdMessages) {
       // Single pass
       const corpus = buildCorpus(messages);
-      const response = await haiku.classify(systemPrompt, corpus);
+      // ponytail: 4096 headroom for a whole-corpus JSON array of candidates (unbounded
+      // count, unlike other classify() callers' single-object budgets). If a corpus still
+      // truncates at this size, chunk it — don't just raise the number again.
+      const response = await haiku.classify(systemPrompt, corpus, { maxTokens: 8192 });
       if (!response.success) {
         // eslint-disable-next-line no-console -- last-resort-error: Single-pass Haiku extraction failed; extractor returns []
         console.error('[memory-extractor] Haiku extraction failed: ' + (response.error || 'unknown'));
@@ -297,7 +300,7 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
         const chunk = messages.slice(start, end);
         const corpus = buildCorpus(chunk);
 
-        const response = await haiku.classify(systemPrompt, corpus);
+        const response = await haiku.classify(systemPrompt, corpus, { maxTokens: 8192 });
         if (response.success) {
           const candidates = Array.isArray(response.data) ? response.data : [];
           const results = await processCandidates(candidates, sessionId, transcriptPath, 'wrap', seenHashes);
@@ -348,7 +351,7 @@ async function extractFromFile(relativePath, options = {}) {
 
   let response;
   try {
-    response = await haiku.classify(systemPrompt, content);
+    response = await haiku.classify(systemPrompt, content, { maxTokens: 8192 });
   } catch (err) {
     // eslint-disable-next-line no-console -- last-resort-error: Haiku call threw in extractFromFile; returns []
     console.error('[memory-extractor] Haiku call failed for ' + relativePath + ': ' + err.message);

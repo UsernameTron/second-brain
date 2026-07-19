@@ -310,6 +310,14 @@ describe('extractFromFile', () => {
 
     const proposalsContent = fs.readFileSync(path.join(tmpDir, 'proposals', 'memory-proposals.md'), 'utf8');
     expect(proposalsContent).toContain('file:');
+
+    // Whole-file classify needs headroom for an unbounded candidate array, not the
+    // single-object default (1024) other classify() callers rely on.
+    expect(mockClient.classify).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({ maxTokens: 8192 })
+    );
   });
 
   test('extractionTrigger is "extract-memories" for file extraction', async () => {
