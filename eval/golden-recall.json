@@ -1,0 +1,147 @@
+{
+  "description": "Golden retrieval eval set — Phase 32 (v1.8 Measured Memory). Version-locked to eval/seed-vault/memory/memory.md (135-entry snapshot of the live vault, frozen 2026-07-19). Expected answers keyed by content_hash. recall@5 is set-membership: any expected hash in top 5 = hit. Paraphrase-bucket questions are EXPECTED to miss in keyword mode — that miss is signal, not a bug.",
+  "frozen": "2026-07-19",
+  "vaultEntries": 135,
+  "questions": [
+    {
+      "id": "q01",
+      "query": "revive dependabot auto-rebase",
+      "expected": ["2b0a841acb92"],
+      "category": "LEARNING",
+      "notes": "Dependabot disables auto-rebase after ~30 days; @dependabot rebase revives (PR #57 example)."
+    },
+    {
+      "id": "q02",
+      "query": "jest worktree zero tests",
+      "expected": ["99f9a664b51b"],
+      "category": "LEARNING",
+      "notes": "Jest inside .claude/worktrees/ silently collects zero tests and exits green."
+    },
+    {
+      "id": "q03",
+      "query": "HubSpot required fields import bypass",
+      "expected": ["7d1c8ee6ce27"],
+      "category": "LEARNING",
+      "notes": "Required-field rules enforce only at manual form creation; imports/API bypass them."
+    },
+    {
+      "id": "q04",
+      "query": "curl apps script POST redirect 405",
+      "expected": ["e9a321ce053a"],
+      "category": "LEARNING",
+      "notes": "curl -X POST forces POST through the 302 redirect and 405s; use -d with -L instead."
+    },
+    {
+      "id": "q05",
+      "query": "coverage gate threshold margin",
+      "expected": ["bb6d27199e84"],
+      "category": "LEARNING",
+      "notes": "Push CI quality metrics ≥1% above the gate so variance/reverts don't flake the threshold."
+    },
+    {
+      "id": "q06",
+      "query": "HubSpot search after write eventual consistency",
+      "expected": ["8cadd326b9c6"],
+      "category": "DECISION",
+      "notes": "HubSpot v3 has 5-10s write→search lag; use the returned object ID, never search-based dedup."
+    },
+    {
+      "id": "q07",
+      "query": "48GB Apple Silicon model cap",
+      "expected": ["9bf293b457c4"],
+      "category": "DECISION",
+      "notes": "Local inference hard cap: no 70B+ dense / 120B+ MoE on 48GB — swap kills usability."
+    },
+    {
+      "id": "q08",
+      "query": "voyage threshold calibration",
+      "expected": ["c18f264d8004"],
+      "category": "DECISION",
+      "notes": "0.55 cosine threshold calibrated against live UAT data for voyage-4-lite, not spec docs."
+    },
+    {
+      "id": "q09",
+      "query": "per-repo credential pinning GitHub estate",
+      "expected": ["525de9a9b1ca", "026e6527c17b"],
+      "category": "DECISION",
+      "notes": "Two sibling entries (DECISION + LEARNING) on repo-local credential pinning over account switching; either answers."
+    },
+    {
+      "id": "q10",
+      "query": "embed on promotion sidecar JSONL",
+      "expected": ["4fa3badbfb86"],
+      "category": "DECISION",
+      "notes": "Embed-on-promotion sidecar architecture: vectors computed at promotion, stored in JSONL."
+    },
+    {
+      "id": "q11",
+      "query": "org spend limit killed subagents",
+      "expected": ["ce61ac86e3cb"],
+      "category": "CONSTRAINT",
+      "notes": "Org-level Claude spend limits are a mid-session failure mode; confirm headroom before fan-out."
+    },
+    {
+      "id": "q12",
+      "query": "scheduled vault write cloud trigger",
+      "expected": ["7376862da950"],
+      "category": "CONSTRAINT",
+      "notes": "RemoteTrigger runs in cloud, cannot reach VAULT_ROOT; verify the artifact, not the trigger report."
+    },
+    {
+      "id": "q13",
+      "query": "memory promotion signal over volume",
+      "expected": ["4bf2b3b0b8cb"],
+      "category": "CONSTRAINT",
+      "notes": "Every promoted entry occupies a retrieval slot forever; curation at the gate keeps compounding compounding."
+    },
+    {
+      "id": "q14",
+      "query": "uploaded branch no PR killed fleet",
+      "expected": ["562054375fc4"],
+      "category": "PATTERN",
+      "notes": "Killed agent fleet signature: uploaded branch with no PR; enumerate ls-remote vs open PRs."
+    },
+    {
+      "id": "q15",
+      "query": "draft only gmail send scope flip",
+      "expected": ["d939d8d211d9"],
+      "category": "PATTERN",
+      "notes": "Draft-only from day one: go-live is a single gmail.send scope grant, not an engineering project."
+    },
+    {
+      "id": "q16",
+      "query": "zsh set word split",
+      "expected": ["90829d274155"],
+      "category": "keyword-stress",
+      "notes": "AND-stress: 4 terms co-occur in exactly one entry (set -- $x does not word-split in zsh)."
+    },
+    {
+      "id": "q17",
+      "query": "bimodal distribution scripted bulk grant",
+      "expected": ["aa598db6f768"],
+      "category": "keyword-stress",
+      "notes": "AND-stress: ACL forensics fingerprint terms co-occur only in the Drive audit entry."
+    },
+    {
+      "id": "q18",
+      "query": "why is my local model suddenly so slow at labeling",
+      "expected": ["f05535a2d4d3"],
+      "category": "paraphrase",
+      "notes": "Paraphrase of the Qwen thinking-mode 37s-vs-1.5s classification entry; keyword MISS verified 2026-07-19 — only semantic should catch."
+    },
+    {
+      "id": "q19",
+      "query": "how do we keep the assistant from having more access than it needs",
+      "expected": ["3e91e155ca35", "8739924d6426", "815a2ee7071c"],
+      "category": "paraphrase",
+      "notes": "Paraphrase of zero-trust minimum-permission / default-deny vault tiers / gateway choke point; keyword MISS verified 2026-07-19 — only semantic should catch."
+    },
+    {
+      "id": "q20",
+      "query": "memory system surfaces reinvented",
+      "expected": ["aac031012fe2"],
+      "category": "LEARNING",
+      "notes": "ADR-018 reach lesson: a memory layer no surface knows about gets independently reinvented."
+    }
+  ]
+}
