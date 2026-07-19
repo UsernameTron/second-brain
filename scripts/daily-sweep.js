@@ -26,6 +26,14 @@ const os = require('os');
 const path = require('path');
 const readline = require('readline');
 
+// Entry-point rule: scripts that call src/ directly must load dotenv
+// (LM_API_TOKEN / VOYAGE_API_KEY / ANTHROPIC_API_KEY live in .env; without
+// this the nightly launchd run 401s on every classify call and stages nothing).
+// Guarded to script execution only — tests require this module with a controlled env.
+if (require.main === module) {
+  require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+}
+
 const { extractMemories, extractFromTranscript } = require('../src/memory-extractor');
 const { retryDeadLetters, archiveStaleLeftProposals } = require('../src/lifecycle');
 
