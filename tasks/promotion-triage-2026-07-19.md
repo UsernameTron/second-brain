@@ -1,5 +1,25 @@
 # Memory promotion triage — 2026-07-19
 
+> ## ⚠ CORRECTION — 2026-07-19 evening: the central finding below is FALSE
+>
+> The "3 stranded / restore" recommendation is **wrong**. All 12 entries archived by
+> the 15:37 reorg — including the three called "unique, no live twin" — carry
+> `superseded_by::` pointers resolving to **live, richer** entries in `memory.md`.
+> Verified against disk, hash by hash, 2026-07-19 evening:
+>
+> | Archived (`memory-archive/2026-07.md`) | Live superseder (`memory.md`) |
+> |---|---|
+> | `bf04e30facf4` (zero-suites green run) | `99f9a664b51b` — richer: names `testPathIgnorePatterns` as the mechanism |
+> | `cebae8bcd6a4` (Effort-1 is a hypothesis) | `7601976f95e3` — richer: explains test-contract blindness, names mocks/spies |
+> | `f2d1062880b7` (zero grep hits ≠ orphan) | `977cfc40635e` — richer: carries the worked schema-glob example |
+>
+> **How the error happened:** the triage matched on *wording similarity* and never
+> followed the `superseded_by::` pointers present in the archive entries themselves.
+> **Nothing needs restoring; the "Restore" table, the merge row, and human-call #2
+> below are void.** Original text retained below for the record. The archive's
+> recall-invisibility remains a true design fact; the integrity guard is
+> `scripts/validate-archive.js` (added alongside this correction).
+
 Prepared for the operator's `/promote-memories` review pass. **No dispositions were
 changed and nothing was promoted** — per the accepted CONSTRAINT `mem-20260719-133`,
 checkbox/disposition state in a human-approval queue stays open for a human.
@@ -63,7 +83,7 @@ Two consequences worth a human call:
 Six of the nine are near-duplicates whose better twin is live in `memory.md` — those
 are fine where they are. Three are unique and lose real content by being archived.
 
-### Restore to `memory.md` (unique, no live twin) — 3
+### ~~Restore to `memory.md` (unique, no live twin) — 3~~ *(VOID per correction above — all three have live, richer superseders)*
 
 | # | ID | Hash | One line |
 |---|---|---|---|
@@ -71,7 +91,7 @@ are fine where they are. Three are unique and lose real content by being archive
 | 39 | `mem-20260719-125` | `f2d1062880b7` | Before deleting an "orphan" found by literal-name grep, check for dynamic consumers (dir scans, registry lookups, filename conventions). Zero grep hits ≠ orphan. |
 | 44 | `mem-20260719-130` | `bf04e30facf4` | A test run from a non-canonical checkout (e.g. `.claude/worktrees/`) that collects **zero** suites exits green — a config artifact masking real failures. |
 
-### Merge one detail up, then leave archived — 1
+### ~~Merge one detail up, then leave archived — 1~~ *(VOID per correction above)*
 
 | # | ID | Hash | One line | Merge into |
 |---|---|---|---|---|
@@ -133,9 +153,7 @@ Recast against actual state, since nothing is promotable:
    current-month entries. Either retrieval should read the archive, or the reorg
    should not archive current-month entries. On-disk state and documented contract
    currently disagree.
-2. **Whether to restore the 3 unique entries** (rows 38 / 39 / 44 above). They are
-   real, non-duplicate lessons that no live memory covers, and today they cannot be
-   recalled.
+2. ~~**Whether to restore the 3 unique entries** (rows 38 / 39 / 44 above).~~ *(VOID per correction above — each has a live, richer superseder; nothing is unrecallable.)*
 
 ---
 
