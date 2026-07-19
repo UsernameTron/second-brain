@@ -13,16 +13,35 @@ Transform an Obsidian vault into a personal operating system with compounding me
 - ✅ **v1.4 Memory Activation & Final Closeout** — Phases 17-21 (shipped 2026-04-26, tag v1.4)
 - ✅ **v1.5 Internal Hardening** — Phases 22-25 (shipped 2026-04-26, tag v1.5)
 - ✅ **v1.6 Enforcement Integrity & Surface Completion** — Phases 26-28 (shipped 2026-07-15, tag v1.6)
-- 🚧 **v1.7 Prove Compounding** — Phases 29-31 (in progress)
+- ✅ **v1.7 Prove Compounding** — Phases 29-31 (shipped 2026-07-16, PR #66)
+- 🚧 **v1.8 Measured Memory** — Phases 32-36 (planned 2026-07-19; Phase 36 decision-gated)
 
 ## Phases
 
 <details open>
-<summary>🚧 v1.7 Prove Compounding (Phases 29-31) — IN PROGRESS</summary>
+<summary>🚧 v1.8 Measured Memory (Phases 32-36) — PLANNED 2026-07-19</summary>
 
-- [ ] Phase 29: Series Integrity
-- [ ] Phase 30: Outcome Instrumentation
-- [ ] Phase 31: Trend & Report
+**Prerequisite:** merge `feat/second-brain-capture-verification` (11 commits ahead of origin/master at planning time) to master before execution.
+
+- [ ] Phase 32: Retrieval Eval Baseline — golden ~20-question eval (`eval/golden-recall.json` keyed by `content_hash`), frozen seed vault + isolated embeddings cache, `npm run eval:recall` scoring keyword/semantic/hybrid (recall@5 + MRR), baseline committed BEFORE any tuning. Plan: `milestones/v1.8-phases/32-retrieval-eval/32-01-PLAN.md`
+- [ ] Phase 33: Capture Reliability — fix + version the `com.secondbrain.daily-sweep` launchd plist (verified never-fired at planning: no log file; bare `node`, no env/WorkingDirectory) and observe one real 23:45 fire FIRST; persist `state/daily-sweep-last-run.json`; `/today` Compounding line "sweep ran/staged N | STALE | NEVER RAN"; `src/utils/classifier-health.js` (voyage-health clone) gating local-27B → `classifyAnthropic` fallback, extended to HTTP/parse errors, with per-night Haiku call cap.
+- [ ] Phase 34: Promotion Integrity & Lifecycle — land filed backlog PROMOTE-PARSE-01 / PROMOTE-VAULT-01 / PROMOTE-ID-01 / VERIFY-SENTINEL-01 (`scripts/verify-baseline.js`, real exit code); contradiction check at promotion (hybrid top-5, flag-only, never block/auto-resolve); `superseded-by::` entry convention (readMemory downranks); monthly snapshot-first dream-consolidation script + launchd plist (stages for human review, no auto-apply) codifying the 2026-07-19 manual reorg.
+- [ ] Phase 35: Proactive Memory — SessionStart hook `.claude/hooks/session-memory-inject.js` (fail-open on infra, exit 0 always) shelling to `scripts/recall.js "<project-derived query>" --hybrid --top 5`, entries passed through the reach exporter's fail-closed `checkContent` egress loop; ~750-token hard cap; kill switch `sessionInject.enabled` + `SB_SESSION_INJECT=0`; latency gate (<1s Voyage-up, <250ms degraded).
+- [ ] Phase 36 (decision-gated, unscheduled): Ingest Breadth — Drive connector behind the `src/connectors/types.js` contract PLUS the missing connector→memory seam (no connector feeds memory.md today — gmail/calendar/github are briefing-only). Build once here, L10 RAG consumes it; do not fork. Gate: real L10 Phase 3 timeline.
+
+Ordering rationale: eval first (no recall claim is provable without a baseline — zero eval infra existed at planning); capture second (scheduler live-broken); lifecycle before injection (inject from a store with integrity checks).
+
+</details>
+
+<details>
+<summary>✅ v1.7 Prove Compounding (Phases 29-31) — SHIPPED 2026-07-16 (PR #66)</summary>
+
+- [x] Phase 29: Series Integrity
+- [x] Phase 30: Outcome Instrumentation
+- [x] Phase 31: Trend & Report
+
+Full details: [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md)
+Audit: [milestones/v1.7-MILESTONE-AUDIT.md](milestones/v1.7-MILESTONE-AUDIT.md)
 
 Post-milestone follow-up (calendar-gated, ~3 weeks after ship, not a roadmap phase): VERDICT-01 — confirm scheduler alive over a trailing week, observe `computeMemoryHealth` live, archive `scripts/compounding-report.js` output with the verdict to `.planning/`.
 
