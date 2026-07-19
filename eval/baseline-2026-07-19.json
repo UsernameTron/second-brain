@@ -1,0 +1,278 @@
+{
+  "date": "2026-07-19",
+  "gitCommit": "9bca06d",
+  "goldenSet": {
+    "sha256": "92a75471e3f405e80aaa9e987fe7c38f9e1116100e5814f3e143a4f565bc8222",
+    "questions": 20
+  },
+  "vault": {
+    "sha256": "2ea9c8489287849cd4d0f73b98e62da2b8ef075ca7a66ad9df13c19c272c73a9",
+    "entries": 135
+  },
+  "modes": {
+    "keyword": {
+      "recallAt5": 0.9,
+      "mrr": 0.9,
+      "hits": 18,
+      "scored": 20,
+      "perQuestion": {
+        "q01": {
+          "hit": true,
+          "rr": 1
+        },
+        "q02": {
+          "hit": true,
+          "rr": 1
+        },
+        "q03": {
+          "hit": true,
+          "rr": 1
+        },
+        "q04": {
+          "hit": true,
+          "rr": 1
+        },
+        "q05": {
+          "hit": true,
+          "rr": 1
+        },
+        "q06": {
+          "hit": true,
+          "rr": 1
+        },
+        "q07": {
+          "hit": true,
+          "rr": 1
+        },
+        "q08": {
+          "hit": true,
+          "rr": 1
+        },
+        "q09": {
+          "hit": true,
+          "rr": 1
+        },
+        "q10": {
+          "hit": true,
+          "rr": 1
+        },
+        "q11": {
+          "hit": true,
+          "rr": 1
+        },
+        "q12": {
+          "hit": true,
+          "rr": 1
+        },
+        "q13": {
+          "hit": true,
+          "rr": 1
+        },
+        "q14": {
+          "hit": true,
+          "rr": 1
+        },
+        "q15": {
+          "hit": true,
+          "rr": 1
+        },
+        "q16": {
+          "hit": true,
+          "rr": 1
+        },
+        "q17": {
+          "hit": true,
+          "rr": 1
+        },
+        "q18": {
+          "hit": false,
+          "rr": 0
+        },
+        "q19": {
+          "hit": false,
+          "rr": 0
+        },
+        "q20": {
+          "hit": true,
+          "rr": 1
+        }
+      }
+    },
+    "semantic": {
+      "recallAt5": 0.8,
+      "mrr": 0.8,
+      "hits": 16,
+      "scored": 20,
+      "perQuestion": {
+        "q01": {
+          "hit": true,
+          "rr": 1
+        },
+        "q02": {
+          "hit": true,
+          "rr": 1
+        },
+        "q03": {
+          "hit": true,
+          "rr": 1
+        },
+        "q04": {
+          "hit": true,
+          "rr": 1
+        },
+        "q05": {
+          "hit": true,
+          "rr": 1
+        },
+        "q06": {
+          "hit": true,
+          "rr": 1
+        },
+        "q07": {
+          "hit": true,
+          "rr": 1
+        },
+        "q08": {
+          "hit": true,
+          "rr": 1
+        },
+        "q09": {
+          "hit": true,
+          "rr": 1
+        },
+        "q10": {
+          "hit": false,
+          "rr": 0
+        },
+        "q11": {
+          "hit": true,
+          "rr": 1
+        },
+        "q12": {
+          "hit": true,
+          "rr": 1
+        },
+        "q13": {
+          "hit": true,
+          "rr": 1
+        },
+        "q14": {
+          "hit": true,
+          "rr": 1
+        },
+        "q15": {
+          "hit": true,
+          "rr": 1
+        },
+        "q16": {
+          "hit": true,
+          "rr": 1
+        },
+        "q17": {
+          "hit": false,
+          "rr": 0
+        },
+        "q18": {
+          "hit": false,
+          "rr": 0
+        },
+        "q19": {
+          "hit": false,
+          "rr": 0
+        },
+        "q20": {
+          "hit": true,
+          "rr": 1
+        }
+      }
+    },
+    "hybrid": {
+      "recallAt5": 0.9,
+      "mrr": 0.9,
+      "hits": 18,
+      "scored": 20,
+      "perQuestion": {
+        "q01": {
+          "hit": true,
+          "rr": 1
+        },
+        "q02": {
+          "hit": true,
+          "rr": 1
+        },
+        "q03": {
+          "hit": true,
+          "rr": 1
+        },
+        "q04": {
+          "hit": true,
+          "rr": 1
+        },
+        "q05": {
+          "hit": true,
+          "rr": 1
+        },
+        "q06": {
+          "hit": true,
+          "rr": 1
+        },
+        "q07": {
+          "hit": true,
+          "rr": 1
+        },
+        "q08": {
+          "hit": true,
+          "rr": 1
+        },
+        "q09": {
+          "hit": true,
+          "rr": 1
+        },
+        "q10": {
+          "hit": true,
+          "rr": 1
+        },
+        "q11": {
+          "hit": true,
+          "rr": 1
+        },
+        "q12": {
+          "hit": true,
+          "rr": 1
+        },
+        "q13": {
+          "hit": true,
+          "rr": 1
+        },
+        "q14": {
+          "hit": true,
+          "rr": 1
+        },
+        "q15": {
+          "hit": true,
+          "rr": 1
+        },
+        "q16": {
+          "hit": true,
+          "rr": 1
+        },
+        "q17": {
+          "hit": true,
+          "rr": 1
+        },
+        "q18": {
+          "hit": false,
+          "rr": 0
+        },
+        "q19": {
+          "hit": false,
+          "rr": 0
+        },
+        "q20": {
+          "hit": true,
+          "rr": 1
+        }
+      }
+    }
+  }
+}

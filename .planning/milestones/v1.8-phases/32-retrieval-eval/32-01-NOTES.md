@@ -45,6 +45,28 @@ Multi-hash expected sets: q09 (2 hashes), q19 (3 hashes) — exercise set-member
 - Keyword AND-semantics is strict: most golden queries return exactly 1 result. Keyword recall@5 ≈ 18/20 (0.90) with q18/q19 as designed misses is the expected baseline shape.
 - Recency decay (`_adjustedScore`) uses wall-clock `Date.now()`, so semantic/hybrid scores drift daily. A seed entry sitting near the 0.55 threshold can decay below it over weeks — if the semantic baseline gets noisy over time, that is real retrieval degradation of aging entries, not harness flakiness. Revisit tolerance only if it bites.
 
-## Baseline (added after task 4)
+## Baseline (2026-07-19, commit b717728, `eval/baseline-2026-07-19.json`)
 
-_Pending first `--baseline` run._
+| mode | recall@5 | MRR | hits/scored |
+|------|----------|-----|-------------|
+| keyword | 0.900 | 0.900 | 18/20 |
+| semantic | 0.800 | 0.800 | 16/20 |
+| hybrid | 0.900 | 0.900 | 18/20 |
+
+- Keyword misses: q18, q19 (paraphrase bucket — by design).
+- Semantic misses: q10, q17, q18, q19 — all four returned ZERO results above the 0.55 threshold. q10/q17 are keyword-friendly queries whose semantic similarity lands below 0.55; q18/q19 paraphrases also fall short. This is the measured tuning headroom: threshold/decay proposals (later plan) must show these recover WITHOUT dropping current hits.
+- Hybrid recovers q10/q17 through the keyword RRF side; misses only the paraphrase pair — currently no better than keyword on this set, another honest baseline fact.
+- Voyage account is free-tier rate-limited (3 RPM / 10K TPM observed 2026-07-19): the harness chunks warm-up embeds (24/call) and paces query embeds 21s apart (`EVAL_EMBED_PACE_MS` overridable). A scored 3-mode run takes ~15 min on this tier; keyword-only runs are instant.
+- Stability: two consecutive fully-scored runs agreed EXACTLY — keyword 0.900, semantic 0.800, hybrid 0.900, identical misses, 0 skipped, compare output `(=)` on all three modes, exit 0. Well inside the ±1 recall@5 point tolerance.
+- Provenance note: `baseline-2026-07-19.json` records `gitCommit: 9bca06d`, a session auto-commit that was later split into b717728 (`eval: recall eval harness`). The harness content is byte-identical; 9bca06d is dangling, not in branch history. The artifact is left as generated rather than hand-edited.
+
+## Gate drills (2026-07-19) — the harness cannot silently pass
+
+| drill | change | result |
+|-------|--------|--------|
+| A1 | q05 expected → `deadbeef0000` (hash absent from snapshot) | preflight aborts before scoring: "expected hash not present in seed vault — golden set and snapshot have drifted", **exit 2** |
+| A2 | q05 expected → `a5b3c450972a` (real hash, wrong entry) | visible `q05 keyword MISS expected [a5b3c450972a] got [bb6d27199e84]`, keyword 0.900 → 0.850; compare correctly declines ("golden set changed — not comparable"), exit 0 |
+| B | golden/vault untouched; keyword search temporarily degraded (`prefix: false, fuzzy: false` in `src/memory-reader.js`) | keyword 0.900 → 0.700 `-0.200 REGRESSION`, names `regressed questions: q02, q03, q15, q20`, **exit 1** |
+| B-revert | restore `memory-reader.js` | `(=)`, **exit 0** |
+
+Drill A2 also documents intended behavior worth knowing: changing the golden set or seed vault makes deltas incomparable and suppresses the gate (exit 0) — the regression gate fires on **code/config** changes, which is exactly the tuning scenario it guards. Re-anchor with `--baseline` after any deliberate golden/vault edit.
