@@ -159,6 +159,19 @@ npm run test:uat           # UAT tests (requires CI= to unblock)
 
 Current coverage: Statements 91.95%, Functions 96.00%, Lines 92.64%, Branch 81.47%
 
+### Retrieval eval
+
+Measures /recall quality over a frozen seed vault (`eval/seed-vault/`, 135 entries) with a 20-question golden set (`eval/golden-recall.json`), scored as recall@5 set-membership + MRR across keyword / semantic / hybrid modes. Fully isolated from the live vault and live embeddings cache.
+
+```bash
+npm run eval:recall               # score + compare vs newest eval/baseline-*.json
+npm run eval:recall -- --baseline # write a new baseline (requires all 3 modes)
+```
+
+Exit codes: 0 ok · 1 recall@5 regression vs baseline · 2 preflight/refusal · 3 live-cache isolation violation. Without `VOYAGE_API_KEY`, semantic/hybrid are skipped with a banner (keyword-only, still exits 0). On free-tier Voyage keys the run is rate-limit paced (~15 min); set `EVAL_EMBED_PACE_MS=0` on a paid key.
+
+**Rule: any retrieval tuning proposal (threshold, recencyDecay, rrfK, candidatesPerSource) must cite baseline deltas from this harness — no tuning without a before/after `npm run eval:recall` comparison.**
+
 ### Project Governance
 
 Uses [GSD (Get Shit Done) framework](https://github.com/Pete-Gets-Shit-Done) for:

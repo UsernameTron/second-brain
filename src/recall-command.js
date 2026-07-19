@@ -49,7 +49,7 @@ function parseRecallArgs(argv) {
  * @param {Object} [options] - Internal call options.
  * @param {boolean} [options._internal=false] - When true, suppresses the
  *   `recall_count` daily-stats increment (used by Memory Echo's morning hit).
- * @returns {Promise<{ query: string, mode: string, results: Array<{rank: number, category: string, snippet: string, sourceRef: string, date: string, score: number}>, total: number, lines: string[], empty: boolean, degraded: boolean, degradedBanner: string|null, blocked: boolean, blockedReason: string|null }>} Recall result envelope.
+ * @returns {Promise<{ query: string, mode: string, results: Array<{rank: number, category: string, snippet: string, sourceRef: string, date: string, score: number, contentHash: string}>, total: number, lines: string[], empty: boolean, degraded: boolean, degradedBanner: string|null, blocked: boolean, blockedReason: string|null }>} Recall result envelope.
  */
 async function runRecall(argv, options = {}) {
   const { query, flags } = parseRecallArgs(argv);
@@ -139,6 +139,7 @@ async function runRecall(argv, options = {}) {
     sourceRef: h.sourceRef,
     date: h.date,
     score: h.score !== undefined ? h.score : (h.rrfScore !== undefined ? h.rrfScore : 0),
+    contentHash: h.contentHash || h.id,
   }));
 
   const lines = [];
