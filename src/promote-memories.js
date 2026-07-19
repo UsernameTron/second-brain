@@ -283,7 +283,7 @@ async function appendToMemoryFile(promotedCandidates) {
   // Phase 19 (MEM-EMBED-01): embed-on-promotion; non-fatal but counts are
   // surfaced to the caller so a run with embedded < promoted is visibly not-green.
   let embedded = 0;
-  let failed = 0;
+  let failed;
   try {
     const { indexNewEntries } = require('./semantic-index');
     const result = await indexNewEntries(promotedCandidates);
