@@ -3,6 +3,19 @@
   "digestMax": 10,
   "targets": [
     "~/.claude/projects/-Users-cpconnor/memory",
-    "~/.claude/projects/-Users-cpconnor-projects/memory"
+    "~/.claude/projects/-Users-cpconnor-projects/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-CTG-Workspace-Build/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-CTG-Workspace-Build-projects-ctg-signal-radar/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-CTG-Workspace-Build-projects-ctg-content-engine/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-CTG-Workspace-Build-projects-ctg-l10-eos/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-CTG-Workspace-Build-projects-ctg-ops-automation/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-CTG-Workspace-Build-projects-sentiment-analysis/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-second-brain/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-gsd-eval-harness/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-ctg-content-engine/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-ctg-infrastructure/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-claude-desktop-skills/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-gsd-studio/memory",
+    "~/.claude/projects/-Users-cpconnor-projects-Pete-Gets-Shit-Done/memory"
   ]
 }
