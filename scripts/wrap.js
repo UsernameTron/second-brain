@@ -114,10 +114,21 @@ async function main() {
   }
 
   const count = Array.isArray(results) ? results.length : 0;
-  process.stdout.write(
-    `Extracted ${count} memory candidate(s) from ${source}\n`
-    + 'Staged to proposals/memory-proposals.md — review with /promote-memories\n'
-  );
+  const errors = (results && results.errors) || [];
+
+  process.stdout.write(`Extracted ${count} memory candidate(s) from ${source}\n`);
+
+  // A failed extraction used to look exactly like an empty one and exit 0, so an
+  // unattended /wrap could lose a whole session's memories silently.
+  if (errors.length) {
+    for (const e of errors) {
+      process.stderr.write(`wrap: extraction failed (${e.mode}): ${e.message}\n`);
+    }
+    process.stderr.write('wrap: extraction was incomplete — re-run before relying on this session\n');
+    process.exit(1);
+  }
+
+  process.stdout.write('Staged to proposals/memory-proposals.md — review with /promote-memories\n');
 }
 
 if (require.main === module) {

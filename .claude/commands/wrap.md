@@ -19,4 +19,6 @@ Flags:
 
 Report the candidate count and remind the operator to review with `/promote-memories`. Candidates are staged, never promoted — promotion is a separate human-gated step.
 
+**Check the exit code.** `scripts/wrap.js` exits non-zero when extraction hard-failed (Haiku API error, malformed JSON response, unreadable transcript). A non-zero exit means the session's memories were **not** captured — say so and re-run. Do not report it as "0 candidates", which is the legitimate result of an uneventful session and exits 0.
+
 **Do not call `extractMemories({})` with no options** — it returns `[]` immediately and stages nothing. Transcript extraction goes through `extractFromTranscript`, which is what `scripts/wrap.js` does for the no-flag case.

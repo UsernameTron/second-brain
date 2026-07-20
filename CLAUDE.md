@@ -40,7 +40,7 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 |---------|---------|
 | `/today` | Daily prep list — 6-section briefing with slippage scan, frog identification, memory compounding |
 | `/new` | Route mixed input to correct location via two-stage LLM classifier |
-| `/wrap` | Session wrap with automatic memory extraction and proposal staging to `memory-proposals.md`. Bare invocation extracts from this project's newest Claude Code transcript; `--transcript/--file/--dir/--since` override. CLI: `node scripts/wrap.js` |
+| `/wrap` | Session wrap with automatic memory extraction and proposal staging to `memory-proposals.md`. Bare invocation extracts from this project's newest Claude Code transcript; `--transcript/--file/--dir/--since` override. **Exits non-zero when extraction hard-fails** (Haiku error, malformed JSON, unreadable transcript) — a failed extraction is distinguishable from an empty one. CLI: `node scripts/wrap.js` |
 | `/promote-memories` | Human-in-the-loop memory promotion from staging to `memory.md` |
 | `/reroute` | Re-route previously classified item to different vault location |
 | `/promote-unrouted` | Re-route a single unrouted dead-letter file to a target vault path |

@@ -204,6 +204,25 @@ describe('main', () => {
     expect(err.join('')).toContain('transcript not found');
   });
 
+  test('exits 1 when the extractor reports a failure, and does not claim staging', async () => {
+    // Regression: a malformed-JSON Haiku response printed "Extracted 0 memory
+    // candidate(s)", claimed the session was staged, and exited 0.
+    writeRepoTranscript('session.jsonl');
+    process.argv = ['node', 'wrap.js'];
+    const tagged = [];
+    Object.defineProperty(tagged, 'errors', {
+      value: [{ mode: 'parse-error', message: 'Haiku returned a non-array payload: object' }],
+      enumerable: false,
+    });
+    extractFromTranscript.mockResolvedValueOnce(tagged);
+
+    await expect(wrap.main()).rejects.toThrow('__exit__');
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(err.join('')).toContain('extraction failed (parse-error)');
+    expect(out.join('')).not.toContain('Staged to proposals');
+  });
+
   test('a non-array extractor result reports 0 rather than crashing', async () => {
     writeRepoTranscript('session.jsonl');
     process.argv = ['node', 'wrap.js'];

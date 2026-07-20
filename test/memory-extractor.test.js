@@ -89,6 +89,116 @@ describe('extractFromTranscript', () => {
     expect(result).toHaveLength(0);
   });
 
+  // A failed extraction used to be indistinguishable from an empty one: both were a
+  // bare []. Haiku returning malformed JSON printed "Extracted 0 memory candidate(s)"
+  // and exited 0, silently losing the session. `errors` is what tells them apart.
+  describe('failure signalling', () => {
+    function writeSignalTranscript(name = 'transcript.jsonl') {
+      const p = path.join(tmpDir, name);
+      fs.writeFileSync(p, makeMessage('user', 'This is a test message that is long enough') + '\n');
+      return p;
+    }
+
+    test('a Haiku failure tags the empty result with errors', async () => {
+      const result = await extractor.extractFromTranscript(
+        writeSignalTranscript(),
+        'session-abc',
+        { _haikuClient: mockHaikuFailure() }
+      );
+
+      expect(result).toHaveLength(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].mode).toBe('api-error');
+    });
+
+    test('a non-array Haiku payload is recorded as parse-error, not silently coerced', async () => {
+      // The reported incident: Haiku returned malformed JSON that parsed to an object.
+      const mockClient = {
+        classify: jest.fn().mockResolvedValue({ success: true, data: { not: 'an array' } }),
+      };
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = await extractor.extractFromTranscript(
+        writeSignalTranscript('malformed.jsonl'),
+        'session-abc',
+        { _haikuClient: mockClient }
+      );
+
+      expect(result).toHaveLength(0);
+      expect(result.errors[0].mode).toBe('parse-error');
+    });
+
+    test('an unreadable transcript tags the result with read-error', async () => {
+      const result = await extractor.extractFromTranscript('/nonexistent/t.jsonl', 'session-abc');
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].mode).toBe('read-error');
+    });
+
+    test('a partially failed chunked run returns the surviving candidates AND the failures', async () => {
+      const transcriptPath = path.join(tmpDir, 'chunked.jsonl');
+      const lines = [];
+      for (let i = 0; i < 2100; i++) { // > oversizeThresholdMessages, so the chunked path runs
+        lines.push(makeMessage('user', 'Message number ' + i + ' with sufficient length for extraction test'));
+      }
+      fs.writeFileSync(transcriptPath, lines.join('\n') + '\n');
+
+      let call = 0;
+      const mockClient = {
+        classify: jest.fn().mockImplementation(() => {
+          call += 1;
+          if (call === 1) {
+            return Promise.resolve({
+              success: true,
+              data: [{ category: 'LEARNING', content: 'A candidate that survived the first chunk', source_ref: 'session:abc', confidence: 0.9, rationale: 'test' }],
+            });
+          }
+          return Promise.resolve({ success: false, error: 'API error', failureMode: 'api-error' });
+        }),
+      };
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = await extractor.extractFromTranscript(transcriptPath, 'session-abc', { _haikuClient: mockClient });
+
+      // Partial success must not be thrown away, and must not pass as complete.
+      expect(result.length).toBeGreaterThan(0);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].mode).toBe('api-error');
+    });
+
+    test('a clean run carries no errors — no false alarm on the happy path', async () => {
+      const mockClient = mockHaiku([
+        { category: 'LEARNING', content: 'A perfectly ordinary extracted memory candidate', source_ref: 'session:abc', confidence: 0.9, rationale: 'test' },
+      ]);
+
+      const result = await extractor.extractFromTranscript(writeSignalTranscript('clean.jsonl'), 'session-abc', { _haikuClient: mockClient });
+
+      expect(result.errors).toBeUndefined();
+    });
+
+    test('an empty-but-successful run carries no errors', async () => {
+      const result = await extractor.extractFromTranscript(
+        writeSignalTranscript('quiet.jsonl'),
+        'session-abc',
+        { _haikuClient: mockHaiku([]) }
+      );
+
+      expect(result).toHaveLength(0);
+      expect(result.errors).toBeUndefined();
+    });
+
+    test('extractFromDirectory propagates a child file failure to the aggregate', async () => {
+      fs.mkdirSync(path.join(tmpDir, 'notes'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'notes', 'a.md'), '# A note with enough content to classify\n', 'utf8');
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = await extractor.extractFromDirectory('notes', { _haikuClient: mockHaikuFailure() });
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].mode).toBe('api-error');
+    });
+  });
+
   test('excludes system-reminder messages (role === "system")', async () => {
     const transcriptPath = path.join(tmpDir, 'transcript.jsonl');
     fs.writeFileSync(transcriptPath, [
