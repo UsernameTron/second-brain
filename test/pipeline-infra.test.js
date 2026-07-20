@@ -1083,6 +1083,175 @@ describe('classifyLocal — LLM fallback hardening', () => {
     expect(result.success).toBe(true);
     expect(result.data).toEqual({ category: 'note', confidence: 0.95 });
   });
+
+  // ── Malformed config fails loudly, missing config stays benign (B1) ───────
+
+  test('a schema-violating config fails loudly instead of downgrading to Anthropic', async () => {
+    const cfgPath = path.join(tmpConfigDir, 'pipeline.json');
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    cfg.classifier.llm.localTimeoutMs = 'not-an-integer'; // violates the schema
+    fs.writeFileSync(cfgPath, JSON.stringify(cfg));
+
+    const mockAnthropicCreate = jest.fn();
+    global.fetch = jest.fn();
+    const client = loadClientIsolated(jest.fn(), mockAnthropicCreate);
+    const result = await client.classify('sys', 'content');
+
+    expect(result.success).toBe(false);
+    expect(result.failureMode).toBe('config-error');
+    expect(result.error).toMatch(/pipeline config invalid/);
+    // The whole point: it must NOT quietly route to Anthropic or the local endpoint.
+    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('unparseable config JSON fails loudly', async () => {
+    fs.writeFileSync(path.join(tmpConfigDir, 'pipeline.json'), '{ not json');
+    const mockAnthropicCreate = jest.fn();
+    const client = loadClientIsolated(jest.fn(), mockAnthropicCreate);
+    const result = await client.classify('sys', 'content');
+
+    expect(result.success).toBe(false);
+    expect(result.failureMode).toBe('config-error');
+    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+  });
+
+  test('a MISSING config file is benign — falls through to Anthropic as before', async () => {
+    fs.rmSync(path.join(tmpConfigDir, 'pipeline.json'));
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({
+      content: [{ text: '{"ok":true}' }],
+    });
+    const client = loadClientIsolated(jest.fn(), mockAnthropicCreate);
+    const result = await client.classify('sys', 'content');
+
+    // missing !== malformed: unchanged behavior, no config-error
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ ok: true });
+    expect(mockAnthropicCreate).toHaveBeenCalled();
+  });
+
+  // ── Fenced / annotated JSON tolerance ─────────────────────────────────────
+  // Regression: Haiku returned "```json\n[]\n```\n\n**Rationale:** ..." and the
+  // old end-anchored fence strip left a backtick in, dying at position 3.
+
+  function mockLocalContent(content) {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ choices: [{ message: { content } }] }),
+    });
+    return loadClientIsolated(jest.fn(), jest.fn());
+  }
+
+  test.each([
+    ['bare JSON', '[{"a":1}]'],
+    ['```json fenced', '```json\n[{"a":1}]\n```'],
+    ['bare ``` fenced', '```\n[{"a":1}]\n```'],
+    ['fenced + trailing prose', '```json\n[{"a":1}]\n```\n\n**Rationale:** because.'],
+    ['leading prose', 'Here are the results:\n[{"a":1}]'],
+    ['leading prose + fenced + trailing prose', 'Sure!\n```json\n[{"a":1}]\n```\nDone.'],
+  ])('parses %s', async (_label, content) => {
+    const result = await mockLocalContent(content).classify('sys', 'content');
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual([{ a: 1 }]);
+  });
+
+  test('tolerates brackets inside strings without miscounting', async () => {
+    const result = await mockLocalContent('```json\n[{"a":"] not a close [ "}]\n```\ntrailing')
+      .classify('sys', 'content');
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual([{ a: '] not a close [ ' }]);
+  });
+
+  test('empty array from a fenced+annotated response parses as empty, not a failure', async () => {
+    const result = await mockLocalContent('```json\n[]\n```\n\n**Rationale:** nothing found.')
+      .classify('sys', 'content');
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual([]);
+  });
+
+  // ── localTimeoutMs ────────────────────────────────────────────────────────
+
+  /** Rewrite the temp pipeline.json's llm block, then load a client against it. */
+  function loadClientWithLlmConfig(llmOverrides) {
+    const cfgPath = path.join(tmpConfigDir, 'pipeline.json');
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    Object.assign(cfg.classifier.llm, llmOverrides);
+    fs.writeFileSync(cfgPath, JSON.stringify(cfg));
+    return loadClientIsolated(jest.fn(), jest.fn());
+  }
+
+  test('defaults the local abort timeout to 10_000 when localTimeoutMs is absent', async () => {
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ choices: [{ message: { content: '[]' } }] }),
+    });
+    const client = loadClientWithLlmConfig({});
+    await client.classify('sys', 'content');
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 10_000);
+    setTimeoutSpy.mockRestore();
+  });
+
+  test('honors localTimeoutMs when set', async () => {
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ choices: [{ message: { content: '[]' } }] }),
+    });
+    const client = loadClientWithLlmConfig({ localTimeoutMs: 60_000 });
+    await client.classify('sys', 'content');
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 60_000);
+    expect(setTimeoutSpy).not.toHaveBeenCalledWith(expect.any(Function), 10_000);
+    setTimeoutSpy.mockRestore();
+  });
+
+  test('localTimeoutMs survives schema validation (config loads, local mode stays active)', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ choices: [{ message: { content: '[]' } }] }),
+    });
+    const client = loadClientWithLlmConfig({ localTimeoutMs: 60_000 });
+    const result = await client.classify('sys', 'content');
+
+    // If the schema rejected localTimeoutMs, safeLoadPipelineConfig would swallow
+    // the error and silently route to Anthropic instead of fetch.
+    expect(global.fetch).toHaveBeenCalled();
+    expect(result.success).toBe(true);
+  });
+
+  // HARD CONSTRAINT: genuinely malformed input must STILL fail loudly.
+  test.each([
+    ['prose only', 'I could not produce JSON for this input.'],
+    ['truncated array', '```json\n[{"a":1},'],
+    ['unclosed object', '{"a": '],
+    ['fence opened but never closed', '```json\n[{"a":1}'],
+  ])('genuinely malformed input (%s) still yields the parse-error failure signal', async (_label, content) => {
+    const mockLogDecision = jest.fn();
+    const mockAnthropicCreate = jest.fn();
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ choices: [{ message: { content } }] }),
+    });
+    const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
+    const result = await client.classify('sys', 'content');
+
+    expect(result.success).toBe(false);
+    expect(result.failureMode).toBe('parse-error');
+    expect(result.error).toMatch(/JSON parse failed/);
+    // must NOT silently fall back or degrade to an empty result
+    expect(result.data).toBeUndefined();
+    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY', 'test-model', 'PARSE_ERROR', expect.any(String)
+    );
+  });
 });
 
 // ── T13.6 overlay round-trip tests for new loaders ──────────────────────────

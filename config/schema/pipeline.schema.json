@@ -70,6 +70,10 @@
             "localModel": {
               "type": "string",
               "minLength": 1
+            },
+            "localTimeoutMs": {
+              "type": "integer",
+              "minimum": 1
             }
           },
           "additionalProperties": false
