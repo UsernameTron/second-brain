@@ -21,7 +21,7 @@ git clone <repo>
 cd second-brain
 npm install
 cp .env.example .env   # add ANTHROPIC_API_KEY and optionally VOYAGE_API_KEY
-npm test               # verify 1321 tests pass (1283 active + 38 CI-skipped)
+npm test               # verify 1336 tests pass (1298 active + 38 CI-skipped)
 npm run lint           # verify ESLint 10 clean
 ```
 
@@ -166,8 +166,8 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 | Gate | Tool | Threshold |
 |---|---|---|
 | Lint | ESLint 10 (flat config) | 0 errors |
-| Unit + integration tests | Jest 30, Node 20+22 matrix | 1321 total, 1283 passing |
-| Branch coverage | Jest coverage | ≥80% enforced (currently 81.49%) |
+| Unit + integration tests | Jest 30, Node 20+22 matrix | 1336 total, 1298 passing |
+| Branch coverage | Jest coverage | ≥80% enforced (currently 81.59%) |
 | Security scan | CodeQL SAST | 0 high/critical |
 | Secrets scan | GitGuardian | 0 secrets |
 | License check | license-checker | MIT/ISC/Apache/BSD only |
@@ -181,7 +181,7 @@ UAT tests (`test/uat/`) are guarded by `CI=true` skip logic and run on a separat
 - [ ] Obsidian Local REST API plugin running on port 27123
 - [ ] Docker MCP Gateway running (for Gmail/Calendar/GitHub connectors)
 - [ ] launchd scheduler installed (weekday `/today` at 06:45 local): `launchctl load ~/Library/LaunchAgents/com.secondbrain.today.plist`
-- [ ] `npm test` passes (1321 tests, 1283 passing)
+- [ ] `npm test` passes (1336 tests, 1298 passing)
 - [ ] `npm run lint` exits 0
 - [ ] `~/.cache/second-brain/` writable (auto-created on first `/recall --semantic`)
 

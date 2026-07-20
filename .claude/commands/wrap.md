@@ -1,34 +1,22 @@
 ---
-description: Extract memories from the current session transcript and stage as proposals. Usage: /wrap [--file <path>] [--dir <path>] [--since YYYY-MM-DD]
+description: Extract memories from the current session transcript and stage as proposals. Usage: /wrap [--transcript <path>] [--file <path>] [--dir <path>] [--since YYYY-MM-DD]
 ---
 
-Run the `/wrap` command to extract memory candidates from session transcripts or vault files and stage them in `proposals/memory-proposals.md` for human review.
+Run the `/wrap` command to extract memory candidates from the session transcript (or from vault files) and stage them in `proposals/memory-proposals.md` for human review via `/promote-memories`.
 
-Invoke `extractMemories` from `./src/memory-extractor` with an options object built from the user's arguments.
-
-Reference implementation:
+Run `scripts/wrap.js` — it loads dotenv (extraction classifies via Haiku and 401s without `ANTHROPIC_API_KEY`) and, with no flags, resolves the newest Claude Code transcript for this project:
 
 ```bash
-node -e "
-  const { extractMemories } = require('./src/memory-extractor');
-  const args = process.argv.slice(1);
-  const opts = {};
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--file' && args[i+1]) opts.file = args[++i];
-    else if (args[i] === '--dir' && args[i+1]) opts.dir = args[++i];
-    else if (args[i] === '--since' && args[i+1]) opts.since = args[++i];
-  }
-  extractMemories(opts).then(r => {
-    const count = Array.isArray(r) ? r.length : 0;
-    process.stdout.write('Extracted ' + count + ' memory candidate(s) to proposals/memory-proposals.md\n');
-  }).catch(err => {
-    process.stderr.write('wrap failed: ' + err.message + '\n');
-    process.exit(1);
-  });
-" -- $ARGUMENTS
+node scripts/wrap.js $ARGUMENTS
 ```
 
 Flags:
+- *(no flags)* — extract from this project's newest transcript in `~/.claude/projects/<slug>/`.
+- `--transcript <path>` — extract from a specific transcript `.jsonl` (use when several sessions are open and the newest is not the one you mean).
 - `--file <path>` — extract from a specific vault file (relative to vault root).
 - `--dir <path>` — extract from all markdown files in a vault directory.
 - `--since YYYY-MM-DD` — extract from Daily/ notes on or after this date.
+
+Report the candidate count and remind the operator to review with `/promote-memories`. Candidates are staged, never promoted — promotion is a separate human-gated step.
+
+**Do not call `extractMemories({})` with no options** — it returns `[]` immediately and stages nothing. Transcript extraction goes through `extractFromTranscript`, which is what `scripts/wrap.js` does for the no-flag case.
