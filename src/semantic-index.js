@@ -335,11 +335,10 @@ async function indexNewEntries(entries) {
 
   // Write schema version metadata after successful embeddings
   if (embedded > 0) {
-    const existingMeta = readMetadata();
+    // Always refresh updatedAt on a successful embed — previously this only
+    // wrote when schema_version changed, leaving updatedAt permanently stale.
     const version = computeSchemaVersion(sem);
-    if (existingMeta.schema_version !== version) {
-      writeMetadata({ schema_version: version, updatedAt: new Date().toISOString() });
-    }
+    writeMetadata({ schema_version: version, updatedAt: new Date().toISOString() });
   }
 
   return { success: failed === 0, embedded, failed, failureMode: lastFailureMode };
