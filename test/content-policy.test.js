@@ -98,6 +98,36 @@ describe('4. Haiku timeout/error → BLOCK', () => {
     expect(result.decision).not.toBe('PASS');
     expect(result.decision).toBe('BLOCK');
   });
+
+  // D-08 fail-closed: the verdict is positively asserted on the exact word ALLOW.
+  // Any other reply — including ones that LOOK like a block, or a truncated/garbled
+  // one — must block rather than read as permission to pass.
+  test.each([
+    ['BLOCKED', 'BLOCKED'],
+    ['BLOCK with punctuation', 'BLOCK.'],
+    ['empty string', ''],
+    ['whitespace only', '   \n  '],
+    ['prose preamble', 'I would classify this as BLOCK'],
+    ['truncated verdict', 'BLO'],
+    ['fenced JSON instead of a word', '```json\n{"decision":"allow"}\n```'],
+    ['refusal', 'I cannot classify this content.'],
+  ])('malformed Haiku verdict (%s) still BLOCKs', async (_label, reply) => {
+    mockHaikuResponse(reply);
+    const result = await checkContent('ISPN architecture details', ['ISPN']);
+    expect(result.decision).toBe('BLOCK');
+    expect(result.decision).not.toBe('PASS');
+  });
+
+  test('the exact word ALLOW is still the only thing that passes', async () => {
+    mockHaikuResponse('ALLOW');
+    const result = await checkContent('I led a team at Genesys', ['Genesys']);
+    expect(result).toEqual({ decision: 'PASS' });
+  });
+
+  test('classifyWithHaiku returns BLOCK for an unrecognized verdict', async () => {
+    mockHaikuResponse('MAYBE');
+    await expect(classifyWithHaiku('ISPN thing', 'ISPN', ['ISPN'], 250)).resolves.toBe('BLOCK');
+  });
 });
 
 // ── 5. Minimal context sent to Haiku (privacy) ───────────────────────────────

@@ -164,7 +164,10 @@ Respond with only the word BLOCK or ALLOW.`;
   });
 
   const text = response.content[0].text.trim().toUpperCase();
-  return text === 'BLOCK' ? 'BLOCK' : 'ALLOW';
+  // Positively assert ALLOW (D-08). Testing for BLOCK instead would fail OPEN on any
+  // unrecognized reply — "BLOCKED", "BLOCK.", prose, or an empty string would all read as
+  // permission to pass. Only the exact word ALLOW allows; everything else blocks.
+  return text === 'ALLOW' ? 'ALLOW' : 'BLOCK';
 }
 
 // ── Content sanitization (paragraph-level, contamination radius) ──────────────
