@@ -104,9 +104,21 @@ describe('parseArgs', () => {
     expect(wrap.parseArgs(['--transcript', '/tmp/a.jsonl'])).toEqual({ transcript: '/tmp/a.jsonl' });
   });
 
-  test('a flag missing its value is ignored rather than swallowing the next flag', () => {
+  test('a flag missing its value at the end of argv is ignored', () => {
     expect(wrap.parseArgs(['--file'])).toEqual({});
     expect(wrap.parseArgs(['--dir', 'inbox', '--since'])).toEqual({ dir: 'inbox' });
+  });
+
+  test('a flag followed by another flag does not swallow it', () => {
+    // Regression: `--file --since 2026-07-01` stored '--since' as the file path
+    // and ate the real --since, so the date filter was silently dropped.
+    expect(wrap.parseArgs(['--file', '--since', '2026-07-01'])).toEqual({ since: '2026-07-01' });
+    expect(wrap.parseArgs(['--transcript', '--file', 'a.md'])).toEqual({ file: 'a.md' });
+    expect(wrap.parseArgs(['--dir', '--transcript', '/tmp/s.jsonl'])).toEqual({ transcript: '/tmp/s.jsonl' });
+  });
+
+  test('an empty-string value is treated as missing', () => {
+    expect(wrap.parseArgs(['--file', ''])).toEqual({});
   });
 });
 

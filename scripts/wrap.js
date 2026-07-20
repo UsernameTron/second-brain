@@ -67,13 +67,22 @@ function resolveLatestTranscript(projectRoot) {
   return newest;
 }
 
+/**
+ * A value-taking flag's argument must exist and not itself be a flag.
+ * Otherwise `--file --since 2026-07-01` stores '--since' as the path AND
+ * eats the real --since, so extraction runs against a vault file literally
+ * named '--since', finds nothing, and reports success — the silent-success
+ * shape this script exists to remove.
+ */
+const hasValue = (v) => typeof v === 'string' && v !== '' && !v.startsWith('--');
+
 function parseArgs(argv) {
   const opts = {};
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--file' && argv[i + 1]) opts.file = argv[++i];
-    else if (argv[i] === '--dir' && argv[i + 1]) opts.dir = argv[++i];
-    else if (argv[i] === '--since' && argv[i + 1]) opts.since = argv[++i];
-    else if (argv[i] === '--transcript' && argv[i + 1]) opts.transcript = argv[++i];
+    if (argv[i] === '--file' && hasValue(argv[i + 1])) opts.file = argv[++i];
+    else if (argv[i] === '--dir' && hasValue(argv[i + 1])) opts.dir = argv[++i];
+    else if (argv[i] === '--since' && hasValue(argv[i + 1])) opts.since = argv[++i];
+    else if (argv[i] === '--transcript' && hasValue(argv[i + 1])) opts.transcript = argv[++i];
   }
   return opts;
 }
