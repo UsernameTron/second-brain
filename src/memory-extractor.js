@@ -45,6 +45,46 @@ const HIGH_SIGNAL_PATTERNS = [
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
+ * Record a hard extraction failure on a results array.
+ *
+ * A failed extraction used to be indistinguishable from an empty one: every error
+ * path collapsed to a bare []. Callers now check `results.errors` to tell the two
+ * apart (see scripts/wrap.js, scripts/daily-sweep.js).
+ *
+ * ponytail: errors ride on the results array as a non-enumerable property (like
+ * RegExp.exec's .index) so every existing consumer's .length / Array.isArray /
+ * toEqual([]) keeps working, and partial results survive alongside the failures
+ * that produced them. Extraction still never throws (D-64).
+ *
+ * @param {object[]} results - Results array to tag (mutated)
+ * @param {string} mode - Failure mode: read-error | api-error | timeout | parse-error | extraction-error
+ * @param {string} message - Human-readable failure detail
+ * @returns {object[]} The same results array
+ */
+function recordFailure(results, mode, message) {
+  if (!results.errors) {
+    Object.defineProperty(results, 'errors', { value: [], enumerable: false });
+  }
+  results.errors.push({ mode, message });
+  return results;
+}
+
+/**
+ * Merge failures recorded on a child results array into a parent array.
+ * Without this the signal dies at every aggregation boundary.
+ *
+ * @param {object[]} parent - Aggregate results array (mutated)
+ * @param {object[]} child - Results returned by a nested extractor call
+ * @returns {object[]} The parent array
+ */
+function mergeFailures(parent, child) {
+  if (child && child.errors) {
+    for (const e of child.errors) recordFailure(parent, e.mode, e.message);
+  }
+  return parent;
+}
+
+/**
  * Check if a message should be excluded from the extraction corpus.
  * Excludes per D-45:
  *   - system-reminder messages (role === 'system')
@@ -271,9 +311,9 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
       }
     }
   } catch (err) {
-    // eslint-disable-next-line no-console -- last-resort-error: Transcript read failed; extractor returns []
+    // eslint-disable-next-line no-console -- last-resort-error: Transcript read failed; extractor returns [] tagged with errors
     console.error('[memory-extractor] Could not read transcript: ' + err.message);
-    return [];
+    return recordFailure([], 'read-error', 'Could not read transcript: ' + err.message);
   }
 
   if (messages.length === 0) {
@@ -292,12 +332,20 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
       // truncates at this size, chunk it — don't just raise the number again.
       const response = await haiku.classify(systemPrompt, corpus, { maxTokens: 8192 });
       if (!response.success) {
-        // eslint-disable-next-line no-console -- last-resort-error: Single-pass Haiku extraction failed; extractor returns []
+        // eslint-disable-next-line no-console -- last-resort-error: Single-pass Haiku extraction failed; extractor returns [] tagged with errors
         console.error('[memory-extractor] Haiku extraction failed: ' + (response.error || 'unknown'));
-        return [];
+        return recordFailure(
+          [],
+          response.failureMode || 'api-error',
+          'Haiku extraction failed: ' + (response.error || 'unknown')
+        );
       }
-      const candidates = Array.isArray(response.data) ? response.data : [];
-      const results = await processCandidates(candidates, sessionId, transcriptPath, 'wrap', seenHashes);
+      if (!Array.isArray(response.data)) {
+        // eslint-disable-next-line no-console -- last-resort-error: Haiku returned a non-array payload; extractor returns [] tagged with errors
+        console.error('[memory-extractor] Haiku returned a non-array payload: ' + typeof response.data);
+        return recordFailure([], 'parse-error', 'Haiku returned a non-array payload: ' + typeof response.data);
+      }
+      const results = await processCandidates(response.data, sessionId, transcriptPath, 'wrap', seenHashes);
       allResults.push(...results);
     } else {
       // Chunked extraction per D-46
@@ -308,13 +356,21 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
         const corpus = buildCorpus(chunk);
 
         const response = await haiku.classify(systemPrompt, corpus, { maxTokens: 8192 });
-        if (response.success) {
-          const candidates = Array.isArray(response.data) ? response.data : [];
-          const results = await processCandidates(candidates, sessionId, transcriptPath, 'wrap', seenHashes);
-          allResults.push(...results);
-        } else {
+        if (!response.success) {
           // eslint-disable-next-line no-console -- degradation-warning: Chunk extraction failed; loop continues to next chunk with partial results
           console.error('[memory-extractor] Chunk extraction failed at ' + start + ': ' + (response.error || 'unknown'));
+          recordFailure(
+            allResults,
+            response.failureMode || 'api-error',
+            'Chunk extraction failed at ' + start + ': ' + (response.error || 'unknown')
+          );
+        } else if (!Array.isArray(response.data)) {
+          // eslint-disable-next-line no-console -- degradation-warning: Chunk returned a non-array payload; loop continues with partial results
+          console.error('[memory-extractor] Chunk returned a non-array payload at ' + start + ': ' + typeof response.data);
+          recordFailure(allResults, 'parse-error', 'Chunk returned a non-array payload at ' + start);
+        } else {
+          const results = await processCandidates(response.data, sessionId, transcriptPath, 'wrap', seenHashes);
+          allResults.push(...results);
         }
 
         // Advance with overlap
@@ -323,9 +379,11 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
       }
     }
   } catch (err) {
-    // eslint-disable-next-line no-console -- last-resort-error: Outer extraction try/catch fired; extractor returns []
+    // eslint-disable-next-line no-console -- last-resort-error: Outer extraction try/catch fired; extractor returns partial results tagged with errors
     console.error('[memory-extractor] Extraction error: ' + err.message);
-    return [];
+    // Return what was already staged rather than discarding it — the caller needs
+    // the partial results AND the failure, not one masquerading as the other.
+    return recordFailure(allResults, 'extraction-error', 'Extraction error: ' + err.message);
   }
 
   return allResults;
@@ -351,27 +409,37 @@ async function extractFromFile(relativePath, options = {}) {
     const absolutePath = path.join(VAULT_ROOT, relativePath);
     content = fs.readFileSync(absolutePath, 'utf8');
   } catch (err) {
-    // eslint-disable-next-line no-console -- last-resort-error: File read failed in extractFromFile; returns []
+    // eslint-disable-next-line no-console -- last-resort-error: File read failed in extractFromFile; returns [] tagged with errors
     console.error('[memory-extractor] Could not read file ' + relativePath + ': ' + err.message);
-    return [];
+    return recordFailure([], 'read-error', 'Could not read file ' + relativePath + ': ' + err.message);
   }
 
   let response;
   try {
     response = await haiku.classify(systemPrompt, content, { maxTokens: 8192 });
   } catch (err) {
-    // eslint-disable-next-line no-console -- last-resort-error: Haiku call threw in extractFromFile; returns []
+    // eslint-disable-next-line no-console -- last-resort-error: Haiku call threw in extractFromFile; returns [] tagged with errors
     console.error('[memory-extractor] Haiku call failed for ' + relativePath + ': ' + err.message);
-    return [];
+    return recordFailure([], 'api-error', 'Haiku call failed for ' + relativePath + ': ' + err.message);
   }
 
   if (!response.success) {
-    // eslint-disable-next-line no-console -- last-resort-error: Haiku response unsuccessful in extractFromFile; returns []
+    // eslint-disable-next-line no-console -- last-resort-error: Haiku response unsuccessful in extractFromFile; returns [] tagged with errors
     console.error('[memory-extractor] Haiku extraction failed for ' + relativePath + ': ' + (response.error || 'unknown'));
-    return [];
+    return recordFailure(
+      [],
+      response.failureMode || 'api-error',
+      'Haiku extraction failed for ' + relativePath + ': ' + (response.error || 'unknown')
+    );
   }
 
-  const candidates = Array.isArray(response.data) ? response.data : [];
+  if (!Array.isArray(response.data)) {
+    // eslint-disable-next-line no-console -- last-resort-error: Haiku returned a non-array payload; returns [] tagged with errors
+    console.error('[memory-extractor] Haiku returned a non-array payload for ' + relativePath + ': ' + typeof response.data);
+    return recordFailure([], 'parse-error', 'Haiku returned a non-array payload for ' + relativePath);
+  }
+
+  const candidates = response.data;
   const seenHashes = new Set();
   const results = [];
 
@@ -437,15 +505,16 @@ async function extractFromDirectory(relativeDir, options = {}) {
       .filter((f) => f.endsWith('.md'))
       .map((f) => path.join(relativeDir, f));
   } catch (err) {
-    // eslint-disable-next-line no-console -- last-resort-error: Directory read failed in extractFromDirectory; returns []
+    // eslint-disable-next-line no-console -- last-resort-error: Directory read failed in extractFromDirectory; returns [] tagged with errors
     console.error('[memory-extractor] Could not read directory ' + relativeDir + ': ' + err.message);
-    return [];
+    return recordFailure([], 'read-error', 'Could not read directory ' + relativeDir + ': ' + err.message);
   }
 
   const allResults = [];
   for (const file of files) {
     const results = await extractFromFile(file, options);
     allResults.push(...results);
+    mergeFailures(allResults, results);
   }
 
   return allResults;
@@ -482,8 +551,10 @@ async function extractMemories(options = {}) {
     let files;
     try {
       files = fs.readdirSync(dailyAbsDir).filter((f) => f.endsWith('.md'));
-    } catch (_) {
-      return [];
+    } catch (err) {
+      // eslint-disable-next-line no-console -- last-resort-error: Daily/ read failed; returns [] tagged with errors
+      console.error('[memory-extractor] Could not read Daily/: ' + err.message);
+      return recordFailure([], 'read-error', 'Could not read Daily/: ' + err.message);
     }
 
     let filtered;
@@ -509,6 +580,7 @@ async function extractMemories(options = {}) {
       const relPath = path.join('Daily', f);
       const results = await extractFromFile(relPath, options);
       allResults.push(...results);
+      mergeFailures(allResults, results);
     }
     return allResults;
   }

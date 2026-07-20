@@ -16,7 +16,7 @@ Built for a technical executive who directs AI. The project code lives in this r
 ## Quick Start
 
 ### Prerequisites
-- Node.js 20+ (22 LTS recommended, tested in CI matrix)
+- Node.js 22+ (required by the `node:sqlite` built-in, tested in CI)
 - Obsidian 1.7+ with Local REST API plugin running
 - Claude Code with GSD framework deployed
 
@@ -24,7 +24,7 @@ Built for a technical executive who directs AI. The project code lives in this r
 ```bash
 npm install
 npm run lint  # ESLint 10 (flat config)
-npm test      # Jest 30 — 1338 total tests (1300 pass, 38 skipped in CI)
+npm test      # Jest 30 — 1383 total tests (1345 pass, 38 skipped in CI)
 ```
 
 **Optional: Semantic memory search** — Set `VOYAGE_API_KEY` in `.env` to enable `/recall --semantic` and `/recall --hybrid`. Without the key, `/recall` falls back to keyword search. See [docs/DEVOPS-HANDOFF.md](docs/DEVOPS-HANDOFF.md) for acquisition steps and configuration.
@@ -115,10 +115,10 @@ CLAUDE.md                    # Project governance, commands, conventions
 
 **Latest Release:** v1.7 Prove Compounding (2026-07-16) | Phases 29-31: Series Integrity, Outcome Instrumentation, Trend & Report
 **In progress:** v1.8 Measured Memory — Phase 32 Retrieval Eval Baseline shipped 2026-07-19 (PR #74); Phases 33-36 planned
-- **1338 total tests** across 70 test files (1300 passing, 38 skipped in CI)
-- **Branch coverage:** 81.65% (threshold: ≥80% enforced in CI)
+- **1383 total tests** across 71 test files (1345 passing, 38 skipped in CI)
+- **Branch coverage:** 81.04% (threshold: ≥80% enforced in CI)
 - **Lint:** 0 ESLint no-console warnings
-- **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 20+22 matrix, GitGuardian secrets scan
+- **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 22 matrix, GitGuardian secrets scan
 - **Operational components:** `/today` daily briefing (weekdays 06:45 local via launchd), memory compounding metrics, outcome instrumentation (11-column daily-stats), compounding verdict surfaces
 - **Shipped milestones:** v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23), v1.3 Review Remediation (2026-04-24), v1.4 Closeout Hygiene (2026-04-25), v1.5 Internal Hardening (2026-04-26), v1.6 Enforcement Integrity (2026-07-15), v1.7 Prove Compounding (2026-07-16)
 
@@ -130,7 +130,7 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 |-----------|---------|---------|
 | **Vault** | Obsidian 1.7+ | Local-first markdown substrate at `~/Claude Cowork/` |
 | **Orchestration** | Claude Code | Command execution via `/today`, `/new`, `/wrap` |
-| **Runtime** | Node.js 20+22 LTS | Project code execution (tested matrix in CI) |
+| **Runtime** | Node.js 22+ LTS | Project code execution (required by `node:sqlite`; tested in CI) |
 | **AI Models** | Anthropic Haiku/Sonnet | Primary LLM for classification and briefing generation |
 | **Fallback** | LM Studio | Local LLM if Anthropic API unavailable |
 | **Testing** | Jest 30 | Unit + integration + UAT (UAT guarded from CI) |
@@ -148,7 +148,7 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 ### Test Coverage
 
 ```bash
-npm test                    # Run all tests (1338 total; set CI=true to skip UAT)
+npm test                    # Run all tests (1383 total; set CI=true to skip UAT)
 npm run lint               # ESLint validation
 npm run test:uat           # UAT tests (requires CI= to unblock)
 ```
@@ -158,7 +158,7 @@ npm run test:uat           # UAT tests (requires CI= to unblock)
 - Critical modules (auth, vault boundary): ≥95%
 - All other modules: ≥80%
 
-Current coverage (CI-measured 2026-07-19): Statements 91.81%, Functions 95.71%, Lines 92.48%, Branch 81.65%
+Current coverage (CI-measured 2026-07-20): Statements 91.61%, Functions 95.44%, Lines 92.39%, Branch 81.04%
 
 ### Retrieval eval
 

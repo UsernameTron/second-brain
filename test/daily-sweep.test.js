@@ -174,6 +174,29 @@ describe('sweepInbox', () => {
     expect(fs.existsSync(path.join(inboxDir, 'skip.txt'))).toBe(true); // non-.md left alone
   });
 
+  test('a failed extraction leaves inbox files in place instead of archiving them', async () => {
+    const inboxDir = path.join(vaultRoot, 'inbox');
+    fs.mkdirSync(inboxDir, { recursive: true });
+    fs.writeFileSync(path.join(inboxDir, 'a.md'), '# A\n', 'utf8');
+    fs.writeFileSync(path.join(inboxDir, 'b.md'), '# B\n', 'utf8');
+    const tagged = [];
+    Object.defineProperty(tagged, 'errors', {
+      value: [{ mode: 'api-error', message: 'Haiku extraction failed: 401' }],
+      enumerable: false,
+    });
+    extractMemories.mockResolvedValueOnce(tagged);
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await sweep.sweepInbox();
+
+    // Archiving is destructive — a failed extraction must not consume the inbox.
+    expect(result.processed).toBe(0);
+    expect(result.failed).toBe(1);
+    expect(fs.existsSync(path.join(inboxDir, 'a.md'))).toBe(true);
+    expect(fs.existsSync(path.join(inboxDir, 'b.md'))).toBe(true);
+    expect(fs.existsSync(path.join(inboxDir, 'archive', 'a.md'))).toBe(false);
+  });
+
   test('survives a failed archive move and still returns a count', async () => {
     const inboxDir = path.join(vaultRoot, 'inbox');
     fs.mkdirSync(inboxDir, { recursive: true });
@@ -214,7 +237,7 @@ describe('sweepTranscripts resilience', () => {
     expect(extractFromTranscript).not.toHaveBeenCalled();
   });
 
-  test('a throwing extractor is logged, not fatal, and the file is still ledgered', async () => {
+  test('a throwing extractor is logged, not fatal, and the file is left unledgered for retry', async () => {
     const filePath = writeTranscript('-Users-cpconnor-projects-foo', 'boom.jsonl', [
       { role: 'assistant', content: 'We decided to use JWT for auth' },
     ]);
@@ -225,7 +248,26 @@ describe('sweepTranscripts resilience', () => {
 
     expect(result.swept).toBe(1);
     expect(result.extracted).toBe(0);
-    expect(sweep.loadLedger().some((e) => e.path === filePath)).toBe(true);
+    // Ledgering a failed transcript would write the session off permanently.
+    expect(sweep.loadLedger().some((e) => e.path === filePath)).toBe(false);
+  });
+
+  test('an errors-tagged extractor result leaves the transcript unledgered for retry', async () => {
+    const filePath = writeTranscript('-Users-cpconnor-projects-foo', 'malformed.jsonl', [
+      { role: 'assistant', content: 'We decided to use JWT for auth' },
+    ]);
+    const tagged = [];
+    Object.defineProperty(tagged, 'errors', {
+      value: [{ mode: 'parse-error', message: 'Haiku returned a non-array payload: object' }],
+      enumerable: false,
+    });
+    extractFromTranscript.mockResolvedValueOnce(tagged);
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await sweep.sweepTranscripts();
+
+    expect(result.extracted).toBe(0);
+    expect(sweep.loadLedger().some((e) => e.path === filePath)).toBe(false);
   });
 
   test('re-sweeping a changed file updates its ledger entry in place', async () => {

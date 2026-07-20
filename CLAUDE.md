@@ -27,10 +27,10 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 **v1.7 complete (2026-07-16):** Series Integrity (Phase 29), Outcome Instrumentation (Phase 30), Trend & Report (Phase 31)
 **v1.6 complete (2026-07-15):** Promotion Safety, Cross-Surface Reach (ADR-018/019), Context Honesty (staleness hook, ADR-020 authority hierarchy, fail-closed exclusions), Surface Completion (/reroute, pre-push docs gate)
 
-- **Test count:** 1338 total across 70 test files (1300 passing, 38 skipped in CI)
-- **Coverage:** Branch 81.65%, Statements 91.81%, Functions 95.71%, Lines 92.48% (CI-measured)
+- **Test count:** 1383 total across 71 test files (1345 passing, 38 skipped in CI)
+- **Coverage:** Branch 81.04%, Statements 91.61%, Functions 95.44%, Lines 92.39% (CI-measured)
 - **Lint:** 0 ESLint no-console warnings
-- **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 20+22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
+- **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
 
 For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES.md).
 
@@ -40,7 +40,7 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 |---------|---------|
 | `/today` | Daily prep list — 6-section briefing with slippage scan, frog identification, memory compounding |
 | `/new` | Route mixed input to correct location via two-stage LLM classifier |
-| `/wrap` | Session wrap with automatic memory extraction and proposal staging to `memory-proposals.md`. Bare invocation extracts from this project's newest Claude Code transcript; `--transcript/--file/--dir/--since` override. CLI: `node scripts/wrap.js` |
+| `/wrap` | Session wrap with automatic memory extraction and proposal staging to `memory-proposals.md`. Bare invocation extracts from this project's newest Claude Code transcript; `--transcript/--file/--dir/--since` override. **Exits non-zero when extraction hard-fails** (Haiku error, malformed JSON, unreadable transcript) — a failed extraction is distinguishable from an empty one. CLI: `node scripts/wrap.js` |
 | `/promote-memories` | Human-in-the-loop memory promotion from staging to `memory.md` |
 | `/reroute` | Re-route previously classified item to different vault location |
 | `/promote-unrouted` | Re-route a single unrouted dead-letter file to a target vault path |
@@ -81,7 +81,7 @@ Claude Code hooks live separately in `.claude/hooks/` (auto-test, protected-file
 
 - **Vault:** Obsidian 1.7+ (local-first markdown, LOCAL REST API plugin required)
 - **Orchestration:** Claude Code (GSD framework for phases, planning, execution)
-- **Runtime:** Node.js 20+22 LTS (tested matrix in CI)
+- **Runtime:** Node.js 22 LTS or newer — required by `node:sqlite` (tested in CI)
 - **Integrations:** GitHub + Obsidian via Docker MCP Gateway (mcp__MCP_DOCKER__*); Gmail + Calendar via claude.ai connectors (mcp__claude_ai_*). Session/Desktop-connected — only context7 is registered in repo .mcp.json.
 - **AI models:** Anthropic Haiku/Sonnet, LM Studio for local fallback
 - **Testing:** Jest 30 (unit + integration), UAT tests guarded from CI via skip logic

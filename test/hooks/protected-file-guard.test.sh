@@ -151,6 +151,42 @@ EXIT=0
 run_hook '{"tool_input":{"file_path":"src/env-helper.js"}}' "$STDERR" || EXIT=$?
 assert_exit "env in filename not blocked" 0 "$EXIT"
 
+# ── 6. Bash writes to protected paths (the Edit-only bypass) ─────────────────
+# The guard originally read tool_input.file_path only, so `echo x > .env` via
+# Bash reached protected files that Edit could not touch.
+
+bash_case() {
+  local n="$1" desc="$2" cmd="$3" expected="$4"
+  local json stderr_file="$WORK_DIR/errb$n.txt" EXIT=0
+  json=$(node -e 'process.stdout.write(JSON.stringify({tool_input:{command:process.argv[1]}}))' "$cmd")
+  echo "Bash test $n: $desc"
+  run_hook "$json" "$stderr_file" || EXIT=$?
+  assert_exit "$desc" "$expected" "$EXIT"
+}
+
+# Must BLOCK — writes reaching a protected path
+bash_case 1 'redirect into config/schema/'   'echo pwned > config/schema/pipeline.schema.json' 2
+bash_case 2 'append into .env'               'echo TOKEN=x >> .env'                            2
+bash_case 3 'sed -i on .env'                 "sed -i '' 's/a/b/' .env"                         2
+bash_case 4 'cp onto config/schema/'         'cp /tmp/x config/schema/a.json'                  2
+bash_case 5 'tee into .env.local'            'tee .env.local < /tmp/y'                         2
+bash_case 6 'mv onto a credentials file'     'mv /tmp/c my-credentials.json'                   2
+
+# Must ALLOW — reads and unrelated commands must not regress ergonomics
+bash_case 7  'plain read of a schema'        'cat config/schema/pipeline.schema.json'          0
+bash_case 8  'read with stderr redirect'     'cat config/schema/x.json 2>/dev/null'            0
+bash_case 9  'grep an env example'           'grep foo .env.example'                           0
+bash_case 10 'unrelated redirect'            'npx jest > out.txt 2>&1'                         0
+bash_case 11 'read after a redirect+&&'      'npx jest > o.txt 2>&1 && cat config/schema/a.json' 0
+bash_case 12 'ordinary command'              'npm run lint'                                    0
+
+# Edit path must still block — the original guarantee is intact
+echo "Bash test 13: Edit to config/schema/ still blocks"
+STDERR="$WORK_DIR/errb13.txt"
+EXIT=0
+run_hook '{"tool_input":{"file_path":"config/schema/pipeline.schema.json"}}' "$STDERR" || EXIT=$?
+assert_exit "Edit still blocked" 2 "$EXIT"
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 
 echo ""

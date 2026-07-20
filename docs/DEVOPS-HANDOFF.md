@@ -9,7 +9,7 @@ v1.8 Phase 32 (2026-07-19) adds a retrieval eval harness (`npm run eval:recall`)
 ## Environment Requirements
 
 - **Obsidian 1.7+** with Local REST API plugin running (port 27123 default)
-- **Node.js 20+** (22 LTS recommended; tested matrix in CI)
+- **Node.js 22+** (required by the `node:sqlite` built-in; tested in CI)
 - **Claude Code CLI** with GSD framework deployed
 - **Git**
 - **Docker** (for MCP Gateway — Gmail, Calendar, GitHub integrations)
@@ -166,7 +166,7 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 | Gate | Tool | Threshold |
 |---|---|---|
 | Lint | ESLint 10 (flat config) | 0 errors |
-| Unit + integration tests | Jest 30, Node 20+22 matrix | 1338 total, 1300 passing |
+| Unit + integration tests | Jest 30, Node 22 matrix | 1383 total, 1345 passing |
 | Branch coverage | Jest coverage | ≥80% enforced (currently 81.65%) |
 | Security scan | CodeQL SAST | 0 high/critical |
 | Secrets scan | GitGuardian | 0 secrets |

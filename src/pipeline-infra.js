@@ -46,6 +46,85 @@ function generateCorrelationId() {
   return crypto.randomUUID();
 }
 
+// ── LLM response parsing ─────────────────────────────────────────────────────
+
+/**
+ * Scan forward from `start` for the matching close bracket, returning the
+ * balanced span. String-aware so brackets inside JSON strings don't miscount.
+ *
+ * @param {string} text
+ * @param {number} start - index of the opening '[' or '{'
+ * @returns {string|null} balanced substring, or null if never closed
+ */
+function scanBalancedSpan(text, start) {
+  const open = text[start];
+  const close = open === '[' ? ']' : '}';
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === '\\') { if (inString) escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === open) depth++;
+    else if (ch === close && --depth === 0) return text.slice(start, i + 1);
+  }
+  return null;
+}
+
+/**
+ * Parse JSON out of an LLM response that may be fenced, prefixed with prose,
+ * or followed by commentary (e.g. "```json\n[]\n```\n\n**Rationale:** ...").
+ *
+ * Tries, in order: the bare string, the first fenced block, then the first
+ * balanced [...]/{...} span.
+ *
+ * Throws SyntaxError when nothing parses — callers rely on that to emit the
+ * parse-error failure signal, so a genuinely malformed response must NOT be
+ * silently downgraded to an empty result.
+ *
+ * @param {string} rawText - raw LLM response text
+ * @returns {*} parsed JSON value
+ * @throws {SyntaxError} when no well-formed JSON is present
+ */
+function parseLlmJson(rawText) {
+  const text = String(rawText);
+  const attempt = (s) => {
+    if (!s) return undefined;
+    try { return { value: JSON.parse(s) }; } catch (_) { return undefined; }
+  };
+
+  // 1. Bare JSON — the common, well-behaved case.
+  let hit = attempt(text.trim());
+  if (hit) return hit.value;
+
+  // 2. First fenced block, ```json or bare ```.
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) {
+    hit = attempt(fenced[1].trim());
+    if (hit) return hit.value;
+  }
+
+  // 3. First balanced array/object span — covers leading prose and unterminated
+  // fences. ponytail: O(n·span) rescan; responses are max_tokens-bounded (~KB),
+  // so a smarter scanner isn't worth the code.
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== '[' && text[i] !== '{') continue;
+    const span = scanBalancedSpan(text, i);
+    // Never closed before EOF — the response is truncated. Scanning further would
+    // pull a fragment out of the cut-off container (e.g. the first element of a
+    // half-written array) and pass it off as the whole answer. Fail loudly instead.
+    if (span === null) break;
+    hit = attempt(span);
+    if (hit) return hit.value;
+  }
+
+  throw new SyntaxError(`no well-formed JSON in LLM response: ${text.slice(0, 80)}`);
+}
+
 // ── LLM client factory ───────────────────────────────────────────────────────
 
 /**
@@ -60,7 +139,22 @@ function createLlmClient(options = {}) {
   const model = options.model || 'claude-haiku-4-5';
 
   // Check for local LLM provider config
-  const { config: pipelineConfig_ } = safeLoadPipelineConfig();
+  const { config: pipelineConfig_, error: configErr } = safeLoadPipelineConfig();
+
+  // Missing is not the same as malformed. An absent config file (ENOENT) falls through to
+  // defaults, as it always has. A config that EXISTS but is unparseable or violates schema
+  // must fail loudly: silently treating it as "no local provider" downgrades to Anthropic and
+  // hides a broken setup behind results that look fine.
+  if (configErr && configErr.code !== 'ENOENT') {
+    return {
+      classify: async () => ({
+        success: false,
+        error: `pipeline config invalid: ${configErr.message}`,
+        failureMode: 'config-error',
+      }),
+    };
+  }
+
   const llmConfig = pipelineConfig_ && pipelineConfig_.classifier && pipelineConfig_.classifier.llm;
   const useLocal = llmConfig && llmConfig.provider === 'local';
 
@@ -90,7 +184,10 @@ function createLlmClient(options = {}) {
     const correlationId = callOptions.correlationId || 'none';
 
     const controller = new AbortController(); // eslint-disable-line no-undef
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    // Local models vary hugely in load/inference time; a 27B on first token can
+    // exceed any fixed budget. Configurable, but unchanged at 10s when unset.
+    const timeoutMs = llmConfig.localTimeoutMs || 10_000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (process.env.LM_API_TOKEN) {
@@ -131,8 +228,7 @@ function createLlmClient(options = {}) {
       logDecision('LLM_CLASSIFY', llmConfig.localModel, 'CALLED', `local endpoint, correlation-id: ${correlationId}`);
 
       // Parse JSON response
-      const stripped = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-      const data = JSON.parse(stripped);
+      const data = parseLlmJson(rawText);
       return { success: true, data };
     } catch (err) {
       clearTimeout(timeoutId);
@@ -204,9 +300,7 @@ function createLlmClient(options = {}) {
 
     // Parse JSON response
     try {
-      // Strip markdown code fences if present (common LLM habit)
-      const stripped = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-      const data = JSON.parse(stripped);
+      const data = parseLlmJson(rawText);
       return { success: true, data };
     } catch (parseErr) {
       logDecision('LLM_CLASSIFY', model, 'PARSE_ERROR', `raw: ${rawText.slice(0, 100)}`);

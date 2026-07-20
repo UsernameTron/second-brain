@@ -549,6 +549,19 @@ async function promoteMemories(options = {}) {
     }
   }
 
+  // SQLite index rebuild after a real promotion — pure derivation of the
+  // source files (memory.md stays source of truth); non-fatal on failure.
+  let indexRebuild = null;
+  if (!dryRun && promoted.length > 0) {
+    try {
+      const { buildIndex } = require('../scripts/build-index');
+      indexRebuild = await buildIndex();
+    } catch (err) {
+      process.stderr.write(`[promote-memories] Index rebuild failed (non-fatal): ${err && err.message ? err.message : err}\n`);
+      indexRebuild = { success: false, error: String((err && err.message) || err) };
+    }
+  }
+
   const result = {
     promoted: promoted.length,
     deferred: toDefer.length,
@@ -560,6 +573,7 @@ async function promoteMemories(options = {}) {
     embedFailed: embedResult.failed,
   };
   if (reach) result.reach = reach;
+  if (indexRebuild) result.indexRebuild = indexRebuild;
   if (dryRun) {
     result.dryRun = true;
     result.wouldPromote = promoted.map(c => ({ candidateId: c.candidateId, category: c.category }));

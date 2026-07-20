@@ -136,13 +136,24 @@ async function sweepTranscripts() {
       console.error(`[daily-sweep] Signal scan failed for ${candidate.path}: ${err.message}`);
     }
     if (signal) {
+      let failed = false;
       try {
         const sessionId = path.basename(candidate.path, '.jsonl');
         const results = await extractFromTranscript(candidate.path, sessionId);
         extracted += Array.isArray(results) ? results.length : 0;
+        if (results && results.errors && results.errors.length) {
+          failed = true;
+          for (const e of results.errors) {
+            console.error(`[daily-sweep] Extraction failure (${e.mode}) for ${candidate.path}: ${e.message}`);
+          }
+        }
       } catch (err) {
+        failed = true;
         console.error(`[daily-sweep] Transcript extraction failed for ${candidate.path}: ${err.message}`);
       }
+      // Don't ledger a transcript whose extraction failed — leaving it unswept is
+      // what makes the next run retry it instead of writing the session off.
+      if (failed) continue;
     }
     const existingIdx = newLedgerEntries.findIndex((e) => e.path === candidate.path);
     const entry = { path: candidate.path, mtime: candidate.mtime };
@@ -174,6 +185,17 @@ async function sweepInbox() {
 
   const files = fs.readdirSync(inbox).filter((f) => f.endsWith('.md'));
   const results = await extractMemories({ dir: 'inbox' });
+  const errors = (results && results.errors) || [];
+
+  // Archiving is destructive — an inbox file moved to archive/ after a failed
+  // extraction is gone for good. Leave them in place so the next sweep retries.
+  if (errors.length) {
+    for (const e of errors) {
+      console.error(`[daily-sweep] Inbox extraction failure (${e.mode}): ${e.message}`);
+    }
+    console.error(`[daily-sweep] Leaving ${files.length} inbox file(s) unarchived for retry`);
+    return { processed: 0, extracted: Array.isArray(results) ? results.length : 0, failed: errors.length };
+  }
 
   for (const file of files) {
     try {
