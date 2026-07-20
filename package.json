@@ -1,6 +1,6 @@
 {
   "name": "second-brain",
-  "version": "1.0.0",
+  "version": "1.7.0",
   "description": "Obsidian vault operating system",
   "main": "src/vault-gateway.js",
   "scripts": {
