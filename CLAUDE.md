@@ -27,8 +27,8 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 **v1.7 complete (2026-07-16):** Series Integrity (Phase 29), Outcome Instrumentation (Phase 30), Trend & Report (Phase 31)
 **v1.6 complete (2026-07-15):** Promotion Safety, Cross-Surface Reach (ADR-018/019), Context Honesty (staleness hook, ADR-020 authority hierarchy, fail-closed exclusions), Surface Completion (/reroute, pre-push docs gate)
 
-- **Test count:** 1321 total across 69 test files (1283 passing, 38 skipped in CI)
-- **Coverage:** Branch 81.49%, Statements 91.77%, Functions 95.86%, Lines 92.46% (CI-measured)
+- **Test count:** 1336 total across 70 test files (1298 passing, 38 skipped in CI)
+- **Coverage:** Branch 81.59%, Statements 91.81%, Functions 95.70%, Lines 92.48% (CI-measured)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 20+22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
 
@@ -40,7 +40,7 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 |---------|---------|
 | `/today` | Daily prep list — 6-section briefing with slippage scan, frog identification, memory compounding |
 | `/new` | Route mixed input to correct location via two-stage LLM classifier |
-| `/wrap` | Session wrap with automatic memory extraction and proposal staging to `memory-proposals.md` |
+| `/wrap` | Session wrap with automatic memory extraction and proposal staging to `memory-proposals.md`. Bare invocation extracts from this project's newest Claude Code transcript; `--transcript/--file/--dir/--since` override. CLI: `node scripts/wrap.js` |
 | `/promote-memories` | Human-in-the-loop memory promotion from staging to `memory.md` |
 | `/reroute` | Re-route previously classified item to different vault location |
 | `/promote-unrouted` | Re-route a single unrouted dead-letter file to a target vault path |
