@@ -8,7 +8,7 @@
     "llm": {
       "provider": "anthropic",
       "localEndpoint": "http://localhost:1234",
-      "localModel": "qwen2.5-coder-7b"
+      "localModel": "qwen/qwen3.6-27b"
     }
   },
   "extraction": {

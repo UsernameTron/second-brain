@@ -209,6 +209,15 @@ function createLlmClient(options = {}) {
           // routing), so a fixed json_schema can't fit both — 'text' + the JSON-only
           // system prompt + the fence-stripping parser below is the generic choice.
           response_format: { type: 'text' },
+          // Disable the model's hidden <think> phase so the token budget produces an
+          // answer, not reasoning. LM Studio (this project's local engine) honors the
+          // OpenAI-style `reasoning_effort`; `enable_thinking:false` is the vLLM/HF
+          // chat-template equivalent for other backends. Verified live against
+          // qwen3.6-27b: reasoning_effort:'none' yields non-empty content, where
+          // enable_thinking alone did not. Engines ignore the key they don't know; the
+          // reasoning-starved guard below is the backstop if neither lands.
+          reasoning_effort: 'none',
+          chat_template_kwargs: { enable_thinking: false },
         }),
       });
       clearTimeout(timeoutId);
@@ -219,11 +228,19 @@ function createLlmClient(options = {}) {
       }
 
       const body = await response.json();
-      if (!body.choices?.[0]?.message?.content || typeof body.choices[0].message.content !== 'string') {
-        logDecision('LLM_CLASSIFY', llmConfig.localModel, 'SHAPE_ERROR', 'response missing choices[0].message.content');
+      const message = body.choices?.[0]?.message;
+      if (!message?.content || typeof message.content !== 'string') {
+        // A reasoning model that spends its whole token budget in the hidden
+        // <think> phase returns empty content but a populated reasoning_content.
+        // Flag that case distinctly so it's diagnosable from a generic shape error
+        // — the fix is enable_thinking:false above and/or a larger max_tokens.
+        const reason = (typeof message?.reasoning_content === 'string' && message.reasoning_content.trim())
+          ? 'reasoning-starved: content empty, reasoning_content present'
+          : 'response missing choices[0].message.content';
+        logDecision('LLM_CLASSIFY', llmConfig.localModel, 'SHAPE_ERROR', reason);
         return { success: false, error: 'Local LLM response missing expected shape', failureMode: 'api-error' };
       }
-      const rawText = body.choices[0].message.content;
+      const rawText = message.content;
 
       logDecision('LLM_CLASSIFY', llmConfig.localModel, 'CALLED', `local endpoint, correlation-id: ${correlationId}`);
 
