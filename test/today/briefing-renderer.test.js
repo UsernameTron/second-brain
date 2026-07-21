@@ -336,6 +336,25 @@ describe('renderBriefing', () => {
 
     expect(doc).not.toMatch(/## Compounding/);
   });
+
+  // ── Phase 33: sweep-status line (CAP-EVIDENCE-01) ───────────────────────
+  test('renders ## Compounding with the sweep line even when the trend body is null', () => {
+    const doc = renderBriefing(baseData({ compounding: null, sweep: 'sweep NEVER RAN' }));
+
+    expect(doc).toMatch(/## Compounding/);
+    expect(doc).toMatch(/sweep NEVER RAN/);
+  });
+
+  test('renders both the trend body and the sweep line when both are present', () => {
+    const doc = renderBriefing(baseData({
+      compounding: '**Verdict: compounding**',
+      sweep: 'sweep ran 06:45, staged 12',
+    }));
+
+    expect(doc).toMatch(/## Compounding/);
+    expect(doc).toMatch(/\*\*Verdict: compounding\*\*/);
+    expect(doc).toMatch(/sweep ran 06:45, staged 12/);
+  });
 });
 
 // ── Phase 20: yesterday summary line (TODAY-SUMMARY-01) ──────────────────────

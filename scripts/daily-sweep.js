@@ -44,6 +44,9 @@ const dryRun = process.argv.includes('--dry-run');
 const TRANSCRIPTS_ROOT = process.env.TRANSCRIPTS_ROOT_OVERRIDE || path.join(os.homedir(), '.claude', 'projects');
 const LEDGER_PATH = process.env.LEDGER_PATH_OVERRIDE || path.join(__dirname, '..', 'state', 'transcripts-swept.json');
 const TRANSCRIPT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+// Proof-of-fire evidence (Phase 33 CAP-EVIDENCE-01): written atomically at sweep end.
+// Gitignored (state/); /today's sweep-status line reads it. Override for test isolation.
+const LAST_RUN_PATH = process.env.DAILY_SWEEP_LAST_RUN_PATH_OVERRIDE || path.join(__dirname, '..', 'state', 'daily-sweep-last-run.json');
 
 // ponytail: cheap keyword heuristic mirrors memory-extractor's HIGH_SIGNAL_PATTERNS
 // intent (git/PR/decision language) — good enough to skip a stream-grep on files
@@ -209,6 +212,7 @@ async function sweepInbox() {
 }
 
 async function main() {
+  const startedAt = Date.now();
   const today = new Date().toISOString().slice(0, 10);
   console.error(`[daily-sweep] Starting sweep for ${today}${dryRun ? ' (DRY RUN)' : ''}`);
 
@@ -278,6 +282,27 @@ async function main() {
   } catch (err) {
     console.error(`[daily-sweep] Inbox sweep failed: ${err.message}`);
     results.inboxSweep = { error: err.message };
+  }
+
+  // 6. Persist proof-of-fire (CAP-EVIDENCE-01). Real runs only — dry-run stays side-effect-free.
+  // Fail-open: a failed evidence write must NEVER fail the sweep, whose exit code drives the
+  // launchd observation. Atomic tmp+rename, mirroring voyage-health._writeHealth.
+  if (!dryRun) {
+    try {
+      const staged =
+        (Array.isArray(results.extraction) ? results.extraction.length : 0) +
+        ((results.transcriptSweep && results.transcriptSweep.extracted) || 0) +
+        ((results.inboxSweep && results.inboxSweep.extracted) || 0);
+      let degraded = false;
+      try { degraded = require('../src/utils/classifier-health').isDegraded(); } catch (_) { /* fail-open */ }
+      const lastRun = { ts: new Date().toISOString(), staged, durationMs: Date.now() - startedAt, degraded };
+      fs.mkdirSync(path.dirname(LAST_RUN_PATH), { recursive: true });
+      const tmp = LAST_RUN_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(lastRun, null, 2), 'utf8');
+      fs.renameSync(tmp, LAST_RUN_PATH);
+    } catch (err) {
+      console.error(`[daily-sweep] Last-run evidence write failed (non-fatal): ${err.message}`);
+    }
   }
 
   console.error(`[daily-sweep] Sweep complete for ${today}`);
