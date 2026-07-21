@@ -164,8 +164,32 @@ function extractNoteMetadata(relativePath, content) {
   };
 }
 
+// ── Index exclusions (D-18) ──────────────────────────────────────────────────
+// Pipeline storage: files the system writes, not content anyone links TO.
+// Archives are append-only dumps (their titles are bare months — [[2026-04]]),
+// memory.md is the store itself (an entry linking to it is circular), and
+// daily-stats.md is a machine-written counter file.
+const EXCLUDED_DIRS = ['proposals', 'memory-archive', 'memory-proposals-archive'];
+const EXCLUDED_FILES = ['memory/memory.md', 'RIGHT/daily-stats.md'];
+
+/**
+ * Is this vault-relative path pipeline storage rather than linkable content?
+ * Single source of truth for every index write path (build + refresh).
+ *
+ * @param {string} relPath - Vault-relative path (dir or file)
+ * @returns {boolean}
+ */
+function isExcludedFromIndex(relPath) {
+  // Dot-segments (memory/.snapshots/, .obsidian, .trash) and underscore-prefixed
+  // scratch output (_dry-run-*) are never linkable content.
+  if (relPath.split('/').some(seg => seg.startsWith('.') || seg.startsWith('_'))) return true;
+  if (EXCLUDED_FILES.includes(relPath)) return true;
+  return EXCLUDED_DIRS.some(d => relPath === d || relPath.startsWith(`${d}/`));
+}
+
 /**
  * Recursively collect all .md files under a directory, returning relative vault paths.
+ * Excluded paths are skipped, pruning recursion before descending into them.
  *
  * @param {string} absDir - Absolute directory path
  * @param {string} relBase - Relative base path (vault-relative prefix)
@@ -181,6 +205,8 @@ function collectMarkdownFiles(absDir, relBase) {
   }
   for (const entry of entries) {
     const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+    // The only place nested exclusions (memory/.snapshots/) are caught.
+    if (isExcludedFromIndex(relPath)) continue;
     if (entry.isDirectory()) {
       results.push(...collectMarkdownFiles(path.join(absDir, entry.name), relPath));
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
@@ -192,7 +218,8 @@ function collectMarkdownFiles(absDir, relBase) {
 
 /**
  * Build the vault index by scanning all vault directories.
- * Excludes files in the proposals/ directory (transient, not linkable per D-18).
+ * Excludes pipeline storage — proposals/, memory archives, snapshots, the memory
+ * store itself, and machine-written artifacts (see isExcludedFromIndex, D-18).
  * Writes result to .cache/vault-index.json.
  * Creates .cache/ directory if missing.
  *
@@ -205,15 +232,15 @@ async function buildVaultIndex() {
   const index = [];
 
   for (const dir of allDirs) {
-    // Skip proposals/ entirely — transient files should not be linked
-    if (dir === 'proposals' || dir.startsWith('proposals/')) continue;
+    // Skip excluded top-level dirs entirely — pipeline storage is not linkable
+    if (isExcludedFromIndex(dir)) continue;
 
     const absDir = path.join(VAULT_ROOT, dir);
     const files = collectMarkdownFiles(absDir, dir);
 
     for (const relPath of files) {
-      // Extra guard: skip any file that somehow ended up under proposals/
-      if (relPath.startsWith('proposals/')) continue;
+      // Final guard: catch anything that slipped through collection
+      if (isExcludedFromIndex(relPath)) continue;
 
       const absPath = path.join(VAULT_ROOT, relPath);
       try {
@@ -271,8 +298,8 @@ async function loadVaultIndex() {
  * @returns {Promise<void>}
  */
 async function refreshIndexEntry(relativePath) {
-  // Skip proposals/ files — they should never be in the index
-  if (relativePath.startsWith('proposals/')) return;
+  // Excluded paths must never enter the index via the refresh path either
+  if (isExcludedFromIndex(relativePath)) return;
 
   const index = await loadVaultIndex();
 

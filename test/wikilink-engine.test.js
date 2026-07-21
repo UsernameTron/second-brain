@@ -41,7 +41,7 @@ beforeAll(() => {
 
   fs.writeFileSync(path.join(configDir, 'vault-paths.json'), JSON.stringify({
     left: ['ABOUT ME', 'Daily'],
-    right: ['memory', 'briefings', 'proposals'],
+    right: ['memory', 'briefings', 'proposals', 'memory-archive', 'memory-proposals-archive', 'RIGHT', 'inbox'],
     haikuContextChars: 100,
   }));
   fs.writeFileSync(path.join(configDir, 'excluded-terms.json'), JSON.stringify(['ISPN', 'Genesys']));
@@ -57,7 +57,8 @@ beforeAll(() => {
   }));
 
   // Create vault directory structure
-  const dirs = ['ABOUT ME', 'Daily', 'memory', 'briefings', 'proposals'];
+  const dirs = ['ABOUT ME', 'Daily', 'memory', 'briefings', 'proposals',
+    'memory-archive', 'memory-proposals-archive', 'RIGHT', 'inbox'];
   for (const d of dirs) {
     fs.mkdirSync(path.join(tmpDir, d), { recursive: true });
   }
@@ -162,6 +163,46 @@ describe('vault index — buildVaultIndex', () => {
     expect(proposalEntry).toBeUndefined();
   });
 
+  test('excludes pipeline storage — archives, snapshots, the memory store, machine artifacts', async () => {
+    createNote('memory-archive/2026-04.md', '# April archive\n\nArchived entries.');
+    createNote('memory-proposals-archive/2026-07.md', '# July proposals\n\nArchived proposals.');
+    createNote('memory/.snapshots/dream-20260721/memory.md', '# Snapshot\n\nBackup copy.');
+    createNote('memory/memory.md', '# Memory\n\nThe store itself.');
+    createNote('RIGHT/daily-stats.md', '# Stats\n\nMachine-written counters.');
+    createNote('RIGHT/daily/_dry-run-2026-07-16.md', '# Dry run\n\nScratch output.');
+
+    const { buildVaultIndex } = requireFresh('../src/wikilink-engine');
+    const index = await buildVaultIndex();
+    const paths = index.map(e => e.path);
+
+    for (const excluded of [
+      'memory-archive/2026-04.md',
+      'memory-proposals-archive/2026-07.md',
+      'memory/.snapshots/dream-20260721/memory.md',
+      'memory/memory.md',
+      'RIGHT/daily-stats.md',
+      'RIGHT/daily/_dry-run-2026-07-16.md',
+    ]) {
+      expect(paths).not.toContain(excluded);
+    }
+  });
+
+  test('keeps content notes — digests, inbox lessons, daily notes stay linkable', async () => {
+    createNote('memory/weekly-digest-2026-07-17.md', '# Digest\n\nWeekly summary content.');
+    createNote('inbox/archive/2026-07-20-some-lesson.md', '# Lesson\n\nA captured lesson.');
+    createNote('RIGHT/daily/2026-07-21.md', '# Daily\n\nReal daily note.');
+
+    const { buildVaultIndex } = requireFresh('../src/wikilink-engine');
+    const index = await buildVaultIndex();
+    const paths = index.map(e => e.path);
+
+    // Guards against over-filtering: these live under dirs that also hold
+    // excluded files, so a too-broad rule would silently swallow them.
+    expect(paths).toContain('memory/weekly-digest-2026-07-17.md');
+    expect(paths).toContain('inbox/archive/2026-07-20-some-lesson.md');
+    expect(paths).toContain('RIGHT/daily/2026-07-21.md');
+  });
+
   test('writes result to .cache/vault-index.json', async () => {
     createNote('memory/cache-write-test.md', '---\ntitle: Cache Write Test\n---\n\nTesting cache write.');
     const { buildVaultIndex } = requireFresh('../src/wikilink-engine');
@@ -216,6 +257,17 @@ describe('vault index — refreshIndexEntry', () => {
   beforeEach(() => {
     const cacheFile = path.join(tmpCacheDir, 'vault-index.json');
     if (fs.existsSync(cacheFile)) fs.rmSync(cacheFile);
+  });
+
+  test('refuses to add an excluded path to the index', async () => {
+    fs.writeFileSync(path.join(tmpCacheDir, 'vault-index.json'), JSON.stringify([]), 'utf8');
+    createNote('memory-archive/2026-07.md', '# July archive\n\nArchived entries.');
+
+    const { refreshIndexEntry, loadVaultIndex } = requireFresh('../src/wikilink-engine');
+    await refreshIndexEntry('memory-archive/2026-07.md');
+
+    // Guard exists on the build path; this covers the refresh path too.
+    expect(await loadVaultIndex()).toHaveLength(0);
   });
 
   test('updates existing entry in the index', async () => {
