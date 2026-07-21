@@ -53,8 +53,16 @@ function _snippet(content, term) {
 }
 
 /**
+ * A field line is `key:: value` at line start — key is word chars/hyphens and
+ * the `::` is followed by a space or end-of-line. A bare `::` mid-prose (e.g.
+ * "status::pending" inside a sentence) is content, not a field; the old
+ * "line contains ::" rule truncated such entries' content to nothing.
+ */
+const FIELD_LINE_RE = /^[\w-]+::( |$)/;
+
+/**
  * Parse inline `key:: value` fields from body lines.
- * Lines before the first `::` are content; lines with `::` are fields.
+ * Lines before the first field line are content; field lines are fields.
  *
  * @param {string[]} lines
  * @returns {{ fields: Object<string, string>, contentLines: string[] }}
@@ -65,15 +73,13 @@ function _parseFields(lines) {
   let inFields = false;
 
   for (const line of lines) {
-    if (!inFields && line.includes('::')) {
+    if (!inFields && FIELD_LINE_RE.test(line)) {
       inFields = true;
     }
     if (inFields) {
-      const colonIdx = line.indexOf('::');
-      if (colonIdx > 0) {
-        const key = line.slice(0, colonIdx).trim();
-        const value = line.slice(colonIdx + 2).trim();
-        fields[key] = value;
+      const m = line.match(/^([\w-]+):: ?(.*)$/);
+      if (m) {
+        fields[m[1]] = m[2].trim();
       }
     } else {
       contentLines.push(line);
@@ -94,6 +100,7 @@ function _parseFields(lines) {
  *
  * @returns {Promise<Array<{
  *   id: string,
+ *   heading: string,
  *   category: string,
  *   content: string,
  *   date: string,
@@ -162,7 +169,9 @@ async function readMemory() {
 
     index++;
 
-    entries.push({ id, category, content, date, sourceRef, contentHash, tags, related, addedAt });
+    // WIKI-RELATED-01: heading is the exact H3 text — the Obsidian anchor for
+    // [[memory#<heading>]] links targeting this entry.
+    entries.push({ id, heading: headerLine, category, content, date, sourceRef, contentHash, tags, related, addedAt });
   }
 
   return entries;

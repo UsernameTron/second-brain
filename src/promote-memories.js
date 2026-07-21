@@ -204,20 +204,31 @@ function loadSanctionedCategories() {
   return new Set(Object.keys(JSON.parse(raw)));
 }
 
+// CAT-ALIAS-01: extractor labels that map onto sanctioned categories. "lesson"
+// arrived en masse from session extractions and was coerced to OTHER; it IS a
+// learning. Alias it so promotion writes the real category.
+const CATEGORY_ALIASES = { lesson: 'LEARNING' };
+
 function coerceCategory(candidate, sanctionedCategories) {
   if (sanctionedCategories.has(candidate.category)) return candidate;
-  return {
-    ...candidate,
-    category: 'OTHER',
-    content: `${candidate.content}\n\n(justification: original category "${candidate.category}" is not sanctioned; coerced to OTHER)`,
-  };
+  const label = typeof candidate.category === 'string' ? candidate.category : '';
+  const upper = label.toUpperCase();
+  if (sanctionedCategories.has(upper)) return { ...candidate, category: upper };
+  const alias = CATEGORY_ALIASES[label.toLowerCase()];
+  if (alias && sanctionedCategories.has(alias)) return { ...candidate, category: alias };
+  // Truly unsanctioned → OTHER, silently. The old "(justification: ...)" body
+  // note polluted entry content and broke content_hash ↔ body correspondence.
+  return { ...candidate, category: 'OTHER' };
 }
 
 function buildMemoryEntry(candidate) {
   const today = todayString();
   const shortRef = sourceRefShort(candidate.sourceRef);
   const addedAt = nowISO();
-  return `### ${today} · ${candidate.category} · ${shortRef}\n\n${candidate.content}\n\ncategory:: ${candidate.category}\nsource-ref:: ${candidate.sourceRef || ''}\ntags:: ${candidate.tags || ''}\nadded:: ${addedAt}\nrelated:: ${candidate.related || ''}\ncontent_hash:: ${candidate.contentHash || ''}\n`;
+  // WIKI-RELATED-01: the trailing ^<hash> block marker is the entry's unique
+  // Obsidian anchor — headings collide (truncated refs), content hashes don't.
+  const blockMarker = candidate.contentHash ? `^${candidate.contentHash}\n` : '';
+  return `### ${today} · ${candidate.category} · ${shortRef}\n\n${candidate.content}\n\ncategory:: ${candidate.category}\nsource-ref:: ${candidate.sourceRef || ''}\ntags:: ${candidate.tags || ''}\nadded:: ${addedAt}\nrelated:: ${candidate.related || ''}\ncontent_hash:: ${candidate.contentHash || ''}\n${blockMarker}`;
 }
 
 // INDEX-AUTO-01: compact regenerated index block at the top of memory.md.
@@ -256,6 +267,76 @@ function regenerateAutoIndex() {
 
   const indexBlock = buildAutoIndex(body);
   fs.writeFileSync(memoryFile, `${indexBlock}\n\n${body}`, 'utf8');
+}
+
+// WIKI-RELATED-01: at promotion time, fill candidate.related with up to 5
+// wikilinks — semantically similar memory entries (Voyage cosine over already-
+// stored vectors, threshold 0.6) plus vault notes (existing wikilink engine).
+// Non-blocking by design: any failure leaves the candidate's related as-is.
+const RELATED_COSINE_THRESHOLD = 0.6;
+const RELATED_MAX_LINKS = 5;
+
+// Exclusion gate for link TITLES: memory content already passed ingress policy,
+// but vault-note titles are ungated. Fail-closed — loader failure drops all
+// vault links rather than letting an unchecked title into memory.md.
+function filterExcludedLinkTitles(links) {
+  try {
+    const { loadExcludedTerms } = require('./pipeline-infra');
+    const { normalizeForMatch } = require('./content-policy');
+    const terms = loadExcludedTerms().map(t => normalizeForMatch(String(t))).filter(Boolean);
+    return links.filter(link => {
+      const title = normalizeForMatch(String(link.title || ''));
+      return title && !terms.some(term => title.includes(term));
+    });
+  } catch (_) {
+    return [];
+  }
+}
+
+async function populateRelatedLinks(candidates) {
+  // Jest guard (same pattern as the daily-stats counter cache): unmocked
+  // promotion tests must never reach Voyage/Haiku through this path.
+  if (process.env.JEST_WORKER_ID && !process.env.RELATED_LINKS_UNDER_TEST) return;
+
+  let memLinks = candidates.map(() => []);
+  try {
+    const { createVoyageClient, nearestByVector } = require('./semantic-index');
+    const { safeLoadPipelineConfig } = require('./pipeline-infra');
+    const { config: pipelineConfig } = safeLoadPipelineConfig();
+    const sem = pipelineConfig && pipelineConfig.memory && pipelineConfig.memory.semantic;
+    if (sem) {
+      // One batched embed for the whole promotion run; vectors are ephemeral
+      // here — indexNewEntries stores them moments later in appendToMemoryFile.
+      const res = await createVoyageClient(sem).embed(candidates.map(c => c.content), { inputType: 'document' });
+      if (res && res.success) {
+        const batchHashes = candidates.map(c => c.contentHash).filter(Boolean);
+        memLinks = await Promise.all(res.embeddings.map(vec =>
+          nearestByVector(vec, { threshold: RELATED_COSINE_THRESHOLD, top: RELATED_MAX_LINKS, excludeHashes: batchHashes })
+            // Block-ref target (unique) + heading alias (readable): headings
+            // collide across entries, content hashes never do.
+            .then(neighbors => neighbors.map(n => `[[memory#^${n.entry.contentHash}|${n.entry.heading}]]`))));
+      }
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console -- degradation-warning: memory-neighbor links skipped; promotion continues
+    console.error(`[promote-memories] memory-neighbor links skipped (non-fatal): ${err && err.message ? err.message : err}`);
+  }
+
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
+    let vaultLinks = [];
+    try {
+      const { suggestWikilinks } = require('./wikilink-engine');
+      const tags = candidate.tags ? candidate.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+      const { links } = await suggestWikilinks(candidate.content, tags, { correlationId: candidate.candidateId });
+      vaultLinks = filterExcludedLinkTitles(links || []).map(l => `[[${l.title}]]`);
+    } catch (err) {
+      // eslint-disable-next-line no-console -- degradation-warning: vault-note links skipped; promotion continues
+      console.error(`[promote-memories] vault-note links skipped (non-fatal): ${err && err.message ? err.message : err}`);
+    }
+    const merged = [...new Set([...(memLinks[i] || []), ...vaultLinks])].slice(0, RELATED_MAX_LINKS);
+    if (merged.length > 0) candidate.related = merged.join(', ');
+  }
 }
 
 async function appendToMemoryFile(promotedCandidates) {
@@ -487,6 +568,7 @@ async function promoteMemories(options = {}) {
     try { sanctionedCategories = loadSanctionedCategories(); } catch (_) { sanctionedCategories = new Set(); }
     const coercedPromoted = promoted.map(c => coerceCategory(c, sanctionedCategories));
 
+    await populateRelatedLinks(coercedPromoted); // WIKI-RELATED-01
     embedResult = await appendToMemoryFile(coercedPromoted);
     regenerateAutoIndex();
     // Phase 20 (STATS-DAILY-01): emit one recordPromotion per promoted entry.
@@ -582,4 +664,6 @@ async function promoteMemories(options = {}) {
   return result;
 }
 
-module.exports = { promoteMemories, parsePromoteArgs };
+// buildMemoryEntry + regenerateAutoIndex exported for scripts/migrate-memory-wiki.js
+// (the pipeline is append-only; the migration script is the sanctioned mutation path).
+module.exports = { promoteMemories, parsePromoteArgs, buildMemoryEntry, regenerateAutoIndex };

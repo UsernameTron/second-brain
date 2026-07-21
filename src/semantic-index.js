@@ -383,6 +383,53 @@ async function selfHealIfNeeded() {
   return { healed: true, schemaChanged, embedded: res.embedded };
 }
 
+// ── Nearest-neighbor lookup (WIKI-RELATED-01) ─────────────────────────────────
+
+/**
+ * Rank stored memory entries by cosine similarity to an ad-hoc vector.
+ * Pure local math over embeddings.jsonl + memory.md — zero Voyage calls.
+ * Orphan vectors (no matching memory entry) are skipped.
+ *
+ * @param {number[]} vector - embedding to compare against the store
+ * @param {{threshold?:number, top?:number, excludeHashes?:string[]}} [options]
+ * @returns {Promise<Array<{entry: object, score: number}>>} sorted desc, score >= threshold
+ */
+async function nearestByVector(vector, options = {}) {
+  const { threshold = 0.6, top = 5, excludeHashes = [] } = options;
+  if (!Array.isArray(vector) || vector.length === 0) return [];
+  const stored = readAllEmbeddings();
+  if (stored.length === 0) return [];
+  const byHash = new Map((await readMemory()).map(e => [e.contentHash, e]));
+  const excluded = new Set(excludeHashes);
+  const seen = new Set();
+  const scoredEntries = [];
+  for (const rec of stored) {
+    if (excluded.has(rec.hash) || seen.has(rec.hash)) continue;
+    seen.add(rec.hash);
+    const entry = byHash.get(rec.hash);
+    if (!entry) continue;
+    const score = _cosine(vector, rec.embedding);
+    if (score >= threshold) scoredEntries.push({ entry, score });
+  }
+  return scoredEntries.sort((a, b) => b.score - a.score).slice(0, top);
+}
+
+/**
+ * Nearest stored neighbors of an already-embedded memory entry, by content hash.
+ * The entry itself is always excluded from its own neighbor list.
+ *
+ * @param {string} contentHash - content_hash:: of the anchor entry
+ * @param {{threshold?:number, top?:number, excludeHashes?:string[]}} [options]
+ * @returns {Promise<Array<{entry: object, score: number}>>}
+ */
+async function nearestByHash(contentHash, options = {}) {
+  if (!contentHash) return [];
+  const rec = readAllEmbeddings().find(r => r.hash === contentHash);
+  if (!rec) return [];
+  const excludeHashes = [...(options.excludeHashes || []), contentHash];
+  return nearestByVector(rec.embedding, { ...options, excludeHashes });
+}
+
 /**
  * Search memory semantically. Returns {results, degraded?, blocked?, reason?}.
  * ALWAYS runs checkContent() on the query BEFORE any Voyage call (Pattern 11).
@@ -546,6 +593,9 @@ module.exports = {
   hybridSearch,
   selfHealIfNeeded,
   computeSchemaVersion,
+  // Nearest-neighbor lookup (WIKI-RELATED-01)
+  nearestByVector,
+  nearestByHash,
   // Client factory (exported for tests)
   createVoyageClient,
   // Path helpers (exported for tests)

@@ -849,3 +849,62 @@ describe('Phase 20: top-1 cosine emit', () => {
     expect(Array.isArray(result.results)).toBe(true);
   });
 });
+
+// ── Group 7: nearestByVector / nearestByHash (WIKI-RELATED-01) ────────────────
+
+describe('nearestByVector / nearestByHash', () => {
+  let nearestByVector, nearestByHash;
+
+  const writeStoredVec = (hash, vec, category = 'LEARNING') => {
+    fs.appendFileSync(
+      path.join(tmpCacheDir, 'embeddings.jsonl'),
+      JSON.stringify({ hash, embedding: vec, addedAt: '2026-07-01T00:00:00Z', category }) + '\n',
+      'utf8'
+    );
+  };
+
+  beforeEach(() => {
+    ({ nearestByVector, nearestByHash } = require('../src/semantic-index'));
+    // Orthonormal-ish fixture: anchor aligned with n1, orthogonal to n3.
+    writeStoredVec('hash-anchor', normalize([1, 0, 0, 0]));
+    writeStoredVec('hash-n1', normalize([0.9, 0.1, 0, 0]));   // cos ≈ 0.994 vs anchor
+    writeStoredVec('hash-n2', normalize([0.7, 0.7, 0, 0]));   // cos ≈ 0.707 vs anchor
+    writeStoredVec('hash-n3', normalize([0, 0, 1, 0]));       // cos = 0 vs anchor
+    writeStoredVec('hash-orphan', normalize([1, 0.01, 0, 0])); // no memory entry
+    mockReadMemory.mockResolvedValue([
+      { contentHash: 'hash-anchor', heading: '2026-07-01 · LEARNING · anchor', category: 'LEARNING', content: 'a' },
+      { contentHash: 'hash-n1', heading: '2026-07-02 · LEARNING · n1', category: 'LEARNING', content: 'b' },
+      { contentHash: 'hash-n2', heading: '2026-07-03 · PATTERN · n2', category: 'PATTERN', content: 'c' },
+      { contentHash: 'hash-n3', heading: '2026-07-04 · DECISION · n3', category: 'DECISION', content: 'd' },
+    ]);
+  });
+
+  test('ranks by cosine desc, applies threshold, skips orphans', async () => {
+    const results = await nearestByVector(normalize([1, 0, 0, 0]), { threshold: 0.6, top: 5 });
+    expect(results.map(r => r.entry.contentHash)).toEqual(['hash-anchor', 'hash-n1', 'hash-n2']);
+    expect(results[0].score).toBeGreaterThan(results[1].score);
+    expect(results.every(r => r.score >= 0.6)).toBe(true);
+    expect(results.find(r => r.entry.contentHash === 'hash-n3')).toBeUndefined();
+    // orphan vector has no memory entry — never surfaced
+    expect(results.find(r => !r.entry.heading)).toBeUndefined();
+  });
+
+  test('honors top cap and excludeHashes', async () => {
+    const results = await nearestByVector(normalize([1, 0, 0, 0]), {
+      threshold: 0.6, top: 1, excludeHashes: ['hash-anchor'],
+    });
+    expect(results).toHaveLength(1);
+    expect(results[0].entry.contentHash).toBe('hash-n1');
+  });
+
+  test('nearestByHash excludes the anchor entry itself', async () => {
+    const results = await nearestByHash('hash-anchor', { threshold: 0.6, top: 5 });
+    expect(results.map(r => r.entry.contentHash)).toEqual(['hash-n1', 'hash-n2']);
+  });
+
+  test('nearestByHash returns [] for unknown hash; nearestByVector [] for empty vector', async () => {
+    expect(await nearestByHash('no-such-hash')).toEqual([]);
+    expect(await nearestByVector([])).toEqual([]);
+    expect(await nearestByVector(null)).toEqual([]);
+  });
+});
