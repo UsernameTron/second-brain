@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.secondbrain.daily-sweep</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/opt/node@22/bin/node</string>
+		<string>/Users/cpconnor/projects/second-brain/scripts/daily-sweep.js</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/cpconnor/projects/second-brain</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/opt/node@22/bin:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>23</integer>
+		<key>Minute</key>
+		<integer>45</integer>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Users/cpconnor/Library/Logs/com.secondbrain.daily-sweep.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/cpconnor/Library/Logs/com.secondbrain.daily-sweep.log</string>
+</dict>
+</plist>
