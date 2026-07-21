@@ -12,6 +12,14 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 
+// 34-04: default-mock contradiction-check so the bulk of this suite (which
+// doesn't care about CONTRADICT-CHECK-01) never makes a real hybridSearch/Haiku
+// call per promoted candidate. Tests that DO care re-mock it after
+// jest.resetModules() — see the "contradiction check at promotion" describe block.
+jest.mock('../src/contradiction-check', () => ({
+  checkContradiction: jest.fn().mockResolvedValue({ contradicts: false, against: null, confidence: 0 }),
+}));
+
 // ── Test environment setup ───────────────────────────────────────────────────
 
 let tmpDir;
@@ -169,6 +177,49 @@ describe('promoteMemories - batch cap validation', () => {
   test('no --all flag — passing max: "all" is treated as error', async () => {
     const result = await promoteMemories.promoteMemories({ max: 'all' });
     expect(result.error).toBeDefined();
+  });
+});
+
+// ── PROMOTE-PARSE-01: unparseable-checkbox batch aborts loudly ──────────────
+
+describe('promoteMemories - PROMOTE-PARSE-01 near-miss abort', () => {
+  test('a batch with zero parsed statuses and near-miss marks aborts with an error, not "promoted 0"', async () => {
+    const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
+    const hash = computeHash('Garbage checkbox mark content.');
+    const body = [
+      '---',
+      `last_updated: ${new Date().toISOString()}`,
+      'total_pending: 1',
+      'total_processed: 0',
+      '---',
+      '',
+      '### mem-20260422-001 · LEARNING · unknown',
+      '- [y] accept',
+      '- [ ] reject',
+      '- [ ] edit-then-accept',
+      '- [ ] defer',
+      '',
+      '**Content:** Garbage checkbox mark content.',
+      '**Proposed tags:** test',
+      '**Proposed related:** ',
+      '',
+      'session_id:: manual',
+      'source_ref:: session:abc12345',
+      `captured_at:: ${new Date().toISOString()}`,
+      'source_file:: /path/to/file',
+      'category:: LEARNING',
+      'confidence:: 0.8',
+      `content_hash:: ${hash}`,
+      'status:: pending',
+      'extraction_trigger:: wrap',
+      '',
+    ].join('\n');
+    fs.writeFileSync(proposalsFile, body, 'utf8');
+
+    const result = await promoteMemories.promoteMemories({});
+    expect(result.error).toMatch(/PROMOTE-PARSE-01/);
+    expect(result.nearMissCount).toBe(1);
+    expect(result.promoted).toBeUndefined();
   });
 });
 
@@ -1365,5 +1416,73 @@ describe('quick-260719-lfn: promotion honesty fixes', () => {
     memoryContent = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
     expect((memoryContent.match(/<!-- INDEX:AUTO -->/g) || []).length).toBe(1);
     expect(memoryContent).toContain('Total entries:** 2');
+  });
+});
+
+// ── 34-04: CONTRADICT-CHECK-01 — flag-only contradiction surfacing ────────────
+
+describe('34-04: contradiction check at promotion is flag-only', () => {
+  test('contradicts:true still promotes and attaches a contradiction flag', async () => {
+    jest.resetModules();
+    jest.mock('../src/semantic-index', () => ({
+      indexNewEntries: jest.fn().mockResolvedValue({ success: true, embedded: 1, failed: 0 }),
+    }));
+    jest.mock('../src/contradiction-check', () => ({
+      checkContradiction: jest.fn().mockResolvedValue({ contradicts: true, against: 'hash-existing', confidence: 0.9 }),
+    }));
+    process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+    const promoteMemoriesContradicts = require('../src/promote-memories');
+
+    const candidates = makeCandidates(1);
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemoriesContradicts.promoteMemories({ max: 5 });
+
+    expect(result.promoted).toBe(1);
+    expect(result.contradictions).toEqual([
+      { candidateId: candidates[0].candidateId, against: 'hash-existing', confidence: 0.9 },
+    ]);
+    const memoryContent = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
+    expect(memoryContent).toContain(candidates[0].content);
+  });
+
+  test('contradicts:false promotes normally with no flag', async () => {
+    jest.resetModules();
+    jest.mock('../src/semantic-index', () => ({
+      indexNewEntries: jest.fn().mockResolvedValue({ success: true, embedded: 1, failed: 0 }),
+    }));
+    jest.mock('../src/contradiction-check', () => ({
+      checkContradiction: jest.fn().mockResolvedValue({ contradicts: false, against: null, confidence: 0 }),
+    }));
+    process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+    const promoteMemoriesNoFlag = require('../src/promote-memories');
+
+    const candidates = makeCandidates(1);
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemoriesNoFlag.promoteMemories({ max: 5 });
+
+    expect(result.promoted).toBe(1);
+    expect(result.contradictions).toBeUndefined();
+  });
+
+  test('checkContradiction throwing does not affect promotion success', async () => {
+    jest.resetModules();
+    jest.mock('../src/semantic-index', () => ({
+      indexNewEntries: jest.fn().mockResolvedValue({ success: true, embedded: 1, failed: 0 }),
+    }));
+    jest.mock('../src/contradiction-check', () => ({
+      checkContradiction: jest.fn().mockRejectedValue(new Error('boom')),
+    }));
+    process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+    const promoteMemoriesThrows = require('../src/promote-memories');
+
+    const candidates = makeCandidates(1);
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemoriesThrows.promoteMemories({ max: 5 });
+
+    expect(result.promoted).toBe(1);
+    expect(result.contradictions).toBeUndefined();
   });
 });

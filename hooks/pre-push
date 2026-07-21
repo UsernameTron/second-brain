@@ -30,4 +30,12 @@ else
   echo "[pre-push] SKIP_DOCSYNC set — bypassing docsync gate."
 fi
 
+if [ -z "$SKIP_BASELINE" ]; then
+  if ! node "$(dirname "$0")/../scripts/verify-baseline.js"; then
+    exit 1
+  fi
+else
+  echo "[pre-push] SKIP_BASELINE set — bypassing baseline-integrity gate."
+fi
+
 exit 0

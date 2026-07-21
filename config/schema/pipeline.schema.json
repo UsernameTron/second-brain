@@ -11,7 +11,8 @@
     "retry",
     "leftProposal",
     "filename",
-    "slippage"
+    "slippage",
+    "dream"
   ],
   "properties": {
     "classifier": {
@@ -389,6 +390,60 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 30
+        }
+      },
+      "additionalProperties": false
+    },
+    "dream": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "mergeCosineMin",
+        "patternDedupCosine",
+        "maxMergeOps",
+        "maxStaleFlags",
+        "maxPatternAdds",
+        "staleAgeDays",
+        "sessionLogWindow",
+        "maxLLMCalls"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "mergeCosineMin": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "patternDedupCosine": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "maxMergeOps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxStaleFlags": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxPatternAdds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "staleAgeDays": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sessionLogWindow": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxLLMCalls": {
+          "type": "integer",
+          "minimum": 1
         }
       },
       "additionalProperties": false

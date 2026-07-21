@@ -601,6 +601,8 @@ module.exports = {
   // Path helpers (exported for tests)
   getEmbeddingsPath,
   getMetadataPath,
+  // Public: reads the embeddings sidecar (dream.js cosine dedup, Plan 34-06)
+  readAllEmbeddings,
   // Test-only internals
   // Test-only seam — not public API. JSDoc not required per Phase 21 D-LOCK-3.
   _testOnly: {

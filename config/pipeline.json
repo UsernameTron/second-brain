@@ -79,5 +79,16 @@
   "memoryHealth": {
     "enabled": true,
     "streakDays": 3
+  },
+  "dream": {
+    "enabled": true,
+    "mergeCosineMin": 0.9,
+    "patternDedupCosine": 0.86,
+    "maxMergeOps": 15,
+    "maxStaleFlags": 10,
+    "maxPatternAdds": 5,
+    "staleAgeDays": 180,
+    "sessionLogWindow": 30,
+    "maxLLMCalls": 40
   }
 }

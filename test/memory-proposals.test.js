@@ -83,6 +83,29 @@ describe('generateCandidateId', () => {
     const id2 = memProposals.generateCandidateId();
     expect(id2).toMatch(/-002$/);
   });
+
+  test('PROMOTE-ID-01: does not reuse an NNN already archived (archive-then-restage cycle)', () => {
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const month = today.slice(0, 6);
+    const proposalArchiveDir = path.join(tmpDir, 'memory-proposals-archive');
+    fs.mkdirSync(proposalArchiveDir, { recursive: true });
+    fs.writeFileSync(path.join(proposalArchiveDir, `${month}.md`), `### mem-${today}-001 · LEARNING · unknown\n`, 'utf8');
+
+    const id = memProposals.generateCandidateId();
+    expect(id).toBe(`mem-${today}-002`);
+  });
+});
+
+// ── resolvedVaultRoot (PROMOTE-VAULT-01) ─────────────────────────────────────
+
+describe('resolvedVaultRoot', () => {
+  test('resolves call-time — a VAULT_ROOT change after require is honored', () => {
+    expect(memProposals.resolvedVaultRoot()).toBe(tmpDir);
+    const otherRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-test-other-'));
+    process.env.VAULT_ROOT = otherRoot;
+    expect(memProposals.resolvedVaultRoot()).toBe(otherRoot);
+    fs.rmSync(otherRoot, { recursive: true, force: true });
+  });
 });
 
 // ── writeCandidate ───────────────────────────────────────────────────────────
@@ -259,6 +282,34 @@ describe('readProposals', () => {
     expect(proposals[0].category).toBe('LEARNING');
     expect(proposals[0].confidence).toBe('0.9');
     expect(proposals[0].status).toBe('pending');
+  });
+});
+
+// ── parseCheckboxState ───────────────────────────────────────────────────────
+
+describe('parseCheckboxState', () => {
+  test('whitespace variants all parse as accepted', () => {
+    const variants = ['- [ X] accept', '- [X ] accept', '-  [x]  accept', '- [x] accept '];
+    for (const line of variants) {
+      expect(memProposals.parseCheckboxState(line).status).toBe('accepted');
+    }
+  });
+
+  test('exact `- [x] accept` and `- [X] accept` still parse as accepted (no regression)', () => {
+    expect(memProposals.parseCheckboxState('- [x] accept').status).toBe('accepted');
+    expect(memProposals.parseCheckboxState('- [X] accept').status).toBe('accepted');
+  });
+
+  test('garbage bracket mark `- [y] accept` is a near-miss, status null', () => {
+    const result = memProposals.parseCheckboxState('- [y] accept');
+    expect(result.status).toBeNull();
+    expect(result.nearMissCount).toBe(1);
+  });
+
+  test('empty `- [ ] accept` is not a near-miss (legitimately unreviewed)', () => {
+    const result = memProposals.parseCheckboxState('- [ ] accept');
+    expect(result.status).toBeNull();
+    expect(result.nearMissCount).toBe(0);
   });
 });
 
