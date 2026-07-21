@@ -14,14 +14,15 @@
  * snapshot-first sequence: snapshotStore() -> acquire the proposals lock ->
  * applyOps() (MERGE/STALE ops applied in place, sources superseded not
  * deleted) -> SQLite rebuild --strict + reach export (non-fatal) ->
- * mandatory `npm run eval:recall` gate -> exit 1 auto-restores the snapshot
- * and reverts op statuses to unresolved; exit 0 stamps ops applied:: and
+ * mandatory live-vault retrievability gate (every merged entry must stay
+ * hybrid-search retrievable) -> failure auto-restores the snapshot and
+ * reverts op statuses to unresolved; a clean pass stamps ops applied:: and
  * updates state/dream-ledger.json.
  *
  * Usage:
  *   node scripts/dream.js --propose   # detect, write changeset + patterns, update ledger
  *   node scripts/dream.js --dry-run   # same detection, writes nothing (changeset/ledger/ADDs)
- *   node scripts/dream.js --apply     # snapshot -> apply -> reindex -> eval:recall gate -> restore-on-fail
+ *   node scripts/dream.js --apply     # snapshot -> apply -> reindex -> live-vault retrievability gate -> restore-on-fail
  *
  * Schedule via macOS launchd (monthly, --propose only — see
  * config/com.secondbrain.dream.plist and config/scheduling.json). --apply is
@@ -126,7 +127,7 @@ async function runPropose({ dryRun = false } = {}) {
 /**
  * Run the human-invoked `--apply` sequence: snapshot -> lock -> applyOps ->
  * SQLite rebuild --strict + reach export (non-fatal) -> mandatory
- * `npm run eval:recall` gate (auto-restore on exit 1) -> ledger update.
+ * live-vault retrievability gate (auto-restore on failure) -> ledger update.
  * Never scheduled — see config/com.secondbrain.dream.plist / scheduling.json,
  * which run --propose only.
  * @returns {Promise<object>} summary
@@ -165,7 +166,8 @@ async function runApply() {
     }
 
     // SQLite rebuild + reach export — non-fatal, mirrors promote-memories.js's
-    // own post-write pattern; the mandatory gate below is npm run eval:recall.
+    // own post-write pattern; the mandatory gate below is the live-vault
+    // retrievability check.
     try {
       const { buildIndex } = require('./build-index');
       const indexResult = await buildIndex();

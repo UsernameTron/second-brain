@@ -18,6 +18,8 @@
     <string>/opt/homebrew/opt/node@22/bin:/usr/local/bin:/usr/bin:/bin</string>
     <key>VAULT_ROOT</key>
     <string>/Users/cpconnor/Claude Cowork</string>
+    <key>LLM_PROVIDER</key>
+    <string>anthropic</string>
   </dict>
   <key>StartCalendarInterval</key>
   <dict>

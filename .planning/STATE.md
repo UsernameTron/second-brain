@@ -27,7 +27,7 @@ Milestone: v1.8 Measured Memory — IN PROGRESS (Phases 32-36; Phase 36 decision
 Phase: 32 Retrieval Eval Baseline — COMPLETE, shipped 2026-07-19 (PR #74). Baseline: keyword 0.900 / semantic 0.800 / hybrid 0.900 recall@5.
 Phase 34 Promotion Integrity & Lifecycle — COMPLETE (verified 8/8, UAT 5/5), landing to master post #83/#84/#85.
 Status: Phase 33 (Capture Reliability) still pending — requires observing one real 23:45 daily-sweep fire before changes.
-Last activity: 2026-07-21 - Landing Phase 34 (promotion integrity + dream consolidation); reconciled with 260721-gyj memory-wiki merge; earlier 260721-rst local-LLM reasoning fix (PR #83)
+Last activity: 2026-07-21 - Completed quick task 260721-ljn: session close-out batch (gate docs, Sonnet pin, changeset resolution confirm, wiki refresh, branch cleanup)
 Prior milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16); VERDICT-01 calendar-gated follow-up still open
 
 **Shipped milestones:**
@@ -84,6 +84,7 @@ None.
 | 260719-llv | Memory reorg: 21 entries archived (archive-not-delete), 24 recategorized, auto-index, sidecar prune+heal to 135/135 parity | 2026-07-19 | 1f32e8b | [260719-llv](./quick/260719-llv-memory-reorg-archive-seed-dup-entries-re/) |
 | 260721-rst | Fix local-LLM reasoning-model starvation: reasoning_effort:none disable (verified live vs qwen3.6-27b), reasoning-starved SHAPE_ERROR guard, 60s local timeout, default model → qwen3.6-27b | 2026-07-21 | 6d8c472 | [260721-rst](./quick/260721-rst-local-llm-reasoning-starvation/) |
 | 260721-gyj | Memory wiki optimization: lesson→LEARNING alias + silent coercion (5 notes stripped, 0 remain), related:: wikilinks at promotion + 180-entry backfill (98.9% coverage, unique ^hash block anchors), reader field-parse root-cause fix, sidecar parity 180/180 | 2026-07-21 | df1a484 | [260721-gyj](./quick/260721-gyj-memory-wiki-optimization-category-fix-re/) |
+| 260721-ljn | Session close-out batch (verified): dream-apply gate docs fixed (SKILL.md + 4 dream.js sites), scheduled dream pinned to Anthropic via LLM_PROVIDER (launchctl-live), changeset confirmed resolved 12+3-rejected (apply no-op, rejections preserved), wiki graph refreshed 178/180 (98.9%) via pinned Haiku after LM Studio wedge, phase-34 branch deleted; suite 1440 passed | 2026-07-21 | 2d26ea4 | [260721-ljn](./quick/260721-ljn-session-close-out-batch-dream-apply-skil/) |
 
 ## Session Continuity — Session 66 (2026-07-15)
 

@@ -578,6 +578,7 @@ describe('local LLM routing', () => {
     } else {
       process.env.CONFIG_DIR_OVERRIDE = originalConfigDir;
     }
+    delete process.env.LLM_PROVIDER;
     fs.rmSync(tmpConfigDir, { recursive: true, force: true });
   });
 
@@ -653,6 +654,20 @@ describe('local LLM routing', () => {
 
   test('when provider is "anthropic", uses Anthropic SDK (default behavior)', async () => {
     mockPipelineConfig({ provider: 'anthropic', localEndpoint: 'http://localhost:1234', localModel: 'test-model' });
+
+    global.fetch = jest.fn();
+
+    const { createHaikuClient } = require('../src/pipeline-infra');
+    const client = createHaikuClient();
+    const result = await client.classify('system', 'content');
+
+    expect(result.success).toBe(true);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('when LLM_PROVIDER=anthropic env var is set, overrides provider:"local" config (scheduled dream pin)', async () => {
+    mockPipelineConfig({ provider: 'local', localEndpoint: 'http://localhost:1234', localModel: 'test-model' });
+    process.env.LLM_PROVIDER = 'anthropic';
 
     global.fetch = jest.fn();
 
