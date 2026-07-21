@@ -461,7 +461,7 @@ describe('loadConfigWithOverlay', () => {
     const config = loadPipelineConfig();
     expect(config.classifier.llm.localEndpoint).toBe('http://localhost:9999');
     expect(config.classifier.llm.provider).toBe('anthropic');
-    expect(config.classifier.llm.localModel).toBe('qwen2.5-coder-7b');
+    expect(config.classifier.llm.localModel).toBe('qwen/qwen3.6-27b');
   });
 
   test('no overlay present — returns base config unchanged', () => {
@@ -1047,6 +1047,27 @@ describe('classifyLocal — LLM fallback hardening', () => {
     expect(mockLogDecision).toHaveBeenCalledWith(
       'LLM_CLASSIFY', 'test-model', 'SHAPE_ERROR', expect.any(String)
     );
+  });
+
+  test('flags reasoning-starved when content is empty but reasoning_content is present', async () => {
+    const mockLogDecision = jest.fn();
+    const mockAnthropicCreate = jest.fn();
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({
+        choices: [{ message: { content: '', reasoning_content: 'let me think about this at length...' } }],
+      }),
+    });
+    const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
+    const result = await client.classify('sys', 'content');
+
+    expect(result.success).toBe(false);
+    expect(result.failureMode).toBe('api-error');
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY', 'test-model', 'SHAPE_ERROR', expect.stringContaining('reasoning-starved')
+    );
+    expect(mockAnthropicCreate).not.toHaveBeenCalled();
   });
 
   test('returns parse-error on invalid JSON in response content', async () => {

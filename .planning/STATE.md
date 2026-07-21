@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 Milestone: v1.8 Measured Memory — IN PROGRESS (Phases 32-36; Phase 36 decision-gated)
 Phase: 32 Retrieval Eval Baseline — COMPLETE, shipped 2026-07-19 (PR #74). Baseline: keyword 0.900 / semantic 0.800 / hybrid 0.900 recall@5.
 Status: Phase 33 (Capture Reliability) is next — requires observing one real 23:45 daily-sweep fire before changes
-Last activity: 2026-07-19 - Shipped Phase 32 (PR #74); fixed master CI lint blocker (PR #75); doc sync
+Last activity: 2026-07-21 - Quick task 260721-rst: fixed local-LLM reasoning starvation (reasoning_effort:none; verified live vs qwen3.6-27b)
 Prior milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16); VERDICT-01 calendar-gated follow-up still open
 
 **Shipped milestones:**
@@ -81,6 +81,7 @@ None.
 | 260426-mpy | Wire up missing slash commands and extract GSD knowledge into memory proposals | 2026-04-26 | 6dccf0b | [260426-mpy](./quick/260426-mpy-wire-up-missing-slash-commands-and-extra/) |
 | 260719-lfn | Capture fixes: dotenv gate, embed counts, category validation, daily-sweep transcript+inbox capture, reach expansion (15 targets), launchd schedule | 2026-07-19 | 8c2a21c | [260719-lfn](./quick/260719-lfn-capture-fixes-dotenv-gate-embed-counts-c/) |
 | 260719-llv | Memory reorg: 21 entries archived (archive-not-delete), 24 recategorized, auto-index, sidecar prune+heal to 135/135 parity | 2026-07-19 | 1f32e8b | [260719-llv](./quick/260719-llv-memory-reorg-archive-seed-dup-entries-re/) |
+| 260721-rst | Fix local-LLM reasoning-model starvation: reasoning_effort:none disable (verified live vs qwen3.6-27b), reasoning-starved SHAPE_ERROR guard, 60s local timeout, default model → qwen3.6-27b | 2026-07-21 | 6d8c472 | [260721-rst](./quick/260721-rst-local-llm-reasoning-starvation/) |
 
 ## Session Continuity — Session 66 (2026-07-15)
 
