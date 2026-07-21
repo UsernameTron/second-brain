@@ -24,7 +24,7 @@ Built for a technical executive who directs AI. The project code lives in this r
 ```bash
 npm install
 npm run lint  # ESLint 10 (flat config)
-npm test      # Jest 30 — 1395 total tests (1357 pass, 38 skipped in CI)
+npm test      # Jest 30 — 1398 total tests (1360 pass, 38 skipped in CI)
 ```
 
 **Optional: Semantic memory search** — Set `VOYAGE_API_KEY` in `.env` to enable `/recall --semantic` and `/recall --hybrid`. Without the key, `/recall` falls back to keyword search. See [docs/DEVOPS-HANDOFF.md](docs/DEVOPS-HANDOFF.md) for acquisition steps and configuration.
@@ -115,7 +115,7 @@ CLAUDE.md                    # Project governance, commands, conventions
 
 **Latest Release:** v1.7 Prove Compounding (2026-07-16) | Phases 29-31: Series Integrity, Outcome Instrumentation, Trend & Report
 **In progress:** v1.8 Measured Memory — Phase 32 Retrieval Eval Baseline shipped 2026-07-19 (PR #74); Phases 33-36 planned
-- **1395 total tests** across 72 test files (1357 passing, 38 skipped in CI)
+- **1398 total tests** across 72 test files (1360 passing, 38 skipped in CI)
 - **Branch coverage:** 81.15% (threshold: ≥80% enforced in CI)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 22 matrix, GitGuardian secrets scan
@@ -148,7 +148,7 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 ### Test Coverage
 
 ```bash
-npm test                    # Run all tests (1395 total; set CI=true to skip UAT)
+npm test                    # Run all tests (1398 total; set CI=true to skip UAT)
 npm run lint               # ESLint validation
 npm run test:uat           # UAT tests (requires CI= to unblock)
 ```
