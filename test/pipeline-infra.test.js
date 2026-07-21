@@ -529,7 +529,9 @@ describe('loadTemplatesConfig', () => {
 describe('local LLM routing', () => {
   let mockLogDecision;
   let tmpConfigDir;
+  let tmpCacheDir;
   let originalConfigDir;
+  let originalCacheDir;
   const originalFetch = global.fetch;
 
   beforeEach(() => {
@@ -543,6 +545,12 @@ describe('local LLM routing', () => {
 
     originalConfigDir = process.env.CONFIG_DIR_OVERRIDE;
     process.env.CONFIG_DIR_OVERRIDE = tmpConfigDir;
+    // Isolate classifier-health state (33-03 wired it into the local seam) so failure/degraded
+    // state never leaks across tests or touches the real cache — a degraded real cache would
+    // make "uses local endpoint" skip fetch and flake.
+    originalCacheDir = process.env.CACHE_DIR_OVERRIDE;
+    tmpCacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-routing-cache-'));
+    process.env.CACHE_DIR_OVERRIDE = tmpCacheDir;
 
     jest.resetModules();
     mockLogDecision = jest.fn();
@@ -579,7 +587,10 @@ describe('local LLM routing', () => {
       process.env.CONFIG_DIR_OVERRIDE = originalConfigDir;
     }
     delete process.env.LLM_PROVIDER;
+    if (originalCacheDir === undefined) delete process.env.CACHE_DIR_OVERRIDE;
+    else process.env.CACHE_DIR_OVERRIDE = originalCacheDir;
     fs.rmSync(tmpConfigDir, { recursive: true, force: true });
+    fs.rmSync(tmpCacheDir, { recursive: true, force: true });
   });
 
   afterAll(() => {
@@ -635,7 +646,7 @@ describe('local LLM routing', () => {
     expect(result.data).toEqual({ label: 'RIGHT', confidence: 0.85 });
   });
 
-  test('fallback logs via logDecision with FALLBACK reason', async () => {
+  test('an unreachable local endpoint is logged (ERROR) before the wrapper falls back', async () => {
     mockPipelineConfig({ provider: 'local', localEndpoint: 'http://localhost:1234', localModel: 'test-model' });
 
     global.fetch = jest.fn().mockRejectedValue(new TypeError('fetch failed'));
@@ -644,10 +655,12 @@ describe('local LLM routing', () => {
     const client = createHaikuClient();
     await client.classify('system', 'content');
 
+    // classifyLocal logs the failure as ERROR (the 33-03 wrapper owns the fallback decision now,
+    // so the self-fallback FALLBACK log is gone — the failure stays visible in the log + health).
     expect(mockLogDecision).toHaveBeenCalledWith(
       'LLM_CLASSIFY',
       'test-model',
-      'FALLBACK',
+      'ERROR',
       expect.stringContaining('local endpoint unreachable')
     );
   });
@@ -696,7 +709,7 @@ describe('local LLM routing', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  test('local endpoint parse error returns parse-error without fallback', async () => {
+  test('a local parse error now falls back to Haiku (33-03 inversion), logged loudly', async () => {
     mockPipelineConfig({ provider: 'local', localEndpoint: 'http://localhost:1234', localModel: 'test-model' });
 
     global.fetch = jest.fn().mockResolvedValue({
@@ -710,8 +723,13 @@ describe('local LLM routing', () => {
     const client = createHaikuClient();
     const result = await client.classify('system', 'content');
 
-    expect(result.success).toBe(false);
-    expect(result.failureMode).toBe('parse-error');
+    // Was: parse-error, no fallback. Now: the local parse failure is logged (PARSE_ERROR) and
+    // recorded, then recovered via Haiku (mocked to {label:RIGHT, confidence:0.85}).
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ label: 'RIGHT', confidence: 0.85 });
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY', 'test-model', 'PARSE_ERROR', expect.any(String)
+    );
   });
 });
 
