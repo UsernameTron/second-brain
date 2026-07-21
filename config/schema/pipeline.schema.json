@@ -49,6 +49,11 @@
           "type": "integer",
           "minimum": 1
         },
+        "haikuNightlyCap": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
         "llm": {
           "type": "object",
           "required": [
