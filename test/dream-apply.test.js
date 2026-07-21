@@ -242,3 +242,36 @@ describe('dream: runEvalGate', () => {
     expect(finalChangeset).toMatch(new RegExp(`## ${mergeId}[\\s\\S]*?applied:: `));
   });
 });
+
+// ── Lock + changeset-finder helpers (branch coverage for Phase 34 apply path) ──
+describe('dream apply helpers — lock + changeset finder', () => {
+  test('findLatestChangesetPath returns null when the proposals dir has no changeset', () => {
+    // beforeEach created an empty proposals/ dir
+    expect(dream.findLatestChangesetPath()).toBeNull();
+  });
+
+  test('findLatestChangesetPath returns null when the proposals dir is absent', () => {
+    fs.rmSync(path.join(vaultRoot, 'proposals'), { recursive: true, force: true });
+    expect(dream.findLatestChangesetPath()).toBeNull();
+  });
+
+  test('findLatestChangesetPath picks the latest month when several exist', () => {
+    const dir = path.join(vaultRoot, 'proposals');
+    fs.writeFileSync(path.join(dir, 'dream-changeset-2026-01.md'), 'x', 'utf8');
+    fs.writeFileSync(path.join(dir, 'dream-changeset-2026-03.md'), 'x', 'utf8');
+    fs.writeFileSync(path.join(dir, 'dream-changeset-2026-02.md'), 'x', 'utf8');
+    expect(dream.findLatestChangesetPath()).toBe(path.join(dir, 'dream-changeset-2026-03.md'));
+  });
+
+  test('acquireProposalsLock acquires a free lock; releaseProposalsLock removes it', async () => {
+    const res = await dream.acquireProposalsLock();
+    expect(res.acquired).toBe(true);
+    expect(fs.existsSync(res.lockPath)).toBe(true);
+    dream.releaseProposalsLock(res.lockPath);
+    expect(fs.existsSync(res.lockPath)).toBe(false);
+  });
+
+  test('releaseProposalsLock swallows ENOENT when the lock is already gone', () => {
+    expect(() => dream.releaseProposalsLock(path.join(vaultRoot, 'proposals', 'nope.lock'))).not.toThrow();
+  });
+});
