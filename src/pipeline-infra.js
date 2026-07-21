@@ -156,7 +156,11 @@ function createLlmClient(options = {}) {
   }
 
   const llmConfig = pipelineConfig_ && pipelineConfig_.classifier && pipelineConfig_.classifier.llm;
-  const useLocal = llmConfig && llmConfig.provider === 'local';
+  // Scheduled/unattended runs (the launchd dream-propose job) pin to Anthropic via
+  // LLM_PROVIDER=anthropic, overriding the machine-local provider:local overlay that
+  // interactive classifier runs use. Process-scoped — interactive sessions are unaffected.
+  const useLocal = process.env.LLM_PROVIDER !== 'anthropic'
+    && llmConfig && llmConfig.provider === 'local';
 
   let Anthropic, _sanitizeTermForPrompt, logDecision, anthropic;
   try {

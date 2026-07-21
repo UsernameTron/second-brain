@@ -8,9 +8,11 @@ description: |
   (produced by /dream-propose) in place: snapshots memory.md + embeddings
   sidecar + SQLite index first, MERGE inserts the merged entry and
   supersedes (never deletes) both sources, STALE appends a flag line, then
-  gates on npm run eval:recall — a recall regression auto-restores the
-  snapshot and reverts the applied ops to unresolved. Never scheduled; never
-  runs unattended.
+  gates on a live-vault retrievability check — every merged entry must
+  still be retrievable via hybrid search, or a regression (or blocked/
+  degraded retrieval, which fails closed) auto-restores the snapshot and
+  reverts the applied ops to unresolved. Never scheduled; never runs
+  unattended.
 
   TRIGGERS: "/dream-apply", "dream apply", "apply dream changeset",
   "apply memory merges", "consolidate memory now"
@@ -41,8 +43,10 @@ repo root, human-invoked only — never scheduled. It:
 5. Regenerates the auto-index, embeds new merged-entry hashes (old
    embeddings are kept), rebuilds the SQLite index, and re-runs the reach
    export.
-6. **Mandatory gate:** `npm run eval:recall`. A recall regression
-   (exit 1) auto-restores the snapshot byte-for-byte and reverts the
+6. **Mandatory gate:** a live-vault retrievability check — every merged
+   entry must still be retrievable from the mutated vault via hybrid
+   search. A regression (or blocked/degraded retrieval, which fails
+   closed) auto-restores the snapshot byte-for-byte and reverts the
    applied ops' accept boxes to unresolved — nothing regressed stays
    applied. A clean pass stamps each applied op `applied:: <timestamp>` and
    updates `state/dream-ledger.json`.
@@ -57,7 +61,7 @@ repo root, human-invoked only — never scheduled. It:
 Never. `/dream-apply` (`scripts/dream.js --apply`) does not appear in
 `config/com.secondbrain.dream.plist` or any launchd/`config/scheduling.json`
 entry — it is a deliberate human action every time, backstopped by the
-eval-gate auto-restore.
+live-vault retrievability gate's auto-restore.
 
 ## REFUSES
 
