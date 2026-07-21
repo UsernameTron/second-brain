@@ -1283,8 +1283,8 @@ describe('quick-260719-lfn: promotion honesty fixes', () => {
         embed: jest.fn().mockResolvedValue({ success: true, embeddings: [[0.1, 0.2]] }),
       })),
       nearestByVector: jest.fn().mockResolvedValue([
-        { entry: { heading: '2026-07-01 · LEARNING · neighbor-one' }, score: 0.9 },
-        { entry: { heading: '2026-07-02 · PATTERN · neighbor-two' }, score: 0.7 },
+        { entry: { contentHash: 'aaa111aaa111', heading: '2026-07-01 · LEARNING · neighbor-one' }, score: 0.9 },
+        { entry: { contentHash: 'bbb222bbb222', heading: '2026-07-02 · PATTERN · neighbor-two' }, score: 0.7 },
       ]),
     }));
     jest.mock('../src/wikilink-engine', () => ({
@@ -1308,11 +1308,14 @@ describe('quick-260719-lfn: promotion honesty fixes', () => {
     delete process.env.RELATED_LINKS_UNDER_TEST;
     expect(result.promoted).toBe(1);
     const memoryContent = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
-    // Memory neighbors first, then vault links; excluded title dropped; cap 5.
+    // Memory neighbors first (block-ref target + heading alias), then vault
+    // links; excluded title dropped; cap 5.
     expect(memoryContent).toContain(
-      'related:: [[memory#2026-07-01 · LEARNING · neighbor-one]], [[memory#2026-07-02 · PATTERN · neighbor-two]], [[Vault Note A]], [[Vault Note C]], [[Vault Note D]]'
+      'related:: [[memory#^aaa111aaa111|2026-07-01 · LEARNING · neighbor-one]], [[memory#^bbb222bbb222|2026-07-02 · PATTERN · neighbor-two]], [[Vault Note A]], [[Vault Note C]], [[Vault Note D]]'
     );
     expect(memoryContent).not.toContain('Genesys');
+    // New entries carry their own ^<hash> block anchor.
+    expect(memoryContent).toMatch(/^content_hash:: (\w+)\n\^\1$/m);
   });
 
   test('WIKI-RELATED-01: promotion succeeds with empty related when both link sources fail', async () => {

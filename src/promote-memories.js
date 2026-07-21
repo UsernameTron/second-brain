@@ -225,7 +225,10 @@ function buildMemoryEntry(candidate) {
   const today = todayString();
   const shortRef = sourceRefShort(candidate.sourceRef);
   const addedAt = nowISO();
-  return `### ${today} · ${candidate.category} · ${shortRef}\n\n${candidate.content}\n\ncategory:: ${candidate.category}\nsource-ref:: ${candidate.sourceRef || ''}\ntags:: ${candidate.tags || ''}\nadded:: ${addedAt}\nrelated:: ${candidate.related || ''}\ncontent_hash:: ${candidate.contentHash || ''}\n`;
+  // WIKI-RELATED-01: the trailing ^<hash> block marker is the entry's unique
+  // Obsidian anchor — headings collide (truncated refs), content hashes don't.
+  const blockMarker = candidate.contentHash ? `^${candidate.contentHash}\n` : '';
+  return `### ${today} · ${candidate.category} · ${shortRef}\n\n${candidate.content}\n\ncategory:: ${candidate.category}\nsource-ref:: ${candidate.sourceRef || ''}\ntags:: ${candidate.tags || ''}\nadded:: ${addedAt}\nrelated:: ${candidate.related || ''}\ncontent_hash:: ${candidate.contentHash || ''}\n${blockMarker}`;
 }
 
 // INDEX-AUTO-01: compact regenerated index block at the top of memory.md.
@@ -309,7 +312,9 @@ async function populateRelatedLinks(candidates) {
         const batchHashes = candidates.map(c => c.contentHash).filter(Boolean);
         memLinks = await Promise.all(res.embeddings.map(vec =>
           nearestByVector(vec, { threshold: RELATED_COSINE_THRESHOLD, top: RELATED_MAX_LINKS, excludeHashes: batchHashes })
-            .then(neighbors => neighbors.map(n => `[[memory#${n.entry.heading}]]`))));
+            // Block-ref target (unique) + heading alias (readable): headings
+            // collide across entries, content hashes never do.
+            .then(neighbors => neighbors.map(n => `[[memory#^${n.entry.contentHash}|${n.entry.heading}]]`))));
       }
     }
   } catch (err) {

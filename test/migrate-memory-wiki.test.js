@@ -183,9 +183,12 @@ describe('migrate-memory-wiki', () => {
     expect(after).not.toContain('category:: OTHER');
     expect(after).toContain(`content_hash:: ${H1}`); // hash stable — note was post-hash
 
+    // Phase A2: every entry gained its unique block anchor
+    for (const h of [H1, H2, H3, H4]) expect(after).toContain(`\ncontent_hash:: ${h}\n^${h}`);
+
     // Phase B: standard entry old value replaced; merged variant gained the field
     expect(after).not.toContain('related:: old/path.md');
-    expect(after).toContain('related:: [[memory#2026-07-10 · LEARNING · fix-a]], [[Vault Note A]]');
+    expect(after).toContain(`related:: [[memory#^${H1}|2026-07-10 · LEARNING · fix-a]], [[Vault Note A]]`);
     const mergedChunk = after.slice(after.indexOf('### 2026-07-08'), after.indexOf('## 2026-04'));
     expect(mergedChunk).toContain('related:: ');
     // Exclusion gate: ISPN title never linked

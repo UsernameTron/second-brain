@@ -175,8 +175,22 @@ async function migrate({ apply = false, log = (m) => process.stdout.write(m + '\
   try { fs.copyFileSync(getEmbeddingsPath(), path.join(backupDir, 'embeddings.jsonl')); } catch (_) { /* sidecar may not exist */ }
   log(`backup: ${backupDir}`);
 
+  // ── Phase A2: ensure every entry carries its ^<hash> block anchor ─────────
+  // Headings collide (97 distinct across 180 entries), so [[memory#heading]]
+  // is ambiguous; the content-hash block marker is the unique link target.
+  let markersAdded = 0;
+  for (const entry of entries) {
+    if (!entry.hash) continue;
+    const marker = `^${entry.hash}`;
+    if (entry.parsed.tailLines.some(l => l.trim() === marker)) continue;
+    const idx = entry.parsed.tailLines.findIndex(l => l.startsWith('content_hash::'));
+    entry.parsed.tailLines.splice(idx === -1 ? entry.parsed.tailLines.length : idx + 1, 0, marker);
+    markersAdded++;
+  }
+  log(`block anchors added: ${markersAdded}`);
+
   // ── Phase B: backfill related:: for every entry ───────────────────────────
-  // Heading map reflects Phase-A recategorizations so neighbor links resolve.
+  // Heading map reflects Phase-A recategorizations so link aliases read right.
   const hashToHeading = new Map(entries.map(e => [e.hash, headingOf(e.parsed)]));
   const { suggestWikilinks } = require('../src/wikilink-engine');
   const filterLinks = excludedTitleFilter();
@@ -185,9 +199,8 @@ async function migrate({ apply = false, log = (m) => process.stdout.write(m + '\
   let haikuCalls = 0;
   for (const entry of entries) {
     const memLinks = (await nearestByHash(entry.hash, { threshold: RELATED_THRESHOLD, top: RELATED_MAX }))
-      .map(n => hashToHeading.get(n.entry.contentHash))
-      .filter(Boolean)
-      .map(h => `[[memory#${h}]]`);
+      .filter(n => n.entry.contentHash && n.entry.contentHash !== entry.hash && hashToHeading.has(n.entry.contentHash))
+      .map(n => `[[memory#^${n.entry.contentHash}|${hashToHeading.get(n.entry.contentHash)}]]`);
 
     let vaultLinks = [];
     try {
