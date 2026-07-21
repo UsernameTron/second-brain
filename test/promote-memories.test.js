@@ -1220,7 +1220,7 @@ describe('quick-260719-lfn: promotion honesty fixes', () => {
     expect(result.embedFailed).toBe(1);
   });
 
-  test('candidate with unsanctioned category "INSIGHT" is written as OTHER with a justification', async () => {
+  test('candidate with unsanctioned category "INSIGHT" is written as OTHER without a justification note', async () => {
     jest.resetModules();
     jest.mock('../src/semantic-index', () => ({
       indexNewEntries: jest.fn().mockResolvedValue({ success: true, embedded: 1, failed: 0 }),
@@ -1234,8 +1234,109 @@ describe('quick-260719-lfn: promotion honesty fixes', () => {
     await promoteMemoriesCoerce.promoteMemories({ max: 5 });
     const memoryContent = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
     expect(memoryContent).toContain('category:: OTHER');
-    expect(memoryContent).toContain('INSIGHT');
-    expect(memoryContent).toContain('justification');
+    // CAT-ALIAS-01: coercion is silent now — no "(justification: ...)" body note.
+    expect(memoryContent).not.toContain('(justification:');
+  });
+
+  test('CAT-ALIAS-01: category "lesson" is aliased to LEARNING, content untouched', async () => {
+    jest.resetModules();
+    jest.mock('../src/semantic-index', () => ({
+      indexNewEntries: jest.fn().mockResolvedValue({ success: true, embedded: 1, failed: 0 }),
+    }));
+    process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+    const promoteMemoriesAlias = require('../src/promote-memories');
+
+    const candidates = makeCandidates(1, { category: 'lesson', content: 'An aliased lesson candidate.' });
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    await promoteMemoriesAlias.promoteMemories({ max: 5 });
+    const memoryContent = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
+    expect(memoryContent).toContain('category:: LEARNING');
+    expect(memoryContent).toContain('An aliased lesson candidate.');
+    expect(memoryContent).not.toContain('category:: OTHER');
+    expect(memoryContent).not.toContain('(justification:');
+  });
+
+  test('CAT-ALIAS-01: lowercase sanctioned name "learning" is case-normalized, not coerced', async () => {
+    jest.resetModules();
+    jest.mock('../src/semantic-index', () => ({
+      indexNewEntries: jest.fn().mockResolvedValue({ success: true, embedded: 1, failed: 0 }),
+    }));
+    process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+    const promoteMemoriesCase = require('../src/promote-memories');
+
+    const candidates = makeCandidates(1, { category: 'learning', content: 'A lowercase-category candidate.' });
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    await promoteMemoriesCase.promoteMemories({ max: 5 });
+    const memoryContent = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
+    expect(memoryContent).toContain('category:: LEARNING');
+    expect(memoryContent).not.toContain('category:: OTHER');
+  });
+
+  test('WIKI-RELATED-01: related:: populated from memory neighbors + vault links, exclusions dropped, capped at 5', async () => {
+    jest.resetModules();
+    process.env.RELATED_LINKS_UNDER_TEST = '1';
+    jest.mock('../src/semantic-index', () => ({
+      indexNewEntries: jest.fn().mockResolvedValue({ success: true, embedded: 1, failed: 0 }),
+      createVoyageClient: jest.fn(() => ({
+        embed: jest.fn().mockResolvedValue({ success: true, embeddings: [[0.1, 0.2]] }),
+      })),
+      nearestByVector: jest.fn().mockResolvedValue([
+        { entry: { heading: '2026-07-01 · LEARNING · neighbor-one' }, score: 0.9 },
+        { entry: { heading: '2026-07-02 · PATTERN · neighbor-two' }, score: 0.7 },
+      ]),
+    }));
+    jest.mock('../src/wikilink-engine', () => ({
+      suggestWikilinks: jest.fn().mockResolvedValue({
+        section: '',
+        links: [
+          { path: 'a.md', title: 'Vault Note A', relevance: 0.9, reason: 'r' },
+          { path: 'b.md', title: 'Genesys Migration Notes', relevance: 0.8, reason: 'r' },
+          { path: 'c.md', title: 'Vault Note C', relevance: 0.7, reason: 'r' },
+          { path: 'd.md', title: 'Vault Note D', relevance: 0.65, reason: 'r' },
+        ],
+      }),
+    }));
+    process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+    const promoteMemoriesRelated = require('../src/promote-memories');
+
+    const candidates = makeCandidates(1, { content: 'A candidate that should gain related links.' });
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemoriesRelated.promoteMemories({ max: 5 });
+    delete process.env.RELATED_LINKS_UNDER_TEST;
+    expect(result.promoted).toBe(1);
+    const memoryContent = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
+    // Memory neighbors first, then vault links; excluded title dropped; cap 5.
+    expect(memoryContent).toContain(
+      'related:: [[memory#2026-07-01 · LEARNING · neighbor-one]], [[memory#2026-07-02 · PATTERN · neighbor-two]], [[Vault Note A]], [[Vault Note C]], [[Vault Note D]]'
+    );
+    expect(memoryContent).not.toContain('Genesys');
+  });
+
+  test('WIKI-RELATED-01: promotion succeeds with empty related when both link sources fail', async () => {
+    jest.resetModules();
+    process.env.RELATED_LINKS_UNDER_TEST = '1';
+    jest.mock('../src/semantic-index', () => ({
+      indexNewEntries: jest.fn().mockResolvedValue({ success: true, embedded: 1, failed: 0 }),
+      createVoyageClient: jest.fn(() => { throw new Error('voyage down'); }),
+      nearestByVector: jest.fn(),
+    }));
+    jest.mock('../src/wikilink-engine', () => ({
+      suggestWikilinks: jest.fn().mockRejectedValue(new Error('haiku down')),
+    }));
+    process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+    const promoteMemoriesDegraded = require('../src/promote-memories');
+
+    const candidates = makeCandidates(1, { content: 'A candidate promoted while link sources are down.' });
+    fs.writeFileSync(path.join(proposalsDir, 'memory-proposals.md'), buildProposalsFile(candidates), 'utf8');
+
+    const result = await promoteMemoriesDegraded.promoteMemories({ max: 5 });
+    delete process.env.RELATED_LINKS_UNDER_TEST;
+    expect(result.promoted).toBe(1);
+    const memoryContent = fs.readFileSync(path.join(memoryDir, 'memory.md'), 'utf8');
+    expect(memoryContent).toContain('related:: \n');
   });
 
   test('memory.md gets an INDEX:AUTO block after promote, regenerated (not duplicated) on a second run', async () => {

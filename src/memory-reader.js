@@ -94,6 +94,7 @@ function _parseFields(lines) {
  *
  * @returns {Promise<Array<{
  *   id: string,
+ *   heading: string,
  *   category: string,
  *   content: string,
  *   date: string,
@@ -162,7 +163,9 @@ async function readMemory() {
 
     index++;
 
-    entries.push({ id, category, content, date, sourceRef, contentHash, tags, related, addedAt });
+    // WIKI-RELATED-01: heading is the exact H3 text — the Obsidian anchor for
+    // [[memory#<heading>]] links targeting this entry.
+    entries.push({ id, heading: headerLine, category, content, date, sourceRef, contentHash, tags, related, addedAt });
   }
 
   return entries;
