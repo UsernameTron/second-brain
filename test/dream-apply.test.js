@@ -210,7 +210,7 @@ describe('dream: runEvalGate', () => {
     const postApply = fs.readFileSync(path.join(vaultRoot, 'memory', 'memory.md'), 'utf8');
     expect(postApply).not.toBe(before);
 
-    const gateResult = dream.runEvalGate(snapshotPath, changesetPath, applyResult.appliedIds, {
+    const gateResult = await dream.runEvalGate(snapshotPath, changesetPath, applyResult.appliedIds, {
       runEvalFn: () => { throw new Error('recall regression'); },
     });
 
@@ -233,7 +233,7 @@ describe('dream: runEvalGate', () => {
     fs.writeFileSync(changesetPath, content, 'utf8');
 
     const applyResult = await dream.applyOps(content, CONFIG);
-    const gateResult = dream.runEvalGate(snapshotPath, changesetPath, applyResult.appliedIds, {
+    const gateResult = await dream.runEvalGate(snapshotPath, changesetPath, applyResult.appliedIds, {
       runEvalFn: () => {},
     });
 
@@ -273,5 +273,94 @@ describe('dream apply helpers — lock + changeset finder', () => {
 
   test('releaseProposalsLock swallows ENOENT when the lock is already gone', () => {
     expect(() => dream.releaseProposalsLock(path.join(vaultRoot, 'proposals', 'nope.lock'))).not.toThrow();
+  });
+});
+
+// ── Codex hardening: P1/P2 apply-path correctness ────────────────────────────
+describe('dream apply — Codex P1/P2 hardening', () => {
+  const CONFIG2 = { promotion: { batchCapMax: 10 } };
+  const mem = () => fs.readFileSync(path.join(vaultRoot, 'memory', 'memory.md'), 'utf8');
+  const acceptFirst = (cs, opType) => {
+    let content = fs.readFileSync(cs, 'utf8');
+    const id = dream.parseChangesetOps(content).find(o => o.opType === opType).id;
+    content = acceptOp(content, id);
+    fs.writeFileSync(cs, content, 'utf8');
+    return content;
+  };
+
+  test('P2: STALE op with an absent target is not recorded applied', async () => {
+    const before = mem();
+    const { path: cs } = dream.writeChangeset([], [
+      { targetHash: 'ffffffffffff', reason: 'x', action: 'append stale:: 2026-08-01 · x' },
+    ], { entries: [] });
+    const content = acceptFirst(cs, 'STALE');
+    const res = await dream.applyOps(content, CONFIG2);
+    expect(res.staleCount).toBe(0);
+    expect(res.appliedIds).toHaveLength(0);
+    expect(mem()).toBe(before); // nothing written
+  });
+
+  test('P2: MERGE with a missing source is skipped, not half-applied', async () => {
+    const before = mem();
+    const mergeOp = {
+      op: 'MERGE', mergedContent: 'merged text', category: 'OTHER', shortRef: 'x', tags: [],
+      rationale: 'r', 'merged-from': `${HASH_A}, ffffffffffff`, sourceHashes: [HASH_A, 'ffffffffffff'],
+      similarity: 0.9, content_hash: computeHash('merged text'),
+    };
+    const { path: cs } = dream.writeChangeset([mergeOp], [], { entries: [] });
+    const content = acceptFirst(cs, 'MERGE');
+    const res = await dream.applyOps(content, CONFIG2);
+    expect(res.mergeCount).toBe(0);
+    expect(res.appliedIds).toHaveLength(0);
+    expect(mem()).toBe(before); // no orphan merged entry inserted
+  });
+
+  test('P2: restoreSnapshot removes a sidecar created after the snapshot', () => {
+    const snap = dream.snapshotStore('2026-08-01');
+    expect(fs.existsSync(path.join(snap, 'embeddings.jsonl'))).toBe(false);
+    const embPath = path.join(cacheDir, 'embeddings.jsonl');
+    fs.writeFileSync(embPath, '{"hash":"x"}\n', 'utf8'); // simulate apply creating it
+    dream.restoreSnapshot(snap);
+    expect(fs.existsSync(embPath)).toBe(false); // removed to match snapshot
+    expect(fs.existsSync(path.join(vaultRoot, 'memory', 'memory.md'))).toBe(true);
+  });
+
+  test('P1: default gate passes when the merged entry stays retrievable', async () => {
+    const snap = dream.snapshotStore('2026-08-01');
+    const cs = buildChangeset();
+    const content = acceptFirst(cs, 'MERGE');
+    const applyResult = await dream.applyOps(content, CONFIG);
+    const mergedHash = computeHash('MERGED: ' + CONTENT_A);
+    const gate = await dream.runEvalGate(snap, cs, applyResult.appliedIds, {
+      hybridSearchFn: async () => ({ results: [{ id: mergedHash }] }),
+    });
+    expect(gate.passed).toBe(true);
+  });
+
+  test('P1: default gate fails + restores when the merged entry is unretrievable', async () => {
+    const before = mem();
+    const snap = dream.snapshotStore('2026-08-01');
+    const cs = buildChangeset();
+    const content = acceptFirst(cs, 'MERGE');
+    const applyResult = await dream.applyOps(content, CONFIG);
+    expect(mem()).not.toBe(before);
+    const gate = await dream.runEvalGate(snap, cs, applyResult.appliedIds, {
+      hybridSearchFn: async () => ({ results: [] }), // merged entry not found
+    });
+    expect(gate.passed).toBe(false);
+    expect(gate.error).toMatch(/not retrievable/);
+    expect(mem()).toBe(before); // snapshot restored
+  });
+
+  test('P1: default gate fails closed when retrieval is degraded', async () => {
+    const snap = dream.snapshotStore('2026-08-01');
+    const cs = buildChangeset();
+    const content = acceptFirst(cs, 'MERGE');
+    const applyResult = await dream.applyOps(content, CONFIG);
+    const gate = await dream.runEvalGate(snap, cs, applyResult.appliedIds, {
+      hybridSearchFn: async () => ({ results: [], degraded: true, reason: 'voyage down' }),
+    });
+    expect(gate.passed).toBe(false);
+    expect(gate.error).toMatch(/failing closed/);
   });
 });

@@ -182,9 +182,10 @@ async function runApply() {
       process.stderr.write(`[dream] reach export failed (non-fatal): ${err && err.message ? err.message : err}\n`);
     }
 
-    // Mandatory gate: npm run eval:recall. Exit 1 auto-restores the
-    // snapshot and reverts the applied ops' accept boxes to unresolved.
-    const gateResult = dream.runEvalGate(snapshotPath, changesetPath, applyResult.appliedIds);
+    // Mandatory gate over the LIVE vault: every merged entry must stay
+    // retrievable (hybrid). Regression auto-restores the snapshot and reverts
+    // the applied ops' accept boxes to unresolved.
+    const gateResult = await dream.runEvalGate(snapshotPath, changesetPath, applyResult.appliedIds);
 
     const ledger = loadLedger();
     ledger.lastApply = {

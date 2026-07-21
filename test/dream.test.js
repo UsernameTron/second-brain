@@ -496,15 +496,21 @@ describe('dream: writeChangeset + parseChangesetOps + hasUnresolvedChangeset', (
     expect(hasUnresolvedChangeset()).toBe(true);
   });
 
-  test('hasUnresolvedChangeset is false once every op is resolved accept/reject', () => {
+  test('accepted-but-unapplied op stays unresolved; only applied (or rejected) resolves it', () => {
     const { writeChangeset, hasUnresolvedChangeset } = require('../src/dream');
     const staleOp = { targetHash: 'hashStale', reason: 'dead-reference', action: 'append stale' };
     const result = writeChangeset([], [staleOp], { runDate: '2026-08-01' });
 
+    // Accepted but NOT yet applied — must remain unresolved (P1): otherwise the
+    // next propose could overwrite/strand this accepted op before apply runs.
     let content = fs.readFileSync(result.path, 'utf8');
     content = content.replace('- [ ] accept', '- [x] accept');
     fs.writeFileSync(result.path, content, 'utf8');
+    expect(hasUnresolvedChangeset()).toBe(true);
 
+    // Stamp applied:: after the op header — now terminal → resolved.
+    content = content.replace(/^(## .+ · STALE\n)/m, '$1applied:: 2026-08-01T00:00:00Z\n');
+    fs.writeFileSync(result.path, content, 'utf8');
     expect(hasUnresolvedChangeset()).toBe(false);
   });
 

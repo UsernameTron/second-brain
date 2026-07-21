@@ -393,4 +393,4 @@ async function getMemoryEcho(connectorResults, options = {}) {
 
 // ── Exports ───────────────────────────────────────────────────────────────────
 
-module.exports = { readMemory, searchMemoryKeyword, getMemoryEcho };
+module.exports = { readMemory, searchMemoryKeyword, getMemoryEcho, DOWNRANK_FACTOR };

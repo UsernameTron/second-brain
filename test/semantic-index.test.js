@@ -297,6 +297,34 @@ describe('semanticSearch', () => {
     expect(result.results).toHaveLength(0);
   });
 
+  test('lifecycle downrank: a superseded entry is downranked out of --semantic results (P2)', async () => {
+    // Two entries, both near the query. One is superseded → ×0.4 downrank drops
+    // it below threshold, so a stale/superseded entry can't outrank its live
+    // replacement (parity with searchMemoryKeyword; --hybrid inherits via rank).
+    const queryVec = normalize([1, 0, 0, 0]);
+    const vLive = normalize([0.99, 0.10, 0, 0]);
+    const vSuper = normalize([0.98, 0.14, 0, 0]);
+    const now = new Date().toISOString();
+    const date = now.slice(0, 10);
+
+    mockEmbed.mockResolvedValueOnce({ data: [{ embedding: vLive }, { embedding: vSuper }] });
+    mockReadMemory.mockResolvedValue([
+      { id: 'live', contentHash: 'live', content: 'live entry', category: 'LEARNING', addedAt: now, sourceRef: 's', date, supersededBy: null, stale: null },
+      { id: 'super', contentHash: 'super', content: 'superseded entry', category: 'LEARNING', addedAt: now, sourceRef: 's', date, supersededBy: 'live', stale: null },
+    ]);
+    await indexNewEntries([
+      { contentHash: 'live', content: 'live entry', addedAt: now, category: 'LEARNING' },
+      { contentHash: 'super', content: 'superseded entry', addedAt: now, category: 'LEARNING' },
+    ]);
+    mockEmbed.mockReset();
+
+    mockEmbed.mockResolvedValueOnce({ data: [{ embedding: queryVec }] });
+    const result = await semanticSearch('anything', { top: 5 });
+    const ids = result.results.map(r => r.id);
+    expect(ids).toContain('live');
+    expect(ids).not.toContain('super');
+  });
+
   test('top=3 returns at most 3 results even when more pass threshold', async () => {
     const queryVec = normalize([1, 0, 0, 0]);
     const vecs = Array.from({ length: 5 }, (_, i) =>

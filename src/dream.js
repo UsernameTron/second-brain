@@ -563,7 +563,16 @@ function hasUnresolvedChangeset() {
       continue;
     }
     const ops = parseChangesetOps(content);
-    if (ops.some(op => op.status !== 'accepted' && op.status !== 'rejected')) {
+    // Unresolved = anything not yet terminal. Terminal is ONLY: rejected, or
+    // accepted-AND-applied. An accepted op still lacking `applied::` is NOT
+    // resolved — treating it as resolved lets the next propose overwrite/strand
+    // it before /dream-apply ever runs (P1). Pending/deferred is also unresolved.
+    if (ops.some(op => {
+      if (op.status === 'rejected') return false;
+      const applied = /^applied:: /m.test(op.section);
+      if (op.status === 'accepted' && applied) return false;
+      return true;
+    })) {
       return true;
     }
   }
@@ -641,8 +650,10 @@ function snapshotStore(runDate) {
 
 /**
  * Byte-restore memory.md + embeddings.jsonl + index.db from a snapshot
- * directory over the live files. Best-effort per file — a file absent from
- * the snapshot (because it did not exist at snapshot time) is left alone.
+ * directory over the live files. Best-effort per file. A file ABSENT from the
+ * snapshot (it did not exist at snapshot time) but present live was created by
+ * the apply — it is removed, so the rollback is truly byte-for-byte and leaves
+ * no sidecar/index drift (P2).
  * @param {string} snapshotPath
  */
 function restoreSnapshot(snapshotPath) {
@@ -660,6 +671,9 @@ function restoreSnapshot(snapshotPath) {
       if (fs.existsSync(snap)) {
         fs.mkdirSync(path.dirname(live), { recursive: true });
         fs.copyFileSync(snap, live);
+      } else if (fs.existsSync(live)) {
+        // Absent at snapshot → created by the apply → remove to match snapshot.
+        fs.rmSync(live);
       }
     } catch (_) { /* best-effort restore */ }
   }
@@ -757,6 +771,13 @@ async function applyOps(changesetContent, config) {
       const { sourceHashes, block, category, newHash, content } = _parseMergeOp(op.section);
       if (!block || !newHash) continue;
 
+      // Sources must still exist. A changeset can go stale between review and
+      // apply; if a source entry vanished, skip the WHOLE merge rather than
+      // half-apply it (no orphan merged entry, no partial supersede). The op
+      // stays unmarked so it can be retried against a fresh changeset (P2).
+      const missingSources = sourceHashes.filter(h => memoryContent.indexOf(`content_hash:: ${h}`) === -1);
+      if (missingSources.length > 0) continue;
+
       const entryText = block + '\n';
       if (memoryContent.includes(monthHeader)) {
         const monthIdx = memoryContent.indexOf(monthHeader);
@@ -776,7 +797,13 @@ async function applyOps(changesetContent, config) {
     } else if (op.opType === 'STALE') {
       const { targetHash, fieldLine } = _parseStaleOp(op.section);
       if (!targetHash || !fieldLine) continue;
-      memoryContent = _appendFieldToEntry(memoryContent, targetHash, fieldLine).content;
+      // Only record the op as applied if the target field was actually
+      // inserted. If the target entry is gone (stale changeset), skip it —
+      // stamping a no-op `applied::` would silently drop the flag with no
+      // retry (P2).
+      const res = _appendFieldToEntry(memoryContent, targetHash, fieldLine);
+      if (!res.applied) continue;
+      memoryContent = res.content;
       staleCount++;
       appliedIds.push(op.id);
     }
@@ -837,34 +864,68 @@ function _markOpsApplied(changesetContent, opIds) {
 }
 
 /**
- * Mandatory post-apply gate: run `npm run eval:recall`. Exit 1 (recall
- * regression) auto-restores the snapshot and reverts the applied ops' accept
- * boxes to unresolved; exit 0 stamps the ops `applied::` in the changeset.
- * Never throws — a failing eval is a normal (if unwelcome) outcome, not a
- * crash.
+ * Live-vault regression check (default gate). Every merged entry this apply
+ * produced must still be retrievable from the now-mutated LIVE vault via hybrid
+ * search — a merge that damages retrieval (bad authoring, lost anchor) fails
+ * here. Throws on the first unretrievable merged entry. If retrieval is blocked
+ * or degraded (e.g. Voyage down) it FAILS CLOSED: an apply we cannot validate
+ * must not be accepted.
+ *
+ * This replaces the old `npm run eval:recall` gate, which scored the frozen
+ * eval/seed-vault fixture (scripts/eval-recall.js hardcodes VAULT_ROOT) — a
+ * corpus the apply never touches, so it could never detect a live regression.
+ *
+ * @param {string|null} changesetContent
+ * @param {string[]} appliedOpIds
+ * @param {{hybridSearchFn?: function}} [deps={}]
+ */
+async function _assertMergedEntriesRetrievable(changesetContent, appliedOpIds, deps = {}) {
+  if (!changesetContent) return;
+  const hybridSearch = deps.hybridSearchFn || require('./semantic-index').hybridSearch;
+  const applied = new Set(appliedOpIds);
+  const mergeOps = parseChangesetOps(changesetContent)
+    .filter(op => op.opType === 'MERGE' && applied.has(op.id));
+
+  for (const op of mergeOps) {
+    const { newHash, content } = _parseMergeOp(op.section);
+    if (!newHash || !content) continue;
+    const res = await hybridSearch(content.slice(0, 400), { top: 10 });
+    if (res.blocked || res.degraded) {
+      throw new Error(`retrieval unavailable (${res.reason || 'degraded'}) — cannot validate live vault, failing closed`);
+    }
+    if (!(res.results || []).some(r => r.id === newHash)) {
+      throw new Error(`merged entry ${newHash} not retrievable from live vault after apply — regression`);
+    }
+  }
+}
+
+/**
+ * Mandatory post-apply gate over the LIVE vault. On regression (default:
+ * a merged entry no longer retrievable) auto-restores the snapshot and reverts
+ * the applied ops' accept boxes to unresolved; on pass, stamps the ops
+ * `applied::` in the changeset. Never throws — a failing gate is a normal (if
+ * unwelcome) outcome, not a crash.
  * @param {string} snapshotPath - from snapshotStore()
  * @param {string} changesetPath - the changeset file applyOps() read from
  * @param {string[]} appliedOpIds
- * @param {{runEvalFn?: function}} [deps={}] - runEvalFn throws to simulate a non-zero eval exit
- * @returns {{passed:boolean, error?:string}}
+ * @param {{runEvalFn?: function, hybridSearchFn?: function}} [deps={}] - runEvalFn (sync or async) throws to signal a regression; overrides the default live check
+ * @returns {Promise<{passed:boolean, error?:string}>}
  */
-function runEvalGate(snapshotPath, changesetPath, appliedOpIds, deps = {}) {
-  const runEval = deps.runEvalFn || (() => {
-    const { execFileSync } = require('child_process');
-    execFileSync('npm', ['run', 'eval:recall'], { cwd: path.join(__dirname, '..'), stdio: 'pipe' });
-  });
+async function runEvalGate(snapshotPath, changesetPath, appliedOpIds, deps = {}) {
+  let changesetContent = null;
+  try { changesetContent = fs.readFileSync(changesetPath, 'utf8'); } catch (_) { /* no changeset to update */ }
+
+  const runEval = deps.runEvalFn
+    || (() => _assertMergedEntriesRetrievable(changesetContent, appliedOpIds, deps));
 
   let passed = true;
   let error = null;
   try {
-    runEval();
+    await runEval();
   } catch (err) {
     passed = false;
-    error = (err.stdout && err.stdout.toString()) || err.message || String(err);
+    error = (err && err.stdout && err.stdout.toString()) || (err && err.message) || String(err);
   }
-
-  let changesetContent = null;
-  try { changesetContent = fs.readFileSync(changesetPath, 'utf8'); } catch (_) { /* no changeset to update */ }
 
   if (!passed) {
     restoreSnapshot(snapshotPath);
