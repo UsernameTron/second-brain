@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: Measured Memory
-status: executing
-last_updated: "2026-07-21T22:56:28.832Z"
-last_activity: 2026-07-21 -- Phase 33 execution started
+status: completed
+last_updated: "2026-07-21T23:55:24.337Z"
+last_activity: 2026-07-21
 progress:
   total_phases: 7
   completed_phases: 0
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Status:** Executing Phase 33
+**Status:** Milestone complete
 
 ## Current Position
 
 Milestone: v1.8 Measured Memory — IN PROGRESS (Phases 32-36; Phase 36 decision-gated)
-Phase: 33 (capture-reliability) — EXECUTING
-Plan: 1 of 4
+Phase: 33
+Plan: Not started
 Phase 34 Promotion Integrity & Lifecycle — COMPLETE (verified 8/8, UAT 5/5), landing to master post #83/#84/#85.
 Status: Executing Phase 33
-Last activity: 2026-07-21 -- Phase 33 execution started
+Last activity: 2026-07-21
 Prior milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16); VERDICT-01 calendar-gated follow-up still open
 
 **Shipped milestones:**
