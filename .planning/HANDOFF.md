@@ -1,11 +1,11 @@
 # Session handoff (auto-written by Stop hook)
 
-- When: 2026-07-21 17:06 CDT
-- Branch: chore/session-close-out-260721
-- Dirty at stop: 2 files
+- When: 2026-07-21 18:04 CDT
+- Branch: feat/phase-33-capture-reliability
+- Dirty at stop: 1 files
 - Recent commits:
-  - 0bdbe46 chore(session): auto-commit session work (2026-07-21)
-  - a929327 docs(quick-260721-ljn): session close-out batch — plan, summary, verification, state
-  - 2d26ea4 chore(close-out): fix dream-apply gate docs + pin scheduled dream to Anthropic
+  - bc00514 fix(33-01): version fixed daily-sweep launchd plist into config/
+  - b26a10f docs(33): revise plans per verifier — fix cap read path (blocking), Node poll, files_modified
+  - 7a14243 docs(33): plan Phase 33 — 4 plans, 2 waves (capture reliability)
+  - 1a00125 Session close-out: dream-apply gate docs, scheduled-dream Anthropic pin, wiki refresh, phase-34 cleanup (#87)
   - 8244f2f Land Phase 34: promotion integrity + dream consolidation (#86)
-  - e2acd53 fix(wikilink): exclude pipeline storage from index, not just proposals/ (#85)
