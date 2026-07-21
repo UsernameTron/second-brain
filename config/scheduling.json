@@ -34,6 +34,7 @@
   "notes": {
     "test_trigger_deleted": "Test trigger trig_01NHx3Uz8ni8eZSfsMph4miY deleted 2026-04-22.",
     "remote_trigger_disabled": "RemoteTrigger runs in cloud environment env_01TjBJLSRwHfpUPcNVUK99Kb which cannot reach local VAULT_ROOT (~/Claude Cowork); its /today writes go into the void. Disabled by design (trigger.enabled=false), not a config bug. v1.7 Phase 29 STATS-PIPE-03.",
-    "local_scheduler": "Primary scheduler is macOS launchd job com.secondbrain.today (~/Library/LaunchAgents/com.secondbrain.today.plist), weekday 06:45 America/Chicago local, running /today scheduled mode with WorkingDirectory=/Users/cpconnor/projects/second-brain. Added v1.7 Phase 29."
+    "local_scheduler": "Primary scheduler is macOS launchd job com.secondbrain.today (~/Library/LaunchAgents/com.secondbrain.today.plist), weekday 06:45 America/Chicago local, running /today scheduled mode with WorkingDirectory=/Users/cpconnor/projects/second-brain. Added v1.7 Phase 29.",
+    "dream_scheduler": "Monthly dream-consolidation propose pass: launchd job com.secondbrain.dream, StartCalendarInterval Day 1 / Hour 7 / Minute 15 America/Chicago local, running `node scripts/dream.js --propose` ONLY — /dream-apply is human-invoked and never scheduled. Plist source committed at config/com.secondbrain.dream.plist (not loaded by automation). Install manually: `cp config/com.secondbrain.dream.plist ~/Library/LaunchAgents/com.secondbrain.dream.plist && launchctl load ~/Library/LaunchAgents/com.secondbrain.dream.plist`. Added v1.8 Phase 34 Plan 06."
   }
 }

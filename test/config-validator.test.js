@@ -343,6 +343,7 @@ describe('config-validator', () => {
       leftProposal: { autoArchiveDays: 14 },
       filename: { maxLength: 60, haikuWordRange: [4, 8] },
       slippage: { staleDays: 7, excludeProjects: [], maxProjects: 20 },
+      dream: { enabled: true, mergeCosineMin: 0.9, patternDedupCosine: 0.86, maxMergeOps: 15, maxStaleFlags: 10, maxPatternAdds: 5, staleAgeDays: 180, sessionLogWindow: 30, maxLLMCalls: 40 },
     };
 
     function writeTmpPipeline(filename, overrideMemory) {

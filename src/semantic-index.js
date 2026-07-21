@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const { readMemory, searchMemoryKeyword } = require('./memory-reader');
+const { readMemory, searchMemoryKeyword, DOWNRANK_FACTOR } = require('./memory-reader');
 const { checkContent } = require('./content-policy');
 const { safeLoadPipelineConfig, loadExcludedTerms } = require('./pipeline-infra');
 const voyageHealth = require('./utils/voyage-health');
@@ -492,8 +492,14 @@ async function semanticSearch(query, options) {
 
   const scored = candidates.map(r => {
     const base = _cosine(queryVec, r.embedding);
-    const adjusted = _adjustedScore(base, r.addedAt, sem.recencyDecay);
-    return { ...r, baseScore: base, score: adjusted, entry: byHash.get(r.hash) };
+    let adjusted = _adjustedScore(base, r.addedAt, sem.recencyDecay);
+    const entry = byHash.get(r.hash);
+    // Phase 34 lifecycle downrank — parity with searchMemoryKeyword so a
+    // superseded/stale entry can't outrank its live replacement in --semantic
+    // (and, via RRF ranks, --hybrid). Applied before the threshold filter, so
+    // a heavily-downranked lifecycle entry drops out rather than lingering.
+    if (entry && (entry.supersededBy || entry.stale)) adjusted *= DOWNRANK_FACTOR;
+    return { ...r, baseScore: base, score: adjusted, entry };
   }).filter(s => s.entry && s.score >= sem.threshold);
 
   scored.sort((a, b) => b.score - a.score);
@@ -601,6 +607,8 @@ module.exports = {
   // Path helpers (exported for tests)
   getEmbeddingsPath,
   getMetadataPath,
+  // Public: reads the embeddings sidecar (dream.js cosine dedup, Plan 34-06)
+  readAllEmbeddings,
   // Test-only internals
   // Test-only seam — not public API. JSDoc not required per Phase 21 D-LOCK-3.
   _testOnly: {

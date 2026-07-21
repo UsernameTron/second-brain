@@ -115,6 +115,64 @@ describe('readMemory()', () => {
     expect(entries.length).toBe(5);
     stderrSpy.mockRestore();
   });
+
+  test('R7: entries without superseded-by/stale fields yield null for both', async () => {
+    const entries = await readMemory();
+    for (const entry of entries) {
+      expect(entry.supersededBy).toBeNull();
+      expect(entry.stale).toBeNull();
+    }
+  });
+
+  test('R8: superseded-by:: field is surfaced as entry.supersededBy', async () => {
+    const scratchRoot = path.join(__dirname, '..', 'fixtures', `_memory-reader-superseded-${Date.now()}`);
+    fs.mkdirSync(path.join(scratchRoot, 'memory'), { recursive: true });
+    fs.writeFileSync(path.join(scratchRoot, 'memory', 'memory.md'), [
+      '### 2026-05-01 · DECISION · file:example',
+      '',
+      'Old content that has been merged elsewhere.',
+      '',
+      'category:: DECISION',
+      'source-ref:: file:example.md',
+      'superseded-by:: a1b2c3d4e5f6',
+      '',
+    ].join('\n'));
+
+    const savedVaultRoot = process.env.VAULT_ROOT;
+    process.env.VAULT_ROOT = scratchRoot;
+    const entries = await readMemory();
+    process.env.VAULT_ROOT = savedVaultRoot;
+    fs.rmSync(scratchRoot, { recursive: true, force: true });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].supersededBy).toBe('a1b2c3d4e5f6');
+    expect(entries[0].stale).toBeNull();
+  });
+
+  test('R9: stale:: field is surfaced as entry.stale', async () => {
+    const scratchRoot = path.join(__dirname, '..', 'fixtures', `_memory-reader-stale-${Date.now()}`);
+    fs.mkdirSync(path.join(scratchRoot, 'memory'), { recursive: true });
+    fs.writeFileSync(path.join(scratchRoot, 'memory', 'memory.md'), [
+      '### 2026-05-01 · PATTERN · file:example',
+      '',
+      'A flag reference that no longer exists.',
+      '',
+      'category:: PATTERN',
+      'source-ref:: file:example.md',
+      'stale:: 2026-08-01 · dead-reference config key flagX',
+      '',
+    ].join('\n'));
+
+    const savedVaultRoot = process.env.VAULT_ROOT;
+    process.env.VAULT_ROOT = scratchRoot;
+    const entries = await readMemory();
+    process.env.VAULT_ROOT = savedVaultRoot;
+    fs.rmSync(scratchRoot, { recursive: true, force: true });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].stale).toBe('2026-08-01 · dead-reference config key flagX');
+    expect(entries[0].supersededBy).toBeNull();
+  });
 });
 
 // ── searchMemoryKeyword() ─────────────────────────────────────────────────────
@@ -187,6 +245,93 @@ describe('searchMemoryKeyword()', () => {
       expect(results[i].score).toBeGreaterThanOrEqual(results[i + 1].score);
     }
   });
+
+  describe('downrank (superseded-by / stale)', () => {
+    async function withScratchVault(memoryMdContent, fn) {
+      const scratchRoot = path.join(__dirname, '..', 'fixtures', `_memory-reader-downrank-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      fs.mkdirSync(path.join(scratchRoot, 'memory'), { recursive: true });
+      fs.writeFileSync(path.join(scratchRoot, 'memory', 'memory.md'), memoryMdContent);
+      const savedVaultRoot = process.env.VAULT_ROOT;
+      process.env.VAULT_ROOT = scratchRoot;
+      try {
+        return await fn();
+      } finally {
+        process.env.VAULT_ROOT = savedVaultRoot;
+        fs.rmSync(scratchRoot, { recursive: true, force: true });
+      }
+    }
+
+    const TWO_EQUAL_ENTRIES_SUPERSEDED = [
+      '### 2026-05-01 · PATTERN · file:one',
+      '',
+      'widget rollout plan for the team.',
+      '',
+      'category:: PATTERN',
+      'source-ref:: file:one.md',
+      'content_hash:: 111111111111',
+      'superseded-by:: 222222222222',
+      '',
+      '### 2026-05-02 · PATTERN · file:two',
+      '',
+      'widget rollout plan for the team.',
+      '',
+      'category:: PATTERN',
+      'source-ref:: file:two.md',
+      'content_hash:: 222222222222',
+      '',
+    ].join('\n');
+
+    test('S10: superseded entry ranks strictly below an equal non-superseded entry, and is still present', async () => {
+      const results = await withScratchVault(TWO_EQUAL_ENTRIES_SUPERSEDED, () => searchMemoryKeyword('widget rollout'));
+      expect(results).toHaveLength(2);
+      const superseded = results.find(r => r.supersededBy === '222222222222');
+      const live = results.find(r => !r.supersededBy);
+      expect(superseded).toBeDefined();
+      expect(live).toBeDefined();
+      expect(superseded.score).toBeLessThan(live.score);
+      expect(results[0].id).toBe(live.id);
+    });
+
+    const TWO_EQUAL_ENTRIES_STALE = [
+      '### 2026-05-01 · PATTERN · file:one',
+      '',
+      'gadget rollout plan for the team.',
+      '',
+      'category:: PATTERN',
+      'source-ref:: file:one.md',
+      'content_hash:: 333333333333',
+      'stale:: 2026-08-01 · dead-reference',
+      '',
+      '### 2026-05-02 · PATTERN · file:two',
+      '',
+      'gadget rollout plan for the team.',
+      '',
+      'category:: PATTERN',
+      'source-ref:: file:two.md',
+      'content_hash:: 444444444444',
+      '',
+    ].join('\n');
+
+    test('S11: stale entry ranks strictly below an equal non-stale entry, and is still present', async () => {
+      const results = await withScratchVault(TWO_EQUAL_ENTRIES_STALE, () => searchMemoryKeyword('gadget rollout'));
+      expect(results).toHaveLength(2);
+      const stale = results.find(r => r.stale);
+      const live = results.find(r => !r.stale);
+      expect(stale).toBeDefined();
+      expect(live).toBeDefined();
+      expect(stale.score).toBeLessThan(live.score);
+      expect(results[0].id).toBe(live.id);
+    });
+
+    test('S12: query with no superseded/stale entries returns identical ordering to pre-change behavior', async () => {
+      const results = await searchMemoryKeyword('leadership');
+      expect(results.every(r => !r.supersededBy && !r.stale)).toBe(true);
+      // scores unaffected — same as pre-downrank behavior (no multiplier applied)
+      for (let i = 0; i < results.length - 1; i++) {
+        expect(results[i].score).toBeGreaterThanOrEqual(results[i + 1].score);
+      }
+    });
+  });
 });
 
 // ── getMemoryEcho() ───────────────────────────────────────────────────────────
@@ -250,6 +395,59 @@ describe('getMemoryEcho()', () => {
 
   test('E6b: does NOT throw when connectorResults is null', async () => {
     await expect(getMemoryEcho(null)).resolves.toMatchObject({ entries: [] });
+  });
+
+  describe('downrank (superseded-by / stale)', () => {
+    async function withScratchVault(memoryMdContent, fn) {
+      const scratchRoot = path.join(__dirname, '..', 'fixtures', `_memory-reader-echo-downrank-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      fs.mkdirSync(path.join(scratchRoot, 'memory'), { recursive: true });
+      fs.writeFileSync(path.join(scratchRoot, 'memory', 'memory.md'), memoryMdContent);
+      const savedVaultRoot = process.env.VAULT_ROOT;
+      process.env.VAULT_ROOT = scratchRoot;
+      try {
+        return await fn();
+      } finally {
+        process.env.VAULT_ROOT = savedVaultRoot;
+        fs.rmSync(scratchRoot, { recursive: true, force: true });
+      }
+    }
+
+    const TWO_EQUAL_ENTRIES_SUPERSEDED = [
+      '### 2026-05-01 · PATTERN · file:one',
+      '',
+      'Rocketship launch review meeting notes.',
+      '',
+      'category:: PATTERN',
+      'source-ref:: file:one.md',
+      'content_hash:: 555555555555',
+      'superseded-by:: 666666666666',
+      '',
+      '### 2026-05-02 · PATTERN · file:two',
+      '',
+      'Rocketship launch review meeting notes.',
+      '',
+      'category:: PATTERN',
+      'source-ref:: file:two.md',
+      'content_hash:: 666666666666',
+      '',
+    ].join('\n');
+
+    test('E7: superseded entry ranks below an equal non-superseded entry and remains present', async () => {
+      const connectorResults = {
+        calendar: { success: true, data: [{ summary: 'Rocketship launch review meeting' }] },
+        gmail: { success: true, data: [] },
+      };
+      const result = await withScratchVault(
+        TWO_EQUAL_ENTRIES_SUPERSEDED,
+        () => getMemoryEcho(connectorResults, { threshold: 0.01 })
+      );
+      expect(result.entries).toHaveLength(2);
+      const superseded = result.entries.find(e => e.supersededBy === '666666666666');
+      const live = result.entries.find(e => !e.supersededBy);
+      expect(superseded).toBeDefined();
+      expect(live).toBeDefined();
+      expect(superseded.score).toBeLessThan(live.score);
+    });
   });
 });
 

@@ -15,14 +15,27 @@ const crypto = require('crypto');
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const VAULT_ROOT = process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude Cowork');
+// PROMOTE-VAULT-01: call-time, not module-load-time — a module-level const
+// froze process.env.VAULT_ROOT at require() time, forking the proposals
+// corpus across roots for any process that set the env var after require.
+const VAULT_ROOT = () => process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude Cowork');
 
-const PROPOSALS_DIR = () => path.join(VAULT_ROOT, 'proposals');
-const PROPOSALS_FILE = () => path.join(PROPOSALS_DIR(), 'memory-proposals.md');
-const PENDING_FILE = () => path.join(PROPOSALS_DIR(), 'memory-proposals-pending.jsonl');
-const LOCK_FILE = () => path.join(PROPOSALS_DIR(), 'memory-proposals.md.lock');
-const MEMORY_FILE = () => path.join(VAULT_ROOT, 'memory', 'memory.md');
-const ARCHIVE_DIR = () => path.join(VAULT_ROOT, 'memory-archive');
+const PROPOSALS_DIR = () => path.join(VAULT_ROOT(), 'proposals');
+const PROPOSALS_FILE = () => path.join(VAULT_ROOT(), 'proposals', 'memory-proposals.md');
+const PENDING_FILE = () => path.join(VAULT_ROOT(), 'proposals', 'memory-proposals-pending.jsonl');
+const LOCK_FILE = () => path.join(VAULT_ROOT(), 'proposals', 'memory-proposals.md.lock');
+const MEMORY_FILE = () => path.join(VAULT_ROOT(), 'memory', 'memory.md');
+const ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'memory-archive');
+const PROPOSAL_ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'memory-proposals-archive');
+
+/**
+ * Current resolved VAULT_ROOT. Exported so promote-memories.js can assert
+ * both modules agree on the same root at promotion start (PROMOTE-VAULT-01).
+ * @returns {string} The resolved vault root path.
+ */
+function resolvedVaultRoot() {
+  return VAULT_ROOT();
+}
 
 const LOCK_TIMEOUT_MS = 5000;
 const LOCK_RETRY_MS = 500;
@@ -38,30 +51,86 @@ function ensureProposalsDir() {
   fs.mkdirSync(PROPOSALS_DIR(), { recursive: true });
 }
 
+// ── parseCheckboxState ───────────────────────────────────────────────────────
+
+/**
+ * Parse the accept/reject/edit-then-accept/defer checkbox block of a
+ * proposal candidate section. Shared by the promotion gate and (later)
+ * the dream-apply changeset gate — one parser, no drift (OPERATOR HARD
+ * CONSTRAINT, phase 34).
+ * @param {string} sectionText - Raw candidate section markdown.
+ * @returns {{status: ('accepted'|'rejected'|'edit-then-accept'|'deferred'|null), ambiguous: boolean, checkedCount: number, nearMissCount: number}} Parsed checkbox state.
+ */
+function parseCheckboxState(sectionText) {
+  const acceptChecked = /^-\s*\[\s*[xX]\s*\]\s*accept\s*$/im.test(sectionText);
+  const rejectChecked = /^-\s*\[\s*[xX]\s*\]\s*reject\s*$/im.test(sectionText);
+  const editChecked = /^-\s*\[\s*[xX]\s*\]\s*edit-then-accept\s*$/im.test(sectionText);
+  const deferChecked = /^-\s*\[\s*[xX]\s*\]\s*defer\s*$/im.test(sectionText);
+  const checkedCount = [acceptChecked, rejectChecked, editChecked, deferChecked].filter(Boolean).length;
+  const ambiguous = checkedCount > 1;
+
+  let status = null;
+  if (!ambiguous) {
+    if (acceptChecked) status = 'accepted';
+    else if (rejectChecked) status = 'rejected';
+    else if (editChecked) status = 'edit-then-accept';
+    else if (deferChecked) status = 'deferred';
+  }
+
+  // PROMOTE-PARSE-01: a checkbox line with a non-empty, non-x bracket mark
+  // (e.g. `[y]`, `[xx]`, `[x!]`) is a near-miss — a human tried to check it
+  // but the mark didn't parse. An empty `[ ]` is legitimately unreviewed,
+  // not a near-miss.
+  let nearMissCount = 0;
+  const nearMissRegex = /^-\s*\[([^\]]*)\]\s*(accept|reject|edit-then-accept|defer)\b/gim;
+  let nearMissMatch;
+  while ((nearMissMatch = nearMissRegex.exec(sectionText)) !== null) {
+    const bracket = nearMissMatch[1].trim();
+    if (bracket === '' || /^x$/i.test(bracket)) continue;
+    nearMissCount++;
+  }
+
+  return { status, ambiguous, checkedCount, nearMissCount };
+}
+
 // ── generateCandidateId ──────────────────────────────────────────────────────
 
 /**
  * Generate the next deterministic candidate ID for today's proposals file.
- * Reads the existing proposals file and returns the next sequence number in the
+ * Scans the current proposals file AND the proposal archive dir (an
+ * archive-then-restage cycle must not re-mint an already-used NNN —
+ * PROMOTE-ID-01) and returns the next sequence number in the
  * `mem-YYYYMMDD-NNN` format so concurrent extractors do not collide.
  * @returns {string} Candidate ID in the form `mem-YYYYMMDD-NNN`.
  */
 function generateCandidateId() {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const prefix = 'mem-' + today + '-';
+  const regex = new RegExp('mem-' + today + '-(\\d{3})', 'g');
 
   let maxSeq = 0;
 
-  try {
-    const content = fs.readFileSync(PROPOSALS_FILE(), 'utf8');
-    const regex = new RegExp('mem-' + today + '-(\\d{3})', 'g');
+  const scanForMaxSeq = (content) => {
     let match;
     while ((match = regex.exec(content)) !== null) {
       const seq = parseInt(match[1], 10);
       if (seq > maxSeq) maxSeq = seq;
     }
+  };
+
+  try {
+    scanForMaxSeq(fs.readFileSync(PROPOSALS_FILE(), 'utf8'));
   } catch (_) {
     // File does not exist yet
+  }
+
+  try {
+    const archiveDir = PROPOSAL_ARCHIVE_DIR();
+    for (const f of fs.readdirSync(archiveDir).filter((f) => f.endsWith('.md'))) {
+      scanForMaxSeq(fs.readFileSync(path.join(archiveDir, f), 'utf8'));
+    }
+  } catch (_) {
+    // Archive dir does not exist yet
   }
 
   const nextSeq = String(maxSeq + 1).padStart(3, '0');
@@ -429,6 +498,8 @@ module.exports = {
   writeCandidate,
   readProposals,
   flushPendingBuffer,
+  parseCheckboxState,
+  resolvedVaultRoot,
 };
 
 // Test-only surface: tests that need to exercise lock primitives directly

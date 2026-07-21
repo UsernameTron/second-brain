@@ -26,6 +26,9 @@ const MEMORY_FILE = () => path.join(VAULT_ROOT(), 'memory', 'memory.md');
 const DEFAULT_ECHO_THRESHOLD = 0.65;
 const SNIPPET_MAX = 100;
 const MAX_ECHO_ENTRIES = 5;
+// Score multiplier applied to superseded/stale entries so live entries rank
+// above them without ever filtering them out of results.
+const DOWNRANK_FACTOR = 0.4;
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
@@ -108,7 +111,9 @@ function _parseFields(lines) {
  *   contentHash: string,
  *   tags: string,
  *   related: string,
- *   addedAt: string
+ *   addedAt: string,
+ *   supersededBy: (string|null),
+ *   stale: (string|null)
  * }>>}
  */
 async function readMemory() {
@@ -166,12 +171,15 @@ async function readMemory() {
     const related = fields['related'] || '';
     const addedAt = fields['added'] || '';
     const id = contentHash || `mem-${date}-${String(index).padStart(3, '0')}`;
+    const supersededBy = fields['superseded-by'] || null;
+    const stale = fields['stale'] || null;
 
     index++;
 
     // WIKI-RELATED-01: heading is the exact H3 text — the Obsidian anchor for
     // [[memory#<heading>]] links targeting this entry.
-    entries.push({ id, heading: headerLine, category, content, date, sourceRef, contentHash, tags, related, addedAt });
+    // Phase 34: supersededBy/stale carry lifecycle state for downrank.
+    entries.push({ id, heading: headerLine, category, content, date, sourceRef, contentHash, tags, related, addedAt, supersededBy, stale });
   }
 
   return entries;
@@ -224,7 +232,7 @@ async function searchMemoryKeyword(query, options = {}) {
 
   const index = new MiniSearch({
     fields: ['content', 'category', 'sourceRef', 'tags'],
-    storeFields: ['id', 'category', 'content', 'date', 'sourceRef', 'contentHash', 'tags'],
+    storeFields: ['id', 'category', 'content', 'date', 'sourceRef', 'contentHash', 'tags', 'supersededBy', 'stale'],
     searchOptions: {
       combineWith: 'AND',
       prefix: true,
@@ -277,6 +285,7 @@ async function searchMemoryKeyword(query, options = {}) {
   results = results.map(r => ({
     ...r,
     snippet: _snippet(r.content, anchorTerm),
+    score: (r.supersededBy || r.stale) ? (r.score || 0) * DOWNRANK_FACTOR : (r.score || 0),
   }));
 
   results.sort((a, b) => (b.score || 0) - (a.score || 0));
@@ -355,7 +364,8 @@ async function getMemoryEcho(connectorResults, options = {}) {
       if (haystack.includes(token)) matches++;
     }
 
-    const score = matches / topicTokens.length;
+    let score = matches / topicTokens.length;
+    if (entry.supersededBy || entry.stale) score *= DOWNRANK_FACTOR;
     return { entry, score };
   });
 
@@ -383,4 +393,4 @@ async function getMemoryEcho(connectorResults, options = {}) {
 
 // ── Exports ───────────────────────────────────────────────────────────────────
 
-module.exports = { readMemory, searchMemoryKeyword, getMemoryEcho };
+module.exports = { readMemory, searchMemoryKeyword, getMemoryEcho, DOWNRANK_FACTOR };

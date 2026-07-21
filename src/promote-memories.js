@@ -13,12 +13,23 @@ const fs = require('fs');
 const path = require('path');
 
 const { computeHash, sourceRefShort } = require('./utils/memory-utils');
+const { parseCheckboxState, resolvedVaultRoot: memoryProposalsVaultRoot } = require('./memory-proposals');
 
 const VAULT_ROOT = () => process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude Cowork');
 const PROPOSALS_FILE = () => path.join(VAULT_ROOT(), 'proposals', 'memory-proposals.md');
 const MEMORY_FILE = () => path.join(VAULT_ROOT(), 'memory', 'memory.md');
 const ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'memory-archive');
 const PROPOSAL_ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'memory-proposals-archive');
+
+/**
+ * Current resolved VAULT_ROOT for this module. Mirrors memory-proposals.js's
+ * resolvedVaultRoot() so promoteMemories() can assert both modules agree
+ * (PROMOTE-VAULT-01) before touching any file.
+ * @returns {string} The resolved vault root path.
+ */
+function resolvedVaultRoot() {
+  return VAULT_ROOT();
+}
 
 // PROMOTE-DEFER-01: statuses still eligible for processing on a later run.
 // `deferred` marks batch-cap overflow — it must stay promotable, not terminal,
@@ -110,20 +121,7 @@ function parseCandidateSections(body) {
     if (!headerMatch) continue;
     const candidateId = headerMatch[1];
 
-    const acceptChecked = /^- \[x\] accept$/im.test(rawSection);
-    const rejectChecked = /^- \[x\] reject$/im.test(rawSection);
-    const editChecked = /^- \[x\] edit-then-accept$/im.test(rawSection);
-    const deferChecked = /^- \[x\] defer$/im.test(rawSection);
-    const checkedCount = [acceptChecked, rejectChecked, editChecked, deferChecked].filter(Boolean).length;
-    const ambiguous = checkedCount > 1;
-
-    let checkboxStatus = null;
-    if (!ambiguous) {
-      if (acceptChecked) checkboxStatus = 'accepted';
-      else if (rejectChecked) checkboxStatus = 'rejected';
-      else if (editChecked) checkboxStatus = 'edit-then-accept';
-      else if (deferChecked) checkboxStatus = 'deferred';
-    }
+    const { status: checkboxStatus, ambiguous, checkedCount, nearMissCount } = parseCheckboxState(rawSection);
 
     const fields = {};
     const fieldRegex = /^(\w[\w-]*):: (.+)$/gm;
@@ -145,7 +143,7 @@ function parseCandidateSections(body) {
     const sourceRef = fields['source_ref'] || '';
     const capturedAt = fields['captured_at'] || new Date().toISOString();
 
-    candidates.push({ candidateId, category: fields['category'] || headerMatch[2], confidence, content, tags, related, contentHash, sourceRef, capturedAt, currentStatus, checkboxStatus, ambiguous, checkedCount, raw: rawSection });
+    candidates.push({ candidateId, category: fields['category'] || headerMatch[2], confidence, content, tags, related, contentHash, sourceRef, capturedAt, currentStatus, checkboxStatus, ambiguous, checkedCount, nearMissCount, raw: rawSection });
   }
 
   return candidates;
@@ -470,7 +468,7 @@ function runMemoryArchive(archiveSizeThresholdKB, archiveEntriesThreshold) {
  *   embedding, no reach export, no proposals rewrite, no archives, no stats.
  * @param {boolean} [options.auto] - Treat unreviewed (no checkbox) live candidates
  *   as accepted. Explicit reject / defer checkboxes are still honored.
- * @returns {Promise<{promoted: number, deferred: number, duplicates: number, rejected: number, skipped: number, archived: boolean, dryRun?: boolean, wouldPromote?: Array<{candidateId: string, category: string}>, wouldDefer?: string[], reach?: Object, error?: string}>} Promotion outcome.
+ * @returns {Promise<{promoted: number, deferred: number, duplicates: number, rejected: number, skipped: number, archived: boolean, dryRun?: boolean, wouldPromote?: Array<{candidateId: string, category: string}>, wouldDefer?: string[], reach?: Object, contradictions?: Array<{candidateId: string, against: string, confidence: number}>, error?: string}>} Promotion outcome.
  */
 async function promoteMemories(options = {}) {
   // PROMOTE-FLAGS-01: unknown option keys are an error, never a silent no-op.
@@ -480,6 +478,14 @@ async function promoteMemories(options = {}) {
   }
   const dryRun = options.dryRun === true;
   const auto = options.auto === true;
+
+  // PROMOTE-VAULT-01: both modules must resolve VAULT_ROOT to the same path
+  // before any file is touched, or promotion silently forks the corpus.
+  const ownRoot = resolvedVaultRoot();
+  const proposalsRoot = memoryProposalsVaultRoot();
+  if (ownRoot !== proposalsRoot) {
+    throw new Error(`VAULT_ROOT mismatch: promote-memories.js resolved "${ownRoot}" but memory-proposals.js resolved "${proposalsRoot}"`);
+  }
 
   let config;
   try { config = loadPromotionConfig(); } catch (err) { return { error: 'Failed to load pipeline config: ' + err.message }; }
@@ -503,6 +509,17 @@ async function promoteMemories(options = {}) {
 
   const { body: originalBody, totalProcessed } = parseProposalsFrontmatter(rawContent);
   const allCandidates = parseCandidateSections(originalBody);
+
+  // PROMOTE-PARSE-01: a batch where every checkbox is unparseable (near-miss
+  // marks like `[y]`) must never report a silent "promoted 0" success — abort
+  // loudly so a human catches it, distinguishable from "nothing eligible".
+  const totalNearMiss = allCandidates.reduce((sum, c) => sum + (c.nearMissCount || 0), 0);
+  const totalParsedStatuses = allCandidates.filter(c => c.checkboxStatus !== null).length;
+  if (allCandidates.length > 0 && totalParsedStatuses === 0 && totalNearMiss > 0) {
+    // eslint-disable-next-line no-console -- diagnostic: loud abort so unparseable checkboxes never masquerade as a green "promoted 0" run
+    console.error(JSON.stringify({ action: 'PROMOTE', decision: 'ABORT', reason: 'unparseable-checkboxes', nearMissCount: totalNearMiss }));
+    return { error: 'PROMOTE-PARSE-01: unparseable checkbox marks detected, nothing eligible to promote', nearMissCount: totalNearMiss };
+  }
 
   // Phase 20 (STATS-DAILY-01): emit proposals count — how many proposals were
   // staged (available in memory-proposals.md) at the time of this promotion run.
@@ -563,6 +580,7 @@ async function promoteMemories(options = {}) {
   }
 
   let embedResult = { embedded: 0, failed: 0 };
+  const contradictions = [];
   if (promoted.length > 0 && !dryRun) {
     let sanctionedCategories;
     try { sanctionedCategories = loadSanctionedCategories(); } catch (_) { sanctionedCategories = new Set(); }
@@ -571,6 +589,22 @@ async function promoteMemories(options = {}) {
     await populateRelatedLinks(coercedPromoted); // WIKI-RELATED-01
     embedResult = await appendToMemoryFile(coercedPromoted);
     regenerateAutoIndex();
+
+    // CONTRADICT-CHECK-01: flag-only, never blocks/edits — append above already
+    // happened unconditionally. checkContradiction never throws, but a defensive
+    // try/catch here means a future non-conforming change to it still can't
+    // take promotion down with it.
+    const { checkContradiction } = require('./contradiction-check');
+    for (const candidate of promoted) {
+      try {
+        const outcome = await checkContradiction({ content: candidate.content, contentHash: candidate.contentHash });
+        if (outcome.contradicts) {
+          contradictions.push({ candidateId: candidate.candidateId, against: outcome.against, confidence: outcome.confidence });
+          // eslint-disable-next-line no-console -- diagnostic: surface contradiction flags without gating promotion
+          console.error(JSON.stringify({ action: 'PROMOTE', decision: 'CONTRADICTION_FLAG', candidate: candidate.candidateId, against: outcome.against }));
+        }
+      } catch (_) { /* flag-only: never let the contradiction check affect promotion */ }
+    }
     // Phase 20 (STATS-DAILY-01): emit one recordPromotion per promoted entry.
     // D-03: confidence = memory-extractor classifier confidence on the proposal.
     // null-confidence promotions are counted but excluded from avg_confidence mean.
@@ -656,6 +690,7 @@ async function promoteMemories(options = {}) {
   };
   if (reach) result.reach = reach;
   if (indexRebuild) result.indexRebuild = indexRebuild;
+  if (contradictions.length > 0) result.contradictions = contradictions;
   if (dryRun) {
     result.dryRun = true;
     result.wouldPromote = promoted.map(c => ({ candidateId: c.candidateId, category: c.category }));
@@ -666,4 +701,5 @@ async function promoteMemories(options = {}) {
 
 // buildMemoryEntry + regenerateAutoIndex exported for scripts/migrate-memory-wiki.js
 // (the pipeline is append-only; the migration script is the sanctioned mutation path).
-module.exports = { promoteMemories, parsePromoteArgs, buildMemoryEntry, regenerateAutoIndex };
+// resolvedVaultRoot (Phase 34) exported for call-time vault-root agreement checks.
+module.exports = { promoteMemories, parsePromoteArgs, buildMemoryEntry, regenerateAutoIndex, resolvedVaultRoot };

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: Measured Memory
-status: in_progress
-last_updated: "2026-07-19T23:45:00.000Z"
-last_activity: 2026-07-19
+status: completed
+last_updated: "2026-07-21T00:31:22.377Z"
+last_activity: 2026-07-21
 progress:
-  total_phases: 5
-  completed_phases: 1
-  total_plans: 5
-  completed_plans: 1
+  total_phases: 7
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -19,14 +19,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Status:** v1.8 Measured Memory in progress (1 of 5 phases complete)
+**Status:** Milestone complete
 
 ## Current Position
 
 Milestone: v1.8 Measured Memory — IN PROGRESS (Phases 32-36; Phase 36 decision-gated)
 Phase: 32 Retrieval Eval Baseline — COMPLETE, shipped 2026-07-19 (PR #74). Baseline: keyword 0.900 / semantic 0.800 / hybrid 0.900 recall@5.
-Status: Phase 33 (Capture Reliability) is next — requires observing one real 23:45 daily-sweep fire before changes
-Last activity: 2026-07-21 - Quick task 260721-gyj: memory wiki optimization (lesson→LEARNING, related:: wikilinks 98.9% coverage, block anchors, reader parse fix); earlier 260721-rst: local-LLM reasoning starvation fix (PR #83)
+Phase 34 Promotion Integrity & Lifecycle — COMPLETE (verified 8/8, UAT 5/5), landing to master post #83/#84/#85.
+Status: Phase 33 (Capture Reliability) still pending — requires observing one real 23:45 daily-sweep fire before changes.
+Last activity: 2026-07-21 - Landing Phase 34 (promotion integrity + dream consolidation); reconciled with 260721-gyj memory-wiki merge; earlier 260721-rst local-LLM reasoning fix (PR #83)
 Prior milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16); VERDICT-01 calendar-gated follow-up still open
 
 **Shipped milestones:**

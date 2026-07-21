@@ -14,7 +14,10 @@
     "test:uat:ci": "jest --forceExit test/uat/",
     "license-check": "license-checker --production --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;CC0-1.0'",
     "prepare": "git config core.hooksPath hooks",
-    "eval:recall": "node scripts/eval-recall.js"
+    "eval:recall": "node scripts/eval-recall.js",
+    "verify:baseline": "node scripts/verify-baseline.js",
+    "dream:propose": "node scripts/dream.js --propose",
+    "dream:apply": "node scripts/dream.js --apply"
   },
   "keywords": [],
   "author": "C Pete Conner",
