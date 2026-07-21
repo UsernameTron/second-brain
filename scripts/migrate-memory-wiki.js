@@ -43,10 +43,14 @@ const COERCION_NOTE_RE = /^\(justification: original category "[^"]*" is not san
 const RELATED_THRESHOLD = 0.6;
 const RELATED_MAX = 5;
 
-/** First line index that _parseFields would treat as a field line (contains '::'). */
+/**
+ * First field line — mirrors memory-reader's FIELD_LINE_RE: `key:: ` at line
+ * start. A bare "status::pending" mid-prose is content, not a field.
+ */
+const FIELD_LINE_RE = /^[\w-]+::( |$)/;
 function firstFieldIdx(lines) {
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes('::')) return i;
+    if (FIELD_LINE_RE.test(lines[i])) return i;
   }
   return lines.length;
 }

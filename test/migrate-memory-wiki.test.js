@@ -17,7 +17,9 @@ const { computeHash } = require('../src/utils/memory-utils');
 let tmpVault;
 let tmpCache;
 
-const H1 = computeHash('Original body of the coerced entry.');
+// Body deliberately contains a bare "status::pending" mid-prose — the live
+// PROMOTE-D entry regression: a `::` inside content must not start the fields.
+const H1 = computeHash('Original body of the coerced entry mentioning status::pending mid-prose.');
 const H2 = computeHash('A standard entry that stays put.');
 const H3 = computeHash('Merged variant body on the header-adjacent line.');
 const H4 = computeHash('April entry.');
@@ -62,7 +64,7 @@ function fixtureMemory() {
     '',
     '### 2026-07-10 · OTHER · fix-a',
     '',
-    'Original body of the coerced entry.',
+    'Original body of the coerced entry mentioning status::pending mid-prose.',
     '',
     '(justification: original category "lesson" is not sanctioned; coerced to OTHER)',
     '',

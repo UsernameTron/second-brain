@@ -252,3 +252,33 @@ describe('getMemoryEcho()', () => {
     await expect(getMemoryEcho(null)).resolves.toMatchObject({ entries: [] });
   });
 });
+
+// ── _parseFields strictness (migrate-memory-wiki regression) ─────────────────
+
+describe('_parseFields field-line strictness', () => {
+  test('bare :: mid-prose stays in content; real fields still parse', async () => {
+    const memPath = path.join(process.env.VAULT_ROOT, 'memory', 'memory.md');
+    fs.appendFileSync(memPath, [
+      '',
+      '### 2026-07-21 · LEARNING · midprose-colons',
+      '',
+      'Filter reads only status::pending but overflow entries are stamped status::deferred.',
+      '',
+      'category:: LEARNING',
+      'source-ref:: session:midprose',
+      'tags:: ',
+      'added:: 2026-07-21T00:00:00Z',
+      'related:: ',
+      'content_hash:: abcdef123456',
+      '',
+    ].join('\n'), 'utf8');
+
+    const entries = await readMemory();
+    const entry = entries.find(e => e.contentHash === 'abcdef123456');
+    expect(entry).toBeDefined();
+    // The old "line contains ::" rule swallowed this whole body as fields.
+    expect(entry.content).toContain('status::pending');
+    expect(entry.category).toBe('LEARNING');
+    expect(entry.heading).toBe('2026-07-21 · LEARNING · midprose-colons');
+  });
+});
