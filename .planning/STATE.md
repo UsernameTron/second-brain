@@ -39,7 +39,7 @@ Prior milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 
 - v1.6 Enforcement Integrity & Surface Completion (2026-07-15)
 - v1.7 Prove Compounding (2026-07-16) — PR #66
 
-**Current milestone:** v1.8 Measured Memory (Phases 32-36) — Phase 32 complete 2026-07-19
+**Current milestone:** v1.8 Measured Memory (Phases 32-36) — Phases 32-35 complete (32: 2026-07-19; 33-35: 2026-07-21); Phase 36 decision-gated
 
 ## Accumulated Context
 

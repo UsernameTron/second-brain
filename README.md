@@ -42,11 +42,12 @@ All commands are Claude Code `/` commands invoked through the Obsidian MCP gatew
 ## Project Structure
 
 ```
-src/                          # Core modules (27 .js files total)
+src/                          # Core modules (40 .js files total)
 ├── vault-gateway.js         # LEFT/RIGHT boundary enforcement
-├── today-command.js         # Daily briefing orchestrator (post-Phase-15 shell, 230 LOC)
+├── today-command.js         # Daily briefing orchestrator (post-Phase-15 shell)
 ├── classifier.js            # Two-stage LLM input router (runStage0/1/2 + classifyInput)
 ├── new-command.js           # /new entry point — classify + format + vault write
+├── recall-command.js        # /recall entry point — keyword/semantic/hybrid search
 ├── pipeline-infra.js        # Shared infra: correlation IDs, LLM client factory,
 │                            # writeDeadLetter, loadConfigWithOverlay, 8 loaders
 ├── content-policy.js        # Ingress filter: exclusion terms + prompt-injection defense
@@ -54,6 +55,13 @@ src/                          # Core modules (27 .js files total)
 ├── memory-extractor.js      # Session transcript → candidate memories via Haiku
 ├── memory-proposals.js      # Staging to memory-proposals.md with file locking
 ├── promote-memories.js      # Human-reviewed promotion to memory.md with archival
+├── memory-reader.js         # memory.md parse + superseded/stale downranking
+├── contradiction-check.js   # Flag-only contradiction surfacing at promotion (Phase 34)
+├── dream.js                 # Monthly dream consolidation: MERGE/STALE/missed-pattern
+│                            # propose + snapshot-first human-gated apply (Phase 34)
+├── daily-stats.js           # 11-column daily-stats series + counter cache
+├── semantic-index.js        # Voyage embeddings, cosine search, RRF hybrid fusion
+├── reach-exporter.js        # ADR-019 pointer+digest cache, fail-closed egress
 ├── promote-unrouted.js      # Bulk promote from dead-letter
 ├── reroute.js               # Reclassify previously routed items
 ├── lifecycle.js             # Sweep + dead-letter retry + auto-archive
@@ -62,51 +70,72 @@ src/                          # Core modules (27 .js files total)
 ├── briefing-helpers.js      # Pipeline state aggregation for /today
 ├── config-validator.js      # AJV-based config-file validator (skill entry)
 ├── utils.js                 # Shared helpers (escapeRegex, date formatters)
-├── today/                   # Phase 15 extracted modules (pure functions)
+├── today/                   # /today pipeline stages (pure functions)
 │   ├── slippage-scanner.js  # Scans ~/projects/*/.planning/STATE.md
 │   ├── frog-identifier.js   # Picks daily frog via Haiku + heuristic fallback
 │   ├── llm-augmentation.js  # Synthesis blockquote + diagnostic checklist
-│   └── briefing-renderer.js # Markdown assembly, source health, date helpers
+│   ├── briefing-renderer.js # Markdown assembly, source health, date helpers
+│   ├── compounding-trend.js # Pure trend verdict + evidence report (v1.7)
+│   ├── memory-health.js     # Four-condition anomaly detector (v1.5)
+│   └── sweep-status.js      # Nightly-sweep evidence line (Phase 33)
+├── utils/                   # Cross-cutting utilities
+│   ├── voyage-health.js     # Pattern 7 adaptive denial tracker (Voyage)
+│   ├── classifier-health.js # Pattern 7 clone gating local-LLM → capped Haiku (Phase 33)
+│   ├── memory-utils.js      # Shared memory hashing/parsing helpers
+│   └── validate-schema.js   # AJV schema loading helper
 └── connectors/              # MCP connector adapters (uniform return shape)
     ├── calendar.js          # Google Calendar events
     ├── gmail.js             # VIP-filtered Gmail (draft-only OAuth)
     ├── github.js            # UsernameTron repo activity
     └── types.js             # Connector registry + SOURCE enum
 
-test/                         # 1245 tests across 64 files
-├── unit/                    # Module-level tests
+test/                         # 1508 tests across 80 files
+├── unit-style *.test.js     # Module-level tests mirroring src/
 ├── integration/             # Cross-module flow tests
 └── uat/                     # End-to-end command behavior (guarded from CI)
 
+eval/                         # Retrieval eval harness (v1.8 Phase 32)
+├── golden-recall.json       # 20-question golden set keyed by content_hash
+├── seed-vault/              # Frozen 135-entry vault snapshot
+└── baseline-2026-07-19.json # Committed pre-tuning baseline
+
 .planning/                    # GSD execution state
 ├── PROJECT.md              # Project charter, constraints, key decisions
-├── MILESTONES.md           # Release history: v1.0, v1.1, v1.2, v1.3
+├── MILESTONES.md           # Release history: v1.0 through v1.7
 └── STATE.md                # Current execution checkpoint
 
 .claude/
-├── agents/                 # 6 deployed specialists
+├── agents/                 # 7 deployed specialists
 │   ├── docs-sync.md
+│   ├── memory-specialist.md
 │   ├── pipeline-reviewer.md
 │   ├── security-scanner.md
 │   ├── test-runner.md
 │   ├── test-verifier.md
 │   └── vault-guardian.md
-└── hooks/                  # 4 lifecycle hooks with test harnesses
+└── hooks/                  # 6 lifecycle hooks with test harnesses
     ├── auto-test.sh
     ├── protected-file-guard.sh
     ├── security-scan-gate.sh
-    └── memory-extraction-hook.js
+    ├── memory-extraction-hook.js
+    ├── staleness-check.js
+    └── session-memory-inject.js
 
 config/                      # Config files with optional .local.json overlays
 ├── pipeline.json           # Classifier thresholds, extraction chunk size, promotion
 │                           # cadence, retry policy, filename generation, slippage tuning
 ├── connectors.json         # MCP connector registry (Gmail, Calendar, GitHub)
-├── scheduling.json         # RemoteTrigger cron (weekday /today schedule, DST notes)
+├── scheduling.json         # Scheduling doc — launchd is primary; RemoteTrigger
+│                           # documented vault-unreachable, disabled by design
 ├── excluded-terms.json     # Ingress hard-block list (15 terms: Asana, Genesys, ISPN, etc.)
 ├── vault-paths.json        # LEFT/RIGHT vault boundary definitions
-├── templates.json          # Domain templates (briefings, job-hunt, interview-prep) +
-│                           # memory categories for extraction
-└── schema/                 # AJV JSON Schemas for all 6 config files above
+├── memory-categories.json  # Memory category taxonomy (LEARNING/DECISION/…)
+├── docsync.json            # Doc-drift thresholds for hooks + docs-sync agent
+├── reach-targets.json      # ADR-019 auto-memory export allowlist
+├── templates.json          # Domain templates (briefings, job-hunt, interview-prep)
+├── com.secondbrain.*.plist # launchd jobs: today (wkdy 06:45), daily-sweep (23:45),
+│                           # dream (monthly 07:15)
+└── schema/                 # AJV JSON Schemas (10) for the config files above
 
 CLAUDE.md                    # Project governance, commands, conventions
 ```
@@ -209,6 +238,9 @@ For complete architecture details, see [.planning/PROJECT.md](.planning/PROJECT.
 | `/recall --semantic <query>` | Semantic search | Voyage AI embedding search with cosine similarity + recency decay (0.55 threshold; requires `VOYAGE_API_KEY`). Accepts the same `--category` / `--since` / `--top N` flags |
 | `/recall --hybrid <query>` | Hybrid search | RRF fusion of keyword + semantic results; degrades gracefully to keyword if Voyage unavailable. Accepts the same `--category` / `--since` / `--top N` flags |
 | `node scripts/compounding-report.js` | Standalone reporting | Generate compounding evidence report: memory growth metrics, promotion velocity, verdict. Runnable from any directory on this machine |
+| `npm run dream:propose` | Monthly (also scheduled via launchd, 1st @ 07:15) | Dream-consolidation propose pass: stages MERGE/STALE ops into `proposals/dream-changeset-YYYY-MM.md`, missed patterns into the normal proposals gate. Applies nothing |
+| `npm run dream:apply` | After human review of a changeset | Apply accepted dream ops — snapshot-first, `eval:recall` retrievability gate, auto-restore on regression. Human-invoked only, never scheduled |
+| `npm run verify:baseline` | Pre-push (wired into the gate) | Verify the 27 pre-governance memory-entry hashes; real exit code (VERIFY-SENTINEL-01) |
 
 ## Known Gaps and Deferred Work
 
