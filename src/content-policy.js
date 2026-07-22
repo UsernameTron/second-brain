@@ -22,7 +22,15 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { escapeRegex } = require('./utils');
 const { safeLoadPipelineConfig } = require('./pipeline-infra');
 
-const client = new Anthropic();
+// Lazy singleton — SDK 0.112+ constructors start an async credential-resolution
+// chain at construction time; a module-scope client makes every importer pay
+// that side effect (and it collides with other SDK loads under jest). Construct
+// on first Haiku call instead, matching pipeline-infra's lazy pattern.
+let client = null;
+function getClient() {
+  if (!client) client = new Anthropic();
+  return client;
+}
 
 // ── Unicode-aware matching helper ────────────────────────────────────────────
 
@@ -155,7 +163,7 @@ Respond with only the word BLOCK or ALLOW.`;
   const { config: pipelineConfig } = safeLoadPipelineConfig();
   const haikuTimeout = (pipelineConfig && pipelineConfig.thresholds && pipelineConfig.thresholds.haikuTimeoutMs) || 2000;
 
-  const response = await client.messages.create({
+  const response = await getClient().messages.create({
     model: 'claude-haiku-4-5',
     max_tokens: 10,
     timeout: haikuTimeout,
