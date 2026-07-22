@@ -65,9 +65,10 @@ Full log in PROJECT.md Key Decisions table. Per-milestone summary:
 
 ### Filed, not fixed
 
-- **Rejected candidates never get `status::` rewritten** — `total_processed` re-counts them every run (pre-existing quirk, noted session 64).
-- **Deferred hygiene:** `config/schema/daily-stats-frontmatter.schema.json` requires `schema_version` as string while `daily-stats.js` writes an integer. Latent — nothing validates written frontmatter. Relevant if frontmatter validation is ever wired into `readDailyStats` (v1.7 touches this file — re-check at plan time).
 - **Desktop-chat userPreferences pointer line** — manual item from v1.6, confirm Pete pasted it.
+- **`daily-stats-frontmatter.schema.json` `schema_version` type mismatch** — schema says string, writer writes integer (`src/daily-stats.js:197`, `config/pipeline.json` numeric 1). Latent (nothing validates written frontmatter yet). Fix is one line — `"type": "string"` → `"type": "integer"` — but `config/schema/` is protected-file-guarded; needs Pete's manual approval. (2026-07-21 audit: attempted, blocked by guard as designed.)
+
+(Resolved 2026-07-21 audit: rejected-candidates `status::` rewrite had already shipped in c0b3c70 (PROMOTE-REJECT-01) — line removed.)
 
 ### Pending Todos
 

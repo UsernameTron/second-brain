@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="30.2.6">
+  <diagram name="Second Brain — Purpose">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" page="1" pageWidth="1600" pageHeight="920" background="#ffffff">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="t1" value="Second Brain" style="text;html=1;align=center;verticalAlign=middle;fontSize=30;fontStyle=1;fontColor=#2d2d2d;" vertex="1" parent="1">
+          <mxGeometry x="60" y="20" width="1480" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="A personal memory system built on Pete&#39;s notes. It captures what happens each day, files it in the right place,&#xa;remembers what matters — with his approval — and hands it back exactly when it&#39;s useful." style="text;html=1;align=center;verticalAlign=middle;fontSize=15;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="160" y="70" width="1280" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="f1" value="&lt;b&gt;1 · Capture&lt;/b&gt;&#xa;&#xa;Notes, ideas, and work sessions land all day — an inbox, daily notes, and coding sessions." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="170" width="280" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" value="&lt;b&gt;2 · Sort &amp;amp; file&lt;/b&gt;&#xa;&#xa;A reading assistant looks at each item and files it into the right notebook section — automatically." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="460" y="170" width="280" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" value="&lt;b&gt;3 · Remember — with approval&lt;/b&gt;&#xa;&#xa;Useful lessons are staged as suggestions. Nothing is saved for good until Pete approves it." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="860" y="170" width="280" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="f4" value="&lt;b&gt;4 · Hand it back&lt;/b&gt;&#xa;&#xa;A morning prep briefing, instant &quot;what do I know about…&quot; answers, and new work sessions that start pre-loaded." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="170" width="280" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="f1" target="f2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="f2" target="f3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="f3" target="f4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="vault" value="The notebook itself (an Obsidian vault — plain files on Pete&#39;s Mac)" style="swimlane;startSize=30;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="330" y="410" width="940" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="vl" value="&lt;b&gt;Pete&#39;s side&lt;/b&gt;&#xa;His own words — who he is, how he writes.&#xa;The machine may read, never edit." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="vault">
+          <mxGeometry x="20" y="40" width="440" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="vr" value="&lt;b&gt;Working side&lt;/b&gt;&#xa;Briefings, filed notes, and the growing memory file.&#xa;The machine may write here." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="vault">
+          <mxGeometry x="480" y="40" width="440" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="files into" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;exitX=0.5;exitY=1;entryX=0.35;entryY=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="f2" target="vault">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="approved memories saved" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;exitX=0.5;exitY=1;entryX=0.65;entryY=0;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="f3" target="vault">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="answers come from here" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;exitX=0.9;exitY=0;entryX=0.5;entryY=1;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="vault" target="f4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="auto" value="Runs by itself — no buttons to press" style="swimlane;startSize=30;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="650" width="820" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="a1" value="&lt;b&gt;Weekday 6:45 am&lt;/b&gt;&#xa;morning prep briefing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="auto">
+          <mxGeometry x="20" y="45" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" value="&lt;b&gt;Every night 11:45 pm&lt;/b&gt;&#xa;sweeps the day&#39;s notes for lessons" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="auto">
+          <mxGeometry x="290" y="45" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="a3" value="&lt;b&gt;Monthly (the 1st)&lt;/b&gt;&#xa;tidy-up suggestions for old memories" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="auto">
+          <mxGeometry x="560" y="45" width="240" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="safe" value="&lt;b&gt;Safety rails&lt;/b&gt;&#xa;&#xa;· Private work topics are filtered out before anything is saved&#xa;· Every permanent memory needs Pete&#39;s explicit OK&#xa;· His own words are never machine-edited" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;align=left;spacing=14;" vertex="1" parent="1">
+          <mxGeometry x="940" y="650" width="600" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="foot" value="Built by and for one operator — the memory layer under every one of Pete&#39;s projects. Tomorrow&#39;s work starts smarter than today&#39;s." style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontStyle=2;fontColor=#777777;" vertex="1" parent="1">
+          <mxGeometry x="60" y="830" width="1480" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
