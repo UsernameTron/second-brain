@@ -12,13 +12,13 @@ A config-driven pipeline over an Obsidian vault (`~/Claude Cowork`) — no serve
 
 | Document | What it covers | Load-bearing facts |
 |---|---|---|
-| [STACK.md](../.planning/codebase/STACK.md) | Languages, deps, CI | JS CommonJS only, no build step; Jest 30, ESLint 10 flat; chokidar pinned 3.6 (CJS compat), voyageai exact-pinned 0.2.1; CI = Node 20/22 matrix + CodeQL + license-checker + GitGuardian |
+| [STACK.md](../.planning/codebase/STACK.md) | Languages, deps, CI | JS CommonJS only, no build step; Jest 30, ESLint 10 flat; chokidar pinned 3.6 (CJS compat), voyageai exact-pinned 0.2.1; CI = Node 22 matrix + CodeQL + license-checker + GitGuardian |
 | [ARCHITECTURE.md](../.planning/codebase/ARCHITECTURE.md) | Patterns, data flow | Single write choke point (`vault-gateway.js`: path allowlist → content policy → style lint); never-throw LLM client contract (`{success, failureMode}` envelopes); adaptive-denial health trackers shared across CLI invocations; human-in-the-loop checkbox gates with ONE shared parser |
 | [STRUCTURE.md](../.planning/codebase/STRUCTURE.md) | Directory layout | `src/` library modules, `src/today/` orchestrator stages, `src/connectors/` (briefing-only), `scripts/` dotenv-gated entry points, `config/` + `config/schema/` (AJV, protected-file-guarded), `hooks/` git hooks (repo-managed via core.hooksPath), `.claude/hooks/` Claude Code hooks |
 | [CONVENTIONS.md](../.planning/codebase/CONVENTIONS.md) | Standards observed | kebab-case files, verb-first camelCase functions, `'use strict'` everywhere; no console.log in src (eslint-enforced, per-site disables documented); errors as data, not throws |
 | [TESTING.md](../.planning/codebase/TESTING.md) | Test setup | Jest config inline in package.json; test/ mirrors src/; UAT skip-logic under CI; JEST_WORKER_ID counter-pollution tripwire; eval harness `npm run eval:recall` vs frozen seed vault + committed baseline |
 | [INTEGRATIONS.md](../.planning/codebase/INTEGRATIONS.md) | External services | Anthropic (Haiku→Sonnet escalation), LM Studio local fallback (qwen3.6-27b, health-gated capped Haiku fallback), Voyage AI embeddings (0.55 threshold), Obsidian Local REST API, Docker MCP gateway, launchd trio |
-| [CONCERNS.md](../.planning/codebase/CONCERNS.md) | Debt + risks | 1 governance BLOCKER (no branch protection on master — Pete's call); schema_version type mismatch (latent, one-line fix behind protected-file guard); god-module watchlist (dream.js 1005 LOC, all tested); zero TODO/FIXME markers; zero silent empty catches |
+| [CONCERNS.md](../.planning/codebase/CONCERNS.md) | Debt + risks | Branch protection restored and schema_version type fixed 2026-07-21 (PR #91); god-module watchlist (dream.js 1005 LOC, all tested); zero TODO/FIXME markers; zero silent empty catches |
 
 ## The one diagram to hold in your head
 

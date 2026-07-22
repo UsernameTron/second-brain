@@ -4,24 +4,17 @@
 
 ## Governance
 
-**Master branch has no branch protection — BLOCKER**
-- `gh api repos/:owner/second-brain/branches/master/protection` returns `404 Not Found`.
-- Regression of BRANCH-PROT-01 (shipped v1.4). Nothing stops a direct push to `master` with red CI.
-- Confirmed in `.planning/STATE.md:67` as an open blocker awaiting Pete's call, not a phase task.
-- Fix approach: restore `required_pull_request_reviews` (0 required approvers is fine solo) plus `test (20)` / `test (22)` as required status checks.
+**Master branch protection — RESOLVED 2026-07-21 (PR #91)**
+- Branch protection restored and verified live (`.planning/STATE.md` Open Blockers: None).
+- Required status check is `test (22)` (Node 22 is the only matrix entry since the node:sqlite floor).
 
 ## Tech Debt
 
-**`.planning/STATE.md` "Filed, not fixed" list is itself stale — HYGIENE**
-- STATE.md:71 still lists "Rejected candidates never get `status::` rewritten — `total_processed` re-counts them every run" as unfixed.
-- This is already fixed. `src/promote-memories.js:630-633` writes `replacements[c.candidateId] = 'rejected'` (a terminal status excluded from `LIVE_STATUSES` at `src/promote-memories.js:37`), landed in commit `c0b3c70` ("fix(promote): give rejects a terminal status (PROMOTE-REJECT-01)").
-- Fix approach: delete that STATE.md line at the next `/gsd:sync-docs` pass — no code change needed, just doc hygiene.
+**`.planning/STATE.md` "Filed, not fixed" staleness — RESOLVED 2026-07-21**
+- STATE.md no longer carries the already-fixed "Rejected candidates" line (fix landed in commit `c0b3c70`, PROMOTE-REJECT-01; terminal status at `src/promote-memories.js:630-633`).
 
-**`daily-stats` frontmatter `schema_version` type mismatch — DEGRADED**
-- `config/schema/daily-stats-frontmatter.schema.json:8-10` requires `schema_version` as `"type": "string"`.
-- `src/daily-stats.js:197` writes `const schemaVersion = config.stats.schemaVersion || 1;` and `config/pipeline.json:64` sets `"schemaVersion": 1` — a JSON number, not a string.
-- Still latent as STATE.md:72 notes: nothing currently validates written frontmatter against this schema. Risk activates the moment frontmatter validation gets wired into `readDailyStats` — flagged there as a re-check item for whichever phase touches that file next.
-- Fix approach: either relax the schema to accept `["string","integer"]` or coerce `schemaVersion` to a string at write time — pick one before wiring validation in.
+**`daily-stats` frontmatter `schema_version` type mismatch — RESOLVED 2026-07-21 (PR #91)**
+- `config/schema/daily-stats-frontmatter.schema.json` now declares `schema_version` as `"type": "integer"`, matching what `src/daily-stats.js:197` writes.
 
 **`.planning/backlog.md` is stale relative to shipped code — HYGIENE**
 - Sampled 8 of the v1.3-era backlog items against current source; all 8 are already resolved but the file still lists them as open MEDIUM/LOW items:

@@ -1,5 +1,7 @@
 'use strict';
 
+/* eslint jest/expect-expect: ["warn", { "assertFunctionNames": ["expect", "assert*"] }] */
+
 /**
  * test/connectors/calendar.test.js
  *

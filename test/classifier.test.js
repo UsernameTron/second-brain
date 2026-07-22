@@ -522,15 +522,13 @@ describe('classifyInput', () => {
 
     const logSpy = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
-    await classifyInput('An analysis of AI market trends for 2025', { interactive: true });
+    const result = await classifyInput('An analysis of AI market trends for 2025', { interactive: true });
 
-    // Should have written some log output (instrumentation per D-06)
-    // We check that stderr was written to OR that we can verify internal logging
     logSpy.mockRestore();
 
-    // The test passes as long as classifyInput completes without throwing
-    // and returns a result with correlationId (instrumentation is logged internally)
-    // A more specific test would need to capture console.error output
+    // Instrumentation is logged internally; the result carries the correlationId
+    expect(result).toHaveProperty('correlationId');
+    expect(result.correlationId).toBeTruthy();
   });
 
   test('stores suggestedLeftPath for LEFT-classified content', async () => {
