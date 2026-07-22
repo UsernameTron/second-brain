@@ -20,10 +20,10 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 
 ## Project Status
 
-> Last verified: 2026-07-19  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
+> Last verified: 2026-07-21  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
 
 **Latest Release:** v1.7 Prove Compounding (2026-07-16)
-**v1.8 Measured Memory (in progress):** Phase 32 Retrieval Eval Baseline shipped 2026-07-19 (PR #74) — `npm run eval:recall`, golden set, frozen seed vault, first baseline. Phases 33-36 planned.
+**v1.8 Measured Memory (in progress):** Phases 32-35 shipped — Phase 32 Retrieval Eval Baseline 2026-07-19 (PR #74: `npm run eval:recall`, golden set, frozen seed vault, first baseline); Phase 33 Capture Reliability, Phase 34 Promotion Integrity + Dream Consolidation, and Phase 35 Proactive-Memory SessionStart Injection all 2026-07-21 (PRs #88/#86/#89). Phase 36 (Ingest Breadth) decision-gated, unscheduled.
 **v1.7 complete (2026-07-16):** Series Integrity (Phase 29), Outcome Instrumentation (Phase 30), Trend & Report (Phase 31)
 **v1.6 complete (2026-07-15):** Promotion Safety, Cross-Surface Reach (ADR-018/019), Context Honesty (staleness hook, ADR-020 authority hierarchy, fail-closed exclusions), Surface Completion (/reroute, pre-push docs gate)
 
@@ -51,6 +51,9 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 | `/today` (with `## Compounding` section) | Daily briefing includes compounding evidence when available: last 7 entries added/modified, cumulative promotion count, memory growth trend (v1.7 Phase 30) |
 | `node scripts/compounding-report.js` | Standalone compounding evidence report CLI — summarizes memory growth metrics, promotion velocity, and verdict (v1.7 Phase 31) |
 | `npm run eval:recall` | Retrieval eval over the frozen seed vault (`eval/seed-vault/`) + golden set (`eval/golden-recall.json`) — recall@5 + MRR across keyword/semantic/hybrid, compared against `eval/baseline-*.json`. `-- --baseline` re-anchors. Exit 1 on regression (v1.8 Phase 32) |
+| `npm run dream:propose` | Monthly dream-consolidation propose pass over `memory.md` — stages MERGE/STALE ops into `proposals/dream-changeset-YYYY-MM.md` + missed patterns into the normal proposals gate; applies nothing (v1.8 Phase 34). Also scheduled via `com.secondbrain.dream` launchd plist (1st of month, 07:15, Anthropic-pinned) |
+| `npm run dream:apply` | Human-invoked-only apply of the accepted dream changeset — snapshot-first, then an `eval:recall` retrievability gate with auto-restore on regression (v1.8 Phase 34) |
+| `npm run verify:baseline` | Verifies the 27 pre-governance memory-entry hashes; real exit code, wired into the pre-push gate (v1.8 Phase 34, VERIFY-SENTINEL-01) |
 
 **Reach layer (v1.6, SURFACE-REACH-01):** every real promotion regenerates a pointer + digest cache (`second-brain.md` + `MEMORY.md` index line) in the auto-memory dirs allowlisted in `config/reach-targets.json`, via `src/reach-exporter.js`. Digest entries re-pass the content-policy exclusion gate at egress, fail-closed. See `decisions/ADR-019-reach-layer-mechanism.md`.
 
@@ -75,7 +78,7 @@ There is no build step — plain CJS Node, run directly.
 - `pre-push` — blocks branches based on a stale local master, then runs the docs-sync gate (`SKIP_DOCSYNC=1` bypasses only the docs half)
 - `post-merge` — docs drift warning, non-blocking by design (never exits non-zero)
 
-Claude Code hooks live separately in `.claude/hooks/` (auto-test, protected-file-guard, security-scan-gate, memory-extraction, staleness-check).
+Claude Code hooks live separately in `.claude/hooks/` (auto-test, protected-file-guard, security-scan-gate, memory-extraction, staleness-check, session-memory-inject).
 
 ## Tech Stack
 
@@ -115,7 +118,7 @@ The system is deployed across five integration points:
 2. **Orchestration:** Claude Code via `/today`, `/new`, `/wrap` commands; GSD framework manages phases
 3. **External integrations:** GitHub + Obsidian via the Docker MCP Gateway (Claude Desktop); Gmail + Calendar via claude.ai connectors. None are registered in repo .mcp.json (context7 only).
 4. **AI models:** Anthropic Haiku (default) and Sonnet (heavier tasks), with LM Studio as local fallback
-5. **Scheduling:** Claude Desktop scheduled tasks with `ccdScheduledTasksEnabled: true`
+5. **Scheduling:** macOS launchd — `com.secondbrain.today` (weekdays 06:45), `com.secondbrain.daily-sweep` (23:45), `com.secondbrain.dream` (1st of month 07:15); plists versioned in `config/`. RemoteTrigger is vault-unreachable and disabled by design (`config/scheduling.json`)
 
 **Permission model:** LEFT vault side is read-only (human voice preserved); RIGHT side has full agent write access. OAuth scopes follow zero-trust: Gmail `gmail.compose` (draft-only, no send), Calendar read-only, GitHub issues-only.
 
@@ -123,9 +126,9 @@ The system is deployed across five integration points:
 - `vault-gateway.js` — vault boundary enforcement, LEFT/RIGHT write permission checks
 - `today-command.js` — orchestrator that chains slippage-scanner, frog-identifier, llm-augmentation, briefing-renderer
 - `classifier.js` — two-stage LLM classifier for `/new` command domain routing
-- `memory-pipeline.js` — session extraction, proposal staging, human-in-the-loop promotion
+- `memory-extractor.js` / `memory-proposals.js` / `promote-memories.js` — the memory pipeline: session extraction → proposal staging → human-in-the-loop promotion
 - `semantic-index.js` — Phase 19 core: Voyage AI embeddings, cosine search, RRF hybrid fusion, embed-on-promotion
-- `utils/voyage-health.js` — Phase 19 Pattern 7 adaptive denial tracker; persists degraded-mode state to `~/.cache/second-brain/voyage-health.json`
+- `utils/voyage-health.js` / `utils/classifier-health.js` — Pattern 7 adaptive denial trackers; persist degraded-mode state to `~/.cache/second-brain/*.json`
 - Config loaders (`loadConfigWithOverlay`, schema validation via AJV)
 - Hook infrastructure (auto-test, protected-file-guard, security-scan-gate, memory-extraction)
 

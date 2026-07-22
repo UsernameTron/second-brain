@@ -6,6 +6,8 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current State
 
+**v1.8 phases 32-35 all shipped as of 2026-07-21** — Phase 32 Retrieval Eval Baseline (PR #74, 2026-07-19), Phase 33 Capture Reliability (PR #88: fixed+versioned daily-sweep launchd plist with an observed real fire, classifier-health capped Haiku fallback, sweep proof-of-fire evidence + `/today` sweep line), Phase 34 below, and Phase 35 Proactive Memory (PR #89: fail-open SessionStart hook injecting egress-filtered hybrid top-5 recall, ~750-token cap, kill switches). Phase 36 (Ingest Breadth) stays decision-gated.
+
 **Phase 34 (Promotion Integrity & Lifecycle) complete 2026-07-21 — verification passed 8/8, no gaps.** The four filed promotion-integrity backlog items landed (whitespace-tolerant checkbox parsing with loud near-miss abort, call-time VAULT_ROOT with cross-module agreement assert, archive-aware collision-safe proposal IDs, and `scripts/verify-baseline.js` proving 27/27 pre-governance sentinel hashes with a real exit code wired into pre-push). Promotion now flags contradictions (hybrid top-5 + Haiku, flag-only, never blocks) and the read path downranks `superseded-by::`/`stale::` entries (×0.4, never filters). Dream consolidation shipped: `/dream-propose` (monthly launchd plist, propose-only, operator must load it) detects MERGE pairs (cosine ≥0.90, Sonnet-authored, mechanically-verified verbatim quotes), STALE flags, and MISSED PATTERNS staged into the existing promotion gate; `/dream-apply` (human-invoked only, never scheduled) applies accepted changeset ops snapshot-first and auto-restores on any `eval:recall` regression. One shared `parseCheckboxState` serves both gates. Design: `.planning/research/DREAM-CONSOLIDATION-DESIGN.md`. Suite: 1412 passing / 29 skipped local.
 
 **v1.7 Prove Compounding — SHIPPED 2026-07-16 (PR #66 merged). Phase 31 (Trend & Report) complete (2026-07-16):** pure `computeCompoundingTrend` verdict engine (supply/demand/utility gates, `compounding | flat | insufficient-data`) surfaced in `/today` as a null-suppressed `## Compounding` section (<7 rows suppressed) and in a standalone `scripts/compounding-report.js` CLI that always prints the evidence table (TREND-01/02 validated). Remaining: VERDICT-01 calendar-gated follow-up (~3 weeks post-ship). Phase 30 (Outcome Instrumentation) complete (2026-07-16): retrieval-outcome layer live — `/recall` records hit/miss + result count after results are known, `/today` records Memory Echo shown/score, and the daily-stats row is now 11 columns with root-level numeric coercion; first live row human-verified on the vault with zero query-text leakage (STATS-OUTCOME-01/02 validated). Phase 29 (Series Integrity, 2026-07-15) shipped the jest-pollution guard, idempotent missed-day flush with 14-day cleanup, and a local launchd weekday scheduler replacing the vault-unreachable RemoteTrigger (STATS-PIPE-01/02/03 validated). Eight milestones shipped: v1.7 Prove Compounding (2026-07-16), v1.0 MVP (2026-04-22), v1.1 Go Live (2026-04-23), v1.2 Automation & Quality (2026-04-23, tag v1.2.0), v1.3 Review Remediation (2026-04-24, tag v1.3.0), v1.4 Memory Activation & Final Closeout (2026-04-26, tag v1.4), v1.5 Internal Hardening (2026-04-26, tag v1.5), v1.6 Enforcement Integrity & Surface Completion (2026-07-15).
@@ -27,13 +29,13 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 - Scheduled `/today` via local launchd agent `com.secondbrain.today` (weekdays 06:45); RemoteTrigger disabled by design (cloud env cannot reach the local vault — documented in `config/scheduling.json`)
 - GitHub Actions CI: Node 20+22 matrix, ESLint, CodeQL SAST, license-checker, coverage ≥80%, GitGuardian secrets scan
 - UAT workflow: weekly cron + manual `workflow_dispatch`, ANTHROPIC_API_KEY scoped step-only, 90-day artifact retention
-- Branch protection on master: PR-required-reviews, required CI checks (test (20)/test (22)/Analyze), force-push blocked
+- ~~Branch protection on master~~ — REGRESSED (see Known gaps below; `gh api .../branches/master/protection` returns 404)
 
 **Known gaps:** FIX-02 (config hot-reload) — restart workaround sufficient. `master` branch protection regression (BRANCH-PROT-01) — Pete's call, not a phase. The compounding thesis itself is unproven — see v1.7.
 
 ## Current Milestone: v1.8 Measured Memory
 
-**Status (2026-07-19):** Phase 32 Retrieval Eval Baseline shipped (PR #74) — `npm run eval:recall` scores a 20-question golden set over a frozen 135-entry seed vault across keyword/semantic/hybrid; first baseline committed before any tuning at keyword 0.900 / semantic 0.800 / hybrid 0.900 recall@5. Phases 33-36 planned (33 capture reliability, 34 promotion integrity + lifecycle, 35 SessionStart injection, 36 Drive connector — decision-gated). Open lead: semantic misses 2 questions by returning nothing above the 0.55 threshold — the measured tuning headroom Phase 33+ must justify itself against.
+**Status (2026-07-21):** Phases 32-35 shipped — 32 Retrieval Eval Baseline (PR #74, 2026-07-19: `npm run eval:recall`, 20-question golden set over a frozen 135-entry seed vault, first baseline committed pre-tuning at keyword 0.900 / semantic 0.800 / hybrid 0.900 recall@5), 33 Capture Reliability (PR #88), 34 Promotion Integrity & Lifecycle (PR #86, close-out #87), 35 Proactive Memory (PR #89). Phase 36 (Drive connector + connector→memory seam) decision-gated on a real L10 RAG Phase 3 timeline. Open lead: semantic misses 2 golden questions by returning nothing above the 0.55 threshold — the measured tuning headroom any future tuning must justify itself against.
 
 ## Previous Milestone: v1.7 Prove Compounding
 
@@ -229,14 +231,14 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 | LLM classify() never throws | Returns {success, data/error, failureMode} — callers handle gracefully | ✓ Good — enables graceful degradation in /today |
 | Wikilink enrichment non-blocking | Failures logged, never block pipeline | ✓ Good — /new completes even if wikilinks fail |
 | Dead-letter auto-retry: 15-min, 3-attempt cap, freeze | Prevents infinite retry loops while giving transient failures a chance | ✓ Good — bounded retry with freeze semantics |
-| RemoteTrigger for scheduling (not launchd) | First-class Claude integration, no plist management | ✓ Good — activated v1.1, fires weekday mornings |
+| RemoteTrigger for scheduling (not launchd) | First-class Claude integration, no plist management | ✗ Reversed v1.7 — cloud env cannot reach the local vault; replaced by launchd `com.secondbrain.today`, RemoteTrigger disabled by design |
 | PR time-window filtering client-side | list_pull_requests lacks since param | ✓ Good — filter by updated_at after fetch |
 | Partial GitHub MCP failure returns warnings[] | Preserves partial data for /today degraded mode | ✓ Good — matches graceful degradation design |
 | Substring matching for excluded terms | Word-boundary regex missed embedded substrings | ✓ Good — single toLowerCase, catches all variants |
 | AUTH_ERRORS structural comparison | errorType field not string matching — resilient to message changes | ✓ Good — typed error taxonomy |
 | UAT harnesses call real Anthropic API | Accuracy and relevance cannot be validated with stubs | ✓ Good — verified LLM quality in CI-excluded tests |
 | GitHub Actions Node 20+22 matrix | LTS coverage without maintaining older versions | ✓ Good — CI green on both |
-| Branch protection: PR-required-reviews on master (v1.4) | Classic `required_status_checks` only gates PR merges, NOT direct pushes; without `required_pull_request_reviews` (non-null) direct push with red CI lands. Required for solo-dev safety. | ✓ Good — direct pushes blocked since 2026-04-24 |
+| Branch protection: PR-required-reviews on master (v1.4) | Classic `required_status_checks` only gates PR merges, NOT direct pushes; without `required_pull_request_reviews` (non-null) direct push with red CI lands. Required for solo-dev safety. | ✗ Regressed — protection currently absent (gh api 404, noted 2026-07-21); restore is an open item for Pete |
 | ANTHROPIC_API_KEY scoped step-only in uat.yml (v1.4) | Workflow-level or job-level secrets leak to all steps; step-level scoping is P11 prevention | ✓ Good — verified by grep across ci.yml, codeql.yml, uat.yml |
 | Voyage AI `voyage-4-lite` for semantic embeddings (v1.4) | Cloud posture matches Anthropic; generous free tier; SDK quality; cosine + temporal decay computable client-side | ✓ Good — embed-on-promotion working, 0.55 threshold calibrated post-UAT |
 | `schema_version = hash(model \|\| dim)` only (v1.4) | Threshold/decay are query-time math applied to cached vectors — re-embedding on those changes is wasted compute | ✓ Good — D-14 invariant tested, prevents unnecessary cache busts |
@@ -247,6 +249,8 @@ Memory compounds daily. Every session, conversation, and capture adds to a growi
 | America/Chicago timezone for daily-stats date boundaries (v1.4) | Operator is in Fort Worth; ROADMAP success criterion citing America/Los_Angeles was an initial draft error corrected by REQ-AMEND-01 | ✓ Good — single shared `dateKey()` utility unit-tested at 23:59/00:01/DST boundaries |
 | Manifest-first protocol for scoped governance work (v1.4 lesson) | Plan 21-03 caught 5 categorization corrections from CONTEXT estimates by building full N-row manifest before applying any changes | ✓ Good — protocol now codified in lessons.md as LESSON-MANIFEST-FIRST-VALIDATED-01 |
 | `CI=true npm test` as the green/red signal (v1.4 lesson) | Bare `npm test` runs UAT tests against live API; `CI=true` triggers describe.skip guards and produces production-correctness signal | ✓ Good — codified in LESSON-PREFLIGHT-CI-MODE-01 |
+
+> Decisions from v1.5 onward are logged per-milestone in `STATE.md` (Accumulated Context → Decisions) and the archived milestone ROADMAPs under `.planning/milestones/` — this table stops at v1.4 and is kept for the foundational architecture record.
 
 ## Evolution
 
@@ -266,4 +270,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-21 after Phase 34 (Promotion Integrity & Lifecycle) completion*
+*Last updated: 2026-07-21 (full project audit — phases 33/34/35 all shipped this date)*

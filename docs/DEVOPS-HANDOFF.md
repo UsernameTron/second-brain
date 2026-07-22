@@ -21,7 +21,7 @@ git clone <repo>
 cd second-brain
 npm install
 cp .env.example .env   # add ANTHROPIC_API_KEY and optionally VOYAGE_API_KEY
-npm test               # verify 1338 tests pass (1300 active + 38 CI-skipped)
+npm test               # verify 1508 tests pass (1470 active + 38 CI-skipped)
 npm run lint           # verify ESLint 10 clean
 ```
 
@@ -166,8 +166,8 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 | Gate | Tool | Threshold |
 |---|---|---|
 | Lint | ESLint 10 (flat config) | 0 errors |
-| Unit + integration tests | Jest 30, Node 22 matrix | 1383 total, 1345 passing |
-| Branch coverage | Jest coverage | ≥80% enforced (currently 81.65%) |
+| Unit + integration tests | Jest 30, Node 20+22 matrix | 1508 total, 1470 passing (CI) |
+| Branch coverage | Jest coverage | ≥80% enforced (currently 81.15%) |
 | Security scan | CodeQL SAST | 0 high/critical |
 | Secrets scan | GitGuardian | 0 secrets |
 | License check | license-checker | MIT/ISC/Apache/BSD only |
@@ -180,10 +180,16 @@ UAT tests (`test/uat/`) are guarded by `CI=true` skip logic and run on a separat
 - [ ] `VOYAGE_API_KEY` provisioned in `.env` (if semantic features are enabled)
 - [ ] Obsidian Local REST API plugin running on port 27123
 - [ ] Docker MCP Gateway running (for Gmail/Calendar/GitHub connectors)
-- [ ] launchd scheduler installed (weekday `/today` at 06:45 local): `launchctl load ~/Library/LaunchAgents/com.secondbrain.today.plist`
-- [ ] `npm test` passes (1338 tests, 1300 passing)
+- [ ] launchd schedulers installed — all three plists are versioned in `config/` and copied to `~/Library/LaunchAgents/`: `com.secondbrain.today` (weekday `/today` 06:45 via `scripts/today-scheduled.js`, dotenv-gated), `com.secondbrain.daily-sweep` (23:45 nightly capture), `com.secondbrain.dream` (1st of month 07:15, propose-only, Anthropic-pinned). Load with `launchctl bootstrap gui/$(id -u) <plist>`
+- [ ] `npm test` passes (1508 tests, 1470 passing)
 - [ ] `npm run lint` exits 0
 - [ ] `~/.cache/second-brain/` writable (auto-created on first `/recall --semantic`)
+
+### v1.8 operational surfaces (added 2026-07-21)
+
+- **Dream consolidation (Phase 34):** `npm run dream:propose` stages monthly MERGE/STALE ops to `proposals/dream-changeset-YYYY-MM.md` (also fired by the `com.secondbrain.dream` plist, 1st @ 07:15, `LLM_PROVIDER=anthropic` pinned in the plist). `npm run dream:apply` is human-invoked only — snapshot-first with an `eval:recall` retrievability gate that auto-restores on regression. `npm run verify:baseline` guards the 27 pre-governance memory hashes and runs in the pre-push gate.
+- **Proactive memory injection (Phase 35):** `.claude/hooks/session-memory-inject.js` runs at SessionStart — hybrid top-5 recall for a project-derived query, egress-filtered (fail-closed `checkContent`), ~750-token cap, always exits 0. Kill switches: `sessionInject.enabled` in config, `SB_SESSION_INJECT=0` env.
+- **Sweep evidence (Phase 33):** every nightly sweep writes `state/daily-sweep-last-run.json` (gitignored); `/today`'s Compounding section renders "sweep ran/STALE/NEVER RAN" from it. Classifier fallback is health-gated: `src/utils/classifier-health.js` caps per-night Haiku calls (`classifier.haikuNightlyCap`).
 
 ## Known Tech Debt and Deferred Work
 
