@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 
 Milestone: v1.8 Measured Memory — Phases 32-35 SHIPPED (32: PR #74 2026-07-19; 33: PR #88, 34: PR #86 + close-out #87, 35: PR #89 — all 2026-07-21). Phase dirs archived to milestones/v1.8-phases/.
 Phase 36 (Ingest Breadth): decision-gated, unscheduled — gate is a real L10 RAG Phase 3 timeline. Pete's call.
-Last activity: 2026-07-21 (full project audit & close-out session)
+Last activity: 2026-07-21 - Completed quick task 260721-tx7: Pete-gated audit fixes (branch protection, schema type, dependency majors)
 Prior milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16); VERDICT-01 calendar-gated follow-up still open (due ~2026-08-06: ≥14 weekday daily-stats rows)
 
 **Shipped milestones:**
@@ -61,12 +61,12 @@ Full log in PROJECT.md Key Decisions table. Per-milestone summary:
 
 ### Open Blockers
 
-**`master` has no branch protection.** Regression of BRANCH-PROT-01 (v1.4) — nothing stops a direct push to master with red CI. Repo-level setting, Pete's call, not a phase. Recommended restore: `required_pull_request_reviews` with `required_approving_review_count: 0`, plus `test (20)` / `test (22)` as required checks.
+None. (Branch protection restored 2026-07-21, quick task 260721-tx7: PR required with 0 approvals, `test (22)` required + strict, force-push/deletion blocked, enforce_admins off — verified live via GET. The audit's restore list included `test (20)`, but the CI matrix is Node 22-only since the node:sqlite floor — requiring a check that never reports would block all merges, so protection tracks the live matrix.)
 
 ### Filed, not fixed
 
 - **Desktop-chat userPreferences pointer line** — manual item from v1.6, confirm Pete pasted it.
-- **`daily-stats-frontmatter.schema.json` `schema_version` type mismatch** — schema says string, writer writes integer (`src/daily-stats.js:197`, `config/pipeline.json` numeric 1). Latent (nothing validates written frontmatter yet). Fix is one line — `"type": "string"` → `"type": "integer"` — but `config/schema/` is protected-file-guarded; needs Pete's manual approval. (2026-07-21 audit: attempted, blocked by guard as designed.)
+- (Resolved 2026-07-21, quick task 260721-tx7: `daily-stats-frontmatter.schema.json` `schema_version` type fixed string → integer with Pete's /gsd:do dispatch approval; test fixtures flipped to the corrected contract.)
 
 (Resolved 2026-07-21 audit: rejected-candidates `status::` rewrite had already shipped in c0b3c70 (PROMOTE-REJECT-01) — line removed.)
 
@@ -84,6 +84,7 @@ None.
 | 260721-rst | Fix local-LLM reasoning-model starvation: reasoning_effort:none disable (verified live vs qwen3.6-27b), reasoning-starved SHAPE_ERROR guard, 60s local timeout, default model → qwen3.6-27b | 2026-07-21 | 6d8c472 | [260721-rst](./quick/260721-rst-local-llm-reasoning-starvation/) |
 | 260721-gyj | Memory wiki optimization: lesson→LEARNING alias + silent coercion (5 notes stripped, 0 remain), related:: wikilinks at promotion + 180-entry backfill (98.9% coverage, unique ^hash block anchors), reader field-parse root-cause fix, sidecar parity 180/180 | 2026-07-21 | df1a484 | [260721-gyj](./quick/260721-gyj-memory-wiki-optimization-category-fix-re/) |
 | 260721-ljn | Session close-out batch (verified): dream-apply gate docs fixed (SKILL.md + 4 dream.js sites), scheduled dream pinned to Anthropic via LLM_PROVIDER (launchctl-live), changeset confirmed resolved 12+3-rejected (apply no-op, rejections preserved), wiki graph refreshed 178/180 (98.9%) via pinned Haiku after LM Studio wedge, phase-34 branch deleted; suite 1440 passed | 2026-07-21 | 2d26ea4 | [260721-ljn](./quick/260721-ljn-session-close-out-batch-dream-apply-skil/) |
+| 260721-tx7 | Pete-gated audit fixes: branch protection restored + verified live (PR required, test (22) strict — matrix is Node 22-only); daily-stats schema_version string→integer with test contract flip; dep majors — SDK 0.112.5 + eslint-plugin-n 18 landed (content-policy lazy-init, Unlicense allowlisted), voyageai 0.4.0 evidence-rejected; pre-existing Voyage UAT jest flake diagnosed + filed | 2026-07-21 | 62ff9e5 | [260721-tx7](./quick/260721-tx7-pete-gated-audit-fixes-branch-protection/) |
 
 ## Session Continuity — 2026-07-21 (full project audit & close-out)
 

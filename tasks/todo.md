@@ -9,7 +9,7 @@
 ## Next Steps (written 2026-07-21, post-audit)
 
 1. **Ship the audit branch:** `gh auth switch --user UsernameTron`, push `chore/full-audit-close-2026-07-21`, open PR with `.planning/PR-BODY-full-audit.md`.
-2. **Pete-gated fixes surfaced by the audit:** (a) restore branch protection on master (`required_pull_request_reviews` + `test (20)`/`test (22)` checks — gh api shows 404); (b) approve the one-line `config/schema/daily-stats-frontmatter.schema.json` fix (`"type": "string"` → `"type": "integer"`, blocked by protected-file guard); (c) dependency majors decision (see `.planning/todos.md`).
+2. ~~**Pete-gated fixes surfaced by the audit**~~ — all three resolved 2026-07-21 via /gsd:do dispatch (quick task 260721-tx7): (a) branch protection restored + verified live; (b) schema one-liner applied with test fixtures flipped; (c) dep majors: @anthropic-ai/sdk 0.112.5 + eslint-plugin-n 18 landed (gates green), voyageai 0.4.0 rejected on evidence (breaks embed API compat + ships Unlicense transitive dep) — stays 0.2.1 exact.
 3. **VERDICT-01 (~Aug 6, when ≥14 weekday rows exist):**
    - Confirm scheduler alive: a row for every weekday in the trailing week
    - Run `node scripts/compounding-report.js > .planning/reports/COMPOUNDING-VERDICT-$(date +%Y-%m-%d).md` and commit it
@@ -20,11 +20,13 @@
 
 ## Active
 
-- [ ] Push audit branch + open PR (needs UsernameTron auth) — awaiting Pete's go
 - [ ] VERDICT-01 (~2026-08-06): archive compounding-report output with the real verdict (step 3 above)
+- [ ] Pre-existing local-only failure in `test/uat/semantic-search.uat.test.js` (live Voyage UAT): fails on master with pristine deps too (3-4/5, timing-dependent) — jest sandbox + lazy undici fetch init interaction, NOT a dependency or code regression; production path verified healthy outside jest. Diagnosis evidence in `.planning/quick/260721-tx7-*/260721-tx7-SUMMARY.md`
 
 ## Completed
 
+- [x] Push audit branch + open PR — merged as PR #90 to master (2026-07-21)
+- [x] Pete-gated audit fixes via /gsd:do (2026-07-21, quick 260721-tx7): branch protection restored, schema one-liner applied, dep majors resolved (SDK+eslint-plugin-n landed, voyageai 0.4.0 evidence-rejected)
 - [x] Full project audit & close-out pass (2026-07-21) — health 18 warnings→0, /today scheduled-env fix, doc sync (21 findings), backlog re-triage, in-range dep updates, all gates green; branch local pending push approval
 - [x] Merge PR #66 — Milestone v1.7 Prove Compounding merged to master (2026-07-16)
 - [x] Merge PR #59, /gsd:discuss-phase 26 — v1.6 shipped 2026-07-15 (stale handoff item)

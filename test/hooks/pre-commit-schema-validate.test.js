@@ -68,9 +68,9 @@ describe('pre-commit-schema-validate: config/*.json validation', () => {
 // ── Tests 3-4: daily-stats.md frontmatter validation ─────────────────────────
 
 describe('pre-commit-schema-validate: daily-stats.md frontmatter validation', () => {
-  test('fails when schema_version is a number (not a string)', async () => {
+  test('fails when schema_version is a string (not an integer)', async () => {
     const invalidFrontmatter = `---
-schema_version: 1
+schema_version: "1"
 columns:
   - date
   - proposals
@@ -85,12 +85,12 @@ last_updated: "2026-04-26T00:00:00Z"
     expect(result.exitCode).toBe(1);
     expect(result.errors.length).toBeGreaterThan(0);
     const errorText = result.errors.join(' ');
-    expect(errorText).toMatch(/schema_version|string|type/i);
+    expect(errorText).toMatch(/schema_version|integer|type/i);
   });
 
   test('passes when daily-stats.md has valid frontmatter', async () => {
     const validFrontmatter = `---
-schema_version: "1"
+schema_version: 1
 columns:
   - date
   - proposals
@@ -109,7 +109,7 @@ last_updated: "2026-04-26T00:00:00Z"
 
   test('fails when columns is missing from daily-stats.md frontmatter', async () => {
     const missingColumns = `---
-schema_version: "1"
+schema_version: 1
 timezone: America/Chicago
 last_updated: "2026-04-26T00:00:00Z"
 ---
