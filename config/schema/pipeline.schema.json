@@ -12,7 +12,8 @@
     "leftProposal",
     "filename",
     "slippage",
-    "dream"
+    "dream",
+    "sessionInject"
   ],
   "properties": {
     "classifier": {
@@ -450,6 +451,18 @@
           "type": "integer",
           "minimum": 1
         }
+      },
+      "additionalProperties": false
+    },
+    "sessionInject": {
+      "type": "object",
+      "required": ["enabled", "topN", "tokenCap", "latencyUpMs", "latencyDegradedMs"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "topN": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "tokenCap": { "type": "integer", "minimum": 100, "maximum": 4000 },
+        "latencyUpMs": { "type": "integer", "minimum": 100, "maximum": 5000 },
+        "latencyDegradedMs": { "type": "integer", "minimum": 50, "maximum": 2000 }
       },
       "additionalProperties": false
     }

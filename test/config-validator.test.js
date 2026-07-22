@@ -344,6 +344,7 @@ describe('config-validator', () => {
       filename: { maxLength: 60, haikuWordRange: [4, 8] },
       slippage: { staleDays: 7, excludeProjects: [], maxProjects: 20 },
       dream: { enabled: true, mergeCosineMin: 0.9, patternDedupCosine: 0.86, maxMergeOps: 15, maxStaleFlags: 10, maxPatternAdds: 5, staleAgeDays: 180, sessionLogWindow: 30, maxLLMCalls: 40 },
+      sessionInject: { enabled: true, topN: 5, tokenCap: 750, latencyUpMs: 1000, latencyDegradedMs: 250 },
     };
 
     function writeTmpPipeline(filename, overrideMemory) {
