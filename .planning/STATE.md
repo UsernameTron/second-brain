@@ -102,4 +102,3 @@ Prior session-66 v1.7 grounding notes: archived with v1.7 (see `milestones/v1.7-
 Pete decisions, in order:
 1. VERDICT-01 (~2026-08-06): run `node scripts/compounding-report.js` once ≥14 weekday rows exist; archive output + verdict to `.planning/`.
 2. Phase 36 gate: open (define requirements, plan, execute) or close v1.8 without it (`/gsd:complete-milestone`).
-3. Branch protection on master (open blocker above) — repo settings, one-time.

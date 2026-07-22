@@ -554,7 +554,7 @@ describe('memory-extraction-hook.js', () => {
     const { execFile } = require('child_process');
     const input = JSON.stringify({ session_id: 'test-session', hook_event_name: 'Stop' });
 
-    await new Promise((resolve, reject) => {
+    await expect(new Promise((resolve, reject) => {
       const child = execFile('node', [hookPath], { timeout: 5000 }, (err, _stdout, _stderr) => {
         // Exit 0 even on missing transcript
         if (err && err.code !== 0) {
@@ -565,14 +565,14 @@ describe('memory-extraction-hook.js', () => {
       });
       child.stdin.write(input);
       child.stdin.end();
-    });
+    })).resolves.toBeUndefined();
   });
 
   test('hook exits 0 on non-Stop hook_event_name', async () => {
     const { execFile } = require('child_process');
     const input = JSON.stringify({ session_id: 'test', transcript_path: '/tmp/none.jsonl', hook_event_name: 'PreToolUse' });
 
-    await new Promise((resolve, reject) => {
+    await expect(new Promise((resolve, reject) => {
       const child = execFile('node', [hookPath], { timeout: 5000 }, (err, _stdout, _stderr) => {
         if (err && err.code !== 0) {
           reject(new Error('Hook exited non-zero: ' + err.code));
@@ -582,7 +582,7 @@ describe('memory-extraction-hook.js', () => {
       });
       child.stdin.write(input);
       child.stdin.end();
-    });
+    })).resolves.toBeUndefined();
   });
 });
 

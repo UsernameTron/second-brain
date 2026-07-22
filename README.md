@@ -206,7 +206,7 @@ Exit codes: 0 ok · 1 recall@5 regression vs baseline · 2 preflight/refusal · 
 
 Uses [GSD (Get Shit Done) framework](https://github.com/Pete-Gets-Shit-Done) for:
 - Phase-gated development (planning → implementation → verification → ship)
-- Automated agent coordination (6 deployed specialists in `.claude/agents/`)
+- Automated agent coordination (7 deployed specialists in `.claude/agents/`)
 - Lifecycle hooks for security, testing, memory extraction
 - Structured decision logging in `.planning/STATE.md`
 

@@ -818,7 +818,7 @@ describe('vault-gateway.js chokidar hot-reload', () => {
       fs.writeFileSync(path.join(configDir, 'vault-paths.json'), JSON.stringify(vaultPaths, null, 2));
     }, 1000);
 
-    await reloadPromise;
+    await expect(reloadPromise).resolves.toBeUndefined();
   }, 10000);
 });
 

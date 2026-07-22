@@ -20,7 +20,7 @@ v1.8 Phase 32 (2026-07-19) adds a retrieval eval harness (`npm run eval:recall`)
 git clone <repo>
 cd second-brain
 npm install
-cp .env.example .env   # add ANTHROPIC_API_KEY and optionally VOYAGE_API_KEY
+printf 'ANTHROPIC_API_KEY=...\n' > .env   # add ANTHROPIC_API_KEY and optionally VOYAGE_API_KEY (no .env.example in repo)
 npm test               # verify 1508 tests pass (1470 active + 38 CI-skipped)
 npm run lint           # verify ESLint 10 clean
 ```
@@ -166,7 +166,7 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 | Gate | Tool | Threshold |
 |---|---|---|
 | Lint | ESLint 10 (flat config) | 0 errors |
-| Unit + integration tests | Jest 30, Node 20+22 matrix | 1508 total, 1470 passing (CI) |
+| Unit + integration tests | Jest 30, Node 22 matrix | 1508 total, 1470 passing (CI) |
 | Branch coverage | Jest coverage | ≥80% enforced (currently 81.15%) |
 | Security scan | CodeQL SAST | 0 high/critical |
 | Secrets scan | GitGuardian | 0 secrets |
@@ -206,7 +206,7 @@ Phase 21 (Closeout Hygiene, v1.4) shipped the JSDoc, no-console, and Unicode-gap
 
 ## Deployment Maturity
 
-Local development only. No hosting, no containerization, no remote deployment. v1.4 milestone (in progress) targets full local feature completeness before any hosting consideration.
+Local development only. No hosting, no containerization, no remote deployment. v1.8 milestone (in progress) targets measured-memory completeness before any hosting consideration.
 
 **Phase 19 REQ-ID coverage in this document:**
 

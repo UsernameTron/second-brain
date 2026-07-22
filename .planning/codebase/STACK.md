@@ -27,14 +27,14 @@ No TypeScript, no JSX. `.mcp.json` (repo root) registers one dev-tool MCP server
 
 **Testing:**
 - Jest `30.3.0` - unit + integration + UAT. Config is inline in `package.json` (`jest.testPathIgnorePatterns`: `/node_modules/`, `.claude/worktrees`) — no separate `jest.config.js`
-- `nock` `14.0.13` (dev) - HTTP mocking in tests
+- `nock` `14.0.16` (dev) - HTTP mocking in tests
 
 **Build/Dev:**
-- ESLint `10.2.1` flat config at `eslint.config.js` - `@eslint/js` `10.0.1` recommended rules as base, layered with:
-  - `eslint-plugin-n` `17.24.0` for `src/**/*.js` (Node-specific rules)
-  - `eslint-plugin-jest` `29.15.2` for `test/**/*.js`
+- ESLint `10.7.0` flat config at `eslint.config.js` - `@eslint/js` `10.0.1` recommended rules as base, layered with:
+  - `eslint-plugin-n` `18.2.2` for `src/**/*.js` (Node-specific rules)
+  - `eslint-plugin-jest` `29.15.5` for `test/**/*.js`
   - Shared rules both layers enforce: `no-unused-vars` (with `^_` ignore pattern), `no-console: warn` (off in tests), `prefer-const: error`, `eqeqeq: error`
-- `ajv` `8.18.0` (dev) - JSON Schema validation for every file in `config/`, schemas in `config/schema/`
+- `ajv` `8.20.0` (dev) - JSON Schema validation for every file in `config/`, schemas in `config/schema/`
 - `license-checker` `25.0.1` - production-dependency license allowlist gate (`npm run license-check` → `--onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;CC0-1.0'`)
 
 ## Key Dependencies
@@ -42,7 +42,7 @@ No TypeScript, no JSX. `.mcp.json` (repo root) registers one dev-tool MCP server
 Versions below are resolved from `package-lock.json`; the `^` range is from `package.json`.
 
 **Critical:**
-- `@anthropic-ai/sdk` `^0.91.1` (resolved `0.91.1`) - Anthropic Haiku/Sonnet client, instantiated in `src/pipeline-infra.js` (`new Anthropic()`); used by the `/new` classifier, memory extraction, `/today` LLM augmentation, and dream consolidation
+- `@anthropic-ai/sdk` `^0.112.5` (resolved `0.112.5`) - Anthropic Haiku/Sonnet client, instantiated in `src/pipeline-infra.js` (`new Anthropic()`); used by the `/new` classifier, memory extraction, `/today` LLM augmentation, and dream consolidation
 - `voyageai` `0.2.1` - **exact pin, no `^`**. Phase 19 semantic embeddings client (`src/semantic-index.js`). Per `.planning/milestones/v1.4-phases/19-semantic-memory-search/19-CONTEXT.md:19` (D-PRE-01), pinned to lock the SDK's request/response shape since `semantic-index.js` hand-parses embedding output — a minor-version shape change would silently corrupt the embeddings cache rather than fail loudly
 - `chokidar` `^3.6.0` (resolved `3.6.0`) - config hot-reload file watching (`src/vault-gateway.js`, emits `config:reloaded`). Pinned to the 3.x line because chokidar 4 dropped CJS `require()` support (ESM-only); this project has no build step, so an ESM-only watcher would break every `require('chokidar')` call outright
 
