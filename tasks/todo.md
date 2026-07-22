@@ -1,33 +1,31 @@
 # Todo
 
-## Session Handoff (2026-07-16)
+## Session Handoff (2026-07-21 — full project audit & close-out)
 
-**State:** v1.7 Prove Compounding SHIPPED — PR #66 merged, tag `v1.7` pushed, milestone archived to `.planning/milestones/`. Master clean at the sync-docs merge (#68). 1285 tests (1247 pass, 38 CI-skipped), branch coverage 81.47%. The evidence pipeline now runs itself: launchd writes a daily-stats row every weekday 06:45 local.
+**State:** Audit branch `chore/full-audit-close-2026-07-21` has 9 local commits, NOT pushed (awaiting your go). GSD health DEGRADED→HEALTHY (18 warnings→0). Suite 1470/38/1508 green, lint 0 errors, license PASS, npm audit 0 vulns, `eval:recall` exactly at baseline. Scheduled `/today` env defect fixed (dotenv-gated launchd entry) — tomorrow 06:45 fire is the live confirmation. All living docs synced (21 drift findings), backlog re-triaged, v1.8 REQUIREMENTS reconstructed. PR body ready at `.planning/PR-BODY-full-audit.md`.
 
-**Do first next session:** probably nothing — see Next Steps below. The only dated item is VERDICT-01 (~2026-08-06).
+**Do first next session:** push the audit branch + open the PR (needs `gh auth switch --user UsernameTron` — active account keeps reverting to peteconnorCTG, root cause still unfound).
 
-**Environment caveat:** `gh` CLI keeps reverting its active account to `peteconnorCTG` (no repo access). Before any push: `gh auth switch --user UsernameTron`. Root cause not found — worth a look if it keeps biting.
+## Next Steps (written 2026-07-21, post-audit)
 
-## Next Steps (written 2026-07-16, post-v1.7 closeout)
-
-**Nothing is blocking. The system now runs itself — let it collect evidence.**
-
-1. **Let the scheduler work (no action, ~3 weeks).** launchd job `com.secondbrain.today` writes a daily-stats row every weekday 06:45. Spot-check occasionally: `node scripts/compounding-report.js` — row count should grow.
-2. **VERDICT-01 (~Aug 6, when ≥14 weekday rows exist):**
+1. **Ship the audit branch:** `gh auth switch --user UsernameTron`, push `chore/full-audit-close-2026-07-21`, open PR with `.planning/PR-BODY-full-audit.md`.
+2. **Pete-gated fixes surfaced by the audit:** (a) restore branch protection on master (`required_pull_request_reviews` + `test (20)`/`test (22)` checks — gh api shows 404); (b) approve the one-line `config/schema/daily-stats-frontmatter.schema.json` fix (`"type": "string"` → `"type": "integer"`, blocked by protected-file guard); (c) dependency majors decision (see `.planning/todos.md`).
+3. **VERDICT-01 (~Aug 6, when ≥14 weekday rows exist):**
    - Confirm scheduler alive: a row for every weekday in the trailing week
    - Run `node scripts/compounding-report.js > .planning/reports/COMPOUNDING-VERDICT-$(date +%Y-%m-%d).md` and commit it
    - Accept the verdict honestly — `flat`/`refuted` is a valid result; it decides whether the next milestone doubles down on memory or pivots
-3. **Dependency-upgrade phase (whenever, needs your approval — breaking changes):** @anthropic-ai/sdk 0.90→0.111 (moderate CVE GHSA-p7fg-763f-g4gf), eslint/jest bumps (clears 3 dev CVEs), chokidar 5.x, voyageai 0.4.x. Run as its own `chore/dep-audit` PR: `/gsd:new-milestone` or `/gsd:quick`. See `.planning/dependencies/DEPENDENCIES-REPORT.md`.
-4. **Small debt, fold into any future phase:** add `scripts/**` block to `eslint.config.js` (scripts/ files unlinted); 3 v1.0-era subjective UAT items in `02-HUMAN-UAT.md` (test in Obsidian someday or close as accepted).
-5. **Branch debris (optional):** 4 local unmerged branches with no remote (`chore/session-64-wrap`, `docs/fable5-audit-2026-07-12`, 2 `worktree-agent-*`) — v1.6-era. Inspect + delete when convenient.
-6. **Next milestone:** `/gsd:new-milestone` when the verdict is in — the verdict data should shape it.
+4. **Phase 36 gate decision:** open Ingest Breadth (needs real L10 RAG Phase 3 timeline) or close v1.8 without it via the finalize milestone-archive path.
+5. **Small debt, fold into any future phase:** add `scripts/**` block to `eslint.config.js` (scripts/ unlinted); review the 9 `jest/expect-expect` warnings (see `.planning/todos.md`); 3 v1.0-era subjective UAT items in `02-HUMAN-UAT.md`.
+6. **Branch inventory (2026-07-21):** pruned `feat/phase-33-capture-reliability` ([gone], squash-merged #88). Remaining: `fix/extraction-failure-signal` (live remote — decide merge/close), worktree `fix-extraction-parse-and-timeout` under `.claude/worktrees/` (its guard fix appears merged — verify then remove worktree). The four v1.6-era branches from the old note are already gone.
 
 ## Active
 
-- [ ] VERDICT-01 (~2026-08-06): archive compounding-report output with the real verdict (step 2 above)
+- [ ] Push audit branch + open PR (needs UsernameTron auth) — awaiting Pete's go
+- [ ] VERDICT-01 (~2026-08-06): archive compounding-report output with the real verdict (step 3 above)
 
 ## Completed
 
+- [x] Full project audit & close-out pass (2026-07-21) — health 18 warnings→0, /today scheduled-env fix, doc sync (21 findings), backlog re-triage, in-range dep updates, all gates green; branch local pending push approval
 - [x] Merge PR #66 — Milestone v1.7 Prove Compounding merged to master (2026-07-16)
 - [x] Merge PR #59, /gsd:discuss-phase 26 — v1.6 shipped 2026-07-15 (stale handoff item)
 - [x] Milestone v1.7 Prove Compounding finalized via /gsd:finalize (2026-07-16) — phases 29-31 verified, UAT 3/3, PR #66

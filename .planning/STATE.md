@@ -85,17 +85,16 @@ None.
 | 260721-gyj | Memory wiki optimization: lesson→LEARNING alias + silent coercion (5 notes stripped, 0 remain), related:: wikilinks at promotion + 180-entry backfill (98.9% coverage, unique ^hash block anchors), reader field-parse root-cause fix, sidecar parity 180/180 | 2026-07-21 | df1a484 | [260721-gyj](./quick/260721-gyj-memory-wiki-optimization-category-fix-re/) |
 | 260721-ljn | Session close-out batch (verified): dream-apply gate docs fixed (SKILL.md + 4 dream.js sites), scheduled dream pinned to Anthropic via LLM_PROVIDER (launchctl-live), changeset confirmed resolved 12+3-rejected (apply no-op, rejections preserved), wiki graph refreshed 178/180 (98.9%) via pinned Haiku after LM Studio wedge, phase-34 branch deleted; suite 1440 passed | 2026-07-21 | 2d26ea4 | [260721-ljn](./quick/260721-ljn-session-close-out-batch-dream-apply-skil/) |
 
-## Session Continuity — Session 66 (2026-07-15)
+## Session Continuity — 2026-07-21 (full project audit & close-out)
 
-**v1.6 archived (PR #64 merged). v1.7 Prove Compounding scoped and started.**
+**Audit branch `chore/full-audit-close-2026-07-21` complete and local — push awaits Pete's go.** Full pass: orient → automation health → deps → tests → doc sync → backlog triage → readiness → ship check → finalize.
 
-Plan-mode investigation findings that ground the v1.7 requirements (verified against repo + vault + cache):
+- Health DEGRADED (18 warnings) → HEALTHY (0/0). Suite 1470/38/1508 green ×2; lint 0 errors; license PASS; npm audit 0; `eval:recall` exact baseline match.
+- Real fix: scheduled `/today` ran keyless (plist inline `node -e`, no dotenv — Haiku fallback auth-failed 07-21 06:45). Now `scripts/today-scheduled.js` + versioned plist, rebootstrapped, dry-run-verified. **Watch tomorrow's 06:45 fire** in `~/Library/Logs/com.secondbrain.today.err.log` — zero auth errors expected.
+- Docs/planning synced (21 drift findings), v1.8 REQUIREMENTS reconstructed (14/14), backlog re-triaged (13 resolved / 2 dropped / 4 dispositioned), v1.2-era artifacts quarantined, `[gone]` phase-33 branch pruned.
+- Handoff details: `tasks/SESSION_REPORT-2026-07-21-full-audit.md` + `tasks/todo.md` (fresh 2026-07-21 block). PR body: `.planning/PR-BODY-full-audit.md`.
 
-- `RIGHT/daily-stats.md` **does not exist** — `recordDailyStats()` only fires at end of non-dry-run `/today`, and none has ever run. `config/scheduling.json` trigger is `"enabled": false`; even enabled, RemoteTrigger runs in cloud env `env_01TjBJ...` which cannot reach `VAULT_ROOT=~/Claude Cowork`. The April "verified fire" wrote into the void.
-- **Counter cache polluted by jest:** `~/.cache/second-brain/daily-counters-2026-07-15.json` shows 8875 proposals / 1714 promotions / 655 recalls. Tests call `record*` without `CACHE_DIR_OVERRIDE` (only 6 test files set it). Root fix: guard `_counterPath()` on `JEST_WORKER_ID`.
-- **No utility signal captured:** Memory Echo shown/score never logged (only latency); recall hit/miss and result counts not persisted; `topCosineScores[]`/`topRrfScores[]` are emit-only (D-07), never read back.
-- **No trend code:** only consumers of stats history are `buildYesterdaySummaryLine` (1-day delta, string-coercion fragile) and `computeMemoryHealth` (needs ≥3 rows, never fired).
-- Approved plan: `/Users/cpconnor/.claude/plans/craete-a-plan-to-bright-cookie.md` (phases 29–31 + verdict follow-up, file-level changes, test approach).
+Prior session-66 v1.7 grounding notes: archived with v1.7 (see `milestones/v1.7-*`).
 
 ## Next Action
 
