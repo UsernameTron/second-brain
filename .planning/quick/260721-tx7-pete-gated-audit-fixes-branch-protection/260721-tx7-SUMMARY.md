@@ -28,10 +28,10 @@ Gate evidence (final stack): full suite 1479 passed / 29 skipped / 1508; lint 0 
 PUT `repos/UsernameTron/second-brain/branches/master/protection` as UsernameTron via per-invocation `gh auth token --user` (avoids the machine-wide account switch that keeps reverting). Verified live via GET:
 
 ```json
-{"approvals":0,"checks":["test (20)","test (22)"],"deletions":false,"enforce_admins":false,"force_push":false,"pr_required":true,"strict":true}
+{"approvals":0,"checks":["test (22)"],"pr_required":true,"strict":true}
 ```
 
-Matches the audit recommendation (STATE.md) and the v1.4 Phase 17 shape minus `Analyze` (per the audit's spelled-out restore list).
+Plus force-push and deletion blocked, enforce_admins off. One correction to the audit's spelled-out list: it named `test (20)`/`test (22)` (the v1.4 shape), but the CI matrix has been Node 22-only since the node:sqlite floor — a required `test (20)` would never report and would block every merge (caught live when PR #91 ran CI with only `test (22)` reporting). Protection tracks the live matrix; `Analyze` stays unrequired per the audit's list.
 
 ## Found along the way (filed, not fixed)
 

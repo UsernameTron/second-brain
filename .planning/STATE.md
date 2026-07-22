@@ -61,7 +61,7 @@ Full log in PROJECT.md Key Decisions table. Per-milestone summary:
 
 ### Open Blockers
 
-None. (Branch protection restored 2026-07-21, quick task 260721-tx7: PR required with 0 approvals, `test (20)`/`test (22)` required + strict, force-push/deletion blocked, enforce_admins off — verified live via GET.)
+None. (Branch protection restored 2026-07-21, quick task 260721-tx7: PR required with 0 approvals, `test (22)` required + strict, force-push/deletion blocked, enforce_admins off — verified live via GET. The audit's restore list included `test (20)`, but the CI matrix is Node 22-only since the node:sqlite floor — requiring a check that never reports would block all merges, so protection tracks the live matrix.)
 
 ### Filed, not fixed
 
@@ -84,7 +84,7 @@ None.
 | 260721-rst | Fix local-LLM reasoning-model starvation: reasoning_effort:none disable (verified live vs qwen3.6-27b), reasoning-starved SHAPE_ERROR guard, 60s local timeout, default model → qwen3.6-27b | 2026-07-21 | 6d8c472 | [260721-rst](./quick/260721-rst-local-llm-reasoning-starvation/) |
 | 260721-gyj | Memory wiki optimization: lesson→LEARNING alias + silent coercion (5 notes stripped, 0 remain), related:: wikilinks at promotion + 180-entry backfill (98.9% coverage, unique ^hash block anchors), reader field-parse root-cause fix, sidecar parity 180/180 | 2026-07-21 | df1a484 | [260721-gyj](./quick/260721-gyj-memory-wiki-optimization-category-fix-re/) |
 | 260721-ljn | Session close-out batch (verified): dream-apply gate docs fixed (SKILL.md + 4 dream.js sites), scheduled dream pinned to Anthropic via LLM_PROVIDER (launchctl-live), changeset confirmed resolved 12+3-rejected (apply no-op, rejections preserved), wiki graph refreshed 178/180 (98.9%) via pinned Haiku after LM Studio wedge, phase-34 branch deleted; suite 1440 passed | 2026-07-21 | 2d26ea4 | [260721-ljn](./quick/260721-ljn-session-close-out-batch-dream-apply-skil/) |
-| 260721-tx7 | Pete-gated audit fixes: branch protection restored + verified live (PR required, test (20)/(22) strict); daily-stats schema_version string→integer with test contract flip; dep majors — SDK 0.112.5 + eslint-plugin-n 18 landed (content-policy lazy-init, Unlicense allowlisted), voyageai 0.4.0 evidence-rejected; pre-existing Voyage UAT jest flake diagnosed + filed | 2026-07-21 | 62ff9e5 | [260721-tx7](./quick/260721-tx7-pete-gated-audit-fixes-branch-protection/) |
+| 260721-tx7 | Pete-gated audit fixes: branch protection restored + verified live (PR required, test (22) strict — matrix is Node 22-only); daily-stats schema_version string→integer with test contract flip; dep majors — SDK 0.112.5 + eslint-plugin-n 18 landed (content-policy lazy-init, Unlicense allowlisted), voyageai 0.4.0 evidence-rejected; pre-existing Voyage UAT jest flake diagnosed + filed | 2026-07-21 | 62ff9e5 | [260721-tx7](./quick/260721-tx7-pete-gated-audit-fixes-branch-protection/) |
 
 ## Session Continuity — 2026-07-21 (full project audit & close-out)
 
