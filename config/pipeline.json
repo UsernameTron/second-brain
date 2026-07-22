@@ -91,5 +91,12 @@
     "staleAgeDays": 180,
     "sessionLogWindow": 30,
     "maxLLMCalls": 40
+  },
+  "sessionInject": {
+    "enabled": true,
+    "topN": 5,
+    "tokenCap": 750,
+    "latencyUpMs": 1000,
+    "latencyDegradedMs": 250
   }
 }

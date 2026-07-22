@@ -1,11 +1,11 @@
 # Session handoff (auto-written by Stop hook)
 
-- When: 2026-07-21 19:04 CDT
-- Branch: feat/phase-33-capture-reliability
-- Dirty at stop: 1 files
+- When: 2026-07-21 20:24 CDT
+- Branch: feat/phase-35-proactive-memory
+- Dirty at stop: 2 files
 - Recent commits:
-  - b91beb5 docs: test count 1469→1494 (79 files); CI split 1456 pass / 38 skip (Phase 33)
-  - 986dc8c docs(phase-33): complete phase execution — verification passed, 4/4 plans
-  - bc1774a docs(33): summaries for 33-03 (classifier-health wiring) + 33-04 (sweep evidence)
-  - e437e61 feat(33-04): sweep-status line + last-run evidence tests (new files)
-  - 516aad8 chore(session): auto-commit session work (2026-07-21)
+  - 74722c8 feat(35): proactive-memory SessionStart injection hook
+  - 18dc9f5 Phase 33: Capture Reliability — launchd fix, classifier-health fallback, sweep evidence (#88)
+  - 1a00125 Session close-out: dream-apply gate docs, scheduled-dream Anthropic pin, wiki refresh, phase-34 cleanup (#87)
+  - 8244f2f Land Phase 34: promotion integrity + dream consolidation (#86)
+  - e2acd53 fix(wikilink): exclude pipeline storage from index, not just proposals/ (#85)

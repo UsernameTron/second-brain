@@ -38,6 +38,7 @@ Transform an Obsidian vault into a personal operating system with compounding me
   - [x] 34-06-PLAN.md — Dream MISSED PATTERNS + changeset writer (shared parser) + `/dream-propose` CLI + monthly plist (wave 4)
   - [x] 34-07-PLAN.md — Dream `/dream-apply`: snapshot-first + apply + `eval:recall` gate with auto-restore, human-only (wave 5)
 - [ ] Phase 35: Proactive Memory — SessionStart hook `.claude/hooks/session-memory-inject.js` (fail-open on infra, exit 0 always) shelling to `scripts/recall.js "<project-derived query>" --hybrid --top 5`, entries passed through the reach exporter's fail-closed `checkContent` egress loop; ~750-token hard cap; kill switch `sessionInject.enabled` + `SB_SESSION_INJECT=0`; latency gate (<1s Voyage-up, <250ms degraded).
+  - [x] 35-01-PLAN.md — SessionStart proactive-memory injection hook (fail-open exit-0; in-process hybrid top-5 recall; fail-closed checkContent egress; ~750-token cap; kill switches; latency gate) (wave 1)
 - [ ] Phase 36 (decision-gated, unscheduled): Ingest Breadth — Drive connector behind the `src/connectors/types.js` contract PLUS the missing connector→memory seam (no connector feeds memory.md today — gmail/calendar/github are briefing-only). Build once here, L10 RAG consumes it; do not fork. Gate: real L10 Phase 3 timeline.
 
 Ordering rationale: eval first (no recall claim is provable without a baseline — zero eval infra existed at planning); capture second (scheduler live-broken); lifecycle before injection (inject from a store with integrity checks).
