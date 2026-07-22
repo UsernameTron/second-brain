@@ -110,7 +110,7 @@ describe('Phase 31: Compounding trend section (TREND-02)', () => {
     expect(result.briefing).toMatch(/\*\*Verdict: compounding\*\*/);
   });
 
-  it('omits ## Compounding when rows are insufficient (<7)', async () => {
+  it('suppresses the trend body under 7 rows but still renders ## Compounding with the sweep line', async () => {
     mockRows = [];
 
     const result = await runToday({
@@ -121,6 +121,10 @@ describe('Phase 31: Compounding trend section (TREND-02)', () => {
       date: new Date('2026-04-25T18:00:00.000Z'),
     });
 
-    expect(result.briefing).not.toContain('## Compounding');
+    // Trend verdict is suppressed (<7 rows)…
+    expect(result.briefing).not.toMatch(/\*\*Verdict:/);
+    // …but the section now always renders because the Phase 33 sweep line is always shown.
+    expect(result.briefing).toContain('## Compounding');
+    expect(result.briefing).toMatch(/sweep (ran|STALE|NEVER RAN)/);
   });
 });

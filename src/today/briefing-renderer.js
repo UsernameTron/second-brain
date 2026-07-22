@@ -272,7 +272,7 @@ function _renderFrontmatter(date, sources, degradedCount, mode) {
  * @returns {string} Full markdown string
  */
 function renderBriefing(data) {
-  const { date, sourceHealth, connectorResults, pipelineState, slippage, frog, memoryEcho, memoryHealth, compounding, mode, synthesis } = data;
+  const { date, sourceHealth, connectorResults, pipelineState, slippage, frog, memoryEcho, memoryHealth, compounding, sweep, mode, synthesis } = data;
   const { sources, degradedCount } = sourceHealth;
 
   const frontmatter = _renderFrontmatter(date, sources, degradedCount, mode);
@@ -329,9 +329,15 @@ function renderBriefing(data) {
     // Memory Health (Phase 24, AGENT-MEMORY-01) — heading and body absent when
     // no anomaly conditions are met. Follows Memory Echo pattern (Phase 18).
     ...(memoryHealthBody !== null ? ['## Memory Health', '', memoryHealthBody, ''] : []),
-    // Compounding (Phase 31, TREND-02) — heading and body absent when verdict is
-    // insufficient-data (<7 rows). Follows Memory Echo / Memory Health precedent.
-    ...(compoundingBody !== null ? ['## Compounding', '', compoundingBody, ''] : []),
+    // Compounding (Phase 31, TREND-02) — trend body suppressed under 7 rows. The Phase 33
+    // sweep line (CAP-EVIDENCE-01) ALWAYS renders, so the section appears when EITHER the
+    // trend body OR the sweep line is present (sweep is always a non-empty string in /today).
+    ...((compoundingBody !== null || sweep) ? [
+      '## Compounding',
+      '',
+      ...(compoundingBody !== null ? [compoundingBody, ''] : []),
+      ...(sweep ? [sweep, ''] : []),
+    ] : []),
   ].join('\n');
 
   // ── Phase 20: Yesterday summary line prefix (TODAY-SUMMARY-01, D-05/D-06) ──

@@ -264,7 +264,7 @@ describe('runToday', () => {
   // ── briefing sections ────────────────────────────────────────────────────
 
   describe('briefing sections', () => {
-    it('produces a briefing with all 6 section headers in correct order', async () => {
+    it('produces a briefing with all section headers in correct order (incl. always-on Compounding)', async () => {
       const { runToday } = setupMocks();
       const haikuClient = makeMockHaikuClient();
 
@@ -280,7 +280,8 @@ describe('runToday', () => {
       expect(result.briefing).toBeTruthy();
       const briefing = result.briefing;
 
-      // Find all ## headings in order
+      // Find all ## headings in order. Compounding now always renders (Phase 33 sweep line
+      // shows even when the trend body is suppressed), appearing last after Pipeline.
       const headingMatches = [...briefing.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
       expect(headingMatches).toEqual([
         'Meetings',
@@ -289,6 +290,7 @@ describe('runToday', () => {
         'Frog',
         'GitHub',
         'Pipeline',
+        'Compounding',
       ]);
     });
 

@@ -5,6 +5,7 @@
     "sonnetEscalationThreshold": 0.8,
     "sonnetAcceptThreshold": 0.7,
     "shortInputChars": 50,
+    "haikuNightlyCap": 50,
     "llm": {
       "provider": "anthropic",
       "localEndpoint": "http://localhost:1234",

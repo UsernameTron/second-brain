@@ -269,8 +269,11 @@ function createLlmClient(options = {}) {
         || err.message?.includes('fetch failed');
 
       if (isNetworkError) {
-        logDecision('LLM_CLASSIFY', llmConfig.localModel, 'FALLBACK', `local endpoint unreachable: ${err.message}`);
-        return classifyAnthropic(systemPrompt, userContent, callOptions);
+        // The classifyLocalWithHealth wrapper owns the fallback decision now (plan 33-03):
+        // return the failure so the tracker sees the timeout (recordFailure) and can flip
+        // degraded after 3 — instead of self-falling-back and hiding the wedge.
+        logDecision('LLM_CLASSIFY', llmConfig.localModel, 'ERROR', `local endpoint unreachable: ${err.message}`);
+        return { success: false, error: err.message, failureMode: 'timeout' };
       }
 
       // Unexpected errors: surface, do NOT fall back
@@ -334,7 +337,44 @@ function createLlmClient(options = {}) {
     }
   }
 
-  return { classify: useLocal ? classifyLocal : classifyAnthropic };
+  // ── Local-classifier resilience wrapper (plan 33-03) ────────────────────────
+  // Gate the local classify seam with classifier-health: count http/parse/timeout
+  // failures, fall back to (capped) Haiku on ANY of them, fast-path straight to
+  // Haiku while degraded (don't pay the 60s timeout), and never throw. Only the
+  // useLocal path is wrapped — the anthropic path (dream pin / default) is verbatim.
+  const classifierHealth = require('./utils/classifier-health'); // lazy: only the local path needs it
+  const haikuNightlyCap = (pipelineConfig_ && pipelineConfig_.classifier
+    && pipelineConfig_.classifier.haikuNightlyCap) || 50;
+
+  async function classifyLocalWithHealth(systemPrompt, userContent, callOptions = {}) {
+    // Capped Haiku fallback: the ONLY place a fallback call is made or counted.
+    const haikuFallback = () => {
+      if (classifierHealth.isHaikuCapReached(haikuNightlyCap)) {
+        logDecision('LLM_CLASSIFY', 'anthropic', 'SKIPPED', `nightly Haiku cap ${haikuNightlyCap} reached; skipping classify`);
+        return { success: false, skipped: true, failureMode: 'haiku-cap', error: `Haiku nightly cap ${haikuNightlyCap} reached` };
+      }
+      classifierHealth.recordHaikuCall();
+      return classifyAnthropic(systemPrompt, userContent, callOptions);
+    };
+
+    // Degraded window open → skip the local attempt entirely (don't burn the timeout).
+    if (classifierHealth.isDegraded()) {
+      return haikuFallback();
+    }
+
+    const result = await classifyLocal(systemPrompt, userContent, callOptions);
+    if (result && result.success === true) {
+      classifierHealth.recordSuccess();
+      return result;
+    }
+    // Any local failure (http/shape/parse/timeout) → record + fall back to capped Haiku.
+    const mode = result && result.failureMode;
+    const code = mode === 'parse-error' ? 'parse' : (mode === 'timeout' ? 'timeout' : 'http');
+    classifierHealth.recordFailure(code);
+    return haikuFallback();
+  }
+
+  return { classify: useLocal ? classifyLocalWithHealth : classifyAnthropic };
 }
 
 /**

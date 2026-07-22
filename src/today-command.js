@@ -277,6 +277,12 @@ async function runToday(options = {}) {
       }
     } catch (_) { /* non-fatal — briefing-is-the-product */ }
 
+    // ── Sweep status (Phase 33, CAP-EVIDENCE-01) ──────────────────────────
+    // Proof-of-fire line for the nightly capture engine. Always a non-empty string
+    // (fail-open to NEVER RAN). Non-fatal — briefing-is-the-product.
+    let sweepLine = 'sweep NEVER RAN';
+    try { sweepLine = require('./today/sweep-status').computeSweepLine(); } catch (_) { /* fail-open */ }
+
     // ── Source health (D-08) ──────────────────────────────────────────────
     const sourceHealth = buildSourceHealth(connectorResults, pipelineState.ok);
 
@@ -303,6 +309,7 @@ async function runToday(options = {}) {
       memoryEcho,
       memoryHealth,
       compounding: compoundingBody,
+      sweep: sweepLine,
       mode,
       synthesis,
     });

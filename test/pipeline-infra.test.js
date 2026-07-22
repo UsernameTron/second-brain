@@ -529,7 +529,9 @@ describe('loadTemplatesConfig', () => {
 describe('local LLM routing', () => {
   let mockLogDecision;
   let tmpConfigDir;
+  let tmpCacheDir;
   let originalConfigDir;
+  let originalCacheDir;
   const originalFetch = global.fetch;
 
   beforeEach(() => {
@@ -543,6 +545,12 @@ describe('local LLM routing', () => {
 
     originalConfigDir = process.env.CONFIG_DIR_OVERRIDE;
     process.env.CONFIG_DIR_OVERRIDE = tmpConfigDir;
+    // Isolate classifier-health state (33-03 wired it into the local seam) so failure/degraded
+    // state never leaks across tests or touches the real cache — a degraded real cache would
+    // make "uses local endpoint" skip fetch and flake.
+    originalCacheDir = process.env.CACHE_DIR_OVERRIDE;
+    tmpCacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-routing-cache-'));
+    process.env.CACHE_DIR_OVERRIDE = tmpCacheDir;
 
     jest.resetModules();
     mockLogDecision = jest.fn();
@@ -579,7 +587,10 @@ describe('local LLM routing', () => {
       process.env.CONFIG_DIR_OVERRIDE = originalConfigDir;
     }
     delete process.env.LLM_PROVIDER;
+    if (originalCacheDir === undefined) delete process.env.CACHE_DIR_OVERRIDE;
+    else process.env.CACHE_DIR_OVERRIDE = originalCacheDir;
     fs.rmSync(tmpConfigDir, { recursive: true, force: true });
+    fs.rmSync(tmpCacheDir, { recursive: true, force: true });
   });
 
   afterAll(() => {
@@ -635,7 +646,7 @@ describe('local LLM routing', () => {
     expect(result.data).toEqual({ label: 'RIGHT', confidence: 0.85 });
   });
 
-  test('fallback logs via logDecision with FALLBACK reason', async () => {
+  test('an unreachable local endpoint is logged (ERROR) before the wrapper falls back', async () => {
     mockPipelineConfig({ provider: 'local', localEndpoint: 'http://localhost:1234', localModel: 'test-model' });
 
     global.fetch = jest.fn().mockRejectedValue(new TypeError('fetch failed'));
@@ -644,10 +655,12 @@ describe('local LLM routing', () => {
     const client = createHaikuClient();
     await client.classify('system', 'content');
 
+    // classifyLocal logs the failure as ERROR (the 33-03 wrapper owns the fallback decision now,
+    // so the self-fallback FALLBACK log is gone — the failure stays visible in the log + health).
     expect(mockLogDecision).toHaveBeenCalledWith(
       'LLM_CLASSIFY',
       'test-model',
-      'FALLBACK',
+      'ERROR',
       expect.stringContaining('local endpoint unreachable')
     );
   });
@@ -696,7 +709,7 @@ describe('local LLM routing', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  test('local endpoint parse error returns parse-error without fallback', async () => {
+  test('a local parse error now falls back to Haiku (33-03 inversion), logged loudly', async () => {
     mockPipelineConfig({ provider: 'local', localEndpoint: 'http://localhost:1234', localModel: 'test-model' });
 
     global.fetch = jest.fn().mockResolvedValue({
@@ -710,8 +723,13 @@ describe('local LLM routing', () => {
     const client = createHaikuClient();
     const result = await client.classify('system', 'content');
 
-    expect(result.success).toBe(false);
-    expect(result.failureMode).toBe('parse-error');
+    // Was: parse-error, no fallback. Now: the local parse failure is logged (PARSE_ERROR) and
+    // recorded, then recovered via Haiku (mocked to {label:RIGHT, confidence:0.85}).
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ label: 'RIGHT', confidence: 0.85 });
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY', 'test-model', 'PARSE_ERROR', expect.any(String)
+    );
   });
 });
 
@@ -950,6 +968,8 @@ describe('safeLoadPipelineConfig', () => {
 
 describe('classifyLocal — LLM fallback hardening', () => {
   let tmpConfigDir;
+  let tmpCacheDir;
+  let originalCacheDir;
   const originalFetch = global.fetch;
 
   beforeEach(() => {
@@ -970,16 +990,24 @@ describe('classifyLocal — LLM fallback hardening', () => {
       fs.cpSync(schemaDir, path.join(tmpConfigDir, 'schema'), { recursive: true });
     }
     process.env.CONFIG_DIR_OVERRIDE = tmpConfigDir;
+    // Isolate classifier-health state (plan 33-03 wires it into the local seam) so
+    // failure/degraded/Haiku-cap state never leaks across tests or touches the real cache.
+    originalCacheDir = process.env.CACHE_DIR_OVERRIDE;
+    tmpCacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-cache-'));
+    process.env.CACHE_DIR_OVERRIDE = tmpCacheDir;
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
     delete process.env.CONFIG_DIR_OVERRIDE;
+    if (originalCacheDir === undefined) delete process.env.CACHE_DIR_OVERRIDE;
+    else process.env.CACHE_DIR_OVERRIDE = originalCacheDir;
     jest.unmock('../src/vault-gateway');
     jest.unmock('../src/content-policy');
     jest.unmock('@anthropic-ai/sdk');
     jest.resetModules();
     try { fs.rmSync(tmpConfigDir, { recursive: true, force: true }); } catch (_) { /* cleanup */ }
+    try { fs.rmSync(tmpCacheDir, { recursive: true, force: true }); } catch (_) { /* cleanup */ }
   });
 
   function loadClientIsolated(mockLogDecision, mockAnthropicCreate) {
@@ -1008,9 +1036,12 @@ describe('classifyLocal — LLM fallback hardening', () => {
     const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
+    // Local branch logs the timeout as ERROR (the wrapper owns the fallback now);
+    // the fallback still succeeds via Haiku.
     expect(mockLogDecision).toHaveBeenCalledWith(
-      'LLM_CLASSIFY', 'test-model', 'FALLBACK', expect.stringContaining('aborted')
+      'LLM_CLASSIFY', 'test-model', 'ERROR', expect.stringContaining('aborted')
     );
+    expect(mockAnthropicCreate).toHaveBeenCalled();
     expect(result.success).toBe(true);
     expect(result.data).toEqual({ fallback: true });
   });
@@ -1027,27 +1058,34 @@ describe('classifyLocal — LLM fallback hardening', () => {
     const result = await client.classify('sys', 'content');
 
     expect(mockLogDecision).toHaveBeenCalledWith(
-      'LLM_CLASSIFY', 'test-model', 'FALLBACK', expect.stringContaining('unreachable')
+      'LLM_CLASSIFY', 'test-model', 'ERROR', expect.stringContaining('unreachable')
     );
+    expect(mockAnthropicCreate).toHaveBeenCalled();
     expect(result.success).toBe(true);
   });
 
-  test('does NOT fall back on HTTP 500 — returns api-error', async () => {
+  // Contract INVERSION (plan 33-03, roadmap "extended to HTTP/parse errors"): HTTP/shape/parse
+  // local failures now FALL BACK to Haiku instead of failing hard. The failure stays LOUD
+  // (logged + recorded in classifier-health), but the sweep still gets a classification.
+  test('HTTP 500 now falls back to Haiku and records an http failure', async () => {
     const mockLogDecision = jest.fn();
-    const mockAnthropicCreate = jest.fn();
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({ content: [{ text: '{"viaHaiku":true}' }] });
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
     const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
-    expect(result.success).toBe(false);
-    expect(result.failureMode).toBe('api-error');
-    expect(result.error).toContain('HTTP 500');
-    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+    expect(mockAnthropicCreate).toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ viaHaiku: true });
+    // failure recorded (visible): consecutive_failures incremented
+    const health = require('../src/utils/classifier-health');
+    expect(health.readHealth().consecutive_failures).toBe(1);
+    expect(health.readHealth().last_failure_code).toBe('http');
   });
 
-  test('returns api-error on malformed response shape (missing choices)', async () => {
+  test('malformed response shape now falls back to Haiku (SHAPE_ERROR still logged)', async () => {
     const mockLogDecision = jest.fn();
-    const mockAnthropicCreate = jest.fn();
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({ content: [{ text: '{"viaHaiku":true}' }] });
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -1056,17 +1094,16 @@ describe('classifyLocal — LLM fallback hardening', () => {
     const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
-    expect(result.success).toBe(false);
-    expect(result.failureMode).toBe('api-error');
-    expect(result.error).toContain('missing expected shape');
     expect(mockLogDecision).toHaveBeenCalledWith(
       'LLM_CLASSIFY', 'test-model', 'SHAPE_ERROR', expect.any(String)
     );
+    expect(mockAnthropicCreate).toHaveBeenCalled();
+    expect(result.success).toBe(true);
   });
 
-  test('flags reasoning-starved when content is empty but reasoning_content is present', async () => {
+  test('reasoning-starved now falls back to Haiku (SHAPE_ERROR still logged loudly)', async () => {
     const mockLogDecision = jest.fn();
-    const mockAnthropicCreate = jest.fn();
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({ content: [{ text: '{"viaHaiku":true}' }] });
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -1077,17 +1114,16 @@ describe('classifyLocal — LLM fallback hardening', () => {
     const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
-    expect(result.success).toBe(false);
-    expect(result.failureMode).toBe('api-error');
     expect(mockLogDecision).toHaveBeenCalledWith(
       'LLM_CLASSIFY', 'test-model', 'SHAPE_ERROR', expect.stringContaining('reasoning-starved')
     );
-    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+    expect(mockAnthropicCreate).toHaveBeenCalled();
+    expect(result.success).toBe(true);
   });
 
-  test('returns parse-error on invalid JSON in response content', async () => {
+  test('invalid JSON now falls back to Haiku and records a parse failure (PARSE_ERROR still logged)', async () => {
     const mockLogDecision = jest.fn();
-    const mockAnthropicCreate = jest.fn();
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({ content: [{ text: '{"viaHaiku":true}' }] });
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -1098,9 +1134,89 @@ describe('classifyLocal — LLM fallback hardening', () => {
     const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
-    expect(result.success).toBe(false);
-    expect(result.failureMode).toBe('parse-error');
-    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY', 'test-model', 'PARSE_ERROR', expect.any(String)
+    );
+    expect(mockAnthropicCreate).toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(require('../src/utils/classifier-health').readHealth().last_failure_code).toBe('parse');
+  });
+
+  test('3 consecutive failures degrade the client — the next call skips local entirely', async () => {
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({ content: [{ text: '{"viaHaiku":true}' }] });
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
+    const client = loadClientIsolated(jest.fn(), mockAnthropicCreate);
+
+    await client.classify('sys', 'a');
+    await client.classify('sys', 'b');
+    await client.classify('sys', 'c');
+    expect(global.fetch).toHaveBeenCalledTimes(3); // local attempted each of the first 3
+    expect(require('../src/utils/classifier-health').isDegraded()).toBe(true);
+
+    await client.classify('sys', 'd'); // degraded → skip local, straight to Haiku
+    expect(global.fetch).toHaveBeenCalledTimes(3); // NOT attempted a 4th time
+    expect(mockAnthropicCreate).toHaveBeenCalledTimes(4);
+  });
+
+  test('a successful local classify resets the failure counter', async () => {
+    const health = require('../src/utils/classifier-health');
+    health.recordFailure('http');
+    health.recordFailure('http');
+    expect(health.readHealth().consecutive_failures).toBe(2);
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: jest.fn().mockResolvedValue({ choices: [{ message: { content: '{"ok":1}' } }] }),
+    });
+    const client = loadClientIsolated(jest.fn(), jest.fn());
+    const result = await client.classify('sys', 'content');
+
+    expect(result.success).toBe(true);
+    expect(health.readHealth().consecutive_failures).toBe(0);
+  });
+
+  test('per-night Haiku cap: the fallback past the cap is skipped (not thrown, Haiku not called)', async () => {
+    // cap = 2 in this isolated config; drive 3 failing local calls
+    const cfgPath = path.join(tmpConfigDir, 'pipeline.json');
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    cfg.classifier.haikuNightlyCap = 2;
+    fs.writeFileSync(cfgPath, JSON.stringify(cfg));
+
+    const mockLogDecision = jest.fn();
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({ content: [{ text: '{"viaHaiku":true}' }] });
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
+    const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
+
+    await client.classify('sys', 'a'); // fallback #1 (Haiku count 1)
+    await client.classify('sys', 'b'); // fallback #2 (Haiku count 2 == cap)
+    const third = await client.classify('sys', 'c'); // capped → skip, no Haiku call
+
+    expect(mockAnthropicCreate).toHaveBeenCalledTimes(2); // NOT called the 3rd time
+    expect(third.success).toBe(false);
+    expect(third.skipped).toBe(true);
+    expect(third.failureMode).toBe('haiku-cap');
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY', 'anthropic', 'SKIPPED', expect.stringContaining('cap 2')
+    );
+  });
+
+  test('provider:anthropic (useLocal false) bypasses the health wrapper entirely', async () => {
+    // Flip the isolated config to anthropic provider
+    const cfgPath = path.join(tmpConfigDir, 'pipeline.json');
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    cfg.classifier.llm.provider = 'anthropic';
+    fs.writeFileSync(cfgPath, JSON.stringify(cfg));
+
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({ content: [{ text: '{"direct":true}' }] });
+    global.fetch = jest.fn();
+    const client = loadClientIsolated(jest.fn(), mockAnthropicCreate);
+    const result = await client.classify('sys', 'content');
+
+    expect(result.success).toBe(true);
+    expect(global.fetch).not.toHaveBeenCalled(); // no local attempt
+    // no Haiku-cap counter touched (health file never written by the anthropic path)
+    expect(require('../src/utils/classifier-health').readHealth().haiku_calls).toBe(0);
   });
 
   test('successful local classification returns parsed data', async () => {
@@ -1261,15 +1377,18 @@ describe('classifyLocal — LLM fallback hardening', () => {
     expect(result.success).toBe(true);
   });
 
-  // HARD CONSTRAINT: genuinely malformed input must STILL fail loudly.
+  // HARD CONSTRAINT (updated for the 33-03 fallback inversion): genuinely malformed local
+  // output must still be LOUD — logged as PARSE_ERROR and recorded as a parse failure in
+  // classifier-health — even though the sweep now recovers by falling back to Haiku instead
+  // of failing hard. "Fail loudly" is preserved via the log + health record, not the return.
   test.each([
     ['prose only', 'I could not produce JSON for this input.'],
     ['truncated array', '```json\n[{"a":1},'],
     ['unclosed object', '{"a": '],
     ['fence opened but never closed', '```json\n[{"a":1}'],
-  ])('genuinely malformed input (%s) still yields the parse-error failure signal', async (_label, content) => {
+  ])('genuinely malformed local input (%s) is logged+recorded loudly, then falls back to Haiku', async (_label, content) => {
     const mockLogDecision = jest.fn();
-    const mockAnthropicCreate = jest.fn();
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({ content: [{ text: '{"viaHaiku":true}' }] });
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -1278,15 +1397,15 @@ describe('classifyLocal — LLM fallback hardening', () => {
     const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
     const result = await client.classify('sys', 'content');
 
-    expect(result.success).toBe(false);
-    expect(result.failureMode).toBe('parse-error');
-    expect(result.error).toMatch(/JSON parse failed/);
-    // must NOT silently fall back or degrade to an empty result
-    expect(result.data).toBeUndefined();
-    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+    // LOUD: the local parse failure is logged and recorded (drives degraded mode)…
     expect(mockLogDecision).toHaveBeenCalledWith(
       'LLM_CLASSIFY', 'test-model', 'PARSE_ERROR', expect.any(String)
     );
+    expect(require('../src/utils/classifier-health').readHealth().last_failure_code).toBe('parse');
+    // …but the sweep recovers via Haiku instead of failing hard (the 33-03 inversion).
+    expect(mockAnthropicCreate).toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ viaHaiku: true });
   });
 });
 
