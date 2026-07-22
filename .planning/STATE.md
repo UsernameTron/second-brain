@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: Measured Memory
-status: completed
-last_updated: "2026-07-22T00:56:18.027Z"
-last_activity: 2026-07-22
+status: in_progress
+last_updated: "2026-07-21T00:00:00.000Z"
+last_activity: 2026-07-21
 progress:
-  total_phases: 7
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 5
+  completed_phases: 4
+  total_plans: 13
+  completed_plans: 13
 ---
 
 # Project State
@@ -19,17 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 
 **Core value:** Memory compounds daily. Every session, conversation, and capture adds to a growing knowledge base that makes tomorrow's work faster and more informed than today's.
-**Status:** Milestone complete
+**Status:** v1.8 phases 32-35 shipped; Phase 36 decision-gated
 
 ## Current Position
 
-Milestone: v1.8 Measured Memory — IN PROGRESS (Phases 32-36; Phase 36 decision-gated)
-Phase: 35
-Plan: Not started
-Phase 34 Promotion Integrity & Lifecycle — COMPLETE (verified 8/8, UAT 5/5), landing to master post #83/#84/#85.
-Status: Executing Phase 35
-Last activity: 2026-07-22
-Prior milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16); VERDICT-01 calendar-gated follow-up still open
+Milestone: v1.8 Measured Memory — Phases 32-35 SHIPPED (32: PR #74 2026-07-19; 33: PR #88, 34: PR #86 + close-out #87, 35: PR #89 — all 2026-07-21). Phase dirs archived to milestones/v1.8-phases/.
+Phase 36 (Ingest Breadth): decision-gated, unscheduled — gate is a real L10 RAG Phase 3 timeline. Pete's call.
+Last activity: 2026-07-21 (full project audit & close-out session)
+Prior milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16); VERDICT-01 calendar-gated follow-up still open (due ~2026-08-06: ≥14 weekday daily-stats rows)
 
 **Shipped milestones:**
 
@@ -101,4 +98,7 @@ Plan-mode investigation findings that ground the v1.7 requirements (verified aga
 
 ## Next Action
 
-`/gsd:plan-phase 29` (Series Integrity). Merge `chore/v1.7-milestone-init` via PR first.
+Pete decisions, in order:
+1. VERDICT-01 (~2026-08-06): run `node scripts/compounding-report.js` once ≥14 weekday rows exist; archive output + verdict to `.planning/`.
+2. Phase 36 gate: open (define requirements, plan, execute) or close v1.8 without it (`/gsd:complete-milestone`).
+3. Branch protection on master (open blocker above) — repo settings, one-time.
