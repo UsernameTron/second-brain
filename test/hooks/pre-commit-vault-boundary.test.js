@@ -22,8 +22,8 @@ const vaultPaths = require(path.join(PROJECT_ROOT, 'config', 'vault-paths.json')
 
 describe('pre-commit-vault-boundary: RIGHT-side paths', () => {
   test('passes for a file in a RIGHT-side directory', () => {
-    // 'RIGHT' is in the right array
-    const result = checkVaultBoundary(['RIGHT/daily-stats.md'], vaultPaths);
+    // 'briefings' is in the right array
+    const result = checkVaultBoundary(['briefings/daily-stats.md'], vaultPaths);
     expect(result.exitCode).toBe(0);
     expect(result.violations).toHaveLength(0);
   });

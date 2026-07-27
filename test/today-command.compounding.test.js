@@ -38,7 +38,7 @@ jest.mock('../src/pipeline-infra', () => ({
     config: {
       slippage: { staleDays: 7, excludeProjects: [], maxProjects: 20 },
       classifier: { stage1ConfidenceThreshold: 0.8 },
-      stats: { enabled: true, path: 'RIGHT/daily-stats.md' },
+      stats: { enabled: true, path: 'briefings/daily-stats.md' },
     },
     error: null,
   }),

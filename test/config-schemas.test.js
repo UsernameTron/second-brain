@@ -335,7 +335,7 @@ describe('pipeline.schema.json — stats sub-object', () => {
       ...basePipeline,
       stats: {
         enabled: true,
-        path: 'RIGHT/daily-stats.md',
+        path: 'briefings/daily-stats.md',
         timezone: 'America/Chicago',
         summaryLineEnabled: true,
         schemaVersion: 1
