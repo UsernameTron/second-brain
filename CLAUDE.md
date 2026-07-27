@@ -21,15 +21,15 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 
 ## Project Status
 
-> Last verified: 2026-07-21  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
+> Last verified: 2026-07-26  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
 
 **Latest Release:** v1.7 Prove Compounding (2026-07-16)
-**v1.8 Measured Memory (in progress):** Phases 32-35 shipped — Phase 32 Retrieval Eval Baseline 2026-07-19 (PR #74: `npm run eval:recall`, golden set, frozen seed vault, first baseline); Phase 33 Capture Reliability, Phase 34 Promotion Integrity + Dream Consolidation, and Phase 35 Proactive-Memory SessionStart Injection all 2026-07-21 (PRs #88/#86/#89). Phase 36 (Ingest Breadth) decision-gated, unscheduled.
+**v1.8 Measured Memory (in progress):** Phases 32-35 shipped — Phase 32 Retrieval Eval Baseline 2026-07-19 (PR #74: `npm run eval:recall`, golden set, frozen seed vault, first baseline); Phase 33 Capture Reliability, Phase 34 Promotion Integrity + Dream Consolidation, and Phase 35 Proactive-Memory SessionStart Injection all 2026-07-21 (PRs #88/#86/#89). Phase 36 (Ingest Breadth) decision-gated, unscheduled. Vault restructure + guard-gap fixes (reach-egress fail-closed, /today briefing through the gateway, whole-token exclusion match) shipped 2026-07-26 (PR #93).
 **v1.7 complete (2026-07-16):** Series Integrity (Phase 29), Outcome Instrumentation (Phase 30), Trend & Report (Phase 31)
 **v1.6 complete (2026-07-15):** Promotion Safety, Cross-Surface Reach (ADR-018/019), Context Honesty (staleness hook, ADR-020 authority hierarchy, fail-closed exclusions), Surface Completion (/reroute, pre-push docs gate)
 
 - **Test count:** 1552 total across 82 test files (1514 passing, 38 skipped in CI)
-- **Coverage:** Branch 81.15%, Statements 92.74%, Functions 96.02%, Lines 93.37% (CI-measured)
+- **Coverage:** Branch 80.83%, Statements 91.99%, Functions 95.61%, Lines 92.94% (CI-measured 2026-07-26)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
 
@@ -91,7 +91,7 @@ Claude Code hooks live separately in `.claude/hooks/` (auto-test, protected-file
 - **Testing:** Jest 30 (unit + integration), UAT tests guarded from CI via skip logic
 - **Quality gates:** ESLint 10, CodeQL SAST, AJV schema validation, coverage ≥80%
 
-**Key dependencies:** @anthropic-ai/sdk 0.90+, chokidar 3.6 (CJS compat), gray-matter 4.0, dotenv 17.4, AJV 8.18, voyageai 0.2.1 (Phase 19 semantic embeddings, exact pin, MIT)
+**Key dependencies:** @anthropic-ai/sdk 0.112+, chokidar 3.6 (CJS compat), gray-matter 4.0, dotenv 17.4, AJV 8.18, voyageai 0.2.1 (Phase 19 semantic embeddings, exact pin, MIT)
 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
