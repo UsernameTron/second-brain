@@ -309,8 +309,19 @@ function normalizePath(inputPath) {
  * @returns {{ decision: 'PASS' } | { decision: 'BLOCK', reason: string }}
  */
 function checkPath(normalizedPath, config) {
+  // A path with no directory component is a vault-ROOT file write — the junk-drawer
+  // failure mode. Already blocked by the allowlist below (the filename never matches a
+  // folder name), but named explicitly so audit logs and quarantine records say what
+  // actually happened instead of "not on the allowlist".
+  if (!normalizedPath.includes('/')) {
+    return {
+      decision: 'BLOCK',
+      reason: `Path '${normalizedPath}' is a vault-root file write — every file belongs in a RIGHT-side folder`,
+    };
+  }
+
   // Extract first path segment (directory name)
-  const firstSegment = normalizedPath.split('/')[0] || normalizedPath;
+  const firstSegment = normalizedPath.split('/')[0];
 
   // Case-sensitive match: fail-safe on case-insensitive FS (blocks 'Memory/' even though 'memory/' is allowed)
   const isRight = config.right.includes(firstSegment);
@@ -364,6 +375,21 @@ async function vaultRead(relativePath) {
 // ── Redacted quarantine ──────────────────────────────────────────────────────
 
 /**
+ * Render a value as a YAML double-quoted scalar for quarantine frontmatter.
+ *
+ * Control characters are folded to spaces first — a raw newline would end the
+ * field and let the rest of the value be parsed as frontmatter keys. JSON string
+ * escaping is a valid YAML double-quoted scalar for this data.
+ *
+ * @param {string} value - Caller-influenced text (vault path or block reason)
+ * @returns {string} Quoted, escaped scalar safe to interpolate
+ */
+function _yamlScalar(value) {
+  // eslint-disable-next-line no-control-regex -- intentional: folding control chars is the point
+  return JSON.stringify(String(value).replace(/[\u0000-\u001F\u007F]/g, ' '));
+}
+
+/**
  * Write a redacted metadata-only quarantine record to proposals/.
  * Stores ONLY the reason, original path, and timestamp — NO blocked content.
  * Satisfies: "excluded content never reaches disk" (review HIGH concern #2).
@@ -378,12 +404,17 @@ async function quarantine(originalPath, reason) {
   const quarantineAbsPath = path.join(VAULT_ROOT, 'proposals', quarantineFilename);
   const quarantineRelPath = path.join('proposals', quarantineFilename);
 
-  // Metadata-only content — no blocked content stored
+  // Metadata-only content — no blocked content stored.
+  // Path and reason are caller-influenced (classifier-derived paths reach here
+  // via new-command/reroute/promote-unrouted), and normalizePath rejects only
+  // absolute and traversal forms — not newlines or YAML metacharacters. Written
+  // bare, a path like `briefings/a: b.md` reads as a nested mapping and one
+  // containing a newline escapes the field entirely, so quote both.
   const metadata = [
     '---',
     'quarantine: true',
-    `original_path: ${originalPath}`,
-    `reason: ${reason}`,
+    `original_path: ${_yamlScalar(originalPath)}`,
+    `reason: ${_yamlScalar(reason)}`,
     `timestamp: ${new Date().toISOString()}`,
     '---',
     '',
@@ -426,6 +457,12 @@ async function vaultWrite(relativePath, content, options = {}) {
   const pathResult = checkPath(normalized, config);
   if (pathResult.decision === 'BLOCK') {
     logDecision('WRITE', normalized, 'BLOCKED', pathResult.reason);
+    // Leave a metadata-only record so structural drift (root writes, unlisted folders)
+    // is visible in the vault instead of vanishing into the caller's catch. Best-effort:
+    // the throw below stays the contract callers depend on.
+    try {
+      await quarantine(normalized, pathResult.reason);
+    } catch (_) { /* record is evidence, not the guarantee */ }
     throw new VaultWriteError(pathResult.reason, 'PATH_BLOCKED');
   }
 
@@ -512,7 +549,7 @@ async function vaultWrite(relativePath, content, options = {}) {
  *
  * Synchronous (matches Pattern 7 reference in voyage-health.js).
  *
- * @param {string} relativePath - Vault-relative path (e.g., "RIGHT/daily-stats.md")
+ * @param {string} relativePath - Vault-relative path (e.g., "briefings/daily-stats.md")
  * @param {string} content - File content to write (UTF-8)
  * @returns {void}
  * @throws {VaultWriteError} INVALID_PATH on absolute / traversal / vault-escape paths

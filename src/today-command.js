@@ -31,6 +31,7 @@ const { identifyFrog } = require('./today/frog-identifier');
 const { generateSynthesis } = require('./today/llm-augmentation');
 const { renderBriefing, buildSourceHealth, formatDateYMD } = require('./today/briefing-renderer');
 const { getMemoryEcho } = require('./memory-reader');
+const { vaultWrite, VAULT_ROOT: GATEWAY_VAULT_ROOT } = require('./vault-gateway');
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -144,6 +145,43 @@ async function _getPipelineState() {
   }
 }
 
+// ── Quarantine stub ──────────────────────────────────────────────────────────
+
+/**
+ * Render the placeholder briefing written when the gateway quarantines the real
+ * body (Guard 2 over-threshold contamination, or a Guard 3 style violation).
+ *
+ * The text is fixed and deliberately free of both excluded terms and banned
+ * style words, so the retry write always clears Guards 2 and 3 — otherwise the
+ * fallback could quarantine in turn and the morning would end with no file at
+ * all. `test/today-command.gateway.test.js` pins that property.
+ *
+ * @param {string} dateStr - YYYY-MM-DD stamp for the briefing
+ * @param {string} quarantinePath - Vault-relative path of the metadata-only record
+ * @returns {string} Stub briefing markdown
+ */
+function renderQuarantineStub(dateStr, quarantinePath) {
+  return `---
+date: ${dateStr}
+status: quarantined
+---
+
+# Daily Briefing — ${dateStr}
+
+The briefing was rendered but did not clear the vault content and style gates,
+so the body was withheld from this file.
+
+The gateway wrote a metadata-only record at \`${quarantinePath}\`. That record
+names the reason. No blocked text reached disk.
+
+Re-run the briefing once the upstream source material is cleaned up:
+
+\`\`\`bash
+node scripts/today-scheduled.js --dry-run
+\`\`\`
+`;
+}
+
 // ── runToday ─────────────────────────────────────────────────────────────────
 
 /**
@@ -162,7 +200,7 @@ async function _getPipelineState() {
  *   `$VAULT_ROOT` or `~/Claude Cowork`.
  * @param {Date} [options.date] - Date stamp used for filename + window math.
  * @param {Object} [options.haikuClient] - Test override for the Haiku client.
- * @returns {Promise<{ path: string|null, briefing: string|null, sourceHealth?: Object, error?: string, _phase20?: {latencies: Object, avgLatencyMs: number|null} }>} Briefing result envelope.
+ * @returns {Promise<{ path: string|null, briefing: string|null, sourceHealth?: Object, quarantined?: boolean, quarantinePath?: string, error?: string, _phase20?: {latencies: Object, avgLatencyMs: number|null} }>} Briefing result envelope. `briefing` is the stub, and `quarantined` is true, when the gateway blocked the real body.
  */
 async function runToday(options = {}) {
   // Phase 20 (STATS-LATENCY-01): per-operation latency accumulator.
@@ -179,6 +217,22 @@ async function runToday(options = {}) {
     const vaultRoot = options.vaultRoot || DEFAULT_VAULT_ROOT;
     const date = options.date || new Date();
     const mcpClient = options.mcpClient || null;
+
+    // The gateway resolves vault writes against its own module-scope VAULT_ROOT,
+    // captured at require time. A caller passing a different vaultRoot would get
+    // the briefing written into the gateway's vault while stats and memory came
+    // from theirs — so a dry run aimed at a scratch vault would write into the
+    // operator's live one and report a path outside the root it asked for.
+    // The gateway owns exactly one root by design; that single-root invariant is
+    // what makes the allowlist mean anything, so a mismatch is a caller bug to
+    // surface rather than paper over.
+    if (path.resolve(vaultRoot) !== path.resolve(GATEWAY_VAULT_ROOT)) {
+      return {
+        path: null,
+        briefing: null,
+        error: `TODAY_FATAL: vaultRoot '${vaultRoot}' conflicts with the vault-gateway root '${GATEWAY_VAULT_ROOT}' — set VAULT_ROOT before today-command is required`,
+      };
+    }
 
     // ── Load config ───────────────────────────────────────────────────────
     const { config, error: configErr } = safeLoadPipelineConfig();
@@ -253,7 +307,7 @@ async function runToday(options = {}) {
       if (config && config.memoryHealth && config.memoryHealth.enabled !== false) {
         const { computeMemoryHealth } = require('./today/memory-health');
         const { readDailyStats } = require('./daily-stats');
-        const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'RIGHT/daily-stats.md');
+        const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'briefings/daily-stats.md');
         const { rows } = readDailyStats(statsAbsPath);
         memoryHealth = computeMemoryHealth(rows, config.memoryHealth);
       }
@@ -268,7 +322,7 @@ async function runToday(options = {}) {
       if (config && config.stats && config.stats.enabled) {
         const { computeCompoundingTrend, renderCompoundingReport } = require('./today/compounding-trend');
         const { readDailyStats } = require('./daily-stats');
-        const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'RIGHT/daily-stats.md');
+        const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'briefings/daily-stats.md');
         const { rows } = readDailyStats(statsAbsPath);
         const trend = computeCompoundingTrend(rows, { windowDays: 14 });
         if (trend.verdict !== 'insufficient-data') {
@@ -319,16 +373,69 @@ async function runToday(options = {}) {
     const filename = mode === 'dry-run'
       ? `_dry-run-${dateStr}.md`
       : `${dateStr}.md`;
-    const outputPath = path.join(vaultRoot, 'RIGHT', 'daily', filename);
+    const relativePath = `briefings/daily/${filename}`;
+    // The gateway owns the vault root for vault writes, so the reported path is
+    // derived from it rather than from options.vaultRoot — that is what keeps
+    // result.path pointing at the file that actually got written.
+    const outputPath = path.join(GATEWAY_VAULT_ROOT, relativePath);
 
-    // ── Write daily note ──────────────────────────────────────────────────
-    await fs.promises.mkdir(path.dirname(outputPath), { recursive: true });
-    await fs.promises.writeFile(outputPath, briefing, 'utf8');
+    // ── Write daily note through the vault gateway ────────────────────────
+    // The briefing body is LLM-synthesized from external connector data (Gmail,
+    // Calendar, GitHub) and is the highest-frequency write in the system, so it
+    // runs the same content and style gates as every other vault write.
+    //
+    // Failure policy — briefing-is-the-product, but never a silent bypass:
+    //   - Content, at most half the paragraphs contaminated: the gateway
+    //     redacts those paragraphs and writes. The briefing still renders and
+    //     excluded content never lands. This is the common degraded case.
+    //   - Content over that threshold, or a style violation: the gateway
+    //     quarantines (metadata only, no body on disk) and we write a stub in
+    //     its place, so the morning still has a file that says what happened
+    //     and where the record is.
+    //   - attemptCount: 1 so Guard 3 quarantines rather than throwing
+    //     STYLE_VIOLATION. /today has no regenerate loop to satisfy a REJECT,
+    //     and an uncaught throw here degrades to TODAY_FATAL — no briefing at
+    //     all over one banned word. Same reasoning as writeDeadLetter in
+    //     pipeline-infra.js.
+    let written = briefing;
+    let quarantinePath = null;
+
+    const writeResult = await vaultWrite(relativePath, briefing, { attemptCount: 1 });
+    if (writeResult.decision === 'QUARANTINED') {
+      quarantinePath = writeResult.quarantinePath;
+      written = renderQuarantineStub(dateStr, quarantinePath);
+
+      // The stub is fixed text chosen to clear both guards, but the style guide
+      // hot-reloads from the vault — a banned word added to it later could match
+      // the stub and quarantine this write too. A test pins today's wording; it
+      // cannot pin a file the operator edits. If the fallback is also refused,
+      // nothing reached briefings/daily/, so report that instead of returning a
+      // path to a file that does not exist.
+      const stubResult = await vaultWrite(relativePath, written, { attemptCount: 1 });
+      if (stubResult.decision === 'QUARANTINED') {
+        process.stderr.write(
+          `[today] ERROR: briefing body AND fallback stub both quarantined — no briefing written (records: ${quarantinePath}, ${stubResult.quarantinePath})\n`
+        );
+        return {
+          path: null,
+          briefing: null,
+          quarantined: true,
+          quarantinePath: stubResult.quarantinePath,
+          error: 'TODAY_FATAL: briefing body and fallback stub both quarantined by vault policy',
+        };
+      }
+
+      process.stderr.write(
+        `[today] WARNING: briefing body quarantined by vault policy — stub written to ${relativePath}, record at ${quarantinePath}\n`
+      );
+    }
 
     // ── Interactive: echo to stdout ───────────────────────────────────────
+    // Echo what reached the vault, not the pre-gate body, so the terminal and
+    // the daily note never disagree about what today's briefing says.
     if (mode === 'interactive') {
       // eslint-disable-next-line no-console -- user-facing-output: Interactive mode emits the day briefing — the visible product of /today
-      console.log(briefing);
+      console.log(written);
     }
 
     // ── Phase 20: compute end-to-end + mean latency ───────────────────────
@@ -392,7 +499,14 @@ async function runToday(options = {}) {
       }
     }
 
-    return { path: outputPath, briefing, sourceHealth, _phase20: { latencies, avgLatencyMs } };
+    return {
+      path: outputPath,
+      briefing: written,
+      sourceHealth,
+      // Surfaced so callers can tell a stub from a real briefing (D-19).
+      ...(quarantinePath ? { quarantined: true, quarantinePath } : {}),
+      _phase20: { latencies, avgLatencyMs },
+    };
 
   } catch (err) {
     // Catastrophic failure — return error envelope rather than throw

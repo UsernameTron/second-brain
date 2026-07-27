@@ -3,7 +3,7 @@
 /**
  * daily-stats.js
  *
- * Storage substrate for daily measurement rows in RIGHT/daily-stats.md.
+ * Storage substrate for daily measurement rows in briefings/daily-stats.md.
  * One row per calendar day (America/Chicago). Idempotent same-day rewrites.
  *
  * Exports:
@@ -65,7 +65,48 @@ const COLUMNS = [
   'recall_hits',
   'echo_shown',
   'echo_score',
+  'vault_hygiene',
 ];
+
+// ── Vault hygiene ─────────────────────────────────────────────────────────────
+
+/**
+ * Files allowed to sit at the vault root. Everything else there is drift.
+ * (Dotfiles — .obsidian, .DS_Store — are skipped separately.)
+ */
+const ROOT_FILE_ALLOWLIST = ['CLAUDE.md'];
+
+/**
+ * Count structural drift at the vault root: loose files that belong in a folder,
+ * plus top-level folders on neither the LEFT nor RIGHT list.
+ *
+ * vault-gateway can only block writes that route through it — Cowork sessions,
+ * Obsidian, and scheduled agents elsewhere write straight to disk. Counting the
+ * drift daily is what makes it visible within a day instead of a month.
+ *
+ * @param {object} [opts={}] - { vaultRoot, vaultPaths } for testability
+ * @returns {number} loose root files + unlisted top-level folders
+ */
+function computeVaultHygiene(opts = {}) {
+  const vaultRoot = opts.vaultRoot || require('./vault-gateway').VAULT_ROOT;
+  const vaultPaths = opts.vaultPaths || require('./pipeline-infra').safeLoadVaultPaths();
+
+  // Nested entries ("proposals/unrouted") only ever grant their top segment a home.
+  const known = new Set(
+    [...(vaultPaths.left || []), ...(vaultPaths.right || [])].map(p => p.split('/')[0])
+  );
+
+  let count = 0;
+  for (const entry of fs.readdirSync(vaultRoot, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue;
+    if (entry.isDirectory()) {
+      if (!known.has(entry.name)) count++;
+    } else if (!ROOT_FILE_ALLOWLIST.includes(entry.name)) {
+      count++;
+    }
+  }
+  return count;
+}
 
 // ── readDailyStats() ──────────────────────────────────────────────────────────
 
@@ -158,7 +199,7 @@ function renderTable(columns, rows) {
  * Pattern 11: LEFT/RIGHT enforcement happens INSIDE vaultWriteAtomic — this module
  * never touches fs.writeFileSync or fs.renameSync directly on the stats path.
  *
- * @param {string} relativePath - Vault-relative path (e.g., "RIGHT/daily-stats.md")
+ * @param {string} relativePath - Vault-relative path (e.g., "briefings/daily-stats.md")
  * @param {object} frontmatter - { schema_version, columns, last_updated, timezone }
  * @param {Array<object>} rows - one entry per calendar day, ascending order
  */
@@ -223,6 +264,13 @@ function recordDailyStats(stats, opts = {}) {
     echo_score: (stats.echoScore !== undefined && stats.echoScore !== null)
       ? Number(stats.echoScore).toFixed(2)
       : '\u2014',
+    // Measured at write time unless the caller supplies it. Backfilled past days pass
+    // null, because today's root clutter says nothing about last Tuesday's.
+    vault_hygiene: fmtOptional(
+      stats.hygieneCount !== undefined
+        ? stats.hygieneCount
+        : (() => { try { return computeVaultHygiene(); } catch (_) { return null; } })()
+    ),
   };
 
   // Idempotent merge: replace today's row or insert in ascending date order
@@ -540,6 +588,7 @@ function flushMissedDays(opts = {}) {
         echoScore: state.echoScore || 0,
         avgLatencyMs: null, // renders as em dash
         avgConfidence,
+        hygieneCount: null, // unknowable for a past day — em dash, not today's count
       }, { now: new Date(dateStr + 'T12:00:00.000Z'), configOverride: opts.configOverride });
     }
 
@@ -553,5 +602,5 @@ module.exports = {
   recordDailyStats, dateKey, readDailyStats,
   recordRecallInvocation, recordProposalsBatch, recordPromotion,
   recordTopCosine, recordTopRrf, recordEchoShown, readDailyCounters,
-  flushMissedDays,
+  flushMissedDays, computeVaultHygiene,
 };

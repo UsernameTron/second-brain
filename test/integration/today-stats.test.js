@@ -45,7 +45,7 @@ const STATS_PIPELINE_CONFIG = {
   memory: { echoThreshold: 0.65 },
   stats: {
     enabled: true,
-    path: 'RIGHT/daily-stats.md',
+    path: 'briefings/daily-stats.md',
     timezone: 'America/Chicago',
     summaryLineEnabled: true,
     schemaVersion: 1,
@@ -72,7 +72,7 @@ beforeEach(() => {
   tmpProjects = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-stats-int-proj-'));
 
   // Skeleton vault directories
-  fs.mkdirSync(path.join(tmpVault, 'RIGHT', 'daily'), { recursive: true });
+  fs.mkdirSync(path.join(tmpVault, 'briefings', 'daily'), { recursive: true });
   fs.mkdirSync(path.join(tmpVault, 'memory'), { recursive: true });
 
   // memory.md with 3 ### entries (used by readMemory)
@@ -128,6 +128,10 @@ function loadRunToday({ day = '2026-04-24', throwOnRecord = false } = {}) {
     safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: STATS_PIPELINE_CONFIG, error: null }),
     loadConfigWithOverlay: jest.fn().mockReturnValue(STATS_PIPELINE_CONFIG),
     createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+    // The briefing write routes through vault-gateway, which reads its
+    // RIGHT-side allowlist and excluded terms through these two.
+    safeLoadVaultPaths: jest.fn(() => require('../../config/vault-paths.json')),
+    loadExcludedTerms: jest.fn(() => require('../../config/excluded-terms.json')),
   }));
   jest.doMock('../../src/memory-reader', () => ({
     getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0, skipped: false }),
@@ -184,7 +188,7 @@ it('runToday creates briefing + calls recordDailyStats with correct 7-field payl
   expect(result.error).toBeUndefined();
 
   // Briefing file must exist on disk
-  const briefingPath = path.join(tmpVault, 'RIGHT', 'daily', '2026-04-24.md');
+  const briefingPath = path.join(tmpVault, 'briefings', 'daily', '2026-04-24.md');
   expect(fs.existsSync(briefingPath)).toBe(true);
 
   // recordDailyStats called exactly once
@@ -254,7 +258,7 @@ it('briefing is still produced AND written to disk when recordDailyStats throws'
   expect(result.error).toBeUndefined();
 
   // Briefing file on disk must exist
-  const briefingPath = path.join(tmpVault, 'RIGHT', 'daily', '2026-04-24.md');
+  const briefingPath = path.join(tmpVault, 'briefings', 'daily', '2026-04-24.md');
   expect(fs.existsSync(briefingPath)).toBe(true);
   const briefingContent = fs.readFileSync(briefingPath, 'utf8');
   expect(briefingContent.length).toBeGreaterThan(0);

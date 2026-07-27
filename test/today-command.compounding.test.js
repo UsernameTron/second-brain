@@ -38,13 +38,17 @@ jest.mock('../src/pipeline-infra', () => ({
     config: {
       slippage: { staleDays: 7, excludeProjects: [], maxProjects: 20 },
       classifier: { stage1ConfidenceThreshold: 0.8 },
-      stats: { enabled: true, path: 'RIGHT/daily-stats.md' },
+      stats: { enabled: true, path: 'briefings/daily-stats.md' },
     },
     error: null,
   }),
   createHaikuClient: jest.fn().mockReturnValue({
     classify: jest.fn().mockResolvedValue({ success: true, data: '' }),
   }),
+  // vault-gateway reads its allowlist and excluded terms through these two,
+  // now that the briefing write routes through vaultWrite.
+  safeLoadVaultPaths: jest.fn(() => require('../config/vault-paths.json')),
+  loadExcludedTerms: jest.fn(() => require('../config/excluded-terms.json')),
 }));
 jest.mock('../src/memory-reader', () => ({
   getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
@@ -66,7 +70,23 @@ jest.mock('../src/daily-stats', () => ({
   flushMissedDays: jest.fn(),
 }));
 
+// vault-gateway and style-policy capture VAULT_ROOT at require time, and
+// today-command pulls both in on the line below — so the override has to land
+// here, not in beforeEach, or the briefing write targets the real vault.
+const GATEWAY_VAULT_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-compounding-gateway-'));
+process.env.VAULT_ROOT = GATEWAY_VAULT_ROOT;
+fs.mkdirSync(path.join(GATEWAY_VAULT_ROOT, 'ABOUT ME'), { recursive: true });
+fs.writeFileSync(
+  path.join(GATEWAY_VAULT_ROOT, 'ABOUT ME', 'anti-ai-writing-style.md'),
+  '## Banned words\n\n| Word/Phrase | Why |\n|---|---|\n| game-changer | filler |\n',
+  'utf8'
+);
+
 const { runToday } = require('../src/today-command');
+
+afterAll(() => {
+  fs.rmSync(GATEWAY_VAULT_ROOT, { recursive: true, force: true });
+});
 
 /** A daily-stats row with enough growth + recall activity to satisfy all gates. */
 function buildGrowingRow(i) {
@@ -102,7 +122,7 @@ describe('Phase 31: Compounding trend section (TREND-02)', () => {
       mcpClient: null,
       mode: 'dry-run',
       projectsDir: tempProjectsDir,
-      vaultRoot: tempVaultRoot,
+      vaultRoot: GATEWAY_VAULT_ROOT, // must match the root vault-gateway writes through
       date: new Date('2026-04-25T18:00:00.000Z'),
     });
 
@@ -117,7 +137,7 @@ describe('Phase 31: Compounding trend section (TREND-02)', () => {
       mcpClient: null,
       mode: 'dry-run',
       projectsDir: tempProjectsDir,
-      vaultRoot: tempVaultRoot,
+      vaultRoot: GATEWAY_VAULT_ROOT, // must match the root vault-gateway writes through
       date: new Date('2026-04-25T18:00:00.000Z'),
     });
 

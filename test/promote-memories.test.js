@@ -116,8 +116,8 @@ beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pm-test-'));
   proposalsDir = path.join(tmpDir, 'proposals');
   memoryDir = path.join(tmpDir, 'memory');
-  archiveDir = path.join(tmpDir, 'memory-archive');
-  proposalArchiveDir = path.join(tmpDir, 'memory-proposals-archive');
+  archiveDir = path.join(tmpDir, 'archive', 'memory');
+  proposalArchiveDir = path.join(tmpDir, 'archive', 'proposals');
 
   fs.mkdirSync(proposalsDir, { recursive: true });
   fs.mkdirSync(memoryDir, { recursive: true });
@@ -552,7 +552,7 @@ describe('promoteMemories - deduplication', () => {
     expect(result.promoted).toBe(0);
   });
 
-  test('duplicate in memory-archive → skipped', async () => {
+  test('duplicate in archive/memory → skipped', async () => {
     const existingContent = 'This was archived last year so it is a duplicate entry.';
     const existingHash = computeHash(existingContent);
 
@@ -740,7 +740,7 @@ describe('promoteMemories - in-batch duplicate detection', () => {
     fs.writeFileSync(proposalsFile, buildProposalsFile(candidates), 'utf8');
 
     // Remove the proposals archive dir entirely to test graceful path missing
-    fs.rmSync(path.join(tmpDir, 'memory-proposals-archive'), { recursive: true, force: true });
+    fs.rmSync(path.join(tmpDir, 'archive', 'proposals'), { recursive: true, force: true });
 
     const result = await promoteMemories.promoteMemories({ max: 5 });
     expect(result.error).toBeUndefined();
@@ -772,7 +772,7 @@ describe('promoteMemories - proposal archive', () => {
 
     await promoteMemories.promoteMemories({ max: 5 });
 
-    // Check that an archive file was created in memory-proposals-archive/
+    // Check that an archive file was created in archive/proposals/
     const archiveFiles = fs.readdirSync(proposalArchiveDir);
     expect(archiveFiles.length).toBeGreaterThan(0);
   });

@@ -15,9 +15,9 @@ ${supersededBy === undefined ? '' : `superseded_by:: ${supersededBy}\n`}`;
 
 function makeVault({ archiveEntries, liveHashes }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'va-test-'));
-  fs.mkdirSync(path.join(root, 'memory-archive'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'archive', 'memory'), { recursive: true });
   fs.mkdirSync(path.join(root, 'memory'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'memory-archive', '2026-07.md'), archiveEntries.map(ENTRY).join('\n'));
+  fs.writeFileSync(path.join(root, 'archive', 'memory', '2026-07.md'), archiveEntries.map(ENTRY).join('\n'));
   fs.writeFileSync(
     path.join(root, 'memory', 'memory.md'),
     liveHashes.map((h) => `### live\n\nx\n\ncontent_hash:: ${h}\n`).join('\n')
@@ -83,7 +83,7 @@ describe('validate-archive', () => {
     expect(r.entries).toBe(2);
   });
 
-  const realArchive = path.join(process.env.HOME, 'Claude Cowork', 'memory-archive');
+  const realArchive = path.join(process.env.HOME, 'Claude Cowork', 'archive', 'memory');
   // Conditional describe (not a conditional test): jest/no-standalone-expect does not
   // recognize `(cond ? test : test.skip)(...)` as a test block. Same pattern as
   // test/uat/semantic-search.uat.test.js.

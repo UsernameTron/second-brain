@@ -24,6 +24,7 @@ jest.mock('@anthropic-ai/sdk', () => {
 const {
   checkContent,
   classifyWithHaiku,
+  findExcludedTerm,
   sanitizeContent,
   sanitizeTermForPrompt,
 } = require('../src/content-policy');
@@ -221,8 +222,11 @@ describe('9. Regex escaping — metacharacters in excluded terms', () => {
 describe('10. Configurable context window', () => {
   test('classifyWithHaiku with contextChars=200 sends wider context window', async () => {
     mockHaikuResponse('ALLOW');
-    // 1000-char content with ISPN at position 500
-    const content = 'X'.repeat(500) + 'ISPN' + 'Y'.repeat(500);
+    // ~1000-char content with ISPN in the middle. The filler is word-separated:
+    // whole-token matching does not match a term glued inside a longer run of
+    // alphanumerics ('XXXISPNYYY'), and this test is about window width, not
+    // about what counts as a match.
+    const content = 'X '.repeat(250) + 'ISPN' + ' Y'.repeat(250);
     await classifyWithHaiku(content, 'ISPN', ['ISPN'], 200);
 
     const callArgs = mockCreateFn.mock.calls[0][0];
@@ -339,8 +343,10 @@ describe('normalizeForMatch utility', () => {
     expect(normalizeForMatch('I\u00ADS\u00ADP\u00ADN')).toBe('ispn');
   });
 
-  test('strips non-ASCII whitespace (NBSP)', () => {
-    expect(normalizeForMatch('Gen\u00A0esys')).toBe('genesys');
+  test('normalizes NBSP to a plain space rather than deleting it', () => {
+    // Whitespace is preserved now — buildTermRegex tolerates it inside a term,
+    // so 'Gen esys' still matches Genesys (asserted in the whole-token suite).
+    expect(normalizeForMatch('Gen\u00A0esys')).toBe('gen esys');
   });
 
   test('plain ASCII lowercased unchanged', () => {
@@ -642,5 +648,89 @@ describe('HYG-UNICODE-02: Unicode variant coverage — NFKD-normalized matcher',
     const content = 'Testing with UK\u00A0G in this paragraph.';
     const result = sanitizeContent(content, ['UKG']);
     expect(result.redactedCount).toBe(1);
+  });
+});
+
+// ── 18. Whole-token matching (cross-word false positives) ────────────────────
+describe('18. Whole-token excluded-term matching', () => {
+  const TERMS = require('../config/excluded-terms.json');
+
+  // Whitespace tolerance is what catches injected-space bypasses. It used to be
+  // implemented by stripping ALL whitespace before a substring test, which fused
+  // neighbouring words: 'main index' became 'mainindex', and the 4-character term
+  // ININ appears in the middle of it. Both halves of that trade-off are pinned here.
+
+  describe('injected-whitespace bypasses stay blocked', () => {
+    test.each([
+      ['Asa na', 'Asana'],
+      ['A s a n a', 'Asana'],
+      ['Gen esys', 'Genesys'],
+      ['I­S­P­N', 'ISPN'],
+      ['Ａｓａｎａ', 'Asana'],
+    ])('%j matches %s', (text, term) => {
+      expect(findExcludedTerm(text, TERMS)).toBe(term);
+    });
+
+    test('sanitizeContent still redacts a paragraph using an injected-space bypass', () => {
+      const result = sanitizeContent('Notes about the Asa na rollout.', ['Asana']);
+      expect(result.redactedCount).toBe(1);
+      expect(result.sanitized).toBe('[REDACTED]');
+    });
+  });
+
+  describe('matches spanning unrelated words are not blocked', () => {
+    test.each([
+      'main index',           // 'mainindex' contains 'inin' -> ININ, the reported bug
+      'the main index page',
+      'log in index',
+      'joining a webinar',
+      'certain indicators',
+    ])('%j matches no excluded term', (text) => {
+      expect(findExcludedTerm(text, TERMS)).toBeNull();
+    });
+
+    test('sanitizeContent leaves a paragraph mentioning the main index intact', () => {
+      const content = 'Rebuilt the main index this morning.\n\nNothing else to report.';
+      const result = sanitizeContent(content, TERMS);
+      expect(result.redactedCount).toBe(0);
+      expect(result.sanitized).toBe(content);
+    });
+
+    test('checkContent PASSes without a Haiku call — the 06:45 briefing path', async () => {
+      // The daily briefing runs this scan every weekday. A cross-word false
+      // positive would fire a Stage 2 call and, with Haiku down, fail closed and
+      // redact an innocent paragraph.
+      await expect(checkContent('Rebuilt the main index this morning.', TERMS))
+        .resolves.toEqual({ decision: 'PASS' });
+      expect(mockCreateFn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('token boundaries', () => {
+    test('matches a term followed by an underscore or punctuation', () => {
+      // Lookarounds rather than \b, which counts '_' as a word character.
+      expect(findExcludedTerm('ispn_notes.md', TERMS)).toBe('ISPN');
+      expect(findExcludedTerm("ISPN's queue", TERMS)).toBe('ISPN');
+      expect(findExcludedTerm('Genesys-based routing', TERMS)).toBe('Genesys');
+    });
+
+    test('does not match a term glued inside a longer alphanumeric run', () => {
+      expect(findExcludedTerm('crispness', TERMS)).toBeNull();
+      expect(findExcludedTerm('XXXISPNYYY', TERMS)).toBeNull();
+    });
+
+    test('matches a multi-word term with or without its space', () => {
+      expect(findExcludedTerm('Interactive Intelligence', TERMS)).toBe('Interactive Intelligence');
+      expect(findExcludedTerm('InteractiveIntelligence', TERMS)).toBe('Interactive Intelligence');
+    });
+
+    test('an empty or whitespace-only term never matches', () => {
+      expect(findExcludedTerm('any text at all', ['', '   '])).toBeNull();
+    });
+
+    test('a term with regex metacharacters is escaped, not interpreted', () => {
+      expect(findExcludedTerm('I know C++ well', ['C++'])).toBe('C++');
+      expect(findExcludedTerm('abc', ['.'])).toBeNull();
+    });
   });
 });

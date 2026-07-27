@@ -92,3 +92,71 @@ claim about disk state is re-checked against disk by whoever acts on it.
 Triggered by: second-brain archive remediation 2026-07-19 — Item 1 of the
 approved plan reversed from "restore three entries" to "correct the false
 record" after the hash-pair check.
+
+## [2026-07-26] [Identifier-grep inventories are ceilings, not counts]
+
+A code-identifier grep for a capability names the ceiling of where it might
+live; resolve every hit to a verdict (real implementation / domain-specific
+keeper / false positive) before planning any consolidation on the count.
+
+The CTG enrichment scan flagged 19 project directories; a full-portfolio
+inventory resolved that to exactly 3 real implementations (enrichment-dispatch,
+signal-radar's Apollo steps, hubspot-gender-enrichment), 7 enrichment-adjacent
+keepers, and 10+ false positives (the word "enrich" in IT-ticket triage, Veo
+spend comments, MCP catalog metadata, admin-login geo notes, Drive folder
+names). Planning fold-ins from the raw 19 would have scoped moves for projects
+with nothing to move and re-litigated settled ADRs (0039/0044).
+How to apply: consolidation plans get a verdict table first — per hit: the
+exact triggering line, what the code actually does, and one of the three
+verdicts — and only verdict-(a) rows become migration steps.
+
+Triggered by: 2026-07-26 enrichment consolidation planning run
+(_audit/2026-07-26-enrichment-consolidation/ in CTG-Workspace-Build).
+
+## [2026-07-26] [A writer that has never fired live hides contract bugs]
+
+Dry-run-by-default write paths accumulate payload-contract bugs that no test
+catches, because the mock accepts what the real API would reject — verify the
+payload contract against the real schema BEFORE any dormant write gate opens.
+
+Both dormant HubSpot writers in the CTG portfolio carry exactly this class of
+bug: enrichment-dispatch's writer sends internal field names verbatim
+(title/employer where HubSpot expects jobtitle/company — first live write
+400s; app/writeback/hubspot.py:128, no mapping table exists anywhere), and
+signal-radar's writer sends a company NAME as the idProperty=domain upsert key
+(src/backend/writeback/hubspot.py:98 — silent mis-upserts the day a token
+lands). Years of green suites, both broken on contact with reality.
+How to apply: before flipping any long-dormant dry_run flag, add a contract
+test that validates the exact outbound payload against the real target schema
+(property names, idProperty semantics), plus one sandbox round-trip.
+
+Triggered by: 2026-07-26 enrichment inventory — both gaps found by reading the
+writers, not by any failing test.
+
+## [2026-07-26] [CTG has two ADR namespaces — check both]
+
+"ADR-001"/"ADR-003" in CTG briefs usually mean the per-project consolidated
+log at ~/Claude Cowork/ABOUT ME/architecture-decisions.md (ADR-001 DWD,
+ADR-003 never-write-then-search, ADR-006 httpx-only, ADR-007 allowed_api_domains),
+NOT the workspace set at decisions/adr/ (0001–0044, zero-padded). A search for
+ADR-001 under decisions/ returns nothing and the binding rule gets missed.
+How to apply: unpadded ADR-NNN → Cowork log; zero-padded ADR-00NN → workspace
+decisions/adr/. Note ADR-007's attribute is named settings.allowed_api_domains
+in the log but implemented as settings.allowlist in enrichment-dispatch
+(app/config.py:41) — same rule, different name; don't flag as a violation.
+
+Triggered by: 2026-07-26 consolidation brief citing ADR-001/ADR-003; find
+across projects/*/decisions returned nothing.
+
+## [2026-07-26] [enrichment-dispatch: origin/feat/explorium-provider is a rebase remnant]
+
+The dispatch repo's only non-main remote branch (origin/feat/explorium-provider,
+4 commits "unmerged") is a pre-rebase remnant — the same changes are already on
+main under different SHAs (ccf4500→9f1aea7 etc.) and the branch is BEHIND main
+(missing the ruff <0.16 pin, the calibrated-threshold test, the Explorium
+secret mount). Delete it; NEVER merge it — merging would regress three fixes.
+How to apply: cherry-pick --no-commit + git status to prove content-equivalence
+before trusting any "N commits unmerged" report (same rule as
+LESSON-SQUASH-CONTENT-CHECK-01, which this re-confirms for rebase flows).
+
+Triggered by: 2026-07-26 enrichment-dispatch git-state sweep.

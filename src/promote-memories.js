@@ -18,8 +18,8 @@ const { parseCheckboxState, resolvedVaultRoot: memoryProposalsVaultRoot } = requ
 const VAULT_ROOT = () => process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude Cowork');
 const PROPOSALS_FILE = () => path.join(VAULT_ROOT(), 'proposals', 'memory-proposals.md');
 const MEMORY_FILE = () => path.join(VAULT_ROOT(), 'memory', 'memory.md');
-const ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'memory-archive');
-const PROPOSAL_ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'memory-proposals-archive');
+const ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'archive', 'memory');
+const PROPOSAL_ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'archive', 'proposals');
 
 /**
  * Current resolved VAULT_ROOT for this module. Mirrors memory-proposals.js's
@@ -280,11 +280,11 @@ const RELATED_MAX_LINKS = 5;
 function filterExcludedLinkTitles(links) {
   try {
     const { loadExcludedTerms } = require('./pipeline-infra');
-    const { normalizeForMatch } = require('./content-policy');
-    const terms = loadExcludedTerms().map(t => normalizeForMatch(String(t))).filter(Boolean);
+    const { findExcludedTerm } = require('./content-policy');
+    const terms = loadExcludedTerms();
     return links.filter(link => {
-      const title = normalizeForMatch(String(link.title || ''));
-      return title && !terms.some(term => title.includes(term));
+      const title = String(link.title || '').trim();
+      return title !== '' && findExcludedTerm(title, terms) === null;
     });
   } catch (_) {
     return [];
@@ -678,6 +678,19 @@ async function promoteMemories(options = {}) {
     }
   }
 
+  // Human-readable dashboard — derived from memory.md, regenerated whole so it can
+  // never drift into a second source of truth. Non-fatal, same as reach and index.
+  let dashboard = null;
+  if (!dryRun && promoted.length > 0) {
+    try {
+      const { writeMemoryDashboard } = require('./memory-dashboard');
+      dashboard = await writeMemoryDashboard();
+    } catch (err) {
+      process.stderr.write(`[promote-memories] Dashboard render failed (non-fatal): ${err && err.message ? err.message : err}\n`);
+      dashboard = { success: false, error: String((err && err.message) || err) };
+    }
+  }
+
   const result = {
     promoted: promoted.length,
     deferred: toDefer.length,
@@ -690,6 +703,7 @@ async function promoteMemories(options = {}) {
   };
   if (reach) result.reach = reach;
   if (indexRebuild) result.indexRebuild = indexRebuild;
+  if (dashboard) result.dashboard = dashboard;
   if (contradictions.length > 0) result.contradictions = contradictions;
   if (dryRun) {
     result.dryRun = true;

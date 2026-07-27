@@ -39,6 +39,17 @@
         ]
       }
     ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $CLAUDE_PROJECT_DIR/.claude/hooks/memory-extraction-hook.js",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [

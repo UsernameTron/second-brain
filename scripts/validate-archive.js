@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 
 const VAULT_ROOT = () => process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude Cowork');
-const ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'memory-archive');
+const ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'archive', 'memory');
 const MEMORY_FILE = () => path.join(VAULT_ROOT(), 'memory', 'memory.md');
 
 function parseEntries(text) {

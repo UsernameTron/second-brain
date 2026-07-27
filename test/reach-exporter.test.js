@@ -266,6 +266,36 @@ describe('runReachExport', () => {
     expect(fs.existsSync(path.join(targetDir, 'second-brain.md'))).toBe(false);
   });
 
+  test('missing excluded-terms.json suppresses the digest instead of shipping it unfiltered', async () => {
+    // loadExcludedTerms() returns [] on any load failure and checkContent passes
+    // everything against an empty term list — egress has to fail closed like the
+    // gateway does, or a broken config exports unfiltered content to every target.
+    writeMemoryFile([{ date: '2026-07-14', category: 'LEARNING', content: 'Alpha entry content.' }]);
+
+    const configDir = path.join(tmpDir, 'config-no-terms');
+    fs.mkdirSync(configDir);
+    fs.writeFileSync(
+      path.join(configDir, 'reach-targets.json'),
+      JSON.stringify({ enabled: true, digestMax: 10, targets: [] }),
+      'utf8',
+    );
+    // excluded-terms.json deliberately absent
+    process.env.CONFIG_DIR_OVERRIDE = configDir;
+    jest.resetModules();
+    const exporter = require('../src/reach-exporter');
+
+    const result = await exporter.runReachExport({ targets: [targetDir] });
+
+    expect(result.success).toBe(true);
+    expect(result.included).toBe(0);
+    expect(result.excluded).toBeGreaterThan(0);
+
+    // The pointer still ships — it carries no memory content.
+    const reach = fs.readFileSync(path.join(targetDir, 'second-brain.md'), 'utf8');
+    expect(reach).toMatch(/memory\.md/);
+    expect(reach).not.toMatch(/Alpha entry content/);
+  });
+
   test('unreadable config returns a non-fatal error result', async () => {
     const emptyConfigDir = path.join(tmpDir, 'empty-config');
     fs.mkdirSync(emptyConfigDir);

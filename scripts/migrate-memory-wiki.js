@@ -91,11 +91,11 @@ function fieldValue(parsed, key) {
 function excludedTitleFilter() {
   try {
     const { loadExcludedTerms } = require('../src/pipeline-infra');
-    const { normalizeForMatch } = require('../src/content-policy');
-    const terms = loadExcludedTerms().map(t => normalizeForMatch(String(t))).filter(Boolean);
+    const { findExcludedTerm } = require('../src/content-policy');
+    const terms = loadExcludedTerms();
     return (links) => links.filter(l => {
-      const title = normalizeForMatch(String(l.title || ''));
-      return title && !terms.some(term => title.includes(term));
+      const title = String(l.title || '').trim();
+      return title !== '' && findExcludedTerm(title, terms) === null;
     });
   } catch (_) {
     return () => [];

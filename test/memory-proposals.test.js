@@ -42,7 +42,7 @@ beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp-test-'));
   proposalsDir = path.join(tmpDir, 'proposals');
   memoryDir = path.join(tmpDir, 'memory');
-  archiveDir = path.join(tmpDir, 'memory-archive');
+  archiveDir = path.join(tmpDir, 'archive', 'memory');
   fs.mkdirSync(proposalsDir, { recursive: true });
   fs.mkdirSync(memoryDir, { recursive: true });
   fs.mkdirSync(archiveDir, { recursive: true });
@@ -87,7 +87,7 @@ describe('generateCandidateId', () => {
   test('PROMOTE-ID-01: does not reuse an NNN already archived (archive-then-restage cycle)', () => {
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const month = today.slice(0, 6);
-    const proposalArchiveDir = path.join(tmpDir, 'memory-proposals-archive');
+    const proposalArchiveDir = path.join(tmpDir, 'archive', 'proposals');
     fs.mkdirSync(proposalArchiveDir, { recursive: true });
     fs.writeFileSync(path.join(proposalArchiveDir, `${month}.md`), `### mem-${today}-001 · LEARNING · unknown\n`, 'utf8');
 
@@ -229,7 +229,7 @@ describe('writeCandidate dedup', () => {
     expect(result.reason).toBe('duplicate');
   });
 
-  test('duplicate in memory-archive returns { written: false, reason: "duplicate" }', async () => {
+  test('duplicate in archive/memory returns { written: false, reason: "duplicate" }', async () => {
     const content = 'Pete prefers short commit messages for archive dedup test.';
     const hash = crypto.createHash('sha256').update(content.trim().toLowerCase()).digest('hex').slice(0, 12);
     // Write a fake archive file with this hash

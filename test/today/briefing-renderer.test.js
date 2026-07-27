@@ -14,7 +14,7 @@
 // These are hoisted so they apply to every require of these modules in the renderer.
 jest.mock('../../src/pipeline-infra', () => ({
   loadConfigWithOverlay: jest.fn(() => ({
-    stats: { enabled: true, summaryLineEnabled: true, path: 'RIGHT/daily-stats.md', timezone: 'America/Chicago' },
+    stats: { enabled: true, summaryLineEnabled: true, path: 'briefings/daily-stats.md', timezone: 'America/Chicago' },
   })),
 }));
 
@@ -413,7 +413,7 @@ describe('Phase 20: yesterday summary line', () => {
 
   // Default happy-path config returned by loadConfigWithOverlay in all tests unless overridden.
   const happyConfig = {
-    stats: { enabled: true, summaryLineEnabled: true, path: 'RIGHT/daily-stats.md', timezone: 'America/Chicago' },
+    stats: { enabled: true, summaryLineEnabled: true, path: 'briefings/daily-stats.md', timezone: 'America/Chicago' },
   };
 
   beforeEach(() => {
@@ -447,7 +447,7 @@ describe('Phase 20: yesterday summary line', () => {
 
   it('does NOT prepend when summaryLineEnabled is false', () => {
     mockPipelineInfra.loadConfigWithOverlay.mockReturnValue({
-      stats: { enabled: true, summaryLineEnabled: false, path: 'RIGHT/daily-stats.md', timezone: 'America/Chicago' },
+      stats: { enabled: true, summaryLineEnabled: false, path: 'briefings/daily-stats.md', timezone: 'America/Chicago' },
     });
     mockDailyStats.readDailyStats.mockReturnValue({
       frontmatter: {}, rows: [DAY_BEFORE_ROW, PRIOR_ROW],

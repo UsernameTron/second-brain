@@ -215,6 +215,41 @@ describe('7. vaultWrite path enforcement', () => {
     expect(caught).toBeInstanceOf(VaultWriteError);
     expect(caught.code).toBe('PATH_BLOCKED');
   });
+
+  // 2026-07-26 vault restructure: the vault root had rotted into a junk drawer.
+  // A bare filename is the shape of that failure and it gets its own message.
+  test('vaultWrite("foo.md", ...) throws PATH_BLOCKED naming the vault-root write', async () => {
+    let caught;
+    try { await vaultWrite('foo.md', 'content'); } catch (e) { caught = e; }
+    expect(caught).toBeInstanceOf(VaultWriteError);
+    expect(caught.code).toBe('PATH_BLOCKED');
+    expect(caught.message).toMatch(/vault-root file write/);
+  });
+
+  test('checkPath distinguishes a root file from an unlisted folder', () => {
+    const config = getConfig();
+    expect(checkPath('foo.md', config).reason).toMatch(/vault-root file write/);
+    expect(checkPath('unknown/foo.md', config).reason).toMatch(/not on the RIGHT side allowlist/);
+  });
+
+  test('a blocked write leaves a metadata-only quarantine record before throwing', async () => {
+    // Evidence, not the guarantee: the throw is still the contract. Without the record
+    // a bypassed-structure write vanishes into the caller's catch.
+    await expect(vaultWrite('foo.md', 'secret payload')).rejects.toThrow(VaultWriteError);
+    expect(writeFileMock).toHaveBeenCalledTimes(1);
+    const [quarantinePath, written] = writeFileMock.mock.calls[0];
+    expect(String(quarantinePath)).toMatch(/proposals[/\\]quarantine-/);
+    expect(written).toMatch(/original_path: "foo\.md"/);
+    expect(written).toMatch(/vault-root file write/);
+    expect(written).not.toContain('secret payload');
+  });
+
+  test('an unlisted-folder write is quarantined with its own reason', async () => {
+    await expect(vaultWrite('randomdir/note.md', 'body')).rejects.toThrow(VaultWriteError);
+    const [, written] = writeFileMock.mock.calls[0];
+    expect(written).toMatch(/original_path: "randomdir\/note\.md"/);
+    expect(written).toMatch(/not on the RIGHT side allowlist/);
+  });
 });
 
 // ── 8. vaultRead three-tier enforcement (D-04) ───────────────────────────────
@@ -253,8 +288,8 @@ describe('9. Redacted quarantine', () => {
     await quarantine('memory/note.md', 'excluded content detected');
     const [, content] = writeFileMock.mock.calls[0];
     expect(content).toMatch(/quarantine: true/);
-    expect(content).toMatch(/original_path: memory\/note\.md/);
-    expect(content).toMatch(/reason: excluded content detected/);
+    expect(content).toMatch(/original_path: "memory\/note\.md"/);
+    expect(content).toMatch(/reason: "excluded content detected"/);
   });
 
   test('quarantine file does NOT store blocked content — metadata only', async () => {
@@ -384,8 +419,8 @@ describe('vaultWriteAtomic()', () => {
     tmpDir = realFs.mkdtempSync(path.join(os.tmpdir(), 'vault-gw-atomic-'));
     // Point VAULT_ROOT at our tmp dir for these tests
     process.env.VAULT_ROOT = tmpDir;
-    // Create a RIGHT directory inside tmpDir (matches config.right 'RIGHT')
-    realFs.mkdirSync(path.join(tmpDir, 'RIGHT'), { recursive: true });
+    // Create a RIGHT-side directory inside tmpDir (matches config.right 'briefings')
+    realFs.mkdirSync(path.join(tmpDir, 'briefings'), { recursive: true });
     // Restore fs mocks so real fs operations work
     jest.restoreAllMocks();
     // Re-mock fs.promises for non-atomic tests that rely on them
@@ -406,20 +441,20 @@ describe('vaultWriteAtomic()', () => {
   it('writes RIGHT-side path successfully', () => {
     jest.resetModules();
     process.env.VAULT_ROOT = tmpDir;
-    realFs.mkdirSync(path.join(tmpDir, 'RIGHT'), { recursive: true });
+    realFs.mkdirSync(path.join(tmpDir, 'briefings'), { recursive: true });
     const freshGw = require('../src/vault-gateway');
-    freshGw.vaultWriteAtomic('RIGHT/foo.md', 'hello');
-    const written = realFs.readFileSync(path.join(tmpDir, 'RIGHT', 'foo.md'), 'utf8');
+    freshGw.vaultWriteAtomic('briefings/foo.md', 'hello');
+    const written = realFs.readFileSync(path.join(tmpDir, 'briefings', 'foo.md'), 'utf8');
     expect(written).toBe('hello');
   });
 
   it('writes nested RIGHT-side path, creating parent dirs', () => {
     jest.resetModules();
     process.env.VAULT_ROOT = tmpDir;
-    realFs.mkdirSync(path.join(tmpDir, 'RIGHT'), { recursive: true });
+    realFs.mkdirSync(path.join(tmpDir, 'briefings'), { recursive: true });
     const freshGw = require('../src/vault-gateway');
-    freshGw.vaultWriteAtomic('RIGHT/sub/file.md', 'x');
-    const written = realFs.readFileSync(path.join(tmpDir, 'RIGHT', 'sub', 'file.md'), 'utf8');
+    freshGw.vaultWriteAtomic('briefings/sub/file.md', 'x');
+    const written = realFs.readFileSync(path.join(tmpDir, 'briefings', 'sub', 'file.md'), 'utf8');
     expect(written).toBe('x');
   });
 
@@ -464,7 +499,7 @@ describe('vaultWriteAtomic()', () => {
 
     let caught2;
     try {
-      freshGw.vaultWriteAtomic('RIGHT/../ABOUT ME/spoof.md', 'x');
+      freshGw.vaultWriteAtomic('briefings/../ABOUT ME/spoof.md', 'x');
     } catch (e) { caught2 = e; }
     expect(caught2).toBeInstanceOf(VWE);
     expect(caught2.code).toBe('INVALID_PATH');
@@ -486,10 +521,10 @@ describe('vaultWriteAtomic()', () => {
   it('does not leave a .tmp file after a successful write', () => {
     jest.resetModules();
     process.env.VAULT_ROOT = tmpDir;
-    realFs.mkdirSync(path.join(tmpDir, 'RIGHT'), { recursive: true });
+    realFs.mkdirSync(path.join(tmpDir, 'briefings'), { recursive: true });
     const freshGw = require('../src/vault-gateway');
-    freshGw.vaultWriteAtomic('RIGHT/foo.md', 'content');
-    const tmpFile = path.join(tmpDir, 'RIGHT', 'foo.md.tmp');
+    freshGw.vaultWriteAtomic('briefings/foo.md', 'content');
+    const tmpFile = path.join(tmpDir, 'briefings', 'foo.md.tmp');
     expect(realFs.existsSync(tmpFile)).toBe(false);
   });
 
@@ -512,5 +547,30 @@ describe('vaultWriteAtomic()', () => {
     expect(fnBody).not.toMatch(/config\.right\.includes/);
     // No raw '..' traversal check duplicated inside function
     expect(fnBody).not.toMatch(/['"]\.\.['"]/);
+  });
+});
+
+// ── Quarantine frontmatter is YAML-safe ──────────────────────────────────────
+describe('quarantine record escapes caller-influenced values', () => {
+  const matter = require('gray-matter');
+
+  test('a path with YAML metacharacters or newlines cannot break out of the field', async () => {
+    // PR #93 added a quarantine() call on the PATH_BLOCKED branch, so rejected
+    // path text now reaches disk. normalizePath rejects absolute and traversal
+    // forms only — not ':' or control characters. Assert on the serialized
+    // payload: the suite's global beforeEach mocks fs.promises.writeFile.
+    const nasty = 'briefings/a: b\ninjected_key: pwned\n.md';
+    await quarantine(nasty, 'reason: with: colons\nalso_injected: yes');
+
+    const content = writeFileMock.mock.calls[0][1];
+    const parsed = matter(content);
+
+    expect(parsed.data.injected_key).toBeUndefined();
+    expect(parsed.data.also_injected).toBeUndefined();
+    expect(parsed.data.quarantine).toBe(true);
+    // Value survives intact apart from control characters folded to spaces.
+    expect(parsed.data.original_path).toContain('a: b');
+    expect(parsed.data.original_path).not.toContain('\n');
+    expect(parsed.data.reason).toContain('with: colons');
   });
 });

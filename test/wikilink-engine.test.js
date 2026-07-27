@@ -41,7 +41,7 @@ beforeAll(() => {
 
   fs.writeFileSync(path.join(configDir, 'vault-paths.json'), JSON.stringify({
     left: ['ABOUT ME', 'Daily'],
-    right: ['memory', 'briefings', 'proposals', 'memory-archive', 'memory-proposals-archive', 'RIGHT', 'inbox'],
+    right: ['memory', 'briefings', 'proposals', 'archive', 'inbox'],
     haikuContextChars: 100,
   }));
   fs.writeFileSync(path.join(configDir, 'excluded-terms.json'), JSON.stringify(['ISPN', 'Genesys']));
@@ -58,7 +58,7 @@ beforeAll(() => {
 
   // Create vault directory structure
   const dirs = ['ABOUT ME', 'Daily', 'memory', 'briefings', 'proposals',
-    'memory-archive', 'memory-proposals-archive', 'RIGHT', 'inbox'];
+    'archive', 'inbox'];
   for (const d of dirs) {
     fs.mkdirSync(path.join(tmpDir, d), { recursive: true });
   }
@@ -164,24 +164,24 @@ describe('vault index — buildVaultIndex', () => {
   });
 
   test('excludes pipeline storage — archives, snapshots, the memory store, machine artifacts', async () => {
-    createNote('memory-archive/2026-04.md', '# April archive\n\nArchived entries.');
-    createNote('memory-proposals-archive/2026-07.md', '# July proposals\n\nArchived proposals.');
+    createNote('archive/memory/2026-04.md', '# April archive\n\nArchived entries.');
+    createNote('archive/proposals/2026-07.md', '# July proposals\n\nArchived proposals.');
     createNote('memory/.snapshots/dream-20260721/memory.md', '# Snapshot\n\nBackup copy.');
     createNote('memory/memory.md', '# Memory\n\nThe store itself.');
-    createNote('RIGHT/daily-stats.md', '# Stats\n\nMachine-written counters.');
-    createNote('RIGHT/daily/_dry-run-2026-07-16.md', '# Dry run\n\nScratch output.');
+    createNote('briefings/daily-stats.md', '# Stats\n\nMachine-written counters.');
+    createNote('briefings/daily/_dry-run-2026-07-16.md', '# Dry run\n\nScratch output.');
 
     const { buildVaultIndex } = requireFresh('../src/wikilink-engine');
     const index = await buildVaultIndex();
     const paths = index.map(e => e.path);
 
     for (const excluded of [
-      'memory-archive/2026-04.md',
-      'memory-proposals-archive/2026-07.md',
+      'archive/memory/2026-04.md',
+      'archive/proposals/2026-07.md',
       'memory/.snapshots/dream-20260721/memory.md',
       'memory/memory.md',
-      'RIGHT/daily-stats.md',
-      'RIGHT/daily/_dry-run-2026-07-16.md',
+      'briefings/daily-stats.md',
+      'briefings/daily/_dry-run-2026-07-16.md',
     ]) {
       expect(paths).not.toContain(excluded);
     }
@@ -190,7 +190,7 @@ describe('vault index — buildVaultIndex', () => {
   test('keeps content notes — digests, inbox lessons, daily notes stay linkable', async () => {
     createNote('memory/weekly-digest-2026-07-17.md', '# Digest\n\nWeekly summary content.');
     createNote('inbox/archive/2026-07-20-some-lesson.md', '# Lesson\n\nA captured lesson.');
-    createNote('RIGHT/daily/2026-07-21.md', '# Daily\n\nReal daily note.');
+    createNote('briefings/daily/2026-07-21.md', '# Daily\n\nReal daily note.');
 
     const { buildVaultIndex } = requireFresh('../src/wikilink-engine');
     const index = await buildVaultIndex();
@@ -200,7 +200,7 @@ describe('vault index — buildVaultIndex', () => {
     // excluded files, so a too-broad rule would silently swallow them.
     expect(paths).toContain('memory/weekly-digest-2026-07-17.md');
     expect(paths).toContain('inbox/archive/2026-07-20-some-lesson.md');
-    expect(paths).toContain('RIGHT/daily/2026-07-21.md');
+    expect(paths).toContain('briefings/daily/2026-07-21.md');
   });
 
   test('writes result to .cache/vault-index.json', async () => {
@@ -261,10 +261,10 @@ describe('vault index — refreshIndexEntry', () => {
 
   test('refuses to add an excluded path to the index', async () => {
     fs.writeFileSync(path.join(tmpCacheDir, 'vault-index.json'), JSON.stringify([]), 'utf8');
-    createNote('memory-archive/2026-07.md', '# July archive\n\nArchived entries.');
+    createNote('archive/memory/2026-07.md', '# July archive\n\nArchived entries.');
 
     const { refreshIndexEntry, loadVaultIndex } = requireFresh('../src/wikilink-engine');
-    await refreshIndexEntry('memory-archive/2026-07.md');
+    await refreshIndexEntry('archive/memory/2026-07.md');
 
     // Guard exists on the build path; this covers the refresh path too.
     expect(await loadVaultIndex()).toHaveLength(0);

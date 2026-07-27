@@ -57,6 +57,9 @@ let tempProjectsDir;
 
 beforeEach(() => {
   tempVaultRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-echo-test-vault-'));
+  // vault-gateway captures VAULT_ROOT at require time and runToday now refuses a
+  // vaultRoot that disagrees with it, so set the env before the require below.
+  process.env.VAULT_ROOT = tempVaultRoot;
   tempProjectsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-echo-test-proj-'));
 });
 
@@ -116,6 +119,10 @@ function setup({ getMemoryEchoImpl = null, pipelineConfig = BASE_CONFIG } = {}) 
     createHaikuClient: jest.fn().mockReturnValue({
       classify: jest.fn().mockResolvedValue({ success: true, data: 'synthesis text' }),
     }),
+    // The briefing write routes through vault-gateway, which reads its
+    // RIGHT-side allowlist and excluded terms through these two.
+    safeLoadVaultPaths: jest.fn(() => require('../../config/vault-paths.json')),
+    loadExcludedTerms: jest.fn(() => require('../../config/excluded-terms.json')),
   }));
 
   // memory-reader: stub getMemoryEcho

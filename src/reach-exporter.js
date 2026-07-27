@@ -178,13 +178,22 @@ async function runReachExport(options = {}) {
     return 0;
   });
 
-  // loadExcludedTerms never throws — it returns [] on any load failure,
-  // matching the gate semantics used by vault-gateway.
+  // loadExcludedTerms() returns [] on ANY load failure, and checkContent with an
+  // empty term list matches nothing and passes everything — so a broken
+  // excluded-terms.json would have shipped an unfiltered digest to every target.
+  // vault-gateway fails closed on this (validateConfig throws on an empty list);
+  // egress has to as well. The pointer file still goes out: it carries a path and
+  // the recall command, never memory content.
   const excludedTerms = loadExcludedTerms();
+  const termsUnavailable = !Array.isArray(excludedTerms) || excludedTerms.length === 0;
+  if (termsUnavailable) {
+    logReach('digest-suppressed', { reason: 'excluded-terms unavailable — failing closed' });
+  }
 
   const digest = [];
   let excluded = 0;
   for (const entry of entries) {
+    if (termsUnavailable) { excluded++; continue; }
     if (digest.length >= digestMax) break;
     try {
       // Gate what will actually be rendered (category + content), fail-closed.
