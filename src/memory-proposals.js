@@ -25,8 +25,8 @@ const PROPOSALS_FILE = () => path.join(VAULT_ROOT(), 'proposals', 'memory-propos
 const PENDING_FILE = () => path.join(VAULT_ROOT(), 'proposals', 'memory-proposals-pending.jsonl');
 const LOCK_FILE = () => path.join(VAULT_ROOT(), 'proposals', 'memory-proposals.md.lock');
 const MEMORY_FILE = () => path.join(VAULT_ROOT(), 'memory', 'memory.md');
-const ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'memory-archive');
-const PROPOSAL_ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'memory-proposals-archive');
+const ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'archive', 'memory');
+const PROPOSAL_ARCHIVE_DIR = () => path.join(VAULT_ROOT(), 'archive', 'proposals');
 
 /**
  * Current resolved VAULT_ROOT. Exported so promote-memories.js can assert

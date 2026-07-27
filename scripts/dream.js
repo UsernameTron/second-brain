@@ -183,6 +183,12 @@ async function runApply() {
     } catch (err) {
       process.stderr.write(`[dream] reach export failed (non-fatal): ${err && err.message ? err.message : err}\n`);
     }
+    try {
+      const { writeMemoryDashboard } = require('../src/memory-dashboard');
+      await writeMemoryDashboard();
+    } catch (err) {
+      process.stderr.write(`[dream] dashboard render failed (non-fatal): ${err && err.message ? err.message : err}\n`);
+    }
 
     // Mandatory gate over the LIVE vault: every merged entry must stay
     // retrievable (hybrid). Regression auto-restores the snapshot and reverts

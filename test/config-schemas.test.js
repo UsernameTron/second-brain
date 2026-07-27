@@ -52,12 +52,20 @@ describe('config/vault-paths.json', () => {
     expect(vaultPaths.right).toContain('proposals/left-proposals/archive');
   });
 
-  test('right array includes memory-proposals-archive', () => {
-    expect(vaultPaths.right).toContain('memory-proposals-archive');
+  test('right array includes archive (holds memory + proposal archives)', () => {
+    expect(vaultPaths.right).toContain('archive');
   });
 
-  test('right array includes memory-archive', () => {
-    expect(vaultPaths.right).toContain('memory-archive');
+  test('right array matches the folders the vault actually has', () => {
+    // The 2026-07-26 restructure collapsed three archive roots into archive/ and
+    // dissolved RIGHT/. A stale entry here re-offers a dead folder to the classifier
+    // and lets bootstrapVault() recreate it.
+    for (const dead of ['RIGHT', 'memory-archive', 'memory-proposals-archive']) {
+      expect(vaultPaths.right).not.toContain(dead);
+    }
+    for (const live of ['standups', 'projects', 'maps', 'briefings', 'inbox']) {
+      expect(vaultPaths.right).toContain(live);
+    }
   });
 
   test('has non-empty left array', () => {

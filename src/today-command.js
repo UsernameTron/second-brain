@@ -253,7 +253,7 @@ async function runToday(options = {}) {
       if (config && config.memoryHealth && config.memoryHealth.enabled !== false) {
         const { computeMemoryHealth } = require('./today/memory-health');
         const { readDailyStats } = require('./daily-stats');
-        const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'RIGHT/daily-stats.md');
+        const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'briefings/daily-stats.md');
         const { rows } = readDailyStats(statsAbsPath);
         memoryHealth = computeMemoryHealth(rows, config.memoryHealth);
       }
@@ -268,7 +268,7 @@ async function runToday(options = {}) {
       if (config && config.stats && config.stats.enabled) {
         const { computeCompoundingTrend, renderCompoundingReport } = require('./today/compounding-trend');
         const { readDailyStats } = require('./daily-stats');
-        const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'RIGHT/daily-stats.md');
+        const statsAbsPath = path.join(vaultRoot, (config.stats && config.stats.path) || 'briefings/daily-stats.md');
         const { rows } = readDailyStats(statsAbsPath);
         const trend = computeCompoundingTrend(rows, { windowDays: 14 });
         if (trend.verdict !== 'insufficient-data') {
@@ -319,7 +319,7 @@ async function runToday(options = {}) {
     const filename = mode === 'dry-run'
       ? `_dry-run-${dateStr}.md`
       : `${dateStr}.md`;
-    const outputPath = path.join(vaultRoot, 'RIGHT', 'daily', filename);
+    const outputPath = path.join(vaultRoot, 'briefings', 'daily', filename);
 
     // ── Write daily note ──────────────────────────────────────────────────
     await fs.promises.mkdir(path.dirname(outputPath), { recursive: true });

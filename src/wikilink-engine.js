@@ -169,8 +169,8 @@ function extractNoteMetadata(relativePath, content) {
 // Archives are append-only dumps (their titles are bare months — [[2026-04]]),
 // memory.md is the store itself (an entry linking to it is circular), and
 // daily-stats.md is a machine-written counter file.
-const EXCLUDED_DIRS = ['proposals', 'memory-archive', 'memory-proposals-archive'];
-const EXCLUDED_FILES = ['memory/memory.md', 'RIGHT/daily-stats.md'];
+const EXCLUDED_DIRS = ['proposals', 'archive'];
+const EXCLUDED_FILES = ['memory/memory.md', 'briefings/daily-stats.md'];
 
 /**
  * Is this vault-relative path pipeline storage rather than linkable content?

@@ -96,7 +96,7 @@ describe('recordDailyStats()', () => {
     return {
       stats: {
         enabled: true,
-        path: 'RIGHT/daily-stats.md',
+        path: 'briefings/daily-stats.md',
         timezone: 'America/Chicago',
         summaryLineEnabled: true,
         schemaVersion: 1,
@@ -117,9 +117,9 @@ describe('recordDailyStats()', () => {
   };
 
   beforeEach(() => {
-    // Each test gets a fresh tmp vault root with a RIGHT directory
+    // Each test gets a fresh tmp vault root with a briefings directory
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'daily-stats-test-'));
-    fs.mkdirSync(path.join(tmpDir, 'RIGHT'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, 'briefings'), { recursive: true });
     // Point vault-gateway's VAULT_ROOT at our tmp dir
     process.env.VAULT_ROOT = tmpDir;
     jest.resetModules();
@@ -136,7 +136,7 @@ describe('recordDailyStats()', () => {
     const now = new Date('2026-04-24T18:00:00.000Z'); // 2026-04-24 in Chicago
     recordDailyStats(baseStats, { now, configOverride: config });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     expect(fs.existsSync(absPath)).toBe(true);
 
     const raw = fs.readFileSync(absPath, 'utf8');
@@ -148,8 +148,8 @@ describe('recordDailyStats()', () => {
     expect(parsed.data).toHaveProperty('last_updated');
     expect(parsed.data).toHaveProperty('timezone');
 
-    // columns array has exactly 11 entries
-    expect(parsed.data.columns).toHaveLength(11);
+    // columns array has exactly 12 entries (vault_hygiene added 2026-07-26)
+    expect(parsed.data.columns).toHaveLength(12);
 
     // Exactly one data row
     const { rows } = readDailyStats(absPath);
@@ -169,7 +169,7 @@ describe('recordDailyStats()', () => {
       configOverride: config,
     });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
 
     expect(rows).toHaveLength(2);
@@ -184,7 +184,7 @@ describe('recordDailyStats()', () => {
     recordDailyStats({ ...baseStats, proposals: 1 }, { now, configOverride: config });
     recordDailyStats({ ...baseStats, proposals: 99 }, { now, configOverride: config });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
 
     expect(rows).toHaveLength(1);
@@ -223,7 +223,7 @@ describe('recordDailyStats()', () => {
       configOverride: config,
     });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const raw = fs.readFileSync(absPath, 'utf8');
     expect(raw).toContain('13.5');
     expect(raw).not.toContain('13.456');
@@ -236,7 +236,7 @@ describe('recordDailyStats()', () => {
       configOverride: config,
     });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const raw = fs.readFileSync(absPath, 'utf8');
     expect(raw).toContain('\u2014'); // em-dash
   });
@@ -248,19 +248,19 @@ describe('recordDailyStats()', () => {
       configOverride: config,
     });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const raw = fs.readFileSync(absPath, 'utf8');
     expect(raw).toContain('\u2014'); // em-dash in avg_confidence column
   });
 
   it('respects stats.enabled === false (early return, no file written)', () => {
-    const config = { stats: { enabled: false, path: 'RIGHT/daily-stats.md', timezone: 'America/Chicago', schemaVersion: 1 } };
+    const config = { stats: { enabled: false, path: 'briefings/daily-stats.md', timezone: 'America/Chicago', schemaVersion: 1 } };
     recordDailyStats(baseStats, {
       now: new Date('2026-04-24T18:00:00.000Z'),
       configOverride: config,
     });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     expect(fs.existsSync(absPath)).toBe(false);
   });
 
@@ -271,7 +271,7 @@ describe('recordDailyStats()', () => {
       configOverride: config,
     });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const raw = fs.readFileSync(absPath, 'utf8');
     const expectedHeader = '| date | proposals | promotions | total_entries | memory_kb | recall_count | avg_latency_ms | avg_confidence | recall_hits | echo_shown | echo_score |';
     expect(raw).toContain(expectedHeader);
@@ -315,7 +315,7 @@ describe('recordDailyStats()', () => {
       configOverride: config,
     });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
 
     expect(rows).toHaveLength(3);
@@ -340,7 +340,7 @@ describe('recordDailyStats()', () => {
 
   it('readDailyStats handles a file with no frontmatter (uses COLUMNS fallback)', () => {
     // Exercises the `frontmatter.columns || COLUMNS` and `parsed.data || {}` branches
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     // Write a plain table with no YAML frontmatter
     const plainTable = '| date | proposals |\n| --- | --- |\n| 2026-04-24 | 5 |\n';
     fs.writeFileSync(absPath, plainTable, 'utf8');
@@ -355,7 +355,7 @@ describe('recordDailyStats()', () => {
 
   it('readDailyStats returns empty rows for a file with frontmatter but no table', () => {
     // Exercises the `parsed.content || ''` branch for empty content
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const frontmatterOnly = '---\nschema_version: 1\ncolumns:\n  - date\n---\n';
     fs.writeFileSync(absPath, frontmatterOnly, 'utf8');
 
@@ -371,7 +371,7 @@ describe('recordDailyStats()', () => {
       configOverride: config,
     });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
     expect(rows).toHaveLength(1);
     expect(rows[0].proposals).toBe(0);
@@ -386,7 +386,7 @@ describe('recordDailyStats()', () => {
     const minConfig = {
       stats: {
         enabled: true,
-        path: 'RIGHT/daily-stats.md',
+        path: 'briefings/daily-stats.md',
         // timezone and schemaVersion intentionally absent
       },
     };
@@ -398,7 +398,7 @@ describe('recordDailyStats()', () => {
       });
     }).not.toThrow();
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const { frontmatter } = readDailyStats(absPath);
     expect(frontmatter.timezone).toBe('America/Chicago');
     expect(frontmatter.schema_version).toBe(1);
@@ -419,12 +419,12 @@ describe('recordDailyStats()', () => {
       configOverride: config,
     });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
     const row = rows[0];
 
-    // 11 columns present on the written+read row
-    expect(Object.keys(row)).toHaveLength(11);
+    // 12 columns present on the written+read row (vault_hygiene added 2026-07-26)
+    expect(Object.keys(row)).toHaveLength(12);
 
     // Numeric cells coerce to Number; the em dash survives as a string
     expect(typeof row.recall_count).toBe('number');
@@ -446,7 +446,7 @@ describe('recordDailyStats()', () => {
       configOverride: config,
     });
 
-    const absPath = path.join(tmpDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(tmpDir, 'briefings', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
     expect(rows[0].echo_shown).toBe('—');
     expect(rows[0].echo_score).toBe('—');
@@ -660,7 +660,7 @@ describe('flushMissedDays()', () => {
     return {
       stats: {
         enabled: true,
-        path: 'RIGHT/daily-stats.md',
+        path: 'briefings/daily-stats.md',
         timezone: 'America/Chicago',
         schemaVersion: 1,
       },
@@ -679,7 +679,7 @@ describe('flushMissedDays()', () => {
     cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-flush-test-'));
     process.env.CACHE_DIR_OVERRIDE = cacheDir;
     vaultDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-flush-vault-'));
-    fs.mkdirSync(path.join(vaultDir, 'RIGHT'), { recursive: true });
+    fs.mkdirSync(path.join(vaultDir, 'briefings'), { recursive: true });
     process.env.VAULT_ROOT = vaultDir;
     jest.resetModules();
   });
@@ -706,7 +706,7 @@ describe('flushMissedDays()', () => {
       configOverride: makeFlushConfig(),
     });
 
-    const absPath = path.join(vaultDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(vaultDir, 'briefings', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
     const row = rows.find(r => r.date === '2026-06-01');
     expect(row).toBeDefined();
@@ -731,7 +731,7 @@ describe('flushMissedDays()', () => {
     flushMissedDays(opts);
     flushMissedDays(opts);
 
-    const absPath = path.join(vaultDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(vaultDir, 'briefings', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
     expect(rows.filter(r => r.date === '2026-06-01')).toHaveLength(1);
   });
@@ -749,7 +749,7 @@ describe('flushMissedDays()', () => {
       configOverride: makeFlushConfig(),
     });
 
-    const absPath = path.join(vaultDir, 'RIGHT', 'daily-stats.md');
+    const absPath = path.join(vaultDir, 'briefings', 'daily-stats.md');
     const { rows } = readDailyStats(absPath);
     expect(rows.find(r => r.date === '2026-06-15')).toBeUndefined();
   });
@@ -773,5 +773,57 @@ describe('flushMissedDays()', () => {
 
     expect(fs.existsSync(path.join(cacheDir, 'daily-counters-2026-05-20.json'))).toBe(false);
     expect(fs.existsSync(path.join(cacheDir, 'daily-counters-2026-06-10.json'))).toBe(true);
+  });
+});
+
+// ── computeVaultHygiene() ─────────────────────────────────────────────────────
+//
+// The 2026-07-26 restructure emptied a vault root that had accumulated 83 loose
+// files. vault-gateway can only block writes that route through it, so the count
+// is the visibility layer for everything that does not.
+describe('computeVaultHygiene()', () => {
+  const fsx = require('fs');
+  const osx = require('os');
+  const pathx = require('path');
+  let vaultDir;
+
+  const paths = { left: ['ABOUT ME', 'Daily'], right: ['memory', 'briefings', 'proposals/unrouted'] };
+
+  beforeEach(() => {
+    vaultDir = fsx.mkdtempSync(pathx.join(osx.tmpdir(), 'ds-hygiene-'));
+  });
+
+  afterEach(() => {
+    try { fsx.rmSync(vaultDir, { recursive: true, force: true }); } catch (_) { /* best-effort */ }
+  });
+
+  it('counts zero for a vault whose folders are all declared', () => {
+    const { computeVaultHygiene } = require('../src/daily-stats');
+    for (const d of ['ABOUT ME', 'Daily', 'memory', 'briefings']) {
+      fsx.mkdirSync(pathx.join(vaultDir, d), { recursive: true });
+    }
+    fsx.writeFileSync(pathx.join(vaultDir, 'CLAUDE.md'), '# router', 'utf8');
+    fsx.mkdirSync(pathx.join(vaultDir, '.obsidian'), { recursive: true });
+    fsx.writeFileSync(pathx.join(vaultDir, '.DS_Store'), 'x', 'utf8');
+
+    expect(computeVaultHygiene({ vaultRoot: vaultDir, vaultPaths: paths })).toBe(0);
+  });
+
+  it('counts loose root files and undeclared top-level folders', () => {
+    const { computeVaultHygiene } = require('../src/daily-stats');
+    fsx.mkdirSync(pathx.join(vaultDir, 'memory'), { recursive: true });
+    fsx.mkdirSync(pathx.join(vaultDir, 'Untitled'), { recursive: true });      // +1 undeclared folder
+    fsx.mkdirSync(pathx.join(vaultDir, 'Daily Standups'), { recursive: true }); // +1 undeclared folder
+    fsx.writeFileSync(pathx.join(vaultDir, 'standup-2026-05-27.md'), 'x', 'utf8'); // +1 loose file
+    fsx.writeFileSync(pathx.join(vaultDir, 'CTG-brief.md'), 'x', 'utf8');          // +1 loose file
+    fsx.writeFileSync(pathx.join(vaultDir, 'CLAUDE.md'), 'x', 'utf8');             // allowlisted
+
+    expect(computeVaultHygiene({ vaultRoot: vaultDir, vaultPaths: paths })).toBe(4);
+  });
+
+  it('credits a nested declaration to its top segment (proposals/unrouted -> proposals)', () => {
+    const { computeVaultHygiene } = require('../src/daily-stats');
+    fsx.mkdirSync(pathx.join(vaultDir, 'proposals', 'unrouted'), { recursive: true });
+    expect(computeVaultHygiene({ vaultRoot: vaultDir, vaultPaths: paths })).toBe(0);
   });
 });

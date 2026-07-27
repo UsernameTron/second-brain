@@ -1,7 +1,6 @@
 {
   "left": ["ABOUT ME", "Daily", "Relationships", "Drafts"],
   "right": [
-    "RIGHT",
     "memory",
     "briefings",
     "ctg",
@@ -10,12 +9,14 @@
     "content",
     "research",
     "ideas",
+    "standups",
+    "projects",
+    "maps",
     "proposals",
     "proposals/unrouted",
     "proposals/left-proposals",
     "proposals/left-proposals/archive",
-    "memory-proposals-archive",
-    "memory-archive",
+    "archive",
     "inbox"
   ],
   "haikuContextChars": 100

@@ -186,7 +186,7 @@ function buildStage2Labels(side) {
 
   // RIGHT labels: exclude proposals paths (classifier never routes to proposals directly per D-02)
   const excluded = ['proposals', 'proposals/unrouted', 'proposals/left-proposals',
-    'proposals/left-proposals/archive', 'memory-proposals-archive'];
+    'proposals/left-proposals/archive', 'archive'];
   return (vaultPaths.right || []).filter(dir => !excluded.includes(dir));
 }
 
@@ -232,7 +232,9 @@ async function runStage2(content, stage1Result, correlationId, _options = {}) {
     'content': 'Blog posts, articles, presentations, external-facing content',
     'research': 'Research notes, analysis, reference material',
     'ideas': 'Ideas, concepts, brainstorming, speculative thinking',
-    'memory-archive': 'Archived memory entries superseded by live entries in memory.md',
+    'standups': 'Daily standup notes — one file per day',
+    'projects': 'Per-project working notes, handoffs, playbooks, build plans',
+    'maps': 'Maps of content — index notes that link out to a topic area',
   };
 
   const labelList = labels

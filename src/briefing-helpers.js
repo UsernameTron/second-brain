@@ -166,7 +166,16 @@ function buildYesterdaySummaryLine(priorRow, dayBeforePrior) {
   // recall_count is a count — no sign per D-05
   const recalls = priorRow.recall_count || 0;
 
-  return `Yesterday: ${proposals} proposals, ${promotions} promotions, ${memoryStr} KB memory, ${entriesStr} entries, ${recalls} recalls`;
+  const line = `Yesterday: ${proposals} proposals, ${promotions} promotions, ${memoryStr} KB memory, ${entriesStr} entries, ${recalls} recalls`;
+
+  // Vault hygiene: only appended when it was actually measured (rows written before
+  // the column existed, and backfilled days, carry an em dash) and only when non-zero.
+  // A clean vault says nothing worth a clause; a dirty one gets named.
+  const hygiene = Number(priorRow.vault_hygiene);
+  if (Number.isFinite(hygiene) && hygiene > 0) {
+    return `${line}, ${hygiene} vault stray${hygiene === 1 ? '' : 's'}`;
+  }
+  return line;
 }
 
 // ── Exports ──────────────────────────────────────────────────────────────────

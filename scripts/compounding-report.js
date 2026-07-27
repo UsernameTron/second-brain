@@ -5,7 +5,7 @@
  * compounding-report.js
  *
  * Standalone compounding-verdict report (v1.7 TREND-02). Reads
- * RIGHT/daily-stats.md via readDailyStats, computes the trend, and prints
+ * briefings/daily-stats.md via readDailyStats, computes the trend, and prints
  * the full evidence table + verdict as markdown. Unlike the /today section,
  * this ALWAYS prints the table — including the insufficient-data verdict at
  * fewer than 7 rows.
@@ -22,7 +22,7 @@ const { loadConfigWithOverlay } = require('../src/pipeline-infra');
 const { VAULT_ROOT } = require('../src/vault-gateway');
 
 function main() {
-  let statsRelPath = 'RIGHT/daily-stats.md';
+  let statsRelPath = 'briefings/daily-stats.md';
   try {
     const config = loadConfigWithOverlay('pipeline', { validate: true });
     if (config && config.stats && config.stats.path) statsRelPath = config.stats.path;

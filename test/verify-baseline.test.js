@@ -20,7 +20,7 @@ const { hashes } = require('../eval/baseline-sentinel-hashes.json');
 function buildFixtureVault() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-baseline-'));
   const memoryDir = path.join(root, 'memory');
-  const archiveDir = path.join(root, 'memory-archive');
+  const archiveDir = path.join(root, 'archive', 'memory');
   fs.mkdirSync(memoryDir, { recursive: true });
   fs.mkdirSync(archiveDir, { recursive: true });
 
@@ -41,7 +41,7 @@ describe('verify-baseline.js CLI', () => {
   it('exits 0 and prints N/N resolve when all sentinel hashes are present', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-baseline-'));
     const memoryDir = path.join(root, 'memory');
-    const archiveDir = path.join(root, 'memory-archive');
+    const archiveDir = path.join(root, 'archive', 'memory');
     fs.mkdirSync(memoryDir, { recursive: true });
     fs.mkdirSync(archiveDir, { recursive: true });
 

@@ -17,6 +17,7 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 - Never surface ISPN, Genesys, or Asana content in memory promotion
 - All executive deliverables use Obsidian dark-mode aesthetic
 - Follow anti-AI writing style guide in all vault content
+- **New files land in a folder, never the vault root.** Anything a Cowork or Claude Code session produces with no obvious home goes to `inbox/` for triage; standups go to `standups/`; per-project working notes go to `projects/<project>/`. The root holds `CLAUDE.md` and nothing else — it rotted into an 83-file junk drawer once (restructured 2026-07-26) and the daily-stats `vault_hygiene` count exists to catch the next drift within a day.
 
 ## Project Status
 

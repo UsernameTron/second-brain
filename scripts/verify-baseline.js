@@ -6,7 +6,7 @@
  *
  * Checks that the 27 real content_hash values captured from
  * memory.md.pre-governance.20260712 (eval/baseline-sentinel-hashes.json)
- * still resolve somewhere in memory/memory.md UNION memory-archive/*.md.
+ * still resolve somewhere in memory/memory.md UNION archive/memory/*.md.
  * Replaces the fabricated "3/3 sentinel hashes verified" claim with a real,
  * exit-coded check.
  *
@@ -31,12 +31,12 @@ function readMemoryText() {
     // absent memory.md contributes nothing
   }
 
-  const archiveDir = path.join(VAULT_ROOT(), 'memory-archive');
+  const archiveDir = path.join(VAULT_ROOT(), 'archive', 'memory');
   let archiveFiles = [];
   try {
     archiveFiles = fs.readdirSync(archiveDir).filter((f) => f.endsWith('.md'));
   } catch (_) {
-    // absent memory-archive/ contributes nothing
+    // absent archive/memory/ contributes nothing
   }
   for (const f of archiveFiles) {
     text += '\n' + fs.readFileSync(path.join(archiveDir, f), 'utf8');

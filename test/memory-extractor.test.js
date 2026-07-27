@@ -52,7 +52,7 @@ beforeEach(() => {
   // Create required directories
   fs.mkdirSync(path.join(tmpDir, 'proposals'), { recursive: true });
   fs.mkdirSync(path.join(tmpDir, 'memory'), { recursive: true });
-  fs.mkdirSync(path.join(tmpDir, 'memory-archive'), { recursive: true });
+  fs.mkdirSync(path.join(tmpDir, 'archive', 'memory'), { recursive: true });
 
   jest.resetModules();
   extractor = require('../src/memory-extractor');

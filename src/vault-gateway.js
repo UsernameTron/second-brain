@@ -309,8 +309,19 @@ function normalizePath(inputPath) {
  * @returns {{ decision: 'PASS' } | { decision: 'BLOCK', reason: string }}
  */
 function checkPath(normalizedPath, config) {
+  // A path with no directory component is a vault-ROOT file write — the junk-drawer
+  // failure mode. Already blocked by the allowlist below (the filename never matches a
+  // folder name), but named explicitly so audit logs and quarantine records say what
+  // actually happened instead of "not on the allowlist".
+  if (!normalizedPath.includes('/')) {
+    return {
+      decision: 'BLOCK',
+      reason: `Path '${normalizedPath}' is a vault-root file write — every file belongs in a RIGHT-side folder`,
+    };
+  }
+
   // Extract first path segment (directory name)
-  const firstSegment = normalizedPath.split('/')[0] || normalizedPath;
+  const firstSegment = normalizedPath.split('/')[0];
 
   // Case-sensitive match: fail-safe on case-insensitive FS (blocks 'Memory/' even though 'memory/' is allowed)
   const isRight = config.right.includes(firstSegment);
@@ -426,6 +437,12 @@ async function vaultWrite(relativePath, content, options = {}) {
   const pathResult = checkPath(normalized, config);
   if (pathResult.decision === 'BLOCK') {
     logDecision('WRITE', normalized, 'BLOCKED', pathResult.reason);
+    // Leave a metadata-only record so structural drift (root writes, unlisted folders)
+    // is visible in the vault instead of vanishing into the caller's catch. Best-effort:
+    // the throw below stays the contract callers depend on.
+    try {
+      await quarantine(normalized, pathResult.reason);
+    } catch (_) { /* record is evidence, not the guarantee */ }
     throw new VaultWriteError(pathResult.reason, 'PATH_BLOCKED');
   }
 
@@ -512,7 +529,7 @@ async function vaultWrite(relativePath, content, options = {}) {
  *
  * Synchronous (matches Pattern 7 reference in voyage-health.js).
  *
- * @param {string} relativePath - Vault-relative path (e.g., "RIGHT/daily-stats.md")
+ * @param {string} relativePath - Vault-relative path (e.g., "briefings/daily-stats.md")
  * @param {string} content - File content to write (UTF-8)
  * @returns {void}
  * @throws {VaultWriteError} INVALID_PATH on absolute / traversal / vault-escape paths

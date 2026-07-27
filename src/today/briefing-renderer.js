@@ -353,7 +353,7 @@ function renderBriefing(data) {
       const { VAULT_ROOT } = require('../vault-gateway');
       const nodePath = require('path');
 
-      const statsAbsPath = nodePath.join(VAULT_ROOT, config.stats.path || 'RIGHT/daily-stats.md');
+      const statsAbsPath = nodePath.join(VAULT_ROOT, config.stats.path || 'briefings/daily-stats.md');
       const tz = config.stats.timezone || 'America/Chicago';
 
       const { rows } = readDailyStats(statsAbsPath);

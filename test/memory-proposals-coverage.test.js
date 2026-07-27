@@ -217,7 +217,7 @@ describe('memory-proposals coverage lift', () => {
   describe('isDuplicate with archive dir missing', () => {
     test('writeCandidate succeeds even when memory-archive dir does not exist', async () => {
       // Ensure archive dir is absent (it is by default since we only create proposals/ and memory/)
-      const archiveDir = path.join(tempVault, 'memory-archive');
+      const archiveDir = path.join(tempVault, 'archive', 'memory');
       expect(fs.existsSync(archiveDir)).toBe(false);
 
       const result = await memProposals.writeCandidate({
