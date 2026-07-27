@@ -145,7 +145,7 @@ CLAUDE.md                    # Project governance, commands, conventions
 **Latest Release:** v1.7 Prove Compounding (2026-07-16) | Phases 29-31: Series Integrity, Outcome Instrumentation, Trend & Report
 **In progress:** v1.8 Measured Memory — Phases 32-35 shipped (Phase 35 Proactive Memory: SessionStart recall-injection hook); Phase 36 decision-gated
 - **1552 total tests** across 82 test files (1514 passing, 38 skipped in CI)
-- **Branch coverage:** 81.15% (threshold: ≥80% enforced in CI)
+- **Branch coverage:** 80.83% (threshold: ≥80% enforced in CI)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 22 matrix, GitGuardian secrets scan
 - **Operational components:** `/today` daily briefing (weekdays 06:45 local via launchd), memory compounding metrics, outcome instrumentation (11-column daily-stats), compounding verdict surfaces
@@ -187,7 +187,7 @@ npm run test:uat           # UAT tests (requires CI= to unblock)
 - Critical modules (auth, vault boundary): ≥95%
 - All other modules: ≥80%
 
-Current coverage (CI-measured 2026-07-20): Statements 92.74%, Functions 96.02%, Lines 93.37%, Branch 81.15%
+Current coverage (CI-measured 2026-07-26): Statements 91.99%, Functions 95.61%, Lines 92.94%, Branch 80.83%
 
 ### Retrieval eval
 

@@ -23,11 +23,11 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 - `/recall --semantic <query>` Voyage AI cosine search (calibrated 0.55 threshold, post-UAT)
 - `/recall --hybrid <query>` RRF fusion of keyword + semantic
 - `/promote-memories` writes to `memory.md` AND embeds new entries to `~/.cache/second-brain/embeddings.jsonl`
-- `/today` records per-day stats row in `RIGHT/daily-stats.md` (11 columns: date/proposals/promotions/total_entries/memory_kb/recall_count/avg_latency_ms/avg_confidence/recall_hits/echo_shown/echo_score)
+- `/today` records per-day stats row in `briefings/daily-stats.md` (moved from `RIGHT/` in the 2026-07-26 vault restructure, PR #93) (11 columns: date/proposals/promotions/total_entries/memory_kb/recall_count/avg_latency_ms/avg_confidence/recall_hits/echo_shown/echo_score)
 - Voyage degradation: 3-failure threshold → 15-min cross-invocation window persisted to `voyage-health.json`; falls back to keyword with banner
 - Gmail (OAuth, draft-only), Calendar (read-only), GitHub (UsernameTron-scoped) connectors with per-connector latency captured
 - Scheduled `/today` via local launchd agent `com.secondbrain.today` (weekdays 06:45); RemoteTrigger disabled by design (cloud env cannot reach the local vault — documented in `config/scheduling.json`)
-- GitHub Actions CI: Node 20+22 matrix, ESLint, CodeQL SAST, license-checker, coverage ≥80%, GitGuardian secrets scan
+- GitHub Actions CI: Node 22 matrix, ESLint, CodeQL SAST, license-checker, coverage ≥80%, GitGuardian secrets scan
 - UAT workflow: weekly cron + manual `workflow_dispatch`, ANTHROPIC_API_KEY scoped step-only, 90-day artifact retention
 - ~~Branch protection on master~~ — REGRESSED (see Known gaps below; `gh api .../branches/master/protection` returns 404)
 
@@ -35,7 +35,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 ## Current Milestone: v1.8 Measured Memory
 
-**Status (2026-07-21):** Phases 32-35 shipped — 32 Retrieval Eval Baseline (PR #74, 2026-07-19: `npm run eval:recall`, 20-question golden set over a frozen 135-entry seed vault, first baseline committed pre-tuning at keyword 0.900 / semantic 0.800 / hybrid 0.900 recall@5), 33 Capture Reliability (PR #88), 34 Promotion Integrity & Lifecycle (PR #86, close-out #87), 35 Proactive Memory (PR #89). Phase 36 (Drive connector + connector→memory seam) decision-gated on a real L10 RAG Phase 3 timeline. Open lead: semantic misses 2 golden questions by returning nothing above the 0.55 threshold — the measured tuning headroom any future tuning must justify itself against.
+**Status (2026-07-21):** Phases 32-35 shipped — 32 Retrieval Eval Baseline (PR #74, 2026-07-19: `npm run eval:recall`, 20-question golden set over a frozen 135-entry seed vault, first baseline committed pre-tuning at keyword 0.900 / semantic 0.800 / hybrid 0.900 recall@5), 33 Capture Reliability (PR #88), 34 Promotion Integrity & Lifecycle (PR #86, close-out #87), 35 Proactive Memory (PR #89). Phase 36 (Drive connector + connector→memory seam) decision-gated on a real L10 RAG Phase 3 timeline. Open lead: semantic misses 2 golden questions by returning nothing above the 0.55 threshold — the measured tuning headroom any future tuning must justify itself against. Between-phase hardening 2026-07-26 (PR #93): vault restructured to one home per file (103 moves, RIGHT/ dissolved, archives consolidated under archive/), vault_hygiene stats column added, /today briefing routed through the vault gateway, reach-egress exclusion gate made fail-closed, excluded-term matching switched to whole tokens.
 
 ## Previous Milestone: v1.7 Prove Compounding
 

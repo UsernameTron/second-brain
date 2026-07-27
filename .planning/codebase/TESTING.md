@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-07-21
+**Analysis Date:** 2026-07-26
 
 ## Test Framework
 
@@ -32,6 +32,8 @@ Branches is intentionally lower (80) than functions/lines/statements (90) — a 
 - `test/unit/`, `test/integration/` — split by test type for a few modules
 - `test/uat/` — end-to-end acceptance tests (see UAT section below)
 - `test/connectors/`, `test/today/`, `test/agents/`, `test/utils/`, `test/hooks/` — mirror `src/connectors/`, `src/today/`, `src/utils/` and the repo's `hooks/`/`.claude/hooks/` directories
+- `test/today-command.gateway.test.js` — routing/gateway logic for the `/today` briefing, split out from `test/today-command.test.js`'s orchestration tests (post-PR #90-93 split)
+- `test/memory-dashboard.test.js` — dashboard/reporting view over memory state, distinct from the memory-pipeline tests (`memory-extractor`, `memory-proposals`, `promote-memories`)
 - `test/fixtures/` — shared static test data (`memory-sample.md`)
 
 **Naming:** `{module-name}.test.js` for unit tests, `{module-name}-coverage.test.js` when a second file targets specific uncovered branches of an already-tested module (`memory-extractor-coverage.test.js`, `config-validator-coverage.test.js`, `note-formatter-coverage.test.js`), `{feature}.uat.test.js` or `uat-{feature}.test.js` for UAT.
@@ -167,6 +169,8 @@ npx jest --coverage --coverageThreshold='{"global":{"branches":80,"functions":90
 ```
 Coverage report written to `coverage/` (uploaded as a CI artifact per Node version, 14-day retention — `ci.yml:31-37`). When checking whether a number clears the gate, read `coverage/coverage-summary.json`'s `total.*.pct` fields — the "All files" text row in the HTML/terminal report is not what the CI gate reads.
 
+**Current numbers (CI=true, `coverage-summary.json` totals):** branches 80.83%, statements 91.99%, functions 95.61%, lines 92.94% — all clear the 80/90/90/90 gate. Branches is the tightest margin, consistent with the "future milestone" note above.
+
 ## Test Types
 
 **Unit tests:** the bulk of `test/*.test.js` — one module in isolation, dependencies mocked via `jest.mock()`.
@@ -208,6 +212,10 @@ embedSpy.mockRestore();
 ```
 (`test/uat/semantic-search.uat.test.js:152-168`)
 
+## Current Test Counts (verified 2026-07-26, post PRs #90-93)
+
+**1552 total tests across 82 test files.** Local run (default env): **1523 passing / 29 skipped**. CI run (`CI=true`, skip-logic active): **1514 passing / 38 skipped** — the wider CI skip count reflects UAT/live-API guards described above triggering under `CI=true`, not test loss. Lint is clean (ESLint 10 flat config, zero warnings). Quote the CI split (1514/38), not the local split (1523/29), when documenting "what CI sees."
+
 ---
 
-*Testing analysis: 2026-07-21*
+*Testing analysis: 2026-07-26*

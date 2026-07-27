@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-07-21
+**Analysis Date:** 2026-07-26
 
 ## Directory Layout
 
@@ -37,12 +37,12 @@ second-brain/
 
 **`src/`:**
 - Purpose: all production pipeline logic. Plain CJS (`'use strict'` + `module.exports`), no build step, no framework.
-- Contains: one module per pipeline concern — vault gateway, classifier, memory extractor/proposals/promoter, semantic index, reach exporter, dream consolidation, daily stats, wikilink engine, note formatter, content/style policy, lifecycle maintenance, command entry files (`new-command.js`, `recall-command.js`, `reroute.js`, `promote-unrouted.js`).
-- Key files: `vault-gateway.js` (write enforcement), `pipeline-infra.js` (config loaders + LLM client factory, imported almost everywhere), `classifier.js`, `memory-extractor.js`, `memory-proposals.js`, `promote-memories.js`, `semantic-index.js`, `memory-reader.js`, `reach-exporter.js`, `dream.js`, `today-command.js`.
+- Contains: one module per pipeline concern — vault gateway, classifier, memory extractor/proposals/promoter, semantic index, reach exporter, dream consolidation, daily stats, memory dashboard, wikilink engine, note formatter, content/style policy, lifecycle maintenance, command entry files (`new-command.js`, `recall-command.js`, `reroute.js`, `promote-unrouted.js`).
+- Key files: `vault-gateway.js` (write enforcement), `pipeline-infra.js` (config loaders + LLM client factory, imported almost everywhere), `classifier.js`, `memory-extractor.js`, `memory-proposals.js`, `promote-memories.js`, `semantic-index.js`, `memory-reader.js`, `reach-exporter.js`, `memory-dashboard.js` (regenerates `memory/dashboard.md` on promotion), `dream.js`, `today-command.js`, `daily-stats.js`.
 
 **`src/today/`:**
 - Purpose: modules extracted from `today-command.js` during the Phase 15 architecture refactor so the orchestrator stays a thin fan-out shell.
-- Contains: `slippage-scanner.js` (pure, scans `~/projects/*/.planning/STATE.md`), `frog-identifier.js` (one Haiku call + heuristic fallback), `llm-augmentation.js` (synthesis paragraph), `briefing-renderer.js` (synchronous markdown assembly, six sections), `memory-health.js` (anomaly detector over daily-stats rows), `compounding-trend.js` (pure trend engine, shared by `/today` and the CLI), `sweep-status.js` (fail-open proof-of-fire line).
+- Contains: `slippage-scanner.js` (pure, scans `~/projects/*/.planning/STATE.md`), `frog-identifier.js` (one Haiku call + heuristic fallback), `llm-augmentation.js` (synthesis paragraph), `briefing-renderer.js` (synchronous markdown assembly, six sections, written via `vaultWrite()` to `briefings/daily/<date>.md` with a quarantine-stub fallback), `memory-health.js` (anomaly detector over daily-stats rows), `compounding-trend.js` (pure trend engine, shared by `/today` and the CLI), `sweep-status.js` (fail-open proof-of-fire line).
 
 **`src/connectors/`:**
 - Purpose: external API integrations, each returning the uniform `makeResult`/`makeError` shape defined in `types.js`.
@@ -120,6 +120,10 @@ second-brain/
 **`.planning/codebase/`:**
 - Purpose: codebase mapping documents (this file's own location) — consumed by `/gsd:plan-phase` and `/gsd:execute-phase` to ground planning in actual code rather than assumption.
 
+**Vault RIGHT side (`~/Claude Cowork/`, `config/vault-paths.json`, post-2026-07-26 restructure):**
+- Purpose: the actual Obsidian vault, not this repo, but its layout is driven entirely by `config/vault-paths.json`'s `right` array and is load-bearing for where code writes.
+- Contains: `memory/` (`memory.md` canonical store + generated `dashboard.md`), `briefings/` (`daily-stats.md` + `daily/<date>.md`, replacing the old top-level `RIGHT/` folder), `proposals/` (+ `unrouted/`, `left-proposals/` + its `archive/`), `archive/` (consolidated `archive/memory` + `archive/proposals`, replacing prior per-feature archive folders), `standards/`-equivalents (`standups`, `projects`, `maps`), plus `ctg`, `job-hunt`, `interview-prep`, `content`, `research`, `ideas`, `inbox`. `vault-gateway.js`'s `checkPath()` rejects any write with no folder segment (a vault-root file), and quarantines path violations as metadata-only records under `proposals/`.
+
 **`.github/workflows/`:**
 - Purpose: CI pipeline — ESLint, CodeQL, license-checker, Node 22 matrix, coverage thresholds, GitGuardian secrets scan (per root `CLAUDE.md`).
 
@@ -134,15 +138,17 @@ second-brain/
 
 **Configuration:**
 - `config/pipeline.json` (+ `pipeline.local.json` overlay, gitignored): the primary tunables file — classifier thresholds, extraction chunking, promotion batch caps, memory/semantic search params, dream budgets, session-inject config
-- `config/vault-paths.json`: LEFT/RIGHT write-permission allowlist
+- `config/vault-paths.json`: LEFT/RIGHT write-permission allowlist — RIGHT rewritten 2026-07-26 to add `archive`, `standups`, `projects`, `maps` and drop the old top-level `RIGHT` folder
 - `config/schema/*.json`: AJV schemas paired 1:1 with config files
 
 **Core Logic:**
-- `src/vault-gateway.js`: write enforcement
+- `src/vault-gateway.js`: write enforcement — `checkPath()` explicitly rejects vault-root writes
 - `src/pipeline-infra.js`: config loading + LLM client factory (imported by nearly every other module)
-- `src/promote-memories.js`, `src/memory-extractor.js`, `src/memory-proposals.js`: the memory pipeline
+- `src/promote-memories.js`, `src/memory-extractor.js`, `src/memory-proposals.js`: the memory pipeline; `ARCHIVE_DIR`/`PROPOSAL_ARCHIVE_DIR` constants point at `archive/memory` / `archive/proposals`
+- `src/memory-dashboard.js`: regenerates `memory/dashboard.md` on every promotion (hooked from `promote-memories.js` and `scripts/dream.js`)
 - `src/semantic-index.js`, `src/memory-reader.js`: retrieval
 - `src/dream.js`: consolidation detection + apply
+- `src/daily-stats.js`: `briefings/daily-stats.md` row storage, including the `vault_hygiene` column
 
 **Testing:**
 - `test/<mirror-of-src>/*.test.js`: unit tests
@@ -204,4 +210,4 @@ second-brain/
 
 ---
 
-*Structure analysis: 2026-07-21*
+*Structure analysis: 2026-07-26*

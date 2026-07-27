@@ -1,6 +1,6 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-07-21
+**Analysis Date:** 2026-07-26
 
 ## Module System
 
@@ -76,6 +76,10 @@ Every exported function in `src/` carries a JSDoc block: one-line summary, `@par
 
 Comments explain **why**, not what — design rationale, review-item references (`Addresses review item #6`, `src/vault-gateway.js:44`), invariants (`D-04 three-tier model`, `src/vault-gateway.js:327`), and ceilings on deliberate shortcuts (`ponytail: fixed pacing for free-tier Voyage limits ... Set EVAL_EMBED_PACE_MS=0 on a paid key`, `scripts/eval-recall.js:65-66`). Do not add comments that restate the next line of code.
 
+## Gateway/Routing Split (new since PRs #90-93)
+
+`test/today-command.gateway.test.js` covers vault-write policy for the briefing — sanitization, quarantine, the stub fallback, and dry-run routing through the gateway — and carries the isolated module-loading setup that `vault-gateway` and `style-policy` state require (both capture `VAULT_ROOT` at require time). `test/today-command.test.js` covers the orchestration chain (connector fan-out, degradation, stats payload). Add write-policy cases to the gateway file and orchestration cases to the other; section/source routing tests belong with the renderer, not here.
+
 ---
 
-*Convention analysis: 2026-07-21*
+*Convention analysis: 2026-07-26*

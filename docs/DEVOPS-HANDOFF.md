@@ -21,7 +21,7 @@ git clone <repo>
 cd second-brain
 npm install
 printf 'ANTHROPIC_API_KEY=...\n' > .env   # add ANTHROPIC_API_KEY and optionally VOYAGE_API_KEY (no .env.example in repo)
-npm test               # verify 1508 tests pass (1470 active + 38 CI-skipped)
+npm test               # verify 1552 tests pass (1514 active + 38 CI-skipped)
 npm run lint           # verify ESLint 10 clean
 ```
 
@@ -166,8 +166,8 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 | Gate | Tool | Threshold |
 |---|---|---|
 | Lint | ESLint 10 (flat config) | 0 errors |
-| Unit + integration tests | Jest 30, Node 22 matrix | 1508 total, 1470 passing (CI) |
-| Branch coverage | Jest coverage | ≥80% enforced (currently 81.15%) |
+| Unit + integration tests | Jest 30, Node 22 matrix | 1552 total, 1514 passing (CI) |
+| Branch coverage | Jest coverage | ≥80% enforced (currently 80.83%) |
 | Security scan | CodeQL SAST | 0 high/critical |
 | Secrets scan | GitGuardian | 0 secrets |
 | License check | license-checker | MIT/ISC/Apache/BSD only |
@@ -181,7 +181,7 @@ UAT tests (`test/uat/`) are guarded by `CI=true` skip logic and run on a separat
 - [ ] Obsidian Local REST API plugin running on port 27123
 - [ ] Docker MCP Gateway running (for Gmail/Calendar/GitHub connectors)
 - [ ] launchd schedulers installed — all three plists are versioned in `config/` and copied to `~/Library/LaunchAgents/`: `com.secondbrain.today` (weekday `/today` 06:45 via `scripts/today-scheduled.js`, dotenv-gated), `com.secondbrain.daily-sweep` (23:45 nightly capture), `com.secondbrain.dream` (1st of month 07:15, propose-only, Anthropic-pinned). Load with `launchctl bootstrap gui/$(id -u) <plist>`
-- [ ] `npm test` passes (1508 tests, 1470 passing)
+- [ ] `npm test` passes (1552 tests, 1514 passing)
 - [ ] `npm run lint` exits 0
 - [ ] `~/.cache/second-brain/` writable (auto-created on first `/recall --semantic`)
 
