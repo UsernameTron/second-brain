@@ -56,7 +56,7 @@ No TypeScript, no JSX. `.mcp.json` (repo root) registers one dev-tool MCP server
 - Test isolation env vars: `VAULT_ROOT`, `CONFIG_DIR_OVERRIDE`, `CACHE_DIR_OVERRIDE`, `LLM_PROVIDER`
 
 **Build:**
-- `config/*.json` (14 files, incl. `config/connectors.json`, `config/excluded-terms.json`, `config/reach-targets.json`, `config/vault-paths.json`) validated against `config/schema/*.json` via AJV at load time; `.local.json` overlays supported (e.g. `config/pipeline.local.json`)
+- `config/*.json` — 10 tracked files; validation is schema-driven (`src/config-validator.js` walks `config/schema/*.schema.json`, not the config dir), so 9 config/schema pairs validate via AJV: connectors, docsync, excluded-terms, memory-categories, pipeline, reach-targets, scheduling, templates, vault-paths. Two deliberate gaps: `pipeline.local.example.json` has no schema and is unchecked, and `daily-stats-frontmatter.schema.json` validates frontmatter inside a vault file, so it emits a standing `[WARNING] config file not found`. `.local.json` overlays are gitignored (e.g. `config/pipeline.local.json`)
 - `config/vault-paths.json` now defines vault structure post-restructure: LEFT = `ABOUT ME`, `Daily`, `Relationships`, `Drafts`; RIGHT = `memory`, `briefings`, `ctg`, `job-hunt`, `interview-prep`, `content`, `research`, `ideas`, `standups`, `projects`, `maps`, `proposals` (+ `proposals/unrouted`, `proposals/left-proposals`, `proposals/left-proposals/archive`), `archive`, `inbox` — the old flat `RIGHT/` folder is gone; briefings live under `briefings/`, and memory/proposal history lives under `archive/memory` and `archive/proposals` respectively
 - `eslint.config.js` - flat config, no `.eslintrc*`
 - No bundler, no transpiler, no `tsconfig.json`
