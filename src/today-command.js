@@ -218,6 +218,22 @@ async function runToday(options = {}) {
     const date = options.date || new Date();
     const mcpClient = options.mcpClient || null;
 
+    // The gateway resolves vault writes against its own module-scope VAULT_ROOT,
+    // captured at require time. A caller passing a different vaultRoot would get
+    // the briefing written into the gateway's vault while stats and memory came
+    // from theirs — so a dry run aimed at a scratch vault would write into the
+    // operator's live one and report a path outside the root it asked for.
+    // The gateway owns exactly one root by design; that single-root invariant is
+    // what makes the allowlist mean anything, so a mismatch is a caller bug to
+    // surface rather than paper over.
+    if (path.resolve(vaultRoot) !== path.resolve(GATEWAY_VAULT_ROOT)) {
+      return {
+        path: null,
+        briefing: null,
+        error: `TODAY_FATAL: vaultRoot '${vaultRoot}' conflicts with the vault-gateway root '${GATEWAY_VAULT_ROOT}' — set VAULT_ROOT before today-command is required`,
+      };
+    }
+
     // ── Load config ───────────────────────────────────────────────────────
     const { config, error: configErr } = safeLoadPipelineConfig();
     if (configErr) {
@@ -388,7 +404,27 @@ async function runToday(options = {}) {
     if (writeResult.decision === 'QUARANTINED') {
       quarantinePath = writeResult.quarantinePath;
       written = renderQuarantineStub(dateStr, quarantinePath);
-      await vaultWrite(relativePath, written, { attemptCount: 1 });
+
+      // The stub is fixed text chosen to clear both guards, but the style guide
+      // hot-reloads from the vault — a banned word added to it later could match
+      // the stub and quarantine this write too. A test pins today's wording; it
+      // cannot pin a file the operator edits. If the fallback is also refused,
+      // nothing reached briefings/daily/, so report that instead of returning a
+      // path to a file that does not exist.
+      const stubResult = await vaultWrite(relativePath, written, { attemptCount: 1 });
+      if (stubResult.decision === 'QUARANTINED') {
+        process.stderr.write(
+          `[today] ERROR: briefing body AND fallback stub both quarantined — no briefing written (records: ${quarantinePath}, ${stubResult.quarantinePath})\n`
+        );
+        return {
+          path: null,
+          briefing: null,
+          quarantined: true,
+          quarantinePath: stubResult.quarantinePath,
+          error: 'TODAY_FATAL: briefing body and fallback stub both quarantined by vault policy',
+        };
+      }
+
       process.stderr.write(
         `[today] WARNING: briefing body quarantined by vault policy — stub written to ${relativePath}, record at ${quarantinePath}\n`
       );

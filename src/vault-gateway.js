@@ -375,6 +375,21 @@ async function vaultRead(relativePath) {
 // ── Redacted quarantine ──────────────────────────────────────────────────────
 
 /**
+ * Render a value as a YAML double-quoted scalar for quarantine frontmatter.
+ *
+ * Control characters are folded to spaces first — a raw newline would end the
+ * field and let the rest of the value be parsed as frontmatter keys. JSON string
+ * escaping is a valid YAML double-quoted scalar for this data.
+ *
+ * @param {string} value - Caller-influenced text (vault path or block reason)
+ * @returns {string} Quoted, escaped scalar safe to interpolate
+ */
+function _yamlScalar(value) {
+  // eslint-disable-next-line no-control-regex -- intentional: folding control chars is the point
+  return JSON.stringify(String(value).replace(/[\u0000-\u001F\u007F]/g, ' '));
+}
+
+/**
  * Write a redacted metadata-only quarantine record to proposals/.
  * Stores ONLY the reason, original path, and timestamp — NO blocked content.
  * Satisfies: "excluded content never reaches disk" (review HIGH concern #2).
@@ -389,12 +404,17 @@ async function quarantine(originalPath, reason) {
   const quarantineAbsPath = path.join(VAULT_ROOT, 'proposals', quarantineFilename);
   const quarantineRelPath = path.join('proposals', quarantineFilename);
 
-  // Metadata-only content — no blocked content stored
+  // Metadata-only content — no blocked content stored.
+  // Path and reason are caller-influenced (classifier-derived paths reach here
+  // via new-command/reroute/promote-unrouted), and normalizePath rejects only
+  // absolute and traversal forms — not newlines or YAML metacharacters. Written
+  // bare, a path like `briefings/a: b.md` reads as a nested mapping and one
+  // containing a newline escapes the field entirely, so quote both.
   const metadata = [
     '---',
     'quarantine: true',
-    `original_path: ${originalPath}`,
-    `reason: ${reason}`,
+    `original_path: ${_yamlScalar(originalPath)}`,
+    `reason: ${_yamlScalar(reason)}`,
     `timestamp: ${new Date().toISOString()}`,
     '---',
     '',

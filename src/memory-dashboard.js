@@ -31,6 +31,22 @@ function _recencyKey(entry) {
 }
 
 /**
+ * Recency as epoch milliseconds, for chronological ordering.
+ *
+ * Entries carry either an offset-bearing stamp (normal promotion writes local
+ * time with a UTC offset) or a `Z` stamp (dream-created merges use
+ * `toISOString()`). Comparing those as strings orders them wrongly, so parse
+ * before sorting. Unparseable or missing stamps sort last rather than throwing.
+ *
+ * @param {object} entry - Memory entry (memory-reader shape)
+ * @returns {number} Epoch ms, or -Infinity when there is no usable stamp
+ */
+function _recencyMs(entry) {
+  const parsed = Date.parse(_recencyKey(entry));
+  return Number.isNaN(parsed) ? -Infinity : parsed;
+}
+
+/**
  * First sentence-ish of an entry, collapsed to one line and capped.
  *
  * @param {string} content
@@ -54,7 +70,11 @@ function renderDashboard(entries, meta = {}) {
   const generatedAt = meta.generatedAt || new Date();
   const pending = meta.pendingProposals ?? 0;
 
-  const byRecency = [...list].sort((a, b) => _recencyKey(b).localeCompare(_recencyKey(a)));
+  // Sort by instant, not by string. The store mixes offset-bearing stamps from
+  // normal promotion ("...T09:00:00-05:00") with UTC stamps from dream-created
+  // merges ("...T13:00:00Z"), and those are not chronologically comparable as
+  // text — 09:00-05:00 is 14:00Z, later than 13:00Z, but sorts before it.
+  const byRecency = [...list].sort((a, b) => _recencyMs(b) - _recencyMs(a));
   const lastPromotion = byRecency.length > 0 ? _recencyKey(byRecency[0]) : null;
 
   const counts = new Map();

@@ -122,7 +122,7 @@ describe('Phase 31: Compounding trend section (TREND-02)', () => {
       mcpClient: null,
       mode: 'dry-run',
       projectsDir: tempProjectsDir,
-      vaultRoot: tempVaultRoot,
+      vaultRoot: GATEWAY_VAULT_ROOT, // must match the root vault-gateway writes through
       date: new Date('2026-04-25T18:00:00.000Z'),
     });
 
@@ -137,7 +137,7 @@ describe('Phase 31: Compounding trend section (TREND-02)', () => {
       mcpClient: null,
       mode: 'dry-run',
       projectsDir: tempProjectsDir,
-      vaultRoot: tempVaultRoot,
+      vaultRoot: GATEWAY_VAULT_ROOT, // must match the root vault-gateway writes through
       date: new Date('2026-04-25T18:00:00.000Z'),
     });
 

@@ -296,3 +296,54 @@ describe('/today briefing write routes through vault-gateway', () => {
     expectNoExcludedTerms(fs.readFileSync(dryRunFile, 'utf8'));
   });
 });
+
+describe('vaultRoot conflicts with the gateway root', () => {
+  it('refuses to run rather than writing the briefing into a different vault', async () => {
+    // vaultWrite resolves against the gateway's own module-scope VAULT_ROOT, so a
+    // mismatched option would put the briefing in the live vault while stats and
+    // memory came from the scratch one. Codex flagged this on PR #93.
+    mockBriefingBody = '# Daily Briefing\n\nNothing to report.';
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-other-vault-'));
+    try {
+      const result = await runToday({
+        mcpClient: null,
+        mode: 'scheduled',
+        projectsDir: tempProjectsDir,
+        vaultRoot: scratch,
+        date: FIXED_DATE,
+      });
+
+      expect(result.error).toMatch(/^TODAY_FATAL: vaultRoot .* conflicts with the vault-gateway root/);
+      expect(result.path).toBeNull();
+      expect(fs.existsSync(EXPECTED_FILE)).toBe(false);
+      expect(fs.existsSync(path.join(scratch, 'briefings', 'daily', '2026-04-23.md'))).toBe(false);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the fallback stub is itself refused', () => {
+  it('reports failure instead of a path to a file that was never written', async () => {
+    // The style guide hot-reloads from the vault, so a word added to it later can
+    // match the stub. Simulate that by banning a word the stub actually contains.
+    const guide = path.join(VAULT, 'ABOUT ME', 'anti-ai-writing-style.md');
+    const original = fs.readFileSync(guide, 'utf8');
+    fs.writeFileSync(guide, '## Banned words\n\n| Word/Phrase | Why |\n|---|---|\n| briefing | contrived |\n', 'utf8');
+    require('../src/style-policy').loadStyleGuide();
+    try {
+      mockBriefingBody = 'ISPN incident notes.\n\nGenesys routing notes.';
+
+      const result = await run();
+
+      expect(result.path).toBeNull();
+      expect(result.briefing).toBeNull();
+      expect(result.quarantined).toBe(true);
+      expect(result.error).toMatch(/both quarantined/);
+      expect(fs.existsSync(EXPECTED_FILE)).toBe(false);
+    } finally {
+      fs.writeFileSync(guide, original, 'utf8');
+      require('../src/style-policy').loadStyleGuide();
+    }
+  });
+});

@@ -239,7 +239,7 @@ describe('7. vaultWrite path enforcement', () => {
     expect(writeFileMock).toHaveBeenCalledTimes(1);
     const [quarantinePath, written] = writeFileMock.mock.calls[0];
     expect(String(quarantinePath)).toMatch(/proposals[/\\]quarantine-/);
-    expect(written).toMatch(/original_path: foo\.md/);
+    expect(written).toMatch(/original_path: "foo\.md"/);
     expect(written).toMatch(/vault-root file write/);
     expect(written).not.toContain('secret payload');
   });
@@ -247,7 +247,7 @@ describe('7. vaultWrite path enforcement', () => {
   test('an unlisted-folder write is quarantined with its own reason', async () => {
     await expect(vaultWrite('randomdir/note.md', 'body')).rejects.toThrow(VaultWriteError);
     const [, written] = writeFileMock.mock.calls[0];
-    expect(written).toMatch(/original_path: randomdir\/note\.md/);
+    expect(written).toMatch(/original_path: "randomdir\/note\.md"/);
     expect(written).toMatch(/not on the RIGHT side allowlist/);
   });
 });
@@ -288,8 +288,8 @@ describe('9. Redacted quarantine', () => {
     await quarantine('memory/note.md', 'excluded content detected');
     const [, content] = writeFileMock.mock.calls[0];
     expect(content).toMatch(/quarantine: true/);
-    expect(content).toMatch(/original_path: memory\/note\.md/);
-    expect(content).toMatch(/reason: excluded content detected/);
+    expect(content).toMatch(/original_path: "memory\/note\.md"/);
+    expect(content).toMatch(/reason: "excluded content detected"/);
   });
 
   test('quarantine file does NOT store blocked content — metadata only', async () => {
@@ -547,5 +547,30 @@ describe('vaultWriteAtomic()', () => {
     expect(fnBody).not.toMatch(/config\.right\.includes/);
     // No raw '..' traversal check duplicated inside function
     expect(fnBody).not.toMatch(/['"]\.\.['"]/);
+  });
+});
+
+// ── Quarantine frontmatter is YAML-safe ──────────────────────────────────────
+describe('quarantine record escapes caller-influenced values', () => {
+  const matter = require('gray-matter');
+
+  test('a path with YAML metacharacters or newlines cannot break out of the field', async () => {
+    // PR #93 added a quarantine() call on the PATH_BLOCKED branch, so rejected
+    // path text now reaches disk. normalizePath rejects absolute and traversal
+    // forms only — not ':' or control characters. Assert on the serialized
+    // payload: the suite's global beforeEach mocks fs.promises.writeFile.
+    const nasty = 'briefings/a: b\ninjected_key: pwned\n.md';
+    await quarantine(nasty, 'reason: with: colons\nalso_injected: yes');
+
+    const content = writeFileMock.mock.calls[0][1];
+    const parsed = matter(content);
+
+    expect(parsed.data.injected_key).toBeUndefined();
+    expect(parsed.data.also_injected).toBeUndefined();
+    expect(parsed.data.quarantine).toBe(true);
+    // Value survives intact apart from control characters folded to spaces.
+    expect(parsed.data.original_path).toContain('a: b');
+    expect(parsed.data.original_path).not.toContain('\n');
+    expect(parsed.data.reason).toContain('with: colons');
   });
 });

@@ -57,6 +57,9 @@ let tempProjectsDir;
 
 beforeEach(() => {
   tempVaultRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-echo-test-vault-'));
+  // vault-gateway captures VAULT_ROOT at require time and runToday now refuses a
+  // vaultRoot that disagrees with it, so set the env before the require below.
+  process.env.VAULT_ROOT = tempVaultRoot;
   tempProjectsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-echo-test-proj-'));
 });
 

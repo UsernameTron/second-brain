@@ -183,17 +183,21 @@ async function runApply() {
     } catch (err) {
       process.stderr.write(`[dream] reach export failed (non-fatal): ${err && err.message ? err.message : err}\n`);
     }
+    // Mandatory gate over the LIVE vault: every merged entry must stay
+    // retrievable (hybrid). Regression auto-restores the snapshot and reverts
+    // the applied ops' accept boxes to unresolved.
+    const gateResult = await dream.runEvalGate(snapshotPath, changesetPath, applyResult.appliedIds);
+
+    // Rendered after the gate, not before it. The dashboard reads live memory.md
+    // but is not covered by the snapshot, so rendering pre-gate left it showing
+    // merges the gate then rolled back — stale until some later promotion
+    // regenerated it. Post-gate it reflects whichever state actually survived.
     try {
       const { writeMemoryDashboard } = require('../src/memory-dashboard');
       await writeMemoryDashboard();
     } catch (err) {
       process.stderr.write(`[dream] dashboard render failed (non-fatal): ${err && err.message ? err.message : err}\n`);
     }
-
-    // Mandatory gate over the LIVE vault: every merged entry must stay
-    // retrievable (hybrid). Regression auto-restores the snapshot and reverts
-    // the applied ops' accept boxes to unresolved.
-    const gateResult = await dream.runEvalGate(snapshotPath, changesetPath, applyResult.appliedIds);
 
     const ledger = loadLedger();
     ledger.lastApply = {
