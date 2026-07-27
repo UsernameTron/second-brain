@@ -1,6 +1,6 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-07-21
+**Analysis Date:** 2026-07-26
 
 ## Module System
 
@@ -76,6 +76,10 @@ Every exported function in `src/` carries a JSDoc block: one-line summary, `@par
 
 Comments explain **why**, not what — design rationale, review-item references (`Addresses review item #6`, `src/vault-gateway.js:44`), invariants (`D-04 three-tier model`, `src/vault-gateway.js:327`), and ceilings on deliberate shortcuts (`ponytail: fixed pacing for free-tier Voyage limits ... Set EVAL_EMBED_PACE_MS=0 on a paid key`, `scripts/eval-recall.js:65-66`). Do not add comments that restate the next line of code.
 
+## Gateway/Routing Split (new since PRs #90-93)
+
+`src/today-command.js` separates briefing orchestration from routing decisions: gateway-style routing logic (which section/source a briefing item belongs to) has its own test file, `test/today-command.gateway.test.js`, distinct from `test/today-command.test.js`'s orchestration-chain tests — follow this split (routing/gateway concerns vs. orchestration concerns) rather than growing one file when adding new `today-command` behavior.
+
 ---
 
-*Convention analysis: 2026-07-21*
+*Convention analysis: 2026-07-26*
