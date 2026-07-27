@@ -280,11 +280,11 @@ const RELATED_MAX_LINKS = 5;
 function filterExcludedLinkTitles(links) {
   try {
     const { loadExcludedTerms } = require('./pipeline-infra');
-    const { normalizeForMatch } = require('./content-policy');
-    const terms = loadExcludedTerms().map(t => normalizeForMatch(String(t))).filter(Boolean);
+    const { findExcludedTerm } = require('./content-policy');
+    const terms = loadExcludedTerms();
     return links.filter(link => {
-      const title = normalizeForMatch(String(link.title || ''));
-      return title && !terms.some(term => title.includes(term));
+      const title = String(link.title || '').trim();
+      return title !== '' && findExcludedTerm(title, terms) === null;
     });
   } catch (_) {
     return [];

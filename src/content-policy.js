@@ -38,17 +38,24 @@ function getClient() {
  * Normalize a string for excluded-term matching using NFKD decomposition.
  *
  * Steps applied in order:
- *   1. NFKD normalization — decomposes full-width Latin (U+FF01–U+FF60) to ASCII equivalents
- *   2. Strip combining marks (U+0300–U+036F) — removes diacritical residue after NFKD
- *   3. Strip soft hyphens (U+00AD) — removes zero-width word-break hints
- *   4. Strip non-ASCII whitespace (U+00A0 NBSP, U+2000–U+200B hair/zero-width spaces, U+FEFF BOM)
- *   5. Lowercase — case-insensitive substring matching
+ *   1. Strip soft hyphens (U+00AD) — zero-width word-break hints
+ *   2. NFKD normalization — decomposes full-width Latin (U+FF01–U+FF60) to ASCII
+ *      equivalents, and converts U+00A0 NBSP to a regular space
+ *   3. Strip combining marks (U+0300–U+036F) — removes diacritical residue after NFKD
+ *   4. Strip zero-width characters (U+2000–U+200B hair/zero-width spaces, U+FEFF BOM)
+ *   5. Lowercase — case-insensitive matching
  *
  * Prevents Unicode-variant bypass attempts (e.g., full-width "ＩＳＰＮ" or
- * soft-hyphen "I\u00ADS\u00ADP\u00ADN" slipping past an ASCII-only matcher).
+ * soft-hyphen "I­S­P­N" slipping past an ASCII-only matcher).
+ *
+ * Whitespace is deliberately PRESERVED. Collapsing it here did make injected-space
+ * bypasses ("Asa na") match, but it also fused unrelated words: "main index" became
+ * "mainindex", in which the four-character term ININ appears. Whitespace tolerance
+ * now lives in buildTermRegex, which permits it inside a term while still requiring
+ * the match to occupy a whole token.
  *
  * @param {string} str - Input string (content paragraph or excluded term)
- * @returns {string} Normalized, lowercased string ready for substring comparison
+ * @returns {string} Normalized, lowercased string ready for buildTermRegex
  */
 function normalizeForMatch(str) {
   return str
@@ -59,14 +66,74 @@ function normalizeForMatch(str) {
     .normalize('NFKD')
     // Strip combining marks (diacritical residue after NFKD decomposition)
     .replace(/[\u0300-\u036F]/g, '')
-    // Strip zero-width and non-breaking space characters
-    // After NFKD, U+00A0 has already been converted to U+0020 (regular space).
-    // Strip remaining zero-width chars (U+2000–U+200B range, U+FEFF BOM).
+    // Strip zero-width characters (U+2000–U+200B range, U+FEFF BOM).
+    // U+00A0 is already a regular space after NFKD and is left as one.
     .replace(/[\u2000-\u200B\uFEFF]/g, '')
-    // Strip ALL whitespace — collapses injected-space bypasses (e.g., "Asa na" → "asana")
-    // and normalizes multi-word terms identically ("interactive intelligence" → "interactiveintelligence")
-    .replace(/\s+/g, '')
     .toLowerCase();
+}
+
+// ── Excluded-term matching ───────────────────────────────────────────────────
+
+/** @type {Map<string, RegExp>} Compiled term matchers, keyed by `${flags}:${term}`. */
+const _termRegexCache = new Map();
+
+/**
+ * Build (and cache) the matcher for one excluded term.
+ *
+ * The pattern tolerates whitespace between every character, so injected-space
+ * bypasses ("Asa na", "A s a n a") and multi-word terms ("Interactive
+ * Intelligence" vs "InteractiveIntelligence") all resolve to the same term.
+ *
+ * Both ends are anchored to a non-alphanumeric boundary, which is what stops
+ * that tolerance from spanning unrelated words — an unanchored ININ matches the
+ * middle of "ma[in in]dex". Lookarounds rather than \b, because \b counts the
+ * underscore as a word character and would stop "ispn_notes.md" matching.
+ *
+ * Trade-off: a suffixed form ("ISPNs") no longer matches, since the trailing
+ * anchor requires a token end. Possessives and slugs ("ISPN's", "ispn_notes")
+ * still do. Whole-token matching is worth losing plurals of a proper noun.
+ *
+ * @param {string} term - Raw excluded term from config
+ * @param {string} [flags='i'] - RegExp flags; 'gi' for repeated context extraction
+ * @returns {RegExp} Matcher to run against normalizeForMatch() output
+ */
+function buildTermRegex(term, flags = 'i') {
+  const key = `${flags}:${term}`;
+  const cached = _termRegexCache.get(key);
+  if (cached) return cached;
+
+  // Whitespace inside the configured term is not significant — the \s* joins
+  // below already permit whitespace wherever it appears in the content.
+  const chars = normalizeForMatch(String(term)).replace(/\s+/g, '').split('');
+
+  // An empty or whitespace-only term must never match. Without this guard the
+  // pattern collapses to two lookarounds and flags essentially every string.
+  const regex = chars.length === 0
+    ? /(?!)/
+    : new RegExp(`(?<![0-9a-z])${chars.map(escapeRegex).join('\\s*')}(?![0-9a-z])`, flags);
+
+  _termRegexCache.set(key, regex);
+  return regex;
+}
+
+/**
+ * Find the first excluded term present in `text`, or null if none is.
+ *
+ * Single entry point for every excluded-term scan — Stage 1 of checkContent,
+ * sanitizeContent's per-paragraph check, and the wikilink title gates in
+ * promote-memories.js and scripts/migrate-memory-wiki.js all route through it,
+ * so the matching rules cannot drift apart between ingress and egress.
+ *
+ * @param {string} text - Raw text to scan
+ * @param {string[]} excludedTerms - Terms from config/excluded-terms.json
+ * @returns {string|null} The matching term exactly as configured, or null
+ */
+function findExcludedTerm(text, excludedTerms) {
+  const normalized = normalizeForMatch(text);
+  for (const term of excludedTerms) {
+    if (buildTermRegex(term).test(normalized)) return term;
+  }
+  return null;
 }
 
 // ── Prompt injection defense ─────────────────────────────────────────────────
@@ -131,7 +198,10 @@ async function classifyWithHaiku(content, matchedTerm, excludedTerms, contextCha
 
   // Extract minimal context windows around keyword matches (privacy-preserving)
   const contextWindows = [];
-  const termRegex = new RegExp(escapeRegex(matchedTerm), 'gi');
+  // Same matcher Stage 1 used, so a hit found via injected whitespace ("Asa na")
+  // can still be located here rather than yielding an empty excerpt list.
+  const termRegex = buildTermRegex(matchedTerm, 'gi');
+  termRegex.lastIndex = 0;
   let match;
   let windowCount = 0;
 
@@ -205,13 +275,8 @@ function sanitizeContent(content, excludedTerms) {
   const markers = [];
 
   const sanitizedParagraphs = paragraphs.map((paragraph, idx) => {
-    // Check if any excluded term appears in this paragraph (Unicode-normalized substring match)
-    const paragraphNorm = normalizeForMatch(paragraph);
-    const hasExcludedTerm = excludedTerms.some(term =>
-      paragraphNorm.includes(normalizeForMatch(term))
-    );
-
-    if (hasExcludedTerm) {
+    // Whole-token, Unicode- and whitespace-tolerant match (see buildTermRegex)
+    if (findExcludedTerm(paragraph, excludedTerms) !== null) {
       redactedCount++;
       markers.push(`[REDACTED] (paragraph ${idx + 1} of ${paragraphs.length})`);
       return '[REDACTED]';
@@ -242,16 +307,8 @@ function sanitizeContent(content, excludedTerms) {
  * @returns {Promise<{ decision: 'PASS' } | { decision: 'BLOCK', reason: string, matchedTerm: string }>}
  */
 async function checkContent(content, excludedTerms, contextChars = 100) {
-  // Stage 1: Keyword scan (Unicode-normalized substring match; content normalized once outside loop)
-  let matchedTerm = null;
-  const contentNorm = normalizeForMatch(content);
-
-  for (const term of excludedTerms) {
-    if (contentNorm.includes(normalizeForMatch(term))) {
-      matchedTerm = term;
-      break;
-    }
-  }
+  // Stage 1: Keyword scan (whole-token match; content normalized once inside)
+  const matchedTerm = findExcludedTerm(content, excludedTerms);
 
   // No match — immediate PASS (zero-latency common case per D-06)
   if (matchedTerm === null) {
@@ -285,8 +342,10 @@ async function checkContent(content, excludedTerms, contextChars = 100) {
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
+  buildTermRegex,
   checkContent,
   classifyWithHaiku,
+  findExcludedTerm,
   normalizeForMatch,
   sanitizeContent,
   sanitizeTermForPrompt,
