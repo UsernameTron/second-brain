@@ -27,13 +27,13 @@ No TypeScript, no JSX. `.mcp.json` (repo root) registers one dev-tool MCP server
 
 **Testing:**
 - Jest `30.3.0` - unit + integration + UAT. Config is inline in `package.json` (`jest.testPathIgnorePatterns`: `/node_modules/`, `.claude/worktrees`) — no separate `jest.config.js`
-- `nock` `14.0.13` (dev) - HTTP mocking in tests
+- `nock` `14.0.16` (dev) - HTTP mocking in tests
 
 **Build/Dev:**
-- ESLint `10.2.1` flat config at `eslint.config.js` - `@eslint/js` `10.0.1` recommended rules as base, layered with:
+- ESLint `10.7.0` flat config at `eslint.config.js` - `@eslint/js` `10.0.1` recommended rules as base, layered with:
   - `eslint-plugin-n` `18.2.2` for `src/**/*.js` (Node-specific rules)
-  - `eslint-plugin-jest` `29.15.2` for `test/**/*.js`
-- `ajv` `8.18.0` (dev) - JSON Schema validation for every file in `config/`
+  - `eslint-plugin-jest` `29.15.5` for `test/**/*.js`
+- `ajv` `8.20.0` (dev) - JSON Schema validation for every file in `config/`
 - `license-checker` `25.0.1` - production-dependency license allowlist gate (`npm run license-check`)
 
 ## Key Dependencies

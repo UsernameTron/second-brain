@@ -13,7 +13,7 @@
 - **Non-fatal side channels.** Embedding (`indexNewEntries`), reach export, SQLite rebuild, dashboard regeneration, contradiction-flagging, and stats recording all wrap their own try/catch around the primary write — a side-channel failure is logged and surfaced in the return envelope, never thrown back at the caller.
 - **Human-in-the-loop gates via checkbox parsing.** Both the memory-promotion pipeline and dream-consolidation pipeline stage proposals as markdown files with `- [ ] accept/reject/...` checkboxes, parsed by one shared `parseCheckboxState()` (`src/memory-proposals.js`) — no second parser exists for the dream changeset.
 - **Snapshot-before-mutate.** The one workflow that edits *existing* memory entries (`dream --apply`) snapshots `memory.md` + `embeddings.jsonl` + `index.db` first and auto-restores on a post-apply retrieval regression.
-- **Quarantine-stub fallback, never a missing daily file.** `today-command.js` writes the real briefing through `vaultWrite()` with `attemptCount: 1`; if the gateway quarantines it (content or style block), a `renderQuarantineStub()` placeholder is written to the same `briefings/daily/<date>.md` path so the day always has a file on disk.
+- **Quarantine-stub fallback (best-effort, not a guarantee).** `today-command.js` writes the real briefing through `vaultWrite()` with `attemptCount: 1`; if the gateway quarantines it (content or style block), a `renderQuarantineStub()` placeholder is written to the same `briefings/daily/<date>.md` path. The stub is fixed text chosen to clear both guards, but the style guide hot-reloads from the vault — if a later-added banned word matches the stub, the second write quarantines too and `runToday` returns `TODAY_FATAL` with `path: null` rather than reporting a file that was never written.
 - **Derived human-readable views regenerate whole, never diff.** `src/memory-dashboard.js`'s `writeMemoryDashboard()` rebuilds `memory/dashboard.md` from scratch on every real promotion (hooked from both `promote-memories.js` and `scripts/dream.js --apply`) — same non-fatal-side-channel treatment as embedding/reach/SQLite rebuild.
 
 ## Layers
@@ -146,8 +146,9 @@ daily-stats.js  recordDailyStats()  ──▶ briefings/daily-stats.md via vault
                                                                      │ human checks accept/reject/defer
                                                                      ▼
 --apply:  snapshotStore() → acquireProposalsLock() → applyOps() (MERGE inserts + supersedes sources,
-          STALE appends flag) → build-index.js + reach-exporter + memory-dashboard (non-fatal) →
-          runEvalGate() [live hybridSearch retrievability check]
+          STALE appends flag) → build-index.js + reach-exporter (non-fatal) →
+          runEvalGate() [live hybridSearch retrievability check] → memory-dashboard (non-fatal,
+          AFTER the gate so a restore never leaves a dashboard built from reverted memory)
                      │ pass ──▶ stamp applied:: <ISO>, update state/dream-ledger.json
                      │ fail ──▶ restoreSnapshot() + revert accept boxes to unresolved
 ```

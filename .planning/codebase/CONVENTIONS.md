@@ -78,7 +78,7 @@ Comments explain **why**, not what — design rationale, review-item references 
 
 ## Gateway/Routing Split (new since PRs #90-93)
 
-`src/today-command.js` separates briefing orchestration from routing decisions: gateway-style routing logic (which section/source a briefing item belongs to) has its own test file, `test/today-command.gateway.test.js`, distinct from `test/today-command.test.js`'s orchestration-chain tests — follow this split (routing/gateway concerns vs. orchestration concerns) rather than growing one file when adding new `today-command` behavior.
+`test/today-command.gateway.test.js` covers vault-write policy for the briefing — sanitization, quarantine, the stub fallback, and dry-run routing through the gateway — and carries the isolated module-loading setup that `vault-gateway` and `style-policy` state require (both capture `VAULT_ROOT` at require time). `test/today-command.test.js` covers the orchestration chain (connector fan-out, degradation, stats payload). Add write-policy cases to the gateway file and orchestration cases to the other; section/source routing tests belong with the renderer, not here.
 
 ---
 

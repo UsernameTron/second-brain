@@ -1,11 +1,11 @@
 # Session handoff (auto-written by Stop hook)
 
-- When: 2026-07-26 19:58 CDT
-- Branch: feat/vault-restructure-260726-qcw
-- Dirty at stop: 5 files
+- When: 2026-07-26 23:43 CDT
+- Branch: chore/docs-map-sync-260726
+- Dirty at stop: 4 files
 - Recent commits:
-  - a146e14 chore(session): auto-commit session work (2026-07-26)
-  - 9234c4a chore(session): auto-commit session work (2026-07-26)
-  - 8cecca6 Record the post-move boundary audit findings in the quick-task summary
-  - d7a6400 Fail closed at reach egress when excluded-terms is unavailable
-  - 811ad92 chore(session): auto-commit session work (2026-07-26)
+  - a529189 feat(agents): add vault-triage — routes vault drift flagged by the vault_hygiene counter
+  - aa8889b docs: refresh .planning/codebase map post-restructure (/gsd:map-codebase)
+  - c52ded1 docs: sync counts, coverage, and paths to post-restructure reality (/gsd:sync-docs + freshness audit)
+  - 94782e1 Vault restructure, plus the two guard gaps the move exposed (#93)
+  - d0b41b1 Audit re-verify pass: lint zero-warning, doc drift fixes (2026-07-21b) (#92)
