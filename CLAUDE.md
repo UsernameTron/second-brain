@@ -141,6 +141,7 @@ The system is deployed across five integration points:
 - `test-runner.md` — test execution and failure diagnosis
 - `test-verifier.md` — UAT validation
 - `vault-guardian.md` — vault permission enforcement
+- `vault-triage.md` — routes stray vault files to their one home; delegate when daily-stats `vault_hygiene` > 0 or on "triage the vault" / "route the inbox". Moves only (never deletes, never LEFT); flag-only for LEFT-adjacent files; do not run during /promote-memories or dream:apply
 
 <!-- GSD:stack-end -->
 
