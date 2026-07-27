@@ -43,6 +43,14 @@
 | Pre-commit hooks | schema + vault boundary + archive integrity (21 entries across 2 files at the new path) |
 | Tree proof | root files 83 → 1; top-level items 109 → 26 |
 
+## Post-move boundary audit (vault-guardian) — two findings, both pre-existing
+
+**Fixed here (commit d7a6400):** reach-export egress could fail *open*. `loadExcludedTerms()` (`pipeline-infra.js:501-507`) returns `[]` on any load failure, and `checkContent()` against an empty term list matches nothing and returns PASS immediately (`content-policy.js:250-259`) — so a broken `excluded-terms.json` would have shipped an unfiltered digest into all 15 auto-memory targets. The module's comment claimed this matched "the gate semantics used by vault-gateway", but `validateConfig` throws on an empty list there. An empty term list now suppresses the digest; the pointer still ships (no memory content in it). Test added; live export unchanged in the healthy case (included=10, excluded=5, 15 targets).
+
+**Filed, not fixed:** the `/today` briefing body is written with raw fs at `today-command.js:322-326` — `grep -n "checkContent\|checkStyle\|vaultWrite" src/today-command.js` returns nothing, so neither the exclusion filter nor the style lint runs on it, despite the content being LLM-synthesized from Gmail/Calendar/GitHub. The restructure only repointed its destination; routing it through `vaultWrite()` changes what happens when a guard fires (quarantine = no briefing that morning), which is a product decision against the standing "briefing-is-the-product" principle. Spawned as its own task.
+
+Audit verdicts otherwise: gateway LEFT/RIGHT enforcement PASS (no path to LEFT or root; `quarantine()`'s destination is hardcoded and cannot be redirected by the blocked path or reason string), ingress exclusions PASS fail-closed, `memory-dashboard.js` PASS (fixed literal path, cannot clobber `memory.md`, separate `.tmp`).
+
 ## Left for Connor
 
 Five now-empty folders await manual deletion (agent never deletes): `RIGHT/`, `RIGHT/daily/`, `Untitled/`, `Daily Standups/`, `memory-archive/`, `memory-proposals-archive/`.
