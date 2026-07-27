@@ -45,6 +45,10 @@ jest.mock('../src/pipeline-infra', () => ({
   createHaikuClient: jest.fn().mockReturnValue({
     classify: jest.fn().mockResolvedValue({ success: true, data: '' }),
   }),
+  // vault-gateway reads its allowlist and excluded terms through these two,
+  // now that the briefing write routes through vaultWrite.
+  safeLoadVaultPaths: jest.fn(() => require('../config/vault-paths.json')),
+  loadExcludedTerms: jest.fn(() => require('../config/excluded-terms.json')),
 }));
 jest.mock('../src/memory-reader', () => ({
   getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
@@ -66,7 +70,23 @@ jest.mock('../src/daily-stats', () => ({
   flushMissedDays: jest.fn(),
 }));
 
+// vault-gateway and style-policy capture VAULT_ROOT at require time, and
+// today-command pulls both in on the line below — so the override has to land
+// here, not in beforeEach, or the briefing write targets the real vault.
+const GATEWAY_VAULT_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-compounding-gateway-'));
+process.env.VAULT_ROOT = GATEWAY_VAULT_ROOT;
+fs.mkdirSync(path.join(GATEWAY_VAULT_ROOT, 'ABOUT ME'), { recursive: true });
+fs.writeFileSync(
+  path.join(GATEWAY_VAULT_ROOT, 'ABOUT ME', 'anti-ai-writing-style.md'),
+  '## Banned words\n\n| Word/Phrase | Why |\n|---|---|\n| game-changer | filler |\n',
+  'utf8'
+);
+
 const { runToday } = require('../src/today-command');
+
+afterAll(() => {
+  fs.rmSync(GATEWAY_VAULT_ROOT, { recursive: true, force: true });
+});
 
 /** A daily-stats row with enough growth + recall activity to satisfy all gates. */
 function buildGrowingRow(i) {

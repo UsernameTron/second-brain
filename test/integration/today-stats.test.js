@@ -128,6 +128,10 @@ function loadRunToday({ day = '2026-04-24', throwOnRecord = false } = {}) {
     safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: STATS_PIPELINE_CONFIG, error: null }),
     loadConfigWithOverlay: jest.fn().mockReturnValue(STATS_PIPELINE_CONFIG),
     createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+    // The briefing write routes through vault-gateway, which reads its
+    // RIGHT-side allowlist and excluded terms through these two.
+    safeLoadVaultPaths: jest.fn(() => require('../../config/vault-paths.json')),
+    loadExcludedTerms: jest.fn(() => require('../../config/excluded-terms.json')),
   }));
   jest.doMock('../../src/memory-reader', () => ({
     getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0, skipped: false }),

@@ -116,6 +116,10 @@ function setup({ getMemoryEchoImpl = null, pipelineConfig = BASE_CONFIG } = {}) 
     createHaikuClient: jest.fn().mockReturnValue({
       classify: jest.fn().mockResolvedValue({ success: true, data: 'synthesis text' }),
     }),
+    // The briefing write routes through vault-gateway, which reads its
+    // RIGHT-side allowlist and excluded terms through these two.
+    safeLoadVaultPaths: jest.fn(() => require('../../config/vault-paths.json')),
+    loadExcludedTerms: jest.fn(() => require('../../config/excluded-terms.json')),
   }));
 
   // memory-reader: stub getMemoryEcho

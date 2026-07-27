@@ -62,19 +62,66 @@ const DEFAULT_PIPELINE_CONFIG = {
   classifier: { stage1ConfidenceThreshold: 0.8 },
 };
 
+/**
+ * vault-gateway reads its RIGHT-side allowlist and excluded terms through
+ * pipeline-infra. The briefing write routes through vaultWrite now, so every
+ * doMock of that module has to carry these two or runToday returns TODAY_FATAL.
+ * Served from the real config files so the suite proves 'briefings' is
+ * genuinely on the allowlist rather than a test-only invention.
+ * @returns {{safeLoadVaultPaths: Function, loadExcludedTerms: Function}}
+ */
+function gatewayInfraMocks() {
+  return {
+    safeLoadVaultPaths: jest.fn(() => require('../config/vault-paths.json')),
+    loadExcludedTerms: jest.fn(() => require('../config/excluded-terms.json')),
+  };
+}
+
 // ── Temp directory management ─────────────────────────────────────────────────
+
+/**
+ * Minimal style guide so vault-gateway's Guard 3 loads a real (if tiny) banned
+ * word list instead of logging a load failure and disabling itself. None of
+ * these words appear in the fixtures below, so the gate stays a no-op here.
+ */
+const STYLE_GUIDE_FIXTURE = [
+  '## Banned words',
+  '',
+  '| Word/Phrase | Why |',
+  '|---|---|',
+  '| game-changer | filler |',
+  '| synergy | filler |',
+  '',
+].join('\n');
+
+/**
+ * Point vault-gateway at a temp vault. The briefing write now routes through
+ * vaultWrite, which resolves against its own module-scope VAULT_ROOT (captured
+ * at require time) rather than runToday's vaultRoot option — without this the
+ * suite would write into the operator's real vault.
+ * @param {string} root - Temp vault root
+ */
+function useTempVault(root) {
+  process.env.VAULT_ROOT = root;
+  fs.mkdirSync(path.join(root, 'ABOUT ME'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'ABOUT ME', 'anti-ai-writing-style.md'), STYLE_GUIDE_FIXTURE, 'utf8');
+}
 
 let tempProjectsDir;
 let tempVaultRoot;
+const ORIGINAL_VAULT_ROOT = process.env.VAULT_ROOT;
 
 beforeEach(() => {
   tempProjectsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-today-test-projects-'));
   tempVaultRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-today-test-vault-'));
+  useTempVault(tempVaultRoot);
 });
 
 afterEach(() => {
   fs.rmSync(tempProjectsDir, { recursive: true, force: true });
   fs.rmSync(tempVaultRoot, { recursive: true, force: true });
+  if (ORIGINAL_VAULT_ROOT === undefined) delete process.env.VAULT_ROOT;
+  else process.env.VAULT_ROOT = ORIGINAL_VAULT_ROOT;
   jest.resetModules();
 });
 
@@ -188,6 +235,7 @@ function setupMocks({
     loadPipelineConfig: jest.fn().mockReturnValue(pipelineConfig),
     safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: pipelineConfig, error: null }),
     createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+    ...gatewayInfraMocks(),
   }));
 
   // Clear module cache so fresh doMock applies
@@ -208,6 +256,7 @@ function setupMocks({
     loadPipelineConfig: jest.fn().mockReturnValue(pipelineConfig),
     safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: pipelineConfig, error: null }),
     createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+    ...gatewayInfraMocks(),
   }));
 
   return require('../src/today-command');
@@ -854,6 +903,7 @@ describe('runToday', () => {
         loadPipelineConfig: jest.fn().mockReturnValue(DEFAULT_PIPELINE_CONFIG),
         safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
         createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+        ...gatewayInfraMocks(),
       }));
 
       const { runToday } = require('../src/today-command');
@@ -917,6 +967,7 @@ describe('runToday', () => {
         loadPipelineConfig: jest.fn().mockReturnValue(DEFAULT_PIPELINE_CONFIG),
         safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
         createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+        ...gatewayInfraMocks(),
       }));
 
       const { runToday } = require('../src/today-command');
@@ -975,6 +1026,7 @@ describe('runToday', () => {
         loadPipelineConfig: jest.fn().mockImplementation(() => { throw new Error('config missing'); }),
         safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: null, error: new Error('config missing') }),
         createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+        ...gatewayInfraMocks(),
       }));
 
       const { runToday } = require('../src/today-command');
@@ -1040,6 +1092,7 @@ describe('Phase 20: latency timing', () => {
     jest.doMock('../src/pipeline-infra', () => ({
       safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
       createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+      ...gatewayInfraMocks(),
     }));
     jest.doMock('../src/memory-reader', () => ({
       getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
@@ -1096,6 +1149,7 @@ describe('Phase 20: latency timing', () => {
     jest.doMock('../src/pipeline-infra', () => ({
       safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
       createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+      ...gatewayInfraMocks(),
     }));
     jest.doMock('../src/memory-reader', () => ({
       getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
@@ -1149,6 +1203,7 @@ describe('Phase 20: latency timing', () => {
     jest.doMock('../src/pipeline-infra', () => ({
       safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
       createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+      ...gatewayInfraMocks(),
     }));
     jest.doMock('../src/memory-reader', () => ({
       getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
@@ -1207,6 +1262,7 @@ describe('Phase 20: latency timing', () => {
     jest.doMock('../src/pipeline-infra', () => ({
       safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
       createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+      ...gatewayInfraMocks(),
     }));
     jest.doMock('../src/memory-reader', () => ({
       getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
@@ -1292,6 +1348,7 @@ function setupRecordStatsMocks({
   jest.doMock('../src/pipeline-infra', () => ({
     safeLoadPipelineConfig: jest.fn().mockReturnValue({ config: DEFAULT_PIPELINE_CONFIG, error: null }),
     createHaikuClient: jest.fn().mockReturnValue(makeMockHaikuClient()),
+    ...gatewayInfraMocks(),
   }));
   jest.doMock('../src/memory-reader', () => ({
     getMemoryEcho: jest.fn().mockResolvedValue({ entries: [], score: 0 }),
