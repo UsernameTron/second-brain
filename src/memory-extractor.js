@@ -462,37 +462,45 @@ async function extractFromFile(relativePath, options = {}) {
   }
   const confidenceLow = config.extraction.confidenceLowConfidence;
 
-  for (const candidate of candidates) {
-    if (typeof candidate.confidence !== 'number' || candidate.confidence < confidenceLow) {
-      continue;
+  // B4: never-throw — a throw from checkContent/writeCandidate escaped and
+  // aborted whole directory runs; record it and return partial results (D-64).
+  try {
+    for (const candidate of candidates) {
+      if (typeof candidate.confidence !== 'number' || candidate.confidence < confidenceLow) {
+        continue;
+      }
+      const hash = computeHash(candidate.content);
+      if (seenHashes.has(hash)) continue;
+      seenHashes.add(hash);
+
+      // INGRESS-GATE-01: fail-closed exclusion check before staging (ISPN/Genesys/Asana).
+      const verdict = await checkContent(candidate.content, loadExcludedTerms());
+      if (verdict.decision !== 'PASS') {
+        continue;
+      }
+
+      const sourceRef = 'file:' + relativePath;
+      const result = await writeCandidate({
+        content: candidate.content,
+        category: candidate.category,
+        sourceRef,
+        confidence: candidate.confidence,
+        rationale: candidate.rationale || '',
+        sessionId: 'manual',
+        sourceFile: relativePath,
+        extractionTrigger: 'extract-memories',
+      });
+
+      results.push({
+        candidateId: result.candidateId,
+        category: candidate.category,
+        written: result.written,
+      });
     }
-    const hash = computeHash(candidate.content);
-    if (seenHashes.has(hash)) continue;
-    seenHashes.add(hash);
-
-    // INGRESS-GATE-01: fail-closed exclusion check before staging (ISPN/Genesys/Asana).
-    const verdict = await checkContent(candidate.content, loadExcludedTerms());
-    if (verdict.decision !== 'PASS') {
-      continue;
-    }
-
-    const sourceRef = 'file:' + relativePath;
-    const result = await writeCandidate({
-      content: candidate.content,
-      category: candidate.category,
-      sourceRef,
-      confidence: candidate.confidence,
-      rationale: candidate.rationale || '',
-      sessionId: 'manual',
-      sourceFile: relativePath,
-      extractionTrigger: 'extract-memories',
-    });
-
-    results.push({
-      candidateId: result.candidateId,
-      category: candidate.category,
-      written: result.written,
-    });
+  } catch (err) {
+    // eslint-disable-next-line no-console -- last-resort-error: Candidate loop threw in extractFromFile; returns partial results tagged with errors
+    console.error('[memory-extractor] Extraction error for ' + relativePath + ': ' + err.message);
+    return recordFailure(results, 'extraction-error', 'Extraction error for ' + relativePath + ': ' + err.message);
   }
 
   return results;

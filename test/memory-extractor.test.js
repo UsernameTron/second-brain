@@ -468,6 +468,28 @@ describe('extractFromFile', () => {
     expect(Array.isArray(result)).toBe(true);
     expect(result).toHaveLength(0);
   });
+
+  test('a throw from writeCandidate is recorded, not propagated (B4)', async () => {
+    jest.resetModules();
+    jest.doMock('../src/memory-proposals', () => ({
+      writeCandidate: jest.fn().mockRejectedValue(new Error('disk exploded')),
+    }));
+    const isolatedExtractor = require('../src/memory-extractor');
+
+    const notePath = path.join(tmpDir, 'memory', 'throwing-note.md');
+    fs.writeFileSync(notePath, '# Note\n\nContent long enough for the extraction pipeline test.\n');
+
+    const mockClient = mockHaiku([
+      { category: 'LEARNING', content: 'Candidate whose write will throw in this test', source_ref: 'file:memory/throwing-note.md', confidence: 0.9, rationale: 'test' },
+    ]);
+
+    const result = await isolatedExtractor.extractFromFile('memory/throwing-note.md', { _haikuClient: mockClient });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].mode).toBe('extraction-error');
+    expect(result.errors[0].message).toContain('disk exploded');
+    jest.dontMock('../src/memory-proposals');
+  });
 });
 
 // ── extractFromDirectory ─────────────────────────────────────────────────────
