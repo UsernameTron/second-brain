@@ -156,6 +156,22 @@ describe('main', () => {
     expect(out.join('')).toContain('/promote-memories');
   });
 
+  test('buffered candidates are reported distinctly, not as staged (C2)', async () => {
+    const newest = writeRepoTranscript('buffered-session.jsonl');
+    process.argv = ['node', 'wrap.js'];
+    extractFromTranscript.mockResolvedValueOnce([
+      { content: 'staged one', written: true, buffered: false },
+      { content: 'buffered one', written: true, buffered: true },
+    ]);
+
+    await wrap.main();
+
+    expect(extractFromTranscript).toHaveBeenCalledWith(newest, 'buffered-session');
+    const output = out.join('');
+    expect(output).toContain('1 staged, 1 buffered — run /wrap again to drain');
+    expect(output).not.toContain('/promote-memories');
+  });
+
   test('--transcript overrides the newest-transcript default', async () => {
     writeRepoTranscript('newest.jsonl');
     const explicit = writeRepoTranscript('older.jsonl', Date.now() - 86400000);
