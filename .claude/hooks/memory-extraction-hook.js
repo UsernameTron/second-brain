@@ -45,7 +45,9 @@ process.stdin.on('end', async () => {
       process.exit(0);
     }
 
-    await extractFromTranscript(transcript_path, session_id);
+    // A1: Claude Code SIGKILLs Stop hooks at 60s — budget local LLM calls
+    // under that so they can finish (or fall back) before the process dies.
+    await extractFromTranscript(transcript_path, session_id, { timeoutMs: 50000 });
   } catch (_) {
     // Swallow all errors — enrichment must never block (D-39)
   }

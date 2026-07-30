@@ -334,7 +334,7 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
       // ponytail: 4096 headroom for a whole-corpus JSON array of candidates (unbounded
       // count, unlike other classify() callers' single-object budgets). If a corpus still
       // truncates at this size, chunk it — don't just raise the number again.
-      const response = await haiku.classify(systemPrompt, corpus, { maxTokens: 8192 });
+      const response = await haiku.classify(systemPrompt, corpus, classifyOptions);
       if (!response.success) {
         // eslint-disable-next-line no-console -- last-resort-error: Single-pass Haiku extraction failed; extractor returns [] tagged with errors
         console.error('[memory-extractor] Haiku extraction failed: ' + (response.error || 'unknown'));
@@ -359,7 +359,7 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
         const chunk = messages.slice(start, end);
         const corpus = buildCorpus(chunk);
 
-        const response = await haiku.classify(systemPrompt, corpus, { maxTokens: 8192 });
+        const response = await haiku.classify(systemPrompt, corpus, classifyOptions);
         if (!response.success) {
           // eslint-disable-next-line no-console -- degradation-warning: Chunk extraction failed; loop continues to next chunk with partial results
           console.error('[memory-extractor] Chunk extraction failed at ' + start + ': ' + (response.error || 'unknown'));

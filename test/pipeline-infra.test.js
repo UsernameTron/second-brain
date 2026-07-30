@@ -1046,6 +1046,34 @@ describe('classifyLocal — LLM fallback hardening', () => {
     expect(result.data).toEqual({ fallback: true });
   });
 
+  test('callOptions.timeoutMs clamps a huge localTimeoutMs (A1)', async () => {
+    // Rewrite config with a huge local timeout — the caller budget must win.
+    const cfg = JSON.parse(fs.readFileSync(path.join(tmpConfigDir, 'pipeline.json'), 'utf8'));
+    cfg.classifier.llm.localTimeoutMs = 900000;
+    fs.writeFileSync(path.join(tmpConfigDir, 'pipeline.json'), JSON.stringify(cfg));
+
+    const mockLogDecision = jest.fn();
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({
+      content: [{ text: '{"fallback":true}' }],
+    });
+    // Fetch never resolves on its own — only rejects when the abort signal fires.
+    global.fetch = jest.fn((url, opts) => new Promise((resolve, reject) => {
+      opts.signal.addEventListener('abort', () => {
+        reject(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
+      });
+    }));
+    const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
+    const start = Date.now();
+    const result = await client.classify('sys', 'content', { timeoutMs: 50 });
+    const elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(2000); // aborted at ~50ms, not 900s
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY', 'test-model', 'ERROR', expect.stringContaining('aborted')
+    );
+    expect(result.success).toBe(true);
+  });
+
   test('falls back to Anthropic on ECONNREFUSED', async () => {
     const mockLogDecision = jest.fn();
     const mockAnthropicCreate = jest.fn().mockResolvedValue({
