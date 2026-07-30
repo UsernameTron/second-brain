@@ -293,6 +293,10 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
 
   const { chunkSize, chunkOverlap, oversizeThresholdMessages } = config.extraction;
   const haiku = options._haikuClient || createHaikuClient();
+  // A1: hook-driven callers pass a timeoutMs budget (Stop hook dies at 60s);
+  // threaded into classify() callOptions so local calls clamp to it.
+  const classifyOptions = { maxTokens: 8192 };
+  if (options.timeoutMs) classifyOptions.timeoutMs = options.timeoutMs;
   const systemPrompt = buildSystemPrompt();
 
   // Read transcript line-by-line

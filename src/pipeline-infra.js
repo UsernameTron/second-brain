@@ -190,7 +190,10 @@ function createLlmClient(options = {}) {
     const controller = new AbortController(); // eslint-disable-line no-undef
     // Local models vary hugely in load/inference time; a 27B on first token can
     // exceed any fixed budget. Configurable, but unchanged at 10s when unset.
-    const timeoutMs = llmConfig.localTimeoutMs || 10_000;
+    // A1: clamp to the caller's budget — hook-driven callers (Stop hook is
+    // SIGKILLed at 60s) pass callOptions.timeoutMs so the call can finish or
+    // fall back before the process dies.
+    const timeoutMs = Math.min(llmConfig.localTimeoutMs || 10_000, callOptions.timeoutMs ?? Infinity);
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const headers = { 'Content-Type': 'application/json' };
