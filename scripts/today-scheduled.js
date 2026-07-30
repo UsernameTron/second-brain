@@ -30,7 +30,15 @@ if (require.main === module) {
   // Same output/exit contract as the old plist inline entry: runToday resolves
   // with an inline error envelope (D-19); only a rejection exits non-zero.
   runToday({ mode })
-    .then((r) => console.log(r.briefing || r.error))
+    .then((r) => {
+      // B1: a resolved error envelope (no briefing) must exit non-zero so
+      // launchd records the failure instead of a phantom success.
+      if (!r.briefing) {
+        console.error(r.error);
+        process.exit(1);
+      }
+      console.log(r.briefing);
+    })
     .catch((err) => {
       console.error(err);
       process.exit(1);
