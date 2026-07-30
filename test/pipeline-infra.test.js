@@ -871,6 +871,15 @@ describe('safeLoadVaultPaths', () => {
     safeLoadVaultPaths();
     expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'vault-paths.json', 'LOAD_ERROR', expect.any(String));
   });
+
+  test('loadExcludedTerms logs LOAD_ERROR and returns [] when the file is unreadable (B5)', () => {
+    // No excluded-terms.json in tmp config dir → triggers error path
+    const mockLogDecision = jest.fn();
+    jest.doMock('../src/vault-gateway', () => ({ logDecision: mockLogDecision }));
+    const { loadExcludedTerms } = require('../src/pipeline-infra');
+    expect(loadExcludedTerms()).toEqual([]);
+    expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'excluded-terms.json', 'LOAD_ERROR', expect.any(String));
+  });
 });
 
 // ── safeLoadPipelineConfig (T12.3) ──────────────────────────────────────────

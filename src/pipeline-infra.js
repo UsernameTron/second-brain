@@ -504,7 +504,10 @@ function safeLoadVaultPaths() {
 function loadExcludedTerms() {
   try {
     return loadConfigWithOverlay('excluded-terms');
-  } catch (_err) {
+  } catch (err) {
+    // B5: an empty list silently turns the exclusion gate off — log the failure.
+    const { logDecision } = require('./vault-gateway');
+    logDecision('CONFIG', 'excluded-terms.json', 'LOAD_ERROR', err.message);
     return [];
   }
 }
