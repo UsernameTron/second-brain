@@ -158,7 +158,7 @@ async function acquireLock() {
       if (err.code === 'EEXIST') {
         // C1: a SIGKILLed holder leaves the lock forever — treat locks older
         // than LOCK_TIMEOUT_MS (or unreadable/corrupt ones) as stale and reclaim.
-        let stale = false;
+        let stale;
         try {
           const existing = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
           const acquiredAt = Date.parse(existing.acquired);
