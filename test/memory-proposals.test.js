@@ -358,6 +358,26 @@ describe('acquireLock / releaseLock', () => {
     // Cleanup
     fs.rmSync(lockFile, { force: true });
   }, 8000);
+
+  test('stale lock (acquired an hour ago) is reclaimed and acquireLock succeeds', async () => {
+    const lockFile = path.join(proposalsDir, 'memory-proposals.md.lock');
+    fs.writeFileSync(lockFile, JSON.stringify({
+      pid: 99999,
+      acquired: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      holder: 'other',
+    }));
+    const result = await memProposals._testOnly.acquireLock();
+    expect(result.acquired).toBe(true);
+    await memProposals._testOnly.releaseLock();
+  });
+
+  test('corrupt lock file is treated as stale and reclaimed', async () => {
+    const lockFile = path.join(proposalsDir, 'memory-proposals.md.lock');
+    fs.writeFileSync(lockFile, 'not json at all');
+    const result = await memProposals._testOnly.acquireLock();
+    expect(result.acquired).toBe(true);
+    await memProposals._testOnly.releaseLock();
+  });
 });
 
 // ── flushPendingBuffer ───────────────────────────────────────────────────────
