@@ -291,7 +291,7 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
     };
   }
 
-  const { chunkSize, chunkOverlap, oversizeThresholdMessages } = config.extraction;
+  const { chunkSize, chunkOverlap, oversizeThresholdBytes, oversizeThresholdMessages } = config.extraction;
   const haiku = options._haikuClient || createHaikuClient();
   // A1: hook-driven callers pass a timeoutMs budget (Stop hook dies at 60s);
   // threaded into classify() callOptions so local calls clamp to it.
@@ -328,9 +328,16 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
   const allResults = [];
 
   try {
-    if (messages.length <= oversizeThresholdMessages) {
+    // A3: chunk on byte size too — a corpus can blow the model context long
+    // before it hits the message-count threshold (a 62,968-token payload
+    // nearly overflowed a 65,536-token local context at <2000 messages).
+    const fullCorpus = buildCorpus(messages);
+    if (
+      messages.length <= oversizeThresholdMessages
+      && Buffer.byteLength(fullCorpus, 'utf8') <= oversizeThresholdBytes
+    ) {
       // Single pass
-      const corpus = buildCorpus(messages);
+      const corpus = fullCorpus;
       // ponytail: 4096 headroom for a whole-corpus JSON array of candidates (unbounded
       // count, unlike other classify() callers' single-object budgets). If a corpus still
       // truncates at this size, chunk it — don't just raise the number again.

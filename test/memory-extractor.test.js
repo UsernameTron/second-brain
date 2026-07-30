@@ -377,6 +377,25 @@ describe('extractFromTranscript', () => {
     expect(classifyCalls.length).toBeGreaterThan(1);
   });
 
+  test('corpus over oversizeThresholdBytes takes the chunked path even under the message count (A3)', async () => {
+    const transcriptPath = path.join(tmpDir, 'oversized-bytes.jsonl');
+    // 200 messages (< 2000) but each ~30KB → corpus > 5 MiB byte threshold
+    const bigBody = 'x'.repeat(30000);
+    const lines = [];
+    for (let i = 0; i < 200; i++) {
+      lines.push(makeMessage('user', 'Message ' + i + ' ' + bigBody));
+    }
+    fs.writeFileSync(transcriptPath, lines.join('\n') + '\n');
+
+    const mockClient = {
+      classify: jest.fn().mockResolvedValue({ success: true, data: [] }),
+    };
+
+    await extractor.extractFromTranscript(transcriptPath, 'session-abc', { _haikuClient: mockClient });
+    // Chunked path = multiple classify calls despite < 2000 messages
+    expect(mockClient.classify.mock.calls.length).toBeGreaterThan(1);
+  });
+
   test('deduplicates candidates across chunks by content_hash', async () => {
     const transcriptPath = path.join(tmpDir, 'overlap.jsonl');
     const lines = [];
