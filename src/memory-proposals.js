@@ -156,6 +156,24 @@ async function acquireLock() {
       return { acquired: true };
     } catch (err) {
       if (err.code === 'EEXIST') {
+        // C1: a SIGKILLed holder leaves the lock forever — treat locks older
+        // than LOCK_TIMEOUT_MS (or unreadable/corrupt ones) as stale and reclaim.
+        let stale = false;
+        try {
+          const existing = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+          const acquiredAt = Date.parse(existing.acquired);
+          stale = Number.isNaN(acquiredAt) || Date.now() - acquiredAt > LOCK_TIMEOUT_MS;
+        } catch (_) {
+          stale = true; // unreadable/corrupt lock file
+        }
+        if (stale) {
+          try {
+            fs.unlinkSync(lockPath);
+          } catch (unlinkErr) {
+            if (unlinkErr.code !== 'ENOENT') throw unlinkErr;
+          }
+          continue; // retry acquisition immediately
+        }
         await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
       } else {
         throw err;
