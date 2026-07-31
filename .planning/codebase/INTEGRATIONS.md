@@ -1,6 +1,6 @@
 # External Integrations
 
-**Analysis Date:** 2026-07-26
+**Analysis Date:** 2026-07-31
 
 ## AI / LLM Providers
 
@@ -12,7 +12,9 @@
 
 **LM Studio (local fallback):**
 - OpenAI-compatible HTTP endpoint. Config: `config/pipeline.json` → `classifier.llm.localEndpoint: "http://localhost:1234"`, `localModel: "qwen/qwen3.6-27b"`
-- Implementation: `classifyLocal()` in `src/pipeline-infra.js` — POSTs to `${localEndpoint}/v1/chat/completions`; 10s default timeout via `AbortController`; optional `Authorization: Bearer` header from `LM_API_TOKEN` env var
+- Implementation: `classifyLocal()` in `src/pipeline-infra.js` — POSTs to `${localEndpoint}/v1/chat/completions`; timeout via `AbortController`, computed as `Math.min(llmConfig.localTimeoutMs || 10_000, callOptions.timeoutMs ?? Infinity)` so a caller with a hard wall clock narrows the config value instead of inheriting it (the Stop hook, SIGKILLed at 60s, passes 50000ms); optional `Authorization: Bearer` header from `LM_API_TOKEN` env var
+- **Loaded context raised 32768 → 65536 (2026-07-31)**, with flash attention and `q8_0` K/V cache quantization, persisted per-model in `~/.lmstudio/.internal/user-concrete-model-default-config/qwen/qwen3.6-27b.json` so the server's JIT loads pick it up too. Prompted by real extraction requests of 33,315 and 62,968 tokens being rejected against the old 32,768 window (`exceed_context_size_error` + Channel Error). The model supports up to 262144 and loads at ~16.3 GiB on the host (MacBook Pro, Apple M4 Pro, 48 GB unified memory).
+- **`localTimeoutMs` raised 60000 → 900000** in `config/pipeline.local.json` to match measured throughput: two successful completions at 48,968 prompt tokens, cold prefill ~86 tok/s (a 49k-token request took ~9.5 min uncached, ~26 s warm on a prompt-cache hit), generation ~6-7 tok/s. A 60s timeout could not finish a real extraction chunk at this context size.
 - Selection logic: active only when `config/pipeline.json` `classifier.llm.provider === 'local'` **and** `process.env.LLM_PROVIDER !== 'anthropic'` — unattended/scheduled runs (dream-propose launchd job) force `LLM_PROVIDER=anthropic` to bypass local entirely
 - Failure handling: network/timeout errors fall back to Anthropic Haiku, capped nightly at 50 calls (`config/pipeline.json` `haikuNightlyCap`, tracked in `src/utils/classifier-health.js`); JSON parse errors return immediately with **no** fallback
 
@@ -22,6 +24,7 @@
 - Auth: `VOYAGE_API_KEY` env var, **optional** — its absence degrades `/recall --semantic` and `--hybrid` to keyword-only search with a warning banner
 - Implementation: `src/semantic-index.js` — embed-on-promotion writes to `~/.cache/second-brain/embeddings.jsonl`; query-time scoring is cosine similarity + recency decay, gated by an excluded-terms scan applied **before** any Voyage call; hybrid mode does RRF fusion with keyword results (`rrfK: 60`)
 - Health/degradation: `src/utils/voyage-health.js` implements Pattern 7 (Adaptive Denial Tracking), persisting to `~/.cache/second-brain/voyage-health.json`
+- **Rate limits are a real failure mode, not a theoretical one.** On the free tier (3 RPM / 10K TPM) Voyage returns 429s under normal pipeline load; that is what failed the `dream:apply` retrievability gate closed once — the gate treats blocked/degraded retrieval as a regression and auto-restores the snapshot rather than assuming the merge was fine. A paid key was installed 2026-07-31 and the health tracker now reports 0 consecutive failures. `scripts/eval-recall.js` still carries the `ponytail:`-tagged fixed pacing for the free-tier limit, with `EVAL_EMBED_PACE_MS=0` as the documented paid-key escape.
 
 ## Vault Substrate (Obsidian)
 
@@ -55,7 +58,7 @@ Note: `.mcp.json` at the repo root registers only `context7` (Upstash docs MCP f
 
 ## Scheduling & Automation (macOS launchd)
 
-- **`com.secondbrain.today`** — not committed to the repo (plist exists only at `~/Library/LaunchAgents/`); documented in `config/scheduling.json`. Runs weekdays 06:45 local, executing the `/today` briefing, now writing through `vault-gateway.js` into `briefings/`.
+- **`com.secondbrain.today`** — committed at `config/com.secondbrain.today.plist` (tracked since PR #90; the earlier "not committed" note in this doc was wrong) and also documented in `config/scheduling.json`. Runs weekdays 06:45 local via `scripts/today-scheduled.js`, writing the briefing through `vault-gateway.js` into `briefings/`. Since PR #96 the script exits 1 on a resolved error envelope, so a briefing-less morning is recorded as a launchd failure instead of a success.
 - **`com.secondbrain.daily-sweep`** — committed at `config/com.secondbrain.daily-sweep.plist`; daily 23:45 local, runs `scripts/daily-sweep.js` (mines inbox + Daily notes + transcripts into memory proposals)
 - **`com.secondbrain.dream`** — committed at `config/com.secondbrain.dream.plist`; monthly (Day 1, 07:15 local), runs `node scripts/dream.js --propose` only; sets `LLM_PROVIDER=anthropic` for unattended runs
 
@@ -98,4 +101,4 @@ Secrets live in `.env` (gitignored); shape documented in `.env.template`.
 
 ---
 
-*Integration audit: 2026-07-26*
+*Integration audit: 2026-07-31*

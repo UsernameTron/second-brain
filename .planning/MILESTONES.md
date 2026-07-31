@@ -1,5 +1,41 @@
 # Milestones
 
+## Between-Phase: Audit & Improvement Pass (2026-07-31, PR #96)
+
+Not a milestone — a between-phase pass inside v1.8, recorded here because it moved the memory store and the vault more than most phases have. Merged to master as `161e9f0`; post-merge CI and CodeQL both green.
+
+**13 reliability fixes — 7 from the 2026-07-30 audit, 6 from Codex review.** Every one closes a path that failed silently:
+
+- `src/memory-proposals.js` `acquireLock` reclaims a stale-by-age lock only after probing the recorded pid with `process.kill(pid, 0)` — live and EPERM holders are never reclaimed, ESRCH-dead and corrupt/pid-less locks are. This was the silent-loss path: a SIGKILLed holder left `proposals.lock` in place forever and every later candidate was buffered while being reported as staged.
+- `src/pipeline-infra.js` `classifyLocal` uses `Math.min(llmConfig.localTimeoutMs, callOptions.timeoutMs ?? Infinity)`, so the Stop hook — killed at 60s — passes 50000ms instead of inheriting the 900s config.
+- `src/memory-extractor.js` treats `options.timeoutMs` as a single extraction-wide deadline: each classify gets the remaining budget and chunk processing stops with a recorded `timeout` failure below a 2s floor.
+- `src/pipeline-infra.js` `classifyAnthropic` honors `callOptions.timeoutMs` as the Anthropic SDK per-request `{ timeout }`.
+- `oversizeThresholdBytes` (`config/pipeline.json`, 5 MiB) is enforced instead of being dead config — chunks close on accumulated byte size too, a single over-threshold message is byte-truncated with a `[truncated: oversize message]` marker, and the message-count threshold is checked first so count-forced chunking never materializes the full high-signal-doubled corpus.
+- `scripts/today-scheduled.js` exits 1 when `runToday` resolves an error envelope; it used to exit 0, so launchd recorded briefing-less mornings as success.
+- `src/memory-extractor.js` `extractFromFile` wraps the candidate loop so throws are recorded via `recordFailure(results, 'extraction-error')` instead of aborting a whole directory sweep.
+- `scripts/wrap.js` counts staged as `written === true && !buffered` and prints "N staged, M buffered — run /wrap again to drain".
+- `src/pipeline-infra.js` `loadExcludedTerms` logs `logDecision('CONFIG', 'excluded-terms.json', 'LOAD_ERROR', ...)` instead of silently returning `[]`, which had disabled the exclusion gate outright.
+
+**Vault graph restructure.** New 8-note `maps/` MOC layer: `maps/home.md` as the single entry point, `how-to-read-the-brain-map.md` (the graph legend), plus `projects-moc`, `second-brain-moc`, `ctg-moc` (extended to all 15 `ctg/` notes), `claude-code-ops-moc`, `standups-moc`, `briefings-moc`. Before: no home note, both pre-existing MOCs orphaned, 103 orphan notes, only ~60 wikilinks outside `memory.md`, 24% of wikilink targets broken, and 3 empty `.canvas` stubs where a canvas mind map was assumed to exist. 16 files triaged — moves only, nothing deleted — into `archive/dispatch/`, `archive/stubs/`, and `archive/non-vault/`, with 8 empty directories removed and a log at `archive/dispatch/vault-triage-log.md`. `archive/unrouted-quarantine-20260720/README.md` manifest added for the 4,560 quarantined files (4,561 including the manifest) / ~18 MB (97% of vault file count) it holds, excluded from graph and search. Under explicit operator authorization the one LEFT-side change was frontmatter-only: `aliases:` entries on `ABOUT ME/architecture-decisions.md`, `cowork-architecture.md`, and `obsidian-design-system.md` so 61 title-form links in `memory.md` resolve; the temporary pointer stubs were archived.
+
+**Dream cycle (2026-07-31).** `npm run dream:propose` staged 15 MERGE ops plus 5 missed-pattern ADDs. After per-op review, 4 merges were accepted and applied by `npm run dream:apply` with the live retrievability gate passing (`evalPassed` true, no snapshot restore). 11 were rejected with written reasons in `proposals/dream-changeset-2026-07.md`: overlapping sources that would double-supersede, one golden-hash source, one malformed category, and several low-similarity concatenations of distinct facts.
+
+**Backlog drain (2026-07-31).** The `acquireLock` fix released the buffered backlog (reported as 483 candidates by the run that drained it; no pending-buffer artifact survives to re-verify that figure). Reviewing it against fixed criteria resolved 503: 98 promoted through `/promote-memories` in 10 batches (the cap is 10 per batch) and 405 rejected and archived — never deleted — with 2 synthetic dedup-test fixtures (`mem-20260422-011/012`) deliberately left unresolved. 0 ISPN/Genesys/Asana exclusion violations found. `memory.md` went 183 → 285 entries with the embeddings sidecar at 285 vectors, verified full coverage.
+
+**Retrieval eval.** `npm run eval:recall` ran before and after the code changes and matched `eval/baseline-2026-07-19.json` exactly — keyword recall@5 0.900 / MRR 0.900, semantic 0.800 / 0.800, hybrid 0.900 / 0.900. This eval scores the frozen seed vault (`eval/seed-vault/`), so it gates retrieval code, not live `memory.md` edits.
+
+**Local-model retune.** `qwen/qwen3.6-27b` loaded context 32768 → 65536 with flash attention and q8_0 K/V cache quantization, persisted in `~/.lmstudio/.internal/user-concrete-model-default-config/qwen/qwen3.6-27b.json` so JIT loads inherit it; `config/pipeline.local.json` `localTimeoutMs` 60000 → 900000. Prompted by server logs showing real extraction requests of 33,315 and 62,968 tokens rejected against the then-32,768 context. Measured: two completions at 48,968 prompt tokens, cold prefill ~86 tok/s (~9.5 min uncached, ~26 s warm), generation ~6-7 tok/s, model loads at ~16.3 GiB on 48 GB unified memory.
+
+**Stats:**
+
+- **Test count:** 1568 across 82 test files — CI-measured 1530 passing / 38 skipped (80 of 82 suites run); local 1539 passing / 29 skipped
+- **Coverage:** branches 80.95% / statements 92.03% / functions 95.78% / lines 92.99% (CI-measured, `coverage-summary.json` `total.*.pct`)
+- **Lint:** `npm run lint` clean, 0 warnings
+
+**Left unfixed — folded into ROADMAP.md as candidate phases:** memory provenance backfill (16 of 285 entries lack `source-ref::`/`added::`, and the merge writer never emits them), the five silent-degradation sections in `/today`, the daily-sweep overall deadline, OTHER-category justification enforcement at promotion time, standup filename standardization, and the quarantine disposition decision.
+
+---
+
 ## v1.7 Prove Compounding (Shipped: 2026-07-16)
 
 **Phases completed:** 7 phases, 16 plans, 18 tasks

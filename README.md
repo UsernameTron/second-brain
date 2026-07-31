@@ -11,7 +11,7 @@ CLI commands that orchestrate an Obsidian vault into a second brain. Three core 
 - **`/new`** — Input routing: two-stage LLM classifier that sends mixed input to correct vault location (LEFT for identity/context, RIGHT for active work)
 - **`/wrap`** — Session memory extraction: auto-extracts learnings, decisions, insights into `memory-proposals.md` for human-in-the-loop promotion
 
-Built for a technical executive who directs AI. The project code lives in this repo (`src/`, `test/`, `.planning/`). The vault lives in Obsidian at `~/Claude Cowork/`. They couple via MCP (Docker MCP Gateway + Obsidian Local REST API plugin).
+Built for a technical executive who directs AI. The project code lives in this repo (`src/`, `test/`, `.planning/`). The vault lives in Obsidian at `~/Claude Cowork/`, entered through the `maps/` MOC layer (`maps/home.md` is the single entry point, added 2026-07-31). They couple via MCP (Docker MCP Gateway + Obsidian Local REST API plugin).
 
 ## Quick Start
 
@@ -42,7 +42,7 @@ All commands are Claude Code `/` commands invoked through the Obsidian MCP gatew
 ## Project Structure
 
 ```
-src/                          # Core modules (40 .js files total)
+src/                          # Core modules (41 .js files total)
 ├── vault-gateway.js         # LEFT/RIGHT boundary enforcement
 ├── today-command.js         # Daily briefing orchestrator (post-Phase-15 shell)
 ├── classifier.js            # Two-stage LLM input router (runStage0/1/2 + classifyInput)
@@ -56,6 +56,7 @@ src/                          # Core modules (40 .js files total)
 ├── memory-proposals.js      # Staging to memory-proposals.md with file locking
 ├── promote-memories.js      # Human-reviewed promotion to memory.md with archival
 ├── memory-reader.js         # memory.md parse + superseded/stale downranking
+├── memory-dashboard.js      # Derived read surface (memory/dashboard.md), regenerated on promotion
 ├── contradiction-check.js   # Flag-only contradiction surfacing at promotion (Phase 34)
 ├── dream.js                 # Monthly dream consolidation: MERGE/STALE/missed-pattern
 │                            # propose + snapshot-first human-gated apply (Phase 34)
@@ -105,14 +106,15 @@ eval/                         # Retrieval eval harness (v1.8 Phase 32)
 └── STATE.md                # Current execution checkpoint
 
 .claude/
-├── agents/                 # 7 deployed specialists
+├── agents/                 # 8 deployed specialists
 │   ├── docs-sync.md
 │   ├── memory-specialist.md
 │   ├── pipeline-reviewer.md
 │   ├── security-scanner.md
 │   ├── test-runner.md
 │   ├── test-verifier.md
-│   └── vault-guardian.md
+│   ├── vault-guardian.md
+│   └── vault-triage.md
 └── hooks/                  # 6 lifecycle hooks with test harnesses
     ├── auto-test.sh
     ├── protected-file-guard.sh
@@ -143,9 +145,10 @@ CLAUDE.md                    # Project governance, commands, conventions
 ## Status
 
 **Latest Release:** v1.7 Prove Compounding (2026-07-16) | Phases 29-31: Series Integrity, Outcome Instrumentation, Trend & Report
-**In progress:** v1.8 Measured Memory — Phases 32-35 shipped (Phase 35 Proactive Memory: SessionStart recall-injection hook); Phase 36 decision-gated
-- **1568 total tests** across 82 test files (1530 passing, 38 skipped in CI)
-- **Branch coverage:** 80.83% (threshold: ≥80% enforced in CI)
+**In progress:** v1.8 Measured Memory — Phases 32-35 shipped (Phase 35 Proactive Memory: SessionStart recall-injection hook); Phase 36 decision-gated. Audit & improvement pass 2026-07-31 (PR #96): 13 pipeline-reliability fixes, the vault `maps/` MOC layer, and a ranked P1-P8 audit report
+- **1568 total tests** across 82 test files (1530 passing, 38 skipped in CI; 1539 passing / 29 skipped locally)
+- **Branch coverage:** 80.95% (threshold: ≥80% enforced in CI)
+- **Memory layer:** 285 entries in `memory.md`, all 285 embedded in the sidecar (verified 2026-07-31)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10, CodeQL SAST, license-checker, Node 22 matrix, GitGuardian secrets scan
 - **Operational components:** `/today` daily briefing (weekdays 06:45 local via launchd), memory compounding metrics, outcome instrumentation (11-column daily-stats), compounding verdict surfaces
@@ -161,16 +164,16 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 | **Orchestration** | Claude Code | Command execution via `/today`, `/new`, `/wrap` |
 | **Runtime** | Node.js 22+ LTS | Project code execution (required by `node:sqlite`; tested in CI) |
 | **AI Models** | Anthropic Haiku/Sonnet | Primary LLM for classification and briefing generation |
-| **Fallback** | LM Studio | Local LLM if Anthropic API unavailable |
+| **Fallback** | LM Studio | Local LLM if Anthropic API unavailable — `qwen/qwen3.6-27b` at 65536-token context, `localTimeoutMs` 900000 |
 | **Testing** | Jest 30 | Unit + integration + UAT (UAT guarded from CI) |
 | **Linting** | ESLint 10 (flat config) | Code quality gate (53 violations fixed in v1.3) |
 | **Security** | CodeQL + GitGuardian | SAST + secrets scanning in CI |
 | **Config validation** | AJV 8 | JSON schema validation for all config files |
 | **File watching** | chokidar 3.6 | CJS-compatible file system events |
 
-**Key dependencies:** `@anthropic-ai/sdk` 0.90+, `gray-matter` 4.0 (YAML parsing), `dotenv` 17.4 (env vars), `voyageai` 0.2.1 (Phase 19 semantic embeddings, MIT)
+**Key dependencies:** `@anthropic-ai/sdk` 0.112+, `gray-matter` 4.0 (YAML parsing), `dotenv` 17.4 (env vars), `voyageai` 0.2.1 (Phase 19 semantic embeddings, MIT)
 
-**MCP integrations:** Gmail, Google Calendar, GitHub, Filesystem (all via Docker MCP Gateway)
+**MCP integrations:** GitHub + Obsidian via the Docker MCP Gateway; Gmail + Calendar via claude.ai connectors. None are registered in repo `.mcp.json` (context7 only) — they are session/Desktop-connected.
 
 ## Development
 
@@ -187,7 +190,7 @@ npm run test:uat           # UAT tests (requires CI= to unblock)
 - Critical modules (auth, vault boundary): ≥95%
 - All other modules: ≥80%
 
-Current coverage (CI-measured 2026-07-26): Statements 91.99%, Functions 95.61%, Lines 92.94%, Branch 80.83%
+Current coverage (CI-measured 2026-07-31): Statements 92.03%, Functions 95.78%, Lines 92.99%, Branch 80.95%
 
 ### Retrieval eval
 
@@ -206,7 +209,7 @@ Exit codes: 0 ok · 1 recall@5 regression vs baseline · 2 preflight/refusal · 
 
 Uses [GSD (Get Shit Done) framework](https://github.com/Pete-Gets-Shit-Done) for:
 - Phase-gated development (planning → implementation → verification → ship)
-- Automated agent coordination (7 deployed specialists in `.claude/agents/`)
+- Automated agent coordination (8 deployed specialists in `.claude/agents/`)
 - Lifecycle hooks for security, testing, memory extraction
 - Structured decision logging in `.planning/STATE.md`
 

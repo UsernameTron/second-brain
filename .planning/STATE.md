@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: Measured Memory
 status: in_progress
-last_updated: "2026-07-21T00:00:00.000Z"
-last_activity: 2026-07-21
+last_updated: "2026-07-31T00:00:00.000Z"
+last_activity: 2026-07-31
 progress:
   total_phases: 5
   completed_phases: 4
@@ -25,7 +25,9 @@ See: .planning/PROJECT.md (updated 2026-07-15 after v1.7 milestone start)
 
 Milestone: v1.8 Measured Memory — Phases 32-35 SHIPPED (32: PR #74 2026-07-19; 33: PR #88, 34: PR #86 + close-out #87, 35: PR #89 — all 2026-07-21). Phase dirs archived to milestones/v1.8-phases/.
 Phase 36 (Ingest Breadth): decision-gated, unscheduled — gate is a real L10 RAG Phase 3 timeline. Pete's call.
-Last activity: 2026-07-21 - Completed quick task 260721-tx7: Pete-gated audit fixes (branch protection, schema type, dependency majors)
+Repo: master clean at `161e9f0` (audit & improvement pass, PR #96, merged 2026-07-31 — post-merge CI + CodeQL both green). Suite 1568 tests / 82 files: CI-measured 1530 passing, 38 skipped; coverage branches 80.95% / statements 92.03% / functions 95.78% / lines 92.99%; lint 0 warnings.
+Memory store: 285 entries, embeddings sidecar 285 vectors (full coverage, verified).
+Last activity: 2026-07-31 - Audit & improvement pass (PR #96): 13 reliability fixes on silent-failure paths, vault `maps/` MOC layer, dream cycle (4 merges applied, gate passed), buffered backlog drained (98 promoted / 405 rejected-and-archived)
 Prior milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 2026-07-16); VERDICT-01 calendar-gated follow-up still open (due ~2026-08-06: ≥14 weekday daily-stats rows)
 
 **Shipped milestones:**
@@ -39,7 +41,7 @@ Prior milestone: v1.7 Prove Compounding — SHIPPED and archived (PR #66 merged 
 - v1.6 Enforcement Integrity & Surface Completion (2026-07-15)
 - v1.7 Prove Compounding (2026-07-16) — PR #66
 
-**Current milestone:** v1.8 Measured Memory (Phases 32-36) — Phases 32-35 complete (32: 2026-07-19; 33-35: 2026-07-21); Phase 36 decision-gated
+**Current milestone:** v1.8 Measured Memory (Phases 32-36) — Phases 32-35 complete (32: 2026-07-19; 33-35: 2026-07-21); Phase 36 decision-gated. Between-phase passes: vault restructure 2026-07-26 (PR #93), audit & improvement pass 2026-07-31 (PR #96).
 
 ## Accumulated Context
 
@@ -65,6 +67,7 @@ None. (Branch protection restored 2026-07-21, quick task 260721-tx7: PR required
 
 ### Filed, not fixed
 
+- **Audit P1/P4/P5/P6/P8 (2026-07-30)** — the five unfixed items from the audit report, now written up as candidate phases in ROADMAP.md. Nothing about them is scheduled.
 - **Desktop-chat userPreferences pointer line** — manual item from v1.6, confirm Pete pasted it.
 - (Resolved 2026-07-21, quick task 260721-tx7: `daily-stats-frontmatter.schema.json` `schema_version` type fixed string → integer with Pete's /gsd:do dispatch approval; test fixtures flipped to the corrected contract.)
 
@@ -87,6 +90,18 @@ None.
 | 260726-qcw | Vault restructure: 103 files moved into folders (root 83 → 1 loose file, top-level 109 → 26), archive constants repointed at all 7 sites in the same change-set as the moves, RIGHT/ dissolved (stats + briefings → briefings/), gateway names + quarantines vault-root writes, vault_hygiene column in daily-stats, memory/dashboard.md regenerated on every promotion; dedup proven intact on a real archived hash, verify:baseline 27/27, recall output unchanged | 2026-07-26 | 8273de2 | [260726-qcw](./quick/260726-qcw-vault-restructure-hold-path-constants-ga/) |
 | 260721-tx7 | Pete-gated audit fixes: branch protection restored + verified live (PR required, test (22) strict — matrix is Node 22-only); daily-stats schema_version string→integer with test contract flip; dep majors — SDK 0.112.5 + eslint-plugin-n 18 landed (content-policy lazy-init, Unlicense allowlisted), voyageai 0.4.0 evidence-rejected; pre-existing Voyage UAT jest flake diagnosed + filed | 2026-07-21 | 62ff9e5 | [260721-tx7](./quick/260721-tx7-pete-gated-audit-fixes-branch-protection/) |
 
+## Session Continuity — 2026-07-31 (audit & improvement pass)
+
+**PR #96 merged to master (`161e9f0`); post-merge CI + CodeQL both green.** Current branch is `chore/docs-sync-brain-map-2607`, carrying doc-sync edits only.
+
+- Repo: 13 reliability fixes on silent-failure paths (pid-probing `acquireLock`, min-of-timeouts in `classifyLocal`, extraction-wide deadline, SDK per-request timeout, `oversizeThresholdBytes` enforced, `today-scheduled.js` exit 1 on error envelope, per-file `extraction-error`, honest `/wrap` staged-vs-buffered counts, `LOAD_ERROR` on excluded-terms load failure). Details in MILESTONES.md.
+- Vault: 8-note `maps/` MOC layer (`maps/home.md` entry point, 6 MOCs, `how-to-read-the-brain-map.md` legend), 16 files triaged (moves only), 8 empty dirs removed, quarantine manifest added, LEFT `aliases:` frontmatter added under explicit operator authorization.
+- Memory: 183 → 285 entries. Dream cycle applied 4 of 15 proposed merges with the retrievability gate passing; 11 rejected with written reasons in `proposals/dream-changeset-2026-07.md`. Backlog drain resolved 503 — 98 promoted in 10 batches, 405 rejected and archived, 0 exclusion violations; 2 synthetic dedup-test fixtures left unresolved on purpose.
+- Local model: `qwen/qwen3.6-27b` context 32768 → 65536 (flash attention + q8_0 K/V), persisted durably; `localTimeoutMs` 60000 → 900000. That 900s ceiling is what makes the daily-sweep deadline a real candidate item.
+- **⚠️ Local classifier is degraded as of 2026-07-31 19:39Z, and the cause is structural.** `~/.cache/second-brain/classifier-health.json`: `consecutive_failures: 6`, `last_failure_code: "timeout"`, `haiku_calls: 50` — the entire `haikuNightlyCap` (50) spent in one day. LM Studio itself is healthy (`lms ps` shows the model loaded at 65536, `/v1/models` serving). The arithmetic is the problem: the Stop hook passes `timeoutMs: 50000` (`.claude/hooks/memory-extraction-hook.js:50`) and measured cold prefill is ~86 tok/s, so a 50s budget covers roughly **4,300 prompt tokens** — while a real session transcript runs into six figures. Hook-driven local extraction therefore times out by construction on every non-trivial transcript and falls back to Haiku until the cap is gone. PR #96's timeout clamp did exactly what it was designed to do (bound the call and record the failure instead of dying silently at SIGKILL); it also made visible that the local provider is unusable from the hook. Terminal `/wrap` is unaffected — it gets the full 900s. See the ROADMAP candidate for the fix options.
+- Voyage: new API key with billing installed by the operator after free-tier 3 RPM 429s failed the dream gate closed once; health tracker now at 0 consecutive failures.
+- `eval:recall` unchanged against `eval/baseline-2026-07-19.json` before and after (keyword 0.900, semantic 0.800, hybrid 0.900 recall@5). Reminder: that eval scores the frozen seed vault, not live `memory.md`.
+
 ## Session Continuity — 2026-07-21 (full project audit & close-out)
 
 **Audit branch `chore/full-audit-close-2026-07-21` complete and local — push awaits Pete's go.** Full pass: orient → automation health → deps → tests → doc sync → backlog triage → readiness → ship check → finalize.
@@ -100,6 +115,12 @@ Prior session-66 v1.7 grounding notes: archived with v1.7 (see `milestones/v1.7-
 
 ## Next Action
 
+Next session picks up, in order:
+1. Land the current `chore/docs-sync-brain-map-2607` branch (doc-sync edits only) as a PR, then return to a clean master.
+2. Highest-value candidate from the 2026-07-30 audit: **memory provenance backfill** — 16 of 285 entries lack both `source-ref::` and `added::`, and the dream MERGE writer still never emits them, so every future merge widens the gap. Patch the writer first, then backfill through the proposal gate. Related: 22 lines still cite the nonexistent `_audit/2026-07-18` path.
+3. Then the remaining candidates in ROADMAP.md, ranked as the audit ranked them: `/today` silent-degradation closure (P5), daily-sweep deadline (P6 — now urgent because `localTimeoutMs` is 900s), OTHER-category justification gate (P4), vault hygiene follow-ups (P8: standup filename convention, quarantine disposition).
+
 Pete decisions, in order:
 1. VERDICT-01 (~2026-08-06): run `node scripts/compounding-report.js` once ≥14 weekday rows exist; archive output + verdict to `.planning/`.
 2. Phase 36 gate: open (define requirements, plan, execute) or close v1.8 without it (`/gsd:complete-milestone`).
+3. Whether the audit candidates become a numbered v1.9 milestone or land as between-phase passes inside v1.8.

@@ -1,11 +1,11 @@
 # Session handoff (auto-written by Stop hook)
 
-- When: 2026-07-30 18:36 CDT
-- Branch: feat/audit-improvement-pass-2607
-- Dirty at stop: 1 files
+- When: 2026-07-31 14:38 CDT
+- Branch: chore/docs-sync-brain-map-2607
+- Dirty at stop: 20 files
 - Recent commits:
-  - 9121f8a chore: drop useless initializer flagged by no-useless-assignment (C1 follow-up)
-  - bdd1c80 fix: log excluded-terms load failure instead of silently returning [] (B5)
-  - d92c83e fix: report buffered candidates distinctly in /wrap output (C2)
-  - 401bee1 fix: extractFromFile records candidate-loop throws instead of propagating (B4)
-  - 46ac3dc fix: enforce oversizeThresholdBytes on the extraction corpus (A3)
+  - 161e9f0 Audit & improvement pass: workflow reliability fixes, vault graph restructure, audit report (#96)
+  - db7ec10 fix: correct the config inventory claim in STACK.md (Codex P2, PR #94) (#95)
+  - 3ad4618 Docs sync, codebase-map refresh, and vault-triage agent (post-restructure) (#94)
+  - 94782e1 Vault restructure, plus the two guard gaps the move exposed (#93)
+  - d0b41b1 Audit re-verify pass: lint zero-warning, doc drift fixes (2026-07-21b) (#92)

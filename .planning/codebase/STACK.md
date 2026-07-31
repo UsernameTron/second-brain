@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Analysis Date:** 2026-07-26
+**Analysis Date:** 2026-07-31
 
 ## Languages
 
@@ -85,6 +85,14 @@ No TypeScript, no JSX. `.mcp.json` (repo root) registers one dev-tool MCP server
 - `src/content-policy.js` - excluded-term matching is now whole-token (word-boundary-safe via lookarounds, not `\b`, to avoid matching inside longer tokens like "ma[in in]dex")
 - `src/reach-exporter.js` - egress content-policy gate is fail-closed: stays closed on any throw during the exclusion check, not just on an explicit denial
 
+## Notable Additions (PR #96, merged 2026-07-31)
+
+Thirteen reliability fixes, no dependency or runtime changes — versions above are unchanged. Stack-relevant items:
+
+- `config/pipeline.json` `extraction.oversizeThresholdBytes` (5 MiB) was **dead config** — read by `src/memory-extractor.js` and never enforced. It now bounds chunk accumulation and byte-truncates any single oversize message. `oversizeThresholdMessages` (2000) is checked first so the count-forced path never materializes the doubled corpus.
+- `config/pipeline.local.json` (gitignored overlay) sets `classifier.llm.localTimeoutMs: 900000`, raised from 60000 to match the LM Studio model's measured prefill rate at a 65536 context — see INTEGRATIONS.md for the measurements. Callers with a hard wall clock now narrow this value rather than inherit it.
+- `config/com.secondbrain.today.plist` → `scripts/today-scheduled.js` exits 1 on a resolved error envelope, so launchd no longer records a briefing-less morning as a success.
+
 ---
 
-*Stack analysis: 2026-07-26*
+*Stack analysis: 2026-07-31*

@@ -50,6 +50,12 @@
         <mxCell id="e5" value="answers come from here" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;exitX=0.9;exitY=0;entryX=0.5;entryY=1;labelBackgroundColor=#ffffff;fontSize=11;" edge="1" parent="1" source="vault" target="f4">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
+        <mxCell id="map" value="&lt;b&gt;Find your way around&lt;/b&gt;&#xa;&#xa;One home page links every hub — projects, CTG, the system itself, standups, briefings.&#xa;&#xa;Open the graph view to see the whole notebook as a map." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6e6e6;strokeColor=#666666;fontSize=12;align=left;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="410" width="240" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="map" target="vault">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
         <mxCell id="auto" value="Runs by itself — no buttons to press" style="swimlane;startSize=30;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="60" y="650" width="820" height="150" as="geometry" />
         </mxCell>
@@ -62,7 +68,7 @@
         <mxCell id="a3" value="&lt;b&gt;Monthly (the 1st)&lt;/b&gt;&#xa;tidy-up suggestions for old memories" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="auto">
           <mxGeometry x="560" y="45" width="240" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="safe" value="&lt;b&gt;Safety rails&lt;/b&gt;&#xa;&#xa;· Private work topics are filtered out before anything is saved&#xa;· Every permanent memory needs Pete&#39;s explicit OK&#xa;· His own words are never machine-edited" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;align=left;spacing=14;" vertex="1" parent="1">
+        <mxCell id="safe" value="&lt;b&gt;Safety rails&lt;/b&gt;&#xa;&#xa;· Private work topics are filtered out before anything is saved&#xa;· Every permanent memory needs Pete&#39;s explicit OK&#xa;· His own words are never machine-edited&#xa;· Nothing is deleted — superseded material moves to an archive" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;align=left;spacing=14;" vertex="1" parent="1">
           <mxGeometry x="940" y="650" width="600" height="150" as="geometry" />
         </mxCell>
         <mxCell id="foot" value="Built by and for one operator — the memory layer under every one of Pete&#39;s projects. Tomorrow&#39;s work starts smarter than today&#39;s." style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontStyle=2;fontColor=#777777;" vertex="1" parent="1">

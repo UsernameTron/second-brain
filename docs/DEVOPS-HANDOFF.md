@@ -21,13 +21,15 @@ git clone <repo>
 cd second-brain
 npm install
 printf 'ANTHROPIC_API_KEY=...\n' > .env   # add ANTHROPIC_API_KEY and optionally VOYAGE_API_KEY (no .env.example in repo)
-npm test               # verify 1552 tests pass (1514 active + 38 CI-skipped)
+npm test               # 1568 tests across 82 files — locally 1539 passing + 29 skipped; under CI=true 1530 passing + 38 skipped
 npm run lint           # verify ESLint 10 clean
 ```
 
 All commands are Claude Code `/` commands invoked from the project terminal. No server process to start; commands run on-demand.
 
 **Automated daily briefing:** `/today` runs weekdays at 06:45 local time (StartCalendarInterval) via macOS launchd scheduler (`com.secondbrain.today`). See `~/Library/LaunchAgents/com.secondbrain.today.plist` for schedule configuration (documented in `config/scheduling.json`). RemoteTrigger is disabled by design (runs only on local machine wake).
+
+Since 2026-07-31 (PR #96) `scripts/today-scheduled.js` exits **1** when `runToday` resolves an inline error envelope, not just when it rejects. Previously a briefing-less morning exited 0 and launchd logged success — so a non-zero exit in the launchd log is now the signal that no briefing was written. Check the plist's `StandardErrorPath` for the envelope's error text.
 
 **User command surface (full flag inventory in README.md and CLAUDE.md):** `/today` (with compounding section), `/new`, `/wrap`, `/promote-memories`, `/reroute`, `/promote-unrouted`, `/recall <query> [--category <name>] [--since YYYY-MM-DD] [--top N]`, `/recall --semantic <query>`, `/recall --hybrid <query>`, `node scripts/compounding-report.js` (standalone CLI), `npm run eval:recall [-- --baseline]` (retrieval eval, v1.8 Phase 32). The `--category`, `--since`, and `--top N` flags apply uniformly across keyword, semantic, and hybrid recall modes.
 
@@ -65,6 +67,24 @@ All config lives in `config/` with optional `.local.json` overlays for dev tunin
 | `config/templates.json` | Domain templates and memory categories |
 
 To override for local dev: create `config/pipeline.local.json` with only the keys to override. The overlay pattern (`loadConfigWithOverlay`) merges it on top of the base config.
+
+### Local-model timeout and the Stop-hook budget (2026-07-31)
+
+The operator's machine sets the local timeout to **900000** (15 min), raised from 60000, via `config/pipeline.local.json`. The key is nested — `classifier.llm.localTimeoutMs`, not `llm.localTimeoutMs`:
+
+```json
+{ "classifier": { "llm": { "provider": "local", "localModel": "qwen/qwen3.6-27b", "localTimeoutMs": 900000 } } }
+```
+
+**A fresh clone does not get this.** `config/*.local.json` is gitignored (`.gitignore:20`) and `config/pipeline.json` ships no `localTimeoutMs`, so with no local overlay `classifyLocal` falls back to its hard-coded `10_000` ms default — not 60000, and not 900000. Write the file with the full nested path or the value is never read.
+
+Why 15 minutes: cold prefill on the local model measures ~86 tokens/sec, so a 49k-token extraction takes ~9.5 min uncached (~26 s on a prompt-cache hit) and generation runs ~6–7 tokens/sec. A 60 s ceiling could not finish a cold extraction chunk at this context size.
+
+That 15-minute ceiling is **not** inherited by hook-driven callers. `classifyLocal` computes its effective timeout as `Math.min(llmConfig.localTimeoutMs, callOptions.timeoutMs ?? Infinity)`, and `.claude/hooks/memory-extraction-hook.js` passes `timeoutMs: 50000` because Claude Code SIGKILLs the Stop hook at 60 s. `classifyAnthropic` honors the same `callOptions.timeoutMs` as the Anthropic SDK per-request `{ timeout }`.
+
+The hook budget is a single **extraction-wide** deadline, not a per-call timeout: each classify gets whatever remains, and once less than 2 s is left chunk processing stops and records a `timeout` failure rather than firing a doomed call. Operator consequence, measured 2026-07-31 — this is not an edge case. At ~86 tok/s cold prefill a 50 s budget covers roughly **4,300 prompt tokens**, so hook-driven local extraction times out on essentially every real transcript and falls back to Haiku. On 2026-07-31 that exhausted the whole `haikuNightlyCap` (50) in a day: `classifier-health.json` showed `consecutive_failures: 6`, `last_failure_code: "timeout"`, `haiku_calls: 50` while LM Studio served normally. LM Studio being healthy is not evidence the hook path works. Re-run `/wrap` from the terminal, where the full 900 s applies. A fix is on the roadmap (route hook extraction straight to Haiku, or bound the hook corpus to what 50 s can prefill).
+
+**Local model prerequisites:** LM Studio serving `qwen/qwen3.6-27b` with loaded context at **65536** (raised from 32768, with flash attention and q8_0 K/V cache quantization; ~16.3 GiB at load on 48 GB unified memory). The setting is persisted in `~/.lmstudio/.internal/user-concrete-model-default-config/qwen/qwen3.6-27b.json` so the server's JIT loads pick it up. At the old 32768 ceiling real extraction requests of 33,315 and 62,968 tokens were rejected with `exceed_context_size_error` + Channel Error.
 
 ### Semantic Search Configuration (Phase 19)
 
@@ -135,6 +155,17 @@ Phase 19 implements Pattern 7 (Adaptive Denial Tracking) for Voyage API failures
 
 One successful Voyage API call resets `consecutive_failures` to 0 and clears `degraded_until`. No manual intervention required.
 
+### Rate limits and the dream retrievability gate
+
+Voyage's free tier allows 3 requests/minute. That is below what a full re-embed or a dream-apply gate needs, and the 429s it produced tripped degraded mode. A billing-enabled key is now installed; the health tracker reports 0 consecutive failures.
+
+429s matter more here than in `/recall`, because degradation is **not** uniform across surfaces:
+
+- **`/recall --semantic` / `--hybrid`** — degrade *open*: fall back to keyword search with a banner. Retrieval still answers.
+- **`npm run dream:apply`** — degrades *closed*. The apply pass snapshots `memory.md` + the embeddings sidecar + the SQLite index, applies the accepted MERGE/STALE ops, then requires every merged entry to still be retrievable via hybrid search. Blocked or degraded retrieval is treated as a regression, so a 429 storm mid-gate auto-restores the snapshot and reverts the applied ops to unresolved. Nothing is half-applied and nothing is lost — but the run is wasted.
+
+**Operator rule:** confirm `voyage-health.json` shows `consecutive_failures: 0` before invoking `dream:apply`, and do not run it alongside a full re-embed. A clean run reports `evalPassed: true` with no snapshot restore (the 2026-07-31 run applied 4 accepted merges this way).
+
 ### Operator Diagnostics
 
 ```bash
@@ -166,8 +197,8 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 | Gate | Tool | Threshold |
 |---|---|---|
 | Lint | ESLint 10 (flat config) | 0 errors |
-| Unit + integration tests | Jest 30, Node 22 matrix | 1552 total, 1514 passing (CI) |
-| Branch coverage | Jest coverage | ≥80% enforced (currently 80.83%) |
+| Unit + integration tests | Jest 30, Node 22 matrix | 1568 total across 82 files; 1530 passing + 38 skipped, 80 of 82 suites run (CI, 2026-07-31) |
+| Branch coverage | Jest coverage | ≥80% enforced (currently 80.95%; statements 92.03%, functions 95.78%, lines 92.99%) |
 | Security scan | CodeQL SAST | 0 high/critical |
 | Secrets scan | GitGuardian | 0 secrets |
 | License check | license-checker | MIT/ISC/Apache/BSD only |
@@ -180,8 +211,8 @@ UAT tests (`test/uat/`) are guarded by `CI=true` skip logic and run on a separat
 - [ ] `VOYAGE_API_KEY` provisioned in `.env` (if semantic features are enabled)
 - [ ] Obsidian Local REST API plugin running on port 27123
 - [ ] Docker MCP Gateway running (for Gmail/Calendar/GitHub connectors)
-- [ ] launchd schedulers installed — all three plists are versioned in `config/` and copied to `~/Library/LaunchAgents/`: `com.secondbrain.today` (weekday `/today` 06:45 via `scripts/today-scheduled.js`, dotenv-gated), `com.secondbrain.daily-sweep` (23:45 nightly capture), `com.secondbrain.dream` (1st of month 07:15, propose-only, Anthropic-pinned). Load with `launchctl bootstrap gui/$(id -u) <plist>`
-- [ ] `npm test` passes (1552 tests, 1514 passing)
+- [ ] launchd schedulers installed — all three plists are versioned in `config/` and copied to `~/Library/LaunchAgents/`: `com.secondbrain.today` (weekday `/today` 06:45 via `scripts/today-scheduled.js`, dotenv-gated, exits 1 on a briefing-less run), `com.secondbrain.daily-sweep` (23:45 nightly capture), `com.secondbrain.dream` (1st of month 07:15, propose-only, Anthropic-pinned — `dream:apply` is never scheduled). Load with `launchctl bootstrap gui/$(id -u) <plist>`
+- [ ] `npm test` passes (1568 tests; 1530 passing + 38 skipped under CI)
 - [ ] `npm run lint` exits 0
 - [ ] `~/.cache/second-brain/` writable (auto-created on first `/recall --semantic`)
 
@@ -190,6 +221,15 @@ UAT tests (`test/uat/`) are guarded by `CI=true` skip logic and run on a separat
 - **Dream consolidation (Phase 34):** `npm run dream:propose` stages monthly MERGE/STALE ops to `proposals/dream-changeset-YYYY-MM.md` (also fired by the `com.secondbrain.dream` plist, 1st @ 07:15, `LLM_PROVIDER=anthropic` pinned in the plist). `npm run dream:apply` is human-invoked only — snapshot-first with an `eval:recall` retrievability gate that auto-restores on regression. `npm run verify:baseline` guards the 27 pre-governance memory hashes and runs in the pre-push gate.
 - **Proactive memory injection (Phase 35):** `.claude/hooks/session-memory-inject.js` runs at SessionStart — hybrid top-5 recall for a project-derived query, egress-filtered (fail-closed `checkContent`), ~750-token cap, always exits 0. Kill switches: `sessionInject.enabled` in config, `SB_SESSION_INJECT=0` env.
 - **Sweep evidence (Phase 33):** every nightly sweep writes `state/daily-sweep-last-run.json` (gitignored); `/today`'s Compounding section renders "sweep ran/STALE/NEVER RAN" from it. Classifier fallback is health-gated: `src/utils/classifier-health.js` caps per-night Haiku calls (`classifier.haikuNightlyCap`).
+
+### Reliability behavior (PR #96, 2026-07-31)
+
+- **Promotion drains in batches of 10.** `/promote-memories` promotes at most `promotion.batchCapMax` (10) accepted candidates per run; the rest stay `deferred` — promotable, not terminal — so a large backlog needs repeated runs. Rejected candidates are archived, never deleted. Clearing the 2026-07-31 backlog took 10 runs: **98 promoted, 405 rejected**, 0 exclusion violations, with 2 synthetic dedup-test fixtures left pending on purpose.
+- **Proposal lock reclaim is pid-probed.** `proposals.lock` is reclaimed when stale-by-age **only** if `process.kill(pid, 0)` proves the holder dead (`ESRCH`), or the lock file is corrupt/pid-less. A live holder — including `EPERM`, i.e. alive but another user's — is never stolen. Before this fix a SIGKILLed holder left the lock forever and every later candidate was silently buffered while being reported as staged; the fix released the buffered backlog (reported as 483 candidates by the run that drained it; no pending-buffer artifact survives to re-verify that figure).
+- **`/wrap` reports staged vs buffered separately.** Staged counts only results with `written === true && !buffered`; the output reads `N staged, M buffered — run /wrap again to drain`. A non-zero buffered count means run it again, not that extraction failed. `/wrap` still exits non-zero only on a hard extraction failure.
+- **A failed directory sweep no longer aborts.** `extractFromFile` wraps the candidate loop so a throw is recorded as an `extraction-error` failure and returns partial results for that file, instead of propagating and killing the whole sweep. Isolation is per **file**, not per candidate — a throw abandons the remaining candidates in that one file, and `extractFromDirectory` moves on to the next file.
+- **Config-load failures are visible.** A bad or unreadable `config/excluded-terms.json` used to return `[]`, silently disabling the ingress exclusion gate. It now emits `logDecision('CONFIG', 'excluded-terms.json', 'LOAD_ERROR', …)`. Treat that log line as a P1: exclusions are the ISPN/Genesys/Asana boundary.
+- **`npm run eval:recall` gates retrieval code, not live memory.** It scores the frozen `eval/seed-vault/` against `eval/golden-recall.json`, so it is unaffected by live `memory.md` edits. Baseline `eval/baseline-2026-07-19.json` re-verified unchanged on 2026-07-31: keyword recall@5 0.900 / MRR 0.900, semantic 0.800 / 0.800, hybrid 0.900 / 0.900.
 
 ## Known Tech Debt and Deferred Work
 
