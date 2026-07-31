@@ -1,6 +1,6 @@
 # Architecture
 
-**Analysis Date:** 2026-07-26
+**Analysis Date:** 2026-07-31
 
 ## Pattern Overview
 
@@ -8,7 +8,9 @@
 
 **Key characteristics:**
 - **Single write-enforcement choke point.** All vault mutations route through `src/vault-gateway.js`'s three sequential guards (path allowlist → content policy → style lint). No module writes to the vault directly. Guard 1 explicitly rejects vault-root file writes (`checkPath()`: any normalized path with no `/` is BLOCKed with a named reason, not folded into a generic allowlist miss) — the 2026-07-26 vault restructure treats a root write as a distinct, loggable failure mode.
-- **Never-throw LLM client contract.** `src/pipeline-infra.js`'s `createLlmClient()` wraps every Anthropic/local-LLM call so failures surface as `{success:false, failureMode}` data, never exceptions — callers branch on the result instead of catching.
+- **Never-throw LLM client contract, extended to the extraction loop.** `src/pipeline-infra.js`'s `createLlmClient()` wraps every Anthropic/local-LLM call so failures surface as `{success:false, failureMode}` data, never exceptions — callers branch on the result instead of catching. Since PR #96 the same contract holds one level up: `memory-extractor.js`'s `extractFromFile()` wraps its per-candidate loop so a throw is recorded as an `extraction-error` in the results envelope instead of aborting the whole directory sweep that called it.
+- **Lease locks are reclaimed on proven death, not on age alone.** `src/memory-proposals.js`'s `acquireLock()` records `process.pid` in `proposals.lock`; a lock that is stale by age is only reclaimed after `process.kill(pid, 0)` proves the holder is gone (`ESRCH`). A live holder — or an `EPERM` probe, meaning alive but not ours — is never reclaimed; a corrupt or pid-less lock file is. Before the probe existed, a SIGKILLed holder left the lock forever, and every later candidate was silently buffered to the pending JSONL while callers still reported it as staged.
+- **Timeout budgets propagate down, they don't re-inherit.** A caller with a hard wall clock (the Stop hook, killed at 60s) passes `timeoutMs` down and every layer narrows to it rather than falling back to its own config: `classifyLocal()` takes `Math.min(llmConfig.localTimeoutMs, callOptions.timeoutMs ?? Infinity)`, `classifyAnthropic()` forwards it as the SDK's per-request `{ timeout }`, and `memory-extractor.js` treats `options.timeoutMs` as one extraction-*wide* deadline — each classify gets the *remaining* budget, and chunk processing stops with a recorded `timeout` failure once less than a 2s floor is left. A per-call timeout would have let N chunks each burn the full budget.
 - **Adaptive-denial health tracking (Pattern 7).** `src/utils/voyage-health.js` and `src/utils/classifier-health.js` persist consecutive-failure counts to `~/.cache/second-brain/*.json` so independent CLI invocations (interactive session, nightly sweep, monthly dream) coordinate on a known-bad endpoint instead of each burning a full timeout.
 - **Non-fatal side channels.** Embedding (`indexNewEntries`), reach export, SQLite rebuild, dashboard regeneration, contradiction-flagging, and stats recording all wrap their own try/catch around the primary write — a side-channel failure is logged and surfaced in the return envelope, never thrown back at the caller.
 - **Human-in-the-loop gates via checkbox parsing.** Both the memory-promotion pipeline and dream-consolidation pipeline stage proposals as markdown files with `- [ ] accept/reject/...` checkboxes, parsed by one shared `parseCheckboxState()` (`src/memory-proposals.js`) — no second parser exists for the dream changeset.
@@ -35,6 +37,7 @@
 **Memory pipeline (compounding layer):**
 - Location: `src/memory-extractor.js` → `src/memory-proposals.js` → `src/promote-memories.js`
 - Purpose: extraction (session transcript or vault file → Haiku candidates) → staging with lock + hash-dedup → human-reviewed promotion into `memory/memory.md`, with category coercion, related-link population, contradiction flagging, dashboard regeneration, and archive rollover into `archive/memory` / `archive/proposals`.
+- Chunking is bounded on **both** axes since PR #96: `oversizeThresholdMessages` (2000) is checked *first* so the count-forced path never materializes the full high-signal-doubled corpus, then `oversizeThresholdBytes` (5 MiB, `config/pipeline.json`) closes a chunk on accumulated byte size and byte-truncates any single message over the threshold with a `[truncated: oversize message]` marker. The byte threshold was previously dead config — read from `config/pipeline.json` and never enforced.
 
 **Semantic + keyword retrieval:**
 - Location: `src/semantic-index.js`, `src/memory-reader.js`
@@ -195,7 +198,7 @@ daily-stats.js  recordDailyStats()  ──▶ briefings/daily-stats.md via vault
 
 **Claude Code hooks** (`.claude/hooks/`): `session-memory-inject.js` (SessionStart — proactive memory digest, budget-timed race against a timeout, exclusion-gated); `memory-extraction-hook.js` (Stop — triggers extraction); `auto-test.sh`, `protected-file-guard.sh`, `security-scan-gate.sh`, `staleness-check.js`.
 
-**Scheduled jobs** (macOS `launchd`): `config/com.secondbrain.daily-sweep.plist` → `scripts/daily-sweep.js` (23:45 daily); `config/com.secondbrain.dream.plist` → `scripts/dream.js --propose` (monthly, propose-only — `--apply` is explicitly never scheduled, human-invoked only).
+**Scheduled jobs** (macOS `launchd`): `config/com.secondbrain.today.plist` → `scripts/today-scheduled.js` (weekdays 06:45); `config/com.secondbrain.daily-sweep.plist` → `scripts/daily-sweep.js` (23:45 daily); `config/com.secondbrain.dream.plist` → `scripts/dream.js --propose` (monthly, propose-only — `--apply` is explicitly never scheduled, human-invoked only). `today-scheduled.js` exits 1 when `runToday` resolves an *error envelope*, not just when it rejects (PR #96) — previously a briefing-less morning exited 0 and `launchd` recorded a success.
 
 **Repo git hooks** (`hooks/`, `core.hooksPath`-managed): `pre-commit` (schema validation + vault-boundary check), `pre-push` (staleness + docs-sync gate), `post-merge` (non-blocking docs-drift warning).
 
@@ -209,6 +212,7 @@ daily-stats.js  recordDailyStats()  ──▶ briefings/daily-stats.md via vault
 - **Snapshot-first mutation with auto-restore:** `dream --apply` is the only workflow that edits existing entries; `runEvalGate()` reverts via `restoreSnapshot()` and un-checks the accept boxes on any post-apply retrieval regression.
 - **Quarantine-stub fallback for the daily briefing:** if `vaultWrite()` quarantines the real briefing body, `today-command.js` writes a `renderQuarantineStub()` placeholder to the same path; if that stub write also quarantines, the command reports a hard error (`TODAY_FATAL`) instead of silently leaving no file.
 - **Fail-open status lines:** `today/sweep-status.js`'s `computeSweepLine()` never throws — a missing/corrupt proof-of-fire file renders `sweep NEVER RAN` rather than crashing the briefing.
+- **Degradation must be *reportable*, not just survivable (PR #96):** three paths were degrading invisibly and now surface. `loadExcludedTerms()` logs `logDecision('CONFIG','excluded-terms.json','LOAD_ERROR',...)` instead of returning `[]` — an empty term list silently disabled the exclusion gate. `scripts/wrap.js` counts staged as `written === true && !buffered` and prints `"N staged, M buffered — run /wrap again to drain"` rather than reporting buffered candidates as staged. `extractFromFile()`'s per-candidate throws land as `extraction-error` entries in the results envelope instead of killing the enclosing sweep.
 
 ## Cross-Cutting Concerns
 
@@ -224,4 +228,4 @@ daily-stats.js  recordDailyStats()  ──▶ briefings/daily-stats.md via vault
 
 ---
 
-*Architecture analysis: 2026-07-26*
+*Architecture analysis: 2026-07-31*

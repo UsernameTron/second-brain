@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-07-26
+**Analysis Date:** 2026-07-31
 
 ## Test Framework
 
@@ -167,9 +167,9 @@ npx jest --coverage
 ```bash
 npx jest --coverage --coverageThreshold='{"global":{"branches":80,"functions":90,"lines":90,"statements":90}}'
 ```
-Coverage report written to `coverage/` (uploaded as a CI artifact per Node version, 14-day retention — `ci.yml:31-37`). When checking whether a number clears the gate, read `coverage/coverage-summary.json`'s `total.*.pct` fields — the "All files" text row in the HTML/terminal report is not what the CI gate reads.
+Coverage report written to `coverage/` (uploaded as a CI artifact per Node version, 14-day retention — `ci.yml:31-37`). When checking whether a number clears the gate, read `coverage/coverage-summary.json`'s `total.*.pct` fields — the "All files" text row in the HTML/terminal report is not what the CI gate reads. Measure with `CI=true` too: the CI skip-logic changes which suites execute, so a local run's percentages are not the numbers the gate sees.
 
-**Current numbers (CI=true, `coverage-summary.json` totals):** branches 80.83%, statements 91.99%, functions 95.61%, lines 92.94% — all clear the 80/90/90/90 gate. Branches is the tightest margin, consistent with the "future milestone" note above.
+**Current numbers (CI=true, `coverage-summary.json` `total.*.pct`, measured 2026-07-31):** branches 80.95%, statements 92.03%, functions 95.78%, lines 92.99% — all clear the 80/90/90/90 gate. Branches is the tightest margin, consistent with the "future milestone" note above.
 
 ## Test Types
 
@@ -212,10 +212,10 @@ embedSpy.mockRestore();
 ```
 (`test/uat/semantic-search.uat.test.js:152-168`)
 
-## Current Test Counts (verified 2026-07-26, post PRs #90-93)
+## Current Test Counts (verified 2026-07-31, post PR #96)
 
-**1552 total tests across 82 test files.** Local run (default env): **1523 passing / 29 skipped**. CI run (`CI=true`, skip-logic active): **1514 passing / 38 skipped** — the wider CI skip count reflects UAT/live-API guards described above triggering under `CI=true`, not test loss. Lint is clean (ESLint 10 flat config, zero warnings). Quote the CI split (1514/38), not the local split (1523/29), when documenting "what CI sees."
+**1568 total tests across 82 test files** (+16 since the 2026-07-26 count of 1552, from PRs #94-#96). Local run (default env): **1539 passing / 29 skipped**. CI run (`CI=true`, skip-logic active): **1530 passing / 38 skipped, 80 of 82 suites executed** — the wider CI skip count reflects UAT/live-API guards described above triggering under `CI=true`, not test loss. Lint is clean (ESLint 10 flat config, zero warnings). Quote the CI split (1530/38), not the local split (1539/29), when documenting "what CI sees."
 
 ---
 
-*Testing analysis: 2026-07-26*
+*Testing analysis: 2026-07-31*

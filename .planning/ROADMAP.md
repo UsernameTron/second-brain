@@ -14,7 +14,7 @@ Transform an Obsidian vault into a personal operating system with compounding me
 - ✅ **v1.5 Internal Hardening** — Phases 22-25 (shipped 2026-04-26, tag v1.5)
 - ✅ **v1.6 Enforcement Integrity & Surface Completion** — Phases 26-28 (shipped 2026-07-15, tag v1.6)
 - ✅ **v1.7 Prove Compounding** — Phases 29-31 (shipped 2026-07-16, PR #66)
-- 🚧 **v1.8 Measured Memory** — Phases 32-36 (Phases 32-35 shipped: 32 on 2026-07-19 via PR #74; 33-35 on 2026-07-21 via PRs #88/#86/#89; Phase 36 decision-gated, unscheduled)
+- 🚧 **v1.8 Measured Memory** — Phases 32-36 (Phases 32-35 shipped: 32 on 2026-07-19 via PR #74; 33-35 on 2026-07-21 via PRs #88/#86/#89; Phase 36 decision-gated, unscheduled). Between-phase passes: vault restructure 2026-07-26 (PR #93), audit & improvement pass 2026-07-31 (PR #96)
 
 ## Phases
 
@@ -42,6 +42,23 @@ Transform an Obsidian vault into a personal operating system with compounding me
 - [ ] Phase 36 (decision-gated, unscheduled): Ingest Breadth — Drive connector behind the `src/connectors/types.js` contract PLUS the missing connector→memory seam (no connector feeds memory.md today — gmail/calendar/github are briefing-only). Build once here, L10 RAG consumes it; do not fork. Gate: real L10 Phase 3 timeline.
 
 Ordering rationale: eval first (no recall claim is provable without a baseline — zero eval infra existed at planning); capture second (scheduler live-broken); lifecycle before injection (inject from a store with integrity checks).
+
+**Between-phase: Audit & Improvement Pass — DELIVERED 2026-07-31 (PR #96, post-merge CI + CodeQL both green).** Not a numbered phase; a full-system audit (report delivered to the vault, now at `inbox/archive/second-brain-audit-2026-07-30.md`) plus its fixes.
+
+- 13 reliability fixes, all on silent-failure paths — 7 from the audit, 6 from Codex review: pid-probing `acquireLock` (`process.kill(pid, 0)`; live/EPERM holders never reclaimed, ESRCH-dead and pid-less locks are), `classifyLocal` min-of-timeouts so the 60s-killed Stop hook passes 50000ms not 900s, one extraction-wide deadline in `memory-extractor` with a 2s floor and recorded `timeout` failure, `classifyAnthropic` honoring the SDK per-request `{ timeout }`, `oversizeThresholdBytes` (5 MiB) actually enforced with count-first chunk closing and byte-truncation of single oversize messages, `scripts/today-scheduled.js` exiting 1 on an error envelope, per-candidate `extraction-error` recording in `extractFromFile`, honest "N staged, M buffered" in `/wrap`, and a `LOAD_ERROR` decision log in `loadExcludedTerms` instead of a silent `[]` that disabled the exclusion gate.
+- Vault graph restructured: 7-note `maps/` MOC layer with `maps/home.md` as the single entry point, 16 files triaged (moves only), 8 empty dirs removed, quarantine manifest added, LEFT-side `aliases:` frontmatter added under explicit operator authorization so ~42 `memory.md` title-form links resolve.
+- Memory store 187 → 285 entries: 483-candidate buffered backlog released by the lock fix and drained (504 reviewed, 98 promoted in 10 batches, 405 rejected and archived, 0 exclusion violations), plus a dream cycle (15 MERGE + 5 missed-pattern ADDs staged, 4 merges applied with the retrievability gate passing, 11 rejected with written reasons). `eval:recall` unchanged against `eval/baseline-2026-07-19.json` before and after.
+
+### Candidate phases (from the 2026-07-30 audit — ranked, unscheduled, no phase numbers claimed)
+
+These are the audit's P1-P8 items the pass did **not** fix. They are candidates for the next milestone, not commitments.
+
+- [ ] **Candidate: Memory Provenance Backfill (audit P1).** 16 of 285 `memory.md` entries carry neither `source-ref::` nor `added::` — the dream MERGE writer never emits them, so every merge widens the gap. Two parts: backfill the missing entries through the proposal gate, and patch the merge writer so it cannot happen again. These are the newest, most authoritative entries in the store. Related index hygiene, same pass: 22 lines still cite `_audit/2026-07-18`, a path that no longer exists (the P7 `memory-archive/` half is already fixed — the INDEX now points at the real `archive/memory`).
+- [ ] **Candidate: /today Silent-Degradation Closure (audit P5).** Five briefing sections in `src/today-command.js` swallow errors in bare catch blocks (~288-338, 461-499), so a broken memory-health module produces normal-looking briefings forever. Smallest honest fix is a `degradedSections[]` line in the briefing. Same phase: `src/utils/classifier-health.js` increments the health file non-atomically across processes, and fallback-to-Haiku is invisible in instrumentation.
+- [ ] **Candidate: Daily-Sweep Deadline (audit P6).** With `localTimeoutMs` now at 900000, N chunks × 900s can run the 23:45 sweep into the 06:45 `/today` job. One elapsed-time check in the chunk loop — the per-extraction deadline shipped in PR #96 bounds a single extraction, not the whole sweep.
+- [ ] **Candidate: OTHER-Category Justification Gate (audit P4).** OTHER requires a justification clause and enforcement is 0% — every OTHER entry the audit sampled lacked one, and several were misfiled into OTHER when a real category applied. Add a promotion-time gate that rejects OTHER without justification, and recategorize the misfiled entries through the proposal gate.
+- [ ] **Candidate: Same-Session Cross-Category Dedup (audit P3, systemic half).** The 2026-07-31 dream cycle cleared the three named duplicate pairs, but the cause is upstream: the extractor can promote the same fact as both LEARNING and PATTERN in one session, and no cross-category same-session dedup check exists in `src/` today (grepped 2026-07-31). Without it, dream keeps mopping up duplicates the extractor keeps making.
+- [ ] **Candidate: Vault Hygiene Follow-Ups (audit P8).** Standardize the three competing standup filename conventions before the new MOC links calcify. Decide the disposition of `archive/unrouted-quarantine-20260720/` (4,560 files / ~18 MB / 97% of vault file count): delete after review, or keep permanently excluded from graph and search. Also on the list: exclude `memory/.snapshots/` from graph analytics rather than deleting it (they are `dream:apply` safety snapshots), and archive the two empty briefing dry-run eras.
 
 </details>
 

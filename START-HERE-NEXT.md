@@ -1,32 +1,38 @@
 # START HERE — next session pickup
-_Written 2026-07-14, end of session. Refreshed each session; this is the current "pick up here."_
+_Written 2026-07-31, end of session. Refreshed each session; this is the current "pick up here."_
 
-## What last session accomplished (2026-07-14)
-- Shipped decision-capture to the LIVE L10 app (project l10ctg): proposeDecision + ratifyDecision + decisionCanary deployed, 9 Cloud Functions total, firestore.rules gate live. Status: ALPHA, armed, headless (no reader yet).
-- Live-audited the running L10 app and corrected major doc drift: it is Q3 2026 (not Q2), 9 rocks (not 7), 26 open issues (not 222), running on branch chore/l10-upbase-history-import (not main). Ground truth is in REALITY.md.
-- Discovered the RAG engine ALREADY EXISTS in second-brain (semantic-index.js, /recall, Voyage embeddings). "Chat with Drive" = add a Drive connector + expose as a service. NOT building RAG from scratch.
-- Wrote the 6-phase gated L10 + RAG build plan (download: L10-BUILD-PLAN.md).
-- Built and packaged the session-harvest skill (session-harvest.zip) — still needs uploading.
-- Harvested today's lessons/decisions/capability-facts into second-brain sources (already appended to lessons.md, decisions.md, pattern-context.md; run mining to stage them).
+## What last session accomplished (2026-07-31)
+- Merged PR #96 — the audit & improvement pass: 13 reliability fixes (7 from the 2026-07-30 audit, 6 from Codex review). Post-merge CI and CodeQL both green; master is at 161e9f0.
+- Killed the silent-loss bug in the memory pipeline: `acquireLock` (src/memory-proposals.js) now probes the recorded pid with `process.kill(pid,0)` before reclaiming a stale-by-age lock, so live/EPERM holders are never reclaimed and a SIGKILLed holder no longer leaves `proposals.lock` forever while every later candidate is buffered but reported as staged. That fix released a 483-candidate buffered backlog.
+- Timeout plumbing is real end to end: `callOptions.timeoutMs` now caps the local model (`Math.min` against `localTimeoutMs`, so the Stop hook passes 50000ms instead of inheriting the 900s config), sets the Anthropic SDK per-request `{ timeout }`, and acts as a single extraction-WIDE deadline in the extractor. `oversizeThresholdBytes` (5 MiB) is enforced instead of being dead config.
+- Three more no-silent-failure fixes: `scripts/today-scheduled.js` exits 1 on an error envelope (launchd no longer records success on briefing-less mornings); `extractFromFile` records candidate-loop throws via `recordFailure` instead of aborting a whole directory sweep; `loadExcludedTerms` logs a `LOAD_ERROR` decision instead of silently returning `[]` and disabling the exclusion gate.
+- Drained the proposals gate: 504 pending candidates reviewed against fixed criteria, 98 promoted through /promote-memories in 10 batches (the batch cap is 10), 405 rejected and archived (never deleted), 0 ISPN/Genesys/Asana exclusion violations. memory.md is now 285 entries (was 187), and the embeddings sidecar holds 285 vectors — full coverage, verified.
+- Ran the monthly dream cycle: `dream:propose` staged 15 MERGE ops + 5 missed-pattern ADDs; 4 merges accepted after per-op review and applied by `dream:apply` with the live retrievability gate PASSING (no snapshot restore); 11 rejected with written reasons in `proposals/dream-changeset-2026-07.md`.
+- Retrieval eval run before and after the code changes, unchanged against `eval/baseline-2026-07-19.json` — keyword recall@5 0.900 / MRR 0.900, semantic 0.800 / 0.800, hybrid 0.900 / 0.900. It scores the FROZEN seed vault (`eval/seed-vault/`), so it gates retrieval CODE, not live memory.md edits.
+- Raised the local-model ceiling on this MacBook Pro (M4 Pro, 48 GB): qwen/qwen3.6-27b loaded context 32768 → 65536 with flash attention and q8_0 K/V cache quantization, persisted in the LM Studio per-model config so every future load (including the server's JIT loads) inherits it; `config/pipeline.local.json` localTimeoutMs 60000 → 900000. Two real extractions completed at ~49k prompt tokens. Prefill ~86 tok/s cold (~9.5 min for a 49k request, ~26 s warm on a prompt-cache hit), generation ~6-7 tok/s. Root cause it fixed: server logs showed real 33,315- and 62,968-token extraction requests rejected against the old 32,768 context.
+- Restructured the vault graph: new `maps/` MOC layer (7 notes, `home.md` is the single entry point), 16 files triaged into `archive/` (moves only, nothing deleted), 8 empty dirs removed, quarantine manifest added for the 4,560-file `archive/unrouted-quarantine-20260720/`. LEFT-side `aliases:` added to three `ABOUT ME/` notes under explicit operator authorization — that closes audit P2 and lets ~42 title-form links in memory.md resolve.
 
 ## Where to go (project directory)
-- Primary work:  ~/projects/CTG-Workspace-Build/projects/ctg-l10-eos
-- Second-brain:  ~/projects/second-brain
-- Build plan:    download L10-BUILD-PLAN.md and drop it in the l10 repo's .planning/ (optional — the tasks below are self-contained)
+- Primary work:  ~/projects/second-brain
+- Vault:         ~/Claude Cowork  (a separate agent owns vault-side changes)
+- Audit report:  ~/Claude Cowork/inbox/archive/second-brain-audit-2026-07-30.md — the ranked P1-P8 roadmap the task list below draws from
 
-## Your tasks, in order (each phase gates on YOUR validation before the next starts)
-1. PHASE 1 — Truth reconciliation. Fix the drifted docs to match REALITY.md; add the rule "no doc says done until validated against the live system" to CLAUDE.md. Then open the PR from chore/l10-upbase-history-import to main and MERGE it — prod is running off a chore branch, fix that first.
-   FASTEST START: open a fresh Claude Code session inside the l10 repo, hand it L10-BUILD-PLAN.md, and say "Start Phase 1."
-2. PHASE 2 — Build DecisionsView (the 11th view) so decision proposals are readable, and ratify the AUTHORITY map with Fred. Validate: solve a test issue, confirm the proposal appears AND is readable; confirm a stale/duplicate close produces NO proposal.
-3. PHASE 3 — Add a Drive connector to second-brain (share drive first) and embed via semantic-index.js. Build the 20-question eval set FIRST. Validate: eval passes AND the sidecar vector count matches the doc count (the dotenv gate — a green run that embedded zero is the known failure).
-4. PHASE 4 — Query Cloud Function + chat view in the L10 app; every answer must cite a clickable Drive file.
-5. PHASE 5 — Whole-Drive expansion with the per-user permission model (a user may only retrieve chunks from files they can already open). Last, on purpose.
+## Your tasks, in order (the audit findings still unfixed, ranked by impact)
+1. **P1 — memory provenance gap.** Verified 2026-07-31: all 16 `merged-from::` entries in memory.md lack both `source-ref::` and `added::`. The MERGE writer in `src/dream.js` (~L482-487) emits only `category`/`merged-from`/`tags`/`content_hash`, so today's 4 applied merges added 4 more to the original 12 from 2026-07-21. Patch the writer first so it can't happen again, then backfill the 16 through the proposal gate. These are the newest, most authoritative entries in the store.
+2. **P3 remainder — same-session cross-category duplication.** Today's dream pass handled the live duplicate pairs; the systemic cause is untouched. The extractor still promotes one fact as both LEARNING and PATTERN in a single session. Add a same-session cross-category dedup check.
+3. **P4 — OTHER-category justification is unenforced.** memory.md now holds 8 OTHER entries (the audit found 5), and there is no promotion-time justification gate in `src/promote-memories.js` — the extractor prompt asks for a justification, nothing rejects a candidate without one.
+4. **P5 — silent degradation in /today.** No `degradedSections` marker exists anywhere in `src/`. Five briefing sections still swallow errors in bare catch blocks (`src/today-command.js` ~288-338, ~461-499), so a broken memory-health module produces normal-looking briefings forever. Also: non-atomic health-file increments in `src/utils/classifier-health.js`, and fallback-to-Haiku is invisible in instrumentation.
+5. **P6 — daily-sweep has no overall deadline.** Higher stakes than when the audit was written: with localTimeoutMs now 900000, N chunks × 900s can run the 23:45 sweep into the 06:45 /today job. `scripts/daily-sweep.js` tracks `startedAt` for duration reporting only — one elapsed-time check in the chunk loop closes it.
+6. **P7 — dead path references in memory.md.** The INDEX archive path is now correct (`/Users/cpconnor/Claude Cowork/archive/memory`, which exists), but 19 entries still cite an `_audit/2026-07-18` path that does not. Fix via the proposal gate.
+7. **P8 — vault hygiene follow-ups.** Standardize the three standup filename conventions before the MOC links calcify; decide the fate of the 4,560-file quarantine (delete after review, or keep it excluded from graph and search); exclude `memory/.snapshots/` from graph analytics via Obsidian settings rather than deleting — they are dream:apply safety snapshots; archive the two empty briefing dry-run eras.
 
 ## Open loops / blockers
-- AUTHORITY map + NEVER_LIST in ratifyDecision.ts are UNRATIFIED — pending Fred (these are vision-board Calls 04/05). This is the last dependency for the decision pipeline going live.
-- proposeDecision is ARMED against production but headless until DecisionsView ships (Phase 2).
-- ctg-ops-prod billing is OFF while ctg-ops-automation (PRM ops) lives there — separate unresolved issue.
-- Upload session-harvest.zip; after that, capturing each session is one command.
+- **Nothing is pending on you.** The Voyage AI key is installed with billing added, so the free-tier 3 RPM 429s that once failed the dream gate closed are gone; the health tracker reports 0 consecutive failures. There is no operator-side item waiting.
+- The proposals gate is drained. 2 candidates remain pending and both are test fixtures (`session:abc12345`, IDs dated 20260422) — nothing real is waiting for review.
+- v1.8 Phase 36 (Ingest Breadth) is still decision-gated and unscheduled. The gate is a real L10 RAG Phase 3 timeline. Pete's call.
+- v1.7 VERDICT-01 is calendar-gated: due ~2026-08-06, needs ≥14 weekday daily-stats rows.
+- Carried forward from the 2026-07-14 session and NOT re-verified since — these live in ~/projects/CTG-Workspace-Build/projects/ctg-l10-eos, not this repo. Confirm against that repo before acting on any of them: the AUTHORITY map + NEVER_LIST in ratifyDecision.ts are unratified pending Fred; proposeDecision is armed against production but headless until DecisionsView ships; ctg-ops-prod billing is off while ctg-ops-automation (PRM ops) lives there.
+- Also carried forward, unverified: session-harvest.zip was built on 2026-07-14 and still needs uploading. `/wrap` covers session capture today, so check whether this is still wanted before spending time on it.
 
 ## To capture THIS work next time
-When the next session ends, say "harvest this session" (once session-harvest is installed): it distills → appends to sources → triggers mining → you approve → promote → verify the vector count.
+Run `/wrap` at session end — it stages extracted candidates to `proposals/memory-proposals.md`, exits non-zero when extraction hard-fails (so a failed extraction is distinguishable from an empty one), and now prints "N staged, M buffered — run /wrap again to drain" so a buffered backlog is visible instead of silent. Then `/promote-memories` for the human gate, and confirm the sidecar vector count matches the entry count.

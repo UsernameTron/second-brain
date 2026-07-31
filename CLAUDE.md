@@ -8,7 +8,8 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 
 - **Left vault**: Identity, context, reference material (ABOUT ME/)
 - **Right vault**: Active work, memory promotion, daily output
-- **Memory layer**: Compounding `memory.md` updated daily
+- **Map layer**: `maps/` — `home.md` is the vault's single entry point, linking 6 maps-of-content notes (`projects-moc`, `second-brain-moc`, `ctg-moc`, `claude-code-ops-moc`, `standups-moc`, `briefings-moc`) plus `how-to-read-the-brain-map.md`, the graph legend (added 2026-07-31)
+- **Memory layer**: Compounding `memory.md` updated daily — 285 entries, all 285 embedded in the sidecar (verified 2026-07-31)
 - **Heartbeat**: `/today` produces daily prep list
 
 ## Vault Rules
@@ -21,15 +22,15 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 
 ## Project Status
 
-> Last verified: 2026-07-26  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
+> Last verified: 2026-07-31  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
 
 **Latest Release:** v1.7 Prove Compounding (2026-07-16)
-**v1.8 Measured Memory (in progress):** Phases 32-35 shipped — Phase 32 Retrieval Eval Baseline 2026-07-19 (PR #74: `npm run eval:recall`, golden set, frozen seed vault, first baseline); Phase 33 Capture Reliability, Phase 34 Promotion Integrity + Dream Consolidation, and Phase 35 Proactive-Memory SessionStart Injection all 2026-07-21 (PRs #88/#86/#89). Phase 36 (Ingest Breadth) decision-gated, unscheduled. Vault restructure + guard-gap fixes (reach-egress fail-closed, /today briefing through the gateway, whole-token exclusion match) shipped 2026-07-26 (PR #93).
+**v1.8 Measured Memory (in progress):** Phases 32-35 shipped — Phase 32 Retrieval Eval Baseline 2026-07-19 (PR #74: `npm run eval:recall`, golden set, frozen seed vault, first baseline); Phase 33 Capture Reliability, Phase 34 Promotion Integrity + Dream Consolidation, and Phase 35 Proactive-Memory SessionStart Injection all 2026-07-21 (PRs #88/#86/#89). Phase 36 (Ingest Breadth) decision-gated, unscheduled. Vault restructure + guard-gap fixes (reach-egress fail-closed, /today briefing through the gateway, whole-token exclusion match) shipped 2026-07-26 (PR #93). Audit & improvement pass shipped 2026-07-31 (PR #96): 13 pipeline-reliability fixes — pid-probed stale-lock reclaim in `memory-proposals.js` (closed the silent buffered-loss path; the fix released a 483-candidate backlog), per-call LLM timeout plumbing plus a single extraction-wide deadline, enforced `oversizeThresholdBytes` (was dead config), non-zero exit when a scheduled `/today` produces no briefing, per-candidate extraction-error recording instead of aborting a directory sweep, staged-vs-buffered counts in `/wrap`, and a logged (no longer silent) excluded-terms load failure. Same pass added the vault `maps/` MOC layer and a ranked P1-P8 audit report.
 **v1.7 complete (2026-07-16):** Series Integrity (Phase 29), Outcome Instrumentation (Phase 30), Trend & Report (Phase 31)
 **v1.6 complete (2026-07-15):** Promotion Safety, Cross-Surface Reach (ADR-018/019), Context Honesty (staleness hook, ADR-020 authority hierarchy, fail-closed exclusions), Surface Completion (/reroute, pre-push docs gate)
 
 - **Test count:** 1568 total across 82 test files (1530 passing, 38 skipped in CI)
-- **Coverage:** Branch 80.83%, Statements 91.99%, Functions 95.61%, Lines 92.94% (CI-measured 2026-07-26)
+- **Coverage:** Branch 80.95%, Statements 92.03%, Functions 95.78%, Lines 92.99% (CI-measured 2026-07-31)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
 
@@ -87,7 +88,7 @@ Claude Code hooks live separately in `.claude/hooks/` (auto-test, protected-file
 - **Orchestration:** Claude Code (GSD framework for phases, planning, execution)
 - **Runtime:** Node.js 22 LTS or newer — required by `node:sqlite` (tested in CI)
 - **Integrations:** GitHub + Obsidian via Docker MCP Gateway (mcp__MCP_DOCKER__*); Gmail + Calendar via claude.ai connectors (mcp__claude_ai_*). Session/Desktop-connected — only context7 is registered in repo .mcp.json.
-- **AI models:** Anthropic Haiku/Sonnet, LM Studio for local fallback
+- **AI models:** Anthropic Haiku/Sonnet, LM Studio for local fallback (`qwen/qwen3.6-27b` at 65536-token context, `localTimeoutMs` 900000 in `config/pipeline.local.json`)
 - **Testing:** Jest 30 (unit + integration), UAT tests guarded from CI via skip logic
 - **Quality gates:** ESLint 10, CodeQL SAST, AJV schema validation, coverage ≥80%
 
@@ -118,7 +119,7 @@ The system is deployed across five integration points:
 1. **Vault substrate:** Obsidian (local-first markdown at `~/Claude Cowork/`) with Local REST API plugin as HTTP bridge
 2. **Orchestration:** Claude Code via `/today`, `/new`, `/wrap` commands; GSD framework manages phases
 3. **External integrations:** GitHub + Obsidian via the Docker MCP Gateway (Claude Desktop); Gmail + Calendar via claude.ai connectors. None are registered in repo .mcp.json (context7 only).
-4. **AI models:** Anthropic Haiku (default) and Sonnet (heavier tasks), with LM Studio as local fallback
+4. **AI models:** Anthropic Haiku (default) and Sonnet (heavier tasks), with LM Studio as local fallback — `qwen/qwen3.6-27b` loaded at 65536-token context (raised from 32768 on 2026-07-31; flash attention + q8_0 K/V cache, ~16.3 GiB on the M4 Pro / 48 GB box), `localTimeoutMs` 900000 in `config/pipeline.local.json`. The old 32768 ceiling was rejecting real 33k- and 63k-token extraction requests; the 900s timeout matches measured throughput (~86 tok/s cold prefill, ~6-7 tok/s generation). Callers that must finish sooner pass their own `timeoutMs` — the Stop hook passes 50000ms rather than inheriting 900s
 5. **Scheduling:** macOS launchd — `com.secondbrain.today` (weekdays 06:45), `com.secondbrain.daily-sweep` (23:45), `com.secondbrain.dream` (1st of month 07:15); plists versioned in `config/`. RemoteTrigger is vault-unreachable and disabled by design (`config/scheduling.json`)
 
 **Permission model:** LEFT vault side is read-only (human voice preserved); RIGHT side has full agent write access. OAuth scopes follow zero-trust: Gmail `gmail.compose` (draft-only, no send), Calendar read-only, GitHub issues-only.

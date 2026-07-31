@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-07-26
+**Analysis Date:** 2026-07-31
 
 ## Directory Layout
 
@@ -79,7 +79,7 @@ second-brain/
 
 **`.claude/agents/`:**
 - Purpose: subagent role definitions consumed by the Claude Code Task tool.
-- Contains: `docs-sync.md`, `memory-specialist.md`, `pipeline-reviewer.md`, `security-scanner.md`, `test-runner.md`, `test-verifier.md`, `vault-guardian.md`.
+- Contains: `docs-sync.md`, `memory-specialist.md`, `pipeline-reviewer.md`, `security-scanner.md`, `test-runner.md`, `test-verifier.md`, `vault-guardian.md`, `vault-triage.md` (added PR #94 — routes stray vault files; moves only, never deletes, never LEFT).
 
 **`.claude/skills/`:**
 - Purpose: skill definitions (`SKILL.md` per directory) invoked via the Skill tool.
@@ -122,7 +122,7 @@ second-brain/
 
 **Vault RIGHT side (`~/Claude Cowork/`, `config/vault-paths.json`, post-2026-07-26 restructure):**
 - Purpose: the actual Obsidian vault, not this repo, but its layout is driven entirely by `config/vault-paths.json`'s `right` array and is load-bearing for where code writes.
-- Contains: `memory/` (`memory.md` canonical store + generated `dashboard.md`), `briefings/` (`daily-stats.md` + `daily/<date>.md`, replacing the old top-level `RIGHT/` folder), `proposals/` (+ `unrouted/`, `left-proposals/` + its `archive/`), `archive/` (consolidated `archive/memory` + `archive/proposals`, replacing prior per-feature archive folders), `standards/`-equivalents (`standups`, `projects`, `maps`), plus `ctg`, `job-hunt`, `interview-prep`, `content`, `research`, `ideas`, `inbox`. `vault-gateway.js`'s `checkPath()` rejects any write with no folder segment (a vault-root file), and quarantines path violations as metadata-only records under `proposals/`.
+- Contains: `memory/` (`memory.md` canonical store + generated `dashboard.md`), `briefings/` (`daily-stats.md` + `daily/<date>.md`, replacing the old top-level `RIGHT/` folder), `proposals/` (+ `unrouted/`, `left-proposals/` + its `archive/`), `archive/` (consolidated `archive/memory` + `archive/proposals`, replacing prior per-feature archive folders), `standards/`-equivalents (`standups`, `projects`, `maps`), plus `ctg`, `job-hunt`, `interview-prep`, `content`, `research`, `ideas`, `inbox`. As of 2026-07-31 `maps/` holds the vault's MOC (map-of-content) layer — 7 notes added that day, entry point `maps/home.md` — and `archive/unrouted-quarantine-20260720/` carries a `README.md` manifest for the 4,560 inert dead-letter files it holds (see CONCERNS.md on why vault-wide file counts are misleading). `vault-gateway.js`'s `checkPath()` rejects any write with no folder segment (a vault-root file), and quarantines path violations as metadata-only records under `proposals/`.
 
 **`.github/workflows/`:**
 - Purpose: CI pipeline — ESLint, CodeQL, license-checker, Node 22 matrix, coverage thresholds, GitGuardian secrets scan (per root `CLAUDE.md`).
@@ -210,4 +210,4 @@ second-brain/
 
 ---
 
-*Structure analysis: 2026-07-26*
+*Structure analysis: 2026-07-31*
