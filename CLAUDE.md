@@ -28,7 +28,7 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 **v1.7 complete (2026-07-16):** Series Integrity (Phase 29), Outcome Instrumentation (Phase 30), Trend & Report (Phase 31)
 **v1.6 complete (2026-07-15):** Promotion Safety, Cross-Surface Reach (ADR-018/019), Context Honesty (staleness hook, ADR-020 authority hierarchy, fail-closed exclusions), Surface Completion (/reroute, pre-push docs gate)
 
-- **Test count:** 1559 total across 82 test files (1521 passing, 38 skipped in CI)
+- **Test count:** 1568 total across 82 test files (1530 passing, 38 skipped in CI)
 - **Coverage:** Branch 80.83%, Statements 91.99%, Functions 95.61%, Lines 92.94% (CI-measured 2026-07-26)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
