@@ -371,6 +371,34 @@ describe('acquireLock / releaseLock', () => {
     await memProposals._testOnly.releaseLock();
   });
 
+  test('stale-by-age lock held by a LIVE process is NOT reclaimed', async () => {
+    const lockFile = path.join(proposalsDir, 'memory-proposals.md.lock');
+    fs.writeFileSync(lockFile, JSON.stringify({
+      pid: process.pid, // this test process — definitely alive
+      acquired: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      holder: 'other',
+    }));
+    const result = await memProposals._testOnly.acquireLock();
+    expect(result.acquired).toBe(false);
+    // The live holder's lock file must survive
+    expect(fs.existsSync(lockFile)).toBe(true);
+    fs.rmSync(lockFile, { force: true });
+  }, 8000);
+
+  test('stale-by-age lock with a dead pid IS reclaimed', async () => {
+    const { spawnSync } = require('child_process');
+    const child = spawnSync(process.execPath, ['-e', '']); // spawned and already exited
+    const lockFile = path.join(proposalsDir, 'memory-proposals.md.lock');
+    fs.writeFileSync(lockFile, JSON.stringify({
+      pid: child.pid,
+      acquired: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      holder: 'other',
+    }));
+    const result = await memProposals._testOnly.acquireLock();
+    expect(result.acquired).toBe(true);
+    await memProposals._testOnly.releaseLock();
+  });
+
   test('corrupt lock file is treated as stale and reclaimed', async () => {
     const lockFile = path.join(proposalsDir, 'memory-proposals.md.lock');
     fs.writeFileSync(lockFile, 'not json at all');

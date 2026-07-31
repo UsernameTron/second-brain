@@ -163,6 +163,18 @@ async function acquireLock() {
           const existing = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
           const acquiredAt = Date.parse(existing.acquired);
           stale = Number.isNaN(acquiredAt) || Date.now() - acquiredAt > LOCK_TIMEOUT_MS;
+          // Age alone can't prove death — a slow-but-live holder past the timeout
+          // would get its lock yanked and two writers would overlap. If the lock
+          // names a pid, only reclaim when that process is actually gone.
+          if (stale && Number.isInteger(existing.pid)) {
+            try {
+              process.kill(existing.pid, 0); // signal 0 = existence probe
+              stale = false; // no throw → alive (EPERM also lands here via catch below)
+            } catch (probeErr) {
+              if (probeErr.code === 'EPERM') stale = false; // alive, not ours
+              // ESRCH → dead → stays stale/reclaimable
+            }
+          }
         } catch (_) {
           stale = true; // unreadable/corrupt lock file
         }
