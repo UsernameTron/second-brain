@@ -190,7 +190,10 @@ function createLlmClient(options = {}) {
     const controller = new AbortController(); // eslint-disable-line no-undef
     // Local models vary hugely in load/inference time; a 27B on first token can
     // exceed any fixed budget. Configurable, but unchanged at 10s when unset.
-    const timeoutMs = llmConfig.localTimeoutMs || 10_000;
+    // A1: clamp to the caller's budget — hook-driven callers (Stop hook is
+    // SIGKILLed at 60s) pass callOptions.timeoutMs so the call can finish or
+    // fall back before the process dies.
+    const timeoutMs = Math.min(llmConfig.localTimeoutMs || 10_000, callOptions.timeoutMs ?? Infinity);
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -295,12 +298,16 @@ function createLlmClient(options = {}) {
     try {
       const messages = [{ role: 'user', content: userContent }];
 
+      // Honor the caller's timeout budget (extraction deadline) at the SDK level —
+      // otherwise the Anthropic fallback can outlive the Stop hook's lifetime.
+      const requestOptions = callOptions.timeoutMs ? { timeout: callOptions.timeoutMs } : undefined;
+
       const response = await anthropic.messages.create({
         model,
         max_tokens: maxTokens,
         system: systemPrompt,
         messages,
-      });
+      }, requestOptions);
 
       rawText = response.content[0].text;
 
@@ -501,7 +508,10 @@ function safeLoadVaultPaths() {
 function loadExcludedTerms() {
   try {
     return loadConfigWithOverlay('excluded-terms');
-  } catch (_err) {
+  } catch (err) {
+    // B5: an empty list silently turns the exclusion gate off — log the failure.
+    const { logDecision } = require('./vault-gateway');
+    logDecision('CONFIG', 'excluded-terms.json', 'LOAD_ERROR', err.message);
     return [];
   }
 }

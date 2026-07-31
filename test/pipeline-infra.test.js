@@ -177,6 +177,29 @@ describe('createHaikuClient', () => {
     expect(typeof result.error).toBe('string');
   });
 
+  test('classify() passes callOptions.timeoutMs through as the SDK per-request timeout', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ text: '{"label":"RIGHT","confidence":0.9}' }]
+    });
+
+    const client = createHaikuClient();
+    await client.classify('system prompt', 'user content', { timeoutMs: 1234 });
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockCreate.mock.calls[0][1]).toEqual({ timeout: 1234 });
+  });
+
+  test('classify() omits SDK request options when no timeoutMs is given', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ text: '{"label":"RIGHT","confidence":0.9}' }]
+    });
+
+    const client = createHaikuClient();
+    await client.classify('system prompt', 'user content');
+
+    expect(mockCreate.mock.calls[0][1]).toBeUndefined();
+  });
+
   test('classify() never throws — all errors captured in return value', async () => {
     mockCreate.mockRejectedValueOnce(new Error('network timeout'));
 
@@ -871,6 +894,15 @@ describe('safeLoadVaultPaths', () => {
     safeLoadVaultPaths();
     expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'vault-paths.json', 'LOAD_ERROR', expect.any(String));
   });
+
+  test('loadExcludedTerms logs LOAD_ERROR and returns [] when the file is unreadable (B5)', () => {
+    // No excluded-terms.json in tmp config dir → triggers error path
+    const mockLogDecision = jest.fn();
+    jest.doMock('../src/vault-gateway', () => ({ logDecision: mockLogDecision }));
+    const { loadExcludedTerms } = require('../src/pipeline-infra');
+    expect(loadExcludedTerms()).toEqual([]);
+    expect(mockLogDecision).toHaveBeenCalledWith('CONFIG', 'excluded-terms.json', 'LOAD_ERROR', expect.any(String));
+  });
 });
 
 // ── safeLoadPipelineConfig (T12.3) ──────────────────────────────────────────
@@ -1044,6 +1076,34 @@ describe('classifyLocal — LLM fallback hardening', () => {
     expect(mockAnthropicCreate).toHaveBeenCalled();
     expect(result.success).toBe(true);
     expect(result.data).toEqual({ fallback: true });
+  });
+
+  test('callOptions.timeoutMs clamps a huge localTimeoutMs (A1)', async () => {
+    // Rewrite config with a huge local timeout — the caller budget must win.
+    const cfg = JSON.parse(fs.readFileSync(path.join(tmpConfigDir, 'pipeline.json'), 'utf8'));
+    cfg.classifier.llm.localTimeoutMs = 900000;
+    fs.writeFileSync(path.join(tmpConfigDir, 'pipeline.json'), JSON.stringify(cfg));
+
+    const mockLogDecision = jest.fn();
+    const mockAnthropicCreate = jest.fn().mockResolvedValue({
+      content: [{ text: '{"fallback":true}' }],
+    });
+    // Fetch never resolves on its own — only rejects when the abort signal fires.
+    global.fetch = jest.fn((url, opts) => new Promise((resolve, reject) => {
+      opts.signal.addEventListener('abort', () => {
+        reject(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
+      });
+    }));
+    const client = loadClientIsolated(mockLogDecision, mockAnthropicCreate);
+    const start = Date.now();
+    const result = await client.classify('sys', 'content', { timeoutMs: 50 });
+    const elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(2000); // aborted at ~50ms, not 900s
+    expect(mockLogDecision).toHaveBeenCalledWith(
+      'LLM_CLASSIFY', 'test-model', 'ERROR', expect.stringContaining('aborted')
+    );
+    expect(result.success).toBe(true);
   });
 
   test('falls back to Anthropic on ECONNREFUSED', async () => {

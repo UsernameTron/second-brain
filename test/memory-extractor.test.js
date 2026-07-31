@@ -377,6 +377,132 @@ describe('extractFromTranscript', () => {
     expect(classifyCalls.length).toBeGreaterThan(1);
   });
 
+  test('corpus over oversizeThresholdBytes takes the chunked path even under the message count (A3)', async () => {
+    const transcriptPath = path.join(tmpDir, 'oversized-bytes.jsonl');
+    // 200 messages (< 2000) but each ~30KB → corpus > 5 MiB byte threshold
+    const bigBody = 'x'.repeat(30000);
+    const lines = [];
+    for (let i = 0; i < 200; i++) {
+      lines.push(makeMessage('user', 'Message ' + i + ' ' + bigBody));
+    }
+    fs.writeFileSync(transcriptPath, lines.join('\n') + '\n');
+
+    const mockClient = {
+      classify: jest.fn().mockResolvedValue({ success: true, data: [] }),
+    };
+
+    await extractor.extractFromTranscript(transcriptPath, 'session-abc', { _haikuClient: mockClient });
+    // Chunked path = multiple classify calls despite < 2000 messages
+    expect(mockClient.classify.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  test('extraction-wide deadline: a chunk that exhausts the budget stops further chunks (A1)', async () => {
+    const transcriptPath = path.join(tmpDir, 'deadline.jsonl');
+    const lines = [];
+    for (let i = 0; i < 2100; i++) { // force the chunked path via message count
+      lines.push(makeMessage('user', 'Message number ' + i + ' with sufficient length for extraction test'));
+    }
+    fs.writeFileSync(transcriptPath, lines.join('\n') + '\n');
+
+    const budget = 2500; // floor is 2000ms — one slow chunk drops remaining below it
+    const seenTimeouts = [];
+    const mockClient = {
+      classify: jest.fn().mockImplementation(async (sys, user, callOptions) => {
+        seenTimeouts.push(callOptions.timeoutMs);
+        await new Promise((r) => setTimeout(r, 700));
+        return { success: true, data: [] };
+      }),
+    };
+
+    const result = await extractor.extractFromTranscript(
+      transcriptPath,
+      'session-abc',
+      { _haikuClient: mockClient, timeoutMs: budget }
+    );
+
+    // First chunk ran and consumed the budget; no further chunks were attempted
+    expect(mockClient.classify).toHaveBeenCalledTimes(1);
+    // The per-call timeout is the REMAINING budget, not the full budget per call
+    expect(seenTimeouts[0]).toBeLessThanOrEqual(budget);
+    expect(result.errors.some((e) => e.mode === 'timeout' && /deadline/.test(e.message))).toBe(true);
+  });
+
+  test('chunks close on byte size, not just message count (A3 byte-aware)', async () => {
+    const transcriptPath = path.join(tmpDir, 'byte-chunks.jsonl');
+    // 6 messages x ~2MB: count-splitting alone would send one 12MB chunk
+    const bigBody = 'x'.repeat(2 * 1024 * 1024);
+    const lines = [];
+    for (let i = 0; i < 6; i++) {
+      lines.push(makeMessage('user', 'Message ' + i + ' ' + bigBody));
+    }
+    fs.writeFileSync(transcriptPath, lines.join('\n') + '\n');
+
+    const thresholdBytes = 5242880;
+    const marker = '\n[truncated: oversize message]';
+    const mockClient = {
+      classify: jest.fn().mockResolvedValue({ success: true, data: [] }),
+    };
+
+    await extractor.extractFromTranscript(transcriptPath, 'session-abc', { _haikuClient: mockClient });
+
+    expect(mockClient.classify.mock.calls.length).toBeGreaterThan(1);
+    for (const call of mockClient.classify.mock.calls) {
+      expect(Buffer.byteLength(call[1], 'utf8')).toBeLessThanOrEqual(thresholdBytes + marker.length);
+    }
+  });
+
+  test('a single message over the byte threshold is truncated, not sent whole', async () => {
+    const transcriptPath = path.join(tmpDir, 'giant-message.jsonl');
+    const thresholdBytes = 5242880;
+    fs.writeFileSync(
+      transcriptPath,
+      makeMessage('user', 'Giant message ' + 'y'.repeat(thresholdBytes + 1024 * 1024)) + '\n'
+    );
+
+    const marker = '\n[truncated: oversize message]';
+    const mockClient = {
+      classify: jest.fn().mockResolvedValue({ success: true, data: [] }),
+    };
+
+    await extractor.extractFromTranscript(transcriptPath, 'session-abc', { _haikuClient: mockClient });
+
+    expect(mockClient.classify).toHaveBeenCalledTimes(1);
+    const sent = mockClient.classify.mock.calls[0][1];
+    expect(sent.endsWith(marker)).toBe(true);
+    expect(Buffer.byteLength(sent, 'utf8')).toBeLessThanOrEqual(thresholdBytes + marker.length);
+  });
+
+  test('count-forced chunking never materializes the full corpus (A2)', async () => {
+    const transcriptPath = path.join(tmpDir, 'no-full-corpus.jsonl');
+    const lines = [];
+    for (let i = 0; i < 2100; i++) {
+      lines.push(makeMessage('user', 'Message number ' + i + ' with sufficient length for extraction test'));
+    }
+    fs.writeFileSync(transcriptPath, lines.join('\n') + '\n');
+
+    const mockClient = {
+      classify: jest.fn().mockResolvedValue({ success: true, data: [] }),
+    };
+    // Every corpus the extractor builds gets byte-measured; if the full 2100-message
+    // corpus were materialized it would be measured too. Track the largest string seen.
+    const realByteLength = Buffer.byteLength.bind(Buffer);
+    let maxMeasured = 0;
+    const spy = jest.spyOn(Buffer, 'byteLength').mockImplementation((str, enc) => {
+      if (typeof str === 'string') maxMeasured = Math.max(maxMeasured, str.length);
+      return realByteLength(str, enc);
+    });
+    try {
+      await extractor.extractFromTranscript(transcriptPath, 'session-abc', { _haikuClient: mockClient });
+    } finally {
+      spy.mockRestore();
+    }
+
+    // Full corpus would be ~2100 x ~70 chars; per-chunk corpora are ~100 messages
+    const fullCorpusApprox = 2100 * 60;
+    expect(maxMeasured).toBeGreaterThan(0);
+    expect(maxMeasured).toBeLessThan(fullCorpusApprox / 2);
+  });
+
   test('deduplicates candidates across chunks by content_hash', async () => {
     const transcriptPath = path.join(tmpDir, 'overlap.jsonl');
     const lines = [];
@@ -448,6 +574,28 @@ describe('extractFromFile', () => {
     const result = await extractor.extractFromFile('memory/nonexistent.md', { _haikuClient: mockHaiku([]) });
     expect(Array.isArray(result)).toBe(true);
     expect(result).toHaveLength(0);
+  });
+
+  test('a throw from writeCandidate is recorded, not propagated (B4)', async () => {
+    jest.resetModules();
+    jest.doMock('../src/memory-proposals', () => ({
+      writeCandidate: jest.fn().mockRejectedValue(new Error('disk exploded')),
+    }));
+    const isolatedExtractor = require('../src/memory-extractor');
+
+    const notePath = path.join(tmpDir, 'memory', 'throwing-note.md');
+    fs.writeFileSync(notePath, '# Note\n\nContent long enough for the extraction pipeline test.\n');
+
+    const mockClient = mockHaiku([
+      { category: 'LEARNING', content: 'Candidate whose write will throw in this test', source_ref: 'file:memory/throwing-note.md', confidence: 0.9, rationale: 'test' },
+    ]);
+
+    const result = await isolatedExtractor.extractFromFile('memory/throwing-note.md', { _haikuClient: mockClient });
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].mode).toBe('extraction-error');
+    expect(result.errors[0].message).toContain('disk exploded');
+    jest.dontMock('../src/memory-proposals');
   });
 });
 

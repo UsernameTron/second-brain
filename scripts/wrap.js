@@ -128,7 +128,20 @@ async function main() {
     process.exit(1);
   }
 
-  process.stdout.write('Staged to proposals/memory-proposals.md — review with /promote-memories\n');
+  // C2: buffered candidates went to the pending JSONL, not the proposals file —
+  // report them distinctly instead of letting them print as staged.
+  const buffered = Array.isArray(results) ? results.filter((r) => r.buffered).length : 0;
+  // Staged = actually written to proposals; written:false duplicates don't count.
+  const staged = Array.isArray(results)
+    ? results.filter((r) => r.written === true && !r.buffered).length
+    : 0;
+  if (buffered > 0) {
+    process.stdout.write(
+      `${staged} staged, ${buffered} buffered — run /wrap again to drain\n`
+    );
+  } else {
+    process.stdout.write('Staged to proposals/memory-proposals.md — review with /promote-memories\n');
+  }
 }
 
 if (require.main === module) {
