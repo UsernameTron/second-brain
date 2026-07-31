@@ -172,6 +172,19 @@ describe('main', () => {
     expect(output).not.toContain('/promote-memories');
   });
 
+  test('written:false duplicates are not counted as staged (P2)', async () => {
+    writeRepoTranscript('dup-session.jsonl');
+    process.argv = ['node', 'wrap.js'];
+    extractFromTranscript.mockResolvedValueOnce([
+      { content: 'a duplicate', written: false, buffered: false },
+      { content: 'a buffered one', written: true, buffered: true },
+    ]);
+
+    await wrap.main();
+
+    expect(out.join('')).toContain('0 staged, 1 buffered — run /wrap again to drain');
+  });
+
   test('--transcript overrides the newest-transcript default', async () => {
     writeRepoTranscript('newest.jsonl');
     const explicit = writeRepoTranscript('older.jsonl', Date.now() - 86400000);
