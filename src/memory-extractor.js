@@ -293,10 +293,16 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
 
   const { chunkSize, chunkOverlap, oversizeThresholdBytes, oversizeThresholdMessages } = config.extraction;
   const haiku = options._haikuClient || createHaikuClient();
-  // A1: hook-driven callers pass a timeoutMs budget (Stop hook dies at 60s);
-  // threaded into classify() callOptions so local calls clamp to it.
-  const classifyOptions = { maxTokens: 8192 };
-  if (options.timeoutMs) classifyOptions.timeoutMs = options.timeoutMs;
+  // A1: hook-driven callers pass a timeoutMs budget (Stop hook dies at 60s).
+  // The budget is a single extraction-wide deadline, not a per-call timeout —
+  // N chunks x full budget each would blow the hook's lifetime.
+  const deadline = options.timeoutMs ? Date.now() + options.timeoutMs : null;
+  const DEADLINE_FLOOR_MS = 2000;
+  const budgetedOptions = () => {
+    const o = { maxTokens: 8192 };
+    if (deadline) o.timeoutMs = Math.max(deadline - Date.now(), 1);
+    return o;
+  };
   const systemPrompt = buildSystemPrompt();
 
   // Read transcript line-by-line
@@ -331,17 +337,22 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
     // A3: chunk on byte size too — a corpus can blow the model context long
     // before it hits the message-count threshold (a 62,968-token payload
     // nearly overflowed a 65,536-token local context at <2000 messages).
-    const fullCorpus = buildCorpus(messages);
-    if (
-      messages.length <= oversizeThresholdMessages
-      && Buffer.byteLength(fullCorpus, 'utf8') <= oversizeThresholdBytes
-    ) {
+    // Count check first: when the count alone forces chunking, don't
+    // materialize the full (high-signal-doubled) corpus just to measure it.
+    let fullCorpus = null;
+    if (messages.length <= oversizeThresholdMessages) {
+      const candidate = buildCorpus(messages);
+      if (Buffer.byteLength(candidate, 'utf8') <= oversizeThresholdBytes) {
+        fullCorpus = candidate;
+      }
+    }
+    if (fullCorpus !== null) {
       // Single pass
       const corpus = fullCorpus;
       // ponytail: 4096 headroom for a whole-corpus JSON array of candidates (unbounded
       // count, unlike other classify() callers' single-object budgets). If a corpus still
       // truncates at this size, chunk it — don't just raise the number again.
-      const response = await haiku.classify(systemPrompt, corpus, classifyOptions);
+      const response = await haiku.classify(systemPrompt, corpus, budgetedOptions());
       if (!response.success) {
         // eslint-disable-next-line no-console -- last-resort-error: Single-pass Haiku extraction failed; extractor returns [] tagged with errors
         console.error('[memory-extractor] Haiku extraction failed: ' + (response.error || 'unknown'));
@@ -362,11 +373,32 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
       // Chunked extraction per D-46
       let start = 0;
       while (start < messages.length) {
-        const end = Math.min(start + chunkSize, messages.length);
-        const chunk = messages.slice(start, end);
-        const corpus = buildCorpus(chunk);
+        // Deadline check per chunk — stop staging partial results rather than
+        // letting the Nth chunk run past the caller's (Stop hook's) lifetime.
+        if (deadline && deadline - Date.now() <= DEADLINE_FLOOR_MS) {
+          recordFailure(allResults, 'timeout', 'extraction deadline exhausted');
+          break;
+        }
 
-        const response = await haiku.classify(systemPrompt, corpus, classifyOptions);
+        // Close the chunk on byte size as well as message count — a run of
+        // large messages can blow the byte threshold well under chunkSize.
+        let end = start;
+        let bytes = 0;
+        while (end < messages.length && end - start < chunkSize) {
+          const msgBytes = Buffer.byteLength(buildCorpus([messages[end]]), 'utf8');
+          if (end > start && bytes + msgBytes > oversizeThresholdBytes) break;
+          bytes += msgBytes;
+          end++;
+        }
+        const chunk = messages.slice(start, end);
+        let corpus = buildCorpus(chunk);
+        if (Buffer.byteLength(corpus, 'utf8') > oversizeThresholdBytes) {
+          // Single message bigger than the threshold — truncate rather than skip.
+          corpus = Buffer.from(corpus, 'utf8').subarray(0, oversizeThresholdBytes).toString('utf8')
+            + '\n[truncated: oversize message]';
+        }
+
+        const response = await haiku.classify(systemPrompt, corpus, budgetedOptions());
         if (!response.success) {
           // eslint-disable-next-line no-console -- degradation-warning: Chunk extraction failed; loop continues to next chunk with partial results
           console.error('[memory-extractor] Chunk extraction failed at ' + start + ': ' + (response.error || 'unknown'));
@@ -384,9 +416,9 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
           allResults.push(...results);
         }
 
-        // Advance with overlap
-        start += chunkSize - chunkOverlap;
-        if (start >= messages.length) break;
+        // Advance with overlap; max() guarantees progress on byte-capped chunks.
+        if (end >= messages.length) break;
+        start = Math.max(end - chunkOverlap, start + 1);
       }
     }
   } catch (err) {

@@ -177,6 +177,29 @@ describe('createHaikuClient', () => {
     expect(typeof result.error).toBe('string');
   });
 
+  test('classify() passes callOptions.timeoutMs through as the SDK per-request timeout', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ text: '{"label":"RIGHT","confidence":0.9}' }]
+    });
+
+    const client = createHaikuClient();
+    await client.classify('system prompt', 'user content', { timeoutMs: 1234 });
+
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockCreate.mock.calls[0][1]).toEqual({ timeout: 1234 });
+  });
+
+  test('classify() omits SDK request options when no timeoutMs is given', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ text: '{"label":"RIGHT","confidence":0.9}' }]
+    });
+
+    const client = createHaikuClient();
+    await client.classify('system prompt', 'user content');
+
+    expect(mockCreate.mock.calls[0][1]).toBeUndefined();
+  });
+
   test('classify() never throws — all errors captured in return value', async () => {
     mockCreate.mockRejectedValueOnce(new Error('network timeout'));
 

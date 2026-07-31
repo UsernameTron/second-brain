@@ -298,12 +298,16 @@ function createLlmClient(options = {}) {
     try {
       const messages = [{ role: 'user', content: userContent }];
 
+      // Honor the caller's timeout budget (extraction deadline) at the SDK level —
+      // otherwise the Anthropic fallback can outlive the Stop hook's lifetime.
+      const requestOptions = callOptions.timeoutMs ? { timeout: callOptions.timeoutMs } : undefined;
+
       const response = await anthropic.messages.create({
         model,
         max_tokens: maxTokens,
         system: systemPrompt,
         messages,
-      });
+      }, requestOptions);
 
       rawText = response.content[0].text;
 
