@@ -1,17 +1,20 @@
 // Tiny fetch helper + WS URL + shape normalizers + formatters.
 // Same-origin, cookie-authenticated: no custom auth headers, ever.
 
+// Only these characters may appear in a caller-supplied API path. Rejects
+// scheme separators, hosts, backslashes, and dot segments outright, so no input
+// can express anything but a relative path on this origin's own API.
+const API_PATH = /^\/api(?:\/[A-Za-z0-9._~-]+)*\/?(?:\?[A-Za-z0-9._~=&%-]*)?$/;
+
 export async function api(path, opts = {}) {
-  // Requests can only ever target this origin's API. The path is parsed and
-  // normalized first (resolving any dot segments), then checked against the
-  // constant /api prefix — so neither an absolute URL nor a ../ sequence can
-  // steer a request off this origin's API surface.
-  const parsed = new URL(String(path), window.location.origin);
-  if (parsed.origin !== window.location.origin ||
-      !(parsed.pathname === '/api' || parsed.pathname.startsWith('/api/'))) {
+  // Requests can only ever target this origin's API surface. The path is
+  // allowlist-validated (no scheme, host, backslash, or dot segment can pass),
+  // then the request URL is rebuilt from a constant prefix.
+  const candidate = String(path);
+  if (!API_PATH.test(candidate) || candidate.includes('..')) {
     throw Object.assign(new Error('invalid API path'), { status: 0 });
   }
-  const url = parsed.pathname + parsed.search;
+  const url = `/api${candidate.slice(4)}`;
   const { body, headers, ...rest } = opts;
   const init = { ...rest, headers: { ...(headers || {}) } };
   if (body !== undefined) {

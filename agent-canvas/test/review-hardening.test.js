@@ -12,6 +12,7 @@ const path = require('node:path');
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-review-'));
 process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
+process.env.DEV_AUTH = '1'; // read at module load by auth.js — must precede requires
 
 const { db, nowIso } = require('../server/db');
 const memory = require('../server/memory');
@@ -138,4 +139,46 @@ test('model provider resolution and Vertex ID mapping', () => {
   assert.equal(webSearchToolFor('claude-sonnet-5', 'vertex').type, 'web_search_20250305');
   assert.equal(webSearchToolFor('claude-sonnet-5', 'anthropic').type, 'web_search_20260209');
   assert.equal(webSearchToolFor('claude-haiku-4-5', 'anthropic').type, 'web_search_20250305');
+});
+
+test('file upload rejects a caller-controlled non-Buffer body (CodeQL type confusion, was a 500)', async () => {
+  // The app-level JSON parser runs before the router, so Content-Type decides
+  // whether req.body is a Buffer or a parsed object/array. Reproduce both.
+  const express = require('express');
+  const routes = require('../server/routes');
+  const app = express();
+  app.use(express.json({ limit: '2mb' }));
+  app.use('/api', routes);
+
+  const { db: sdb, nowIso: iso } = require('../server/db');
+  sdb.prepare("INSERT OR IGNORE INTO allowlist (email, role, added_at) VALUES ('pete@cloudtechgurus.com','owner',?)").run(iso());
+
+  const server = app.listen(0);
+  await new Promise((r) => server.once('listening', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const signIn = await fetch(`${base}/api/auth/dev`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'pete@cloudtechgurus.com' }),
+    });
+    const cookie = (signIn.headers.get('set-cookie') || '').split(';')[0];
+    assert.ok(cookie.startsWith('ac_session='), 'dev sign-in issued a session');
+
+    const upload = (contentType, body) => fetch(`${base}/api/canvases/${CANVAS}/files?name=t.bin`, {
+      method: 'POST', headers: { cookie, 'content-type': contentType }, body,
+    });
+
+    const arrayBody = await upload('application/json', JSON.stringify([1, 2, 3]));
+    assert.equal(arrayBody.status, 400, 'array body rejected at the boundary, not a 500');
+    const objectBody = await upload('application/json', JSON.stringify({ a: 1 }));
+    assert.equal(objectBody.status, 400, 'object body rejected at the boundary, not a 500');
+    const empty = await upload('application/octet-stream', '');
+    assert.equal(empty.status, 400, 'empty body rejected');
+
+    const good = await upload('text/plain', 'hello');
+    assert.equal(good.status, 200, 'legitimate binary upload still works');
+    assert.equal((await good.json()).file.size, 5);
+  } finally {
+    server.close();
+  }
 });

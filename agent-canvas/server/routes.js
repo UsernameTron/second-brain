@@ -380,9 +380,16 @@ router.post('/canvases/:canvasId/positions', auth.requireCanvas, (req, res) => {
 
 // ---------- files ----------
 router.post('/canvases/:canvasId/files', auth.requireCanvas, express.raw({ type: '*/*', limit: '5mb' }), (req, res) => {
+  // The TYPE of req.body is caller-controlled: the app-level JSON parser runs
+  // before this router, so a JSON content-type yields a parsed object/array
+  // here instead of a Buffer, and express.raw() then skips. Validate at the
+  // boundary rather than trusting the middleware to have produced a Buffer.
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+    return res.status(400).json({ error: 'upload requires a non-empty binary body; do not send a JSON content-type' });
+  }
   const id = crypto.randomUUID();
   const name = qstr(req.query.name, 'file.bin').slice(0, 200);
-  const mime = req.headers['content-type'] || 'application/octet-stream';
+  const mime = String(req.headers['content-type'] || 'application/octet-stream').slice(0, 128);
   db.prepare('INSERT INTO files (id, canvas_id, name, mime, size, content, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     .run(id, req.params.canvasId, name, mime, req.body.length, req.body, req.user.email, nowIso());
   audit('user', req.user.email, 'file.upload', { fileId: id, name, size: req.body.length });
