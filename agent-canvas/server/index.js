@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const express = require('express');
 
-const { seedIfEmpty, DEMO_KICKOFF } = require('./seed');
+const { seedIfEmpty, DEMO_KICKOFF, seedExecCanvas, OWNER_EMAIL } = require('./seed');
 const { rateLimit } = require('./ratelimit');
 const routes = require('./routes');
 const { attachWebSocket } = require('./ws');
@@ -66,6 +66,7 @@ if (fs.existsSync(distDir)) {
 }
 
 const seedResult = seedIfEmpty();
+const execSeed = seedExecCanvas(OWNER_EMAIL);
 const orphans = recoverOrphans();
 
 const server = http.createServer(app);
@@ -73,7 +74,7 @@ attachWebSocket(server);
 
 if (require.main === module) {
   server.listen(PORT, () => {
-    process.stdout.write(`agent-canvas listening on :${PORT} (seeded=${seedResult.seeded}, orphaned runs recovered=${orphans}, demo canvas=${getSetting('demo_canvas_id')})\n`);
+    process.stdout.write(`agent-canvas listening on :${PORT} (seeded=${seedResult.seeded}, exec=${execSeed.seeded}, orphaned runs recovered=${orphans}, demo canvas=${getSetting('demo_canvas_id')})\n`);
   });
 }
 

@@ -401,7 +401,7 @@ export default function Workspace() {
   const [fitSignal, setFitSignal] = useState(0);
   const arrangeCanvas = useCallback(async () => {
     if (!state) return;
-    const ROLE_ORDER = ['research', 'coding', 'review'];
+    const ROLE_ORDER = ['research', 'coding', 'review', 'strategic', 'commercial', 'operational', 'workspace'];
     const roles = [...new Set((state.agents || []).map((a) => a.role))].sort((a, b) => {
       const ia = ROLE_ORDER.indexOf(a); const ib = ROLE_ORDER.indexOf(b);
       return (ia === -1 ? 9 : ia) - (ib === -1 ? 9 : ib) || String(a).localeCompare(String(b));
