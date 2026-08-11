@@ -74,9 +74,10 @@ test('correction supersedes, keeps history, and flags downstream citers transiti
 
 test('concurrent supersession of the same entry surfaces as a conflict, never last-write-wins', () => {
   const target = write('Meeting is on Tuesday', 'assumption');
+  // corrector is a different agent — self-upgrade to verified is banned
   const first = memory.correctEntry({
     entryId: target.id, content: 'Meeting is on Wednesday', epistemic: 'verified', reason: 'calendar checked',
-    authorType: 'agent', authorId: 'agent-1',
+    authorType: 'agent', authorId: 'agent-2',
   });
   assert.ok(!first.conflict);
   const second = memory.correctEntry({

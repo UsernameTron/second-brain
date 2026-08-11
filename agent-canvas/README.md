@@ -19,7 +19,7 @@ Key files: `server/memory.js` (contract), `server/orchestrator/runner.js` (run l
 - Livelock detection: an item bouncing between the same two agents more than twice escalates instead of dispatching.
 - Global pause (any member) kills in-flight model calls instantly; owner-only resume.
 - Daily token budget (owner-configurable) suspends new runs when spent; per-run/per-agent/per-day cost metering in the UI.
-- Model routing by task weight: `claude-haiku-4-5` for intent parsing/routing and light agents, `claude-opus-5` for strong agents (both env-overridable).
+- Model routing by task weight: `claude-haiku-4-5` for intent parsing/routing and light agents, `claude-sonnet-5` for strong agents (both env-overridable).
 - Immutable hash-chained audit log of every action, queryable by the owner; full workspace export as JSON.
 
 ## Quickstart

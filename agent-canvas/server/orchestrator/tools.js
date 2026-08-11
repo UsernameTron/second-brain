@@ -247,6 +247,13 @@ async function executeTool(name, input, ctx) {
   const { run, agent, canvas } = ctx;
   const ts = nowIso();
 
+  // Defense in depth for the global pause: no tool mutates anything while the
+  // workspace is paused, even if a stale run somehow reaches this point.
+  const control = require('./control');
+  if (control.isPaused()) {
+    return { content: 'Workspace is paused — this action was rejected server-side.', isError: true };
+  }
+
   switch (name) {
     case 'memory_search': {
       const entries = memory.listEntries({

@@ -15,14 +15,31 @@ function isPaused() {
   return getSetting('global_pause', '0') === '1';
 }
 
+// Pause is an epoch, not just a flag: hitting pause increments the workspace
+// generation. Runs capture the epoch they started under; any tool call or
+// model response arriving from an older epoch is rejected server-side, so a
+// slow in-flight inference that survives the abort cannot act after the pause
+// (zombie responses are dropped, not welcomed back).
+function currentEpoch() {
+  return Number(getSetting('pause_epoch', '0'));
+}
+
 function setPaused(paused, actor) {
   setSetting('global_pause', paused ? '1' : '0');
-  if (paused) setSetting('paused_by', actor);
-  audit('user', actor, paused ? 'control.pause' : 'control.resume', { inFlightAborted: paused ? abortControllers.size : 0 });
+  if (paused) {
+    setSetting('paused_by', actor);
+    setSetting('pause_epoch', String(currentEpoch() + 1));
+  }
+  audit('user', actor, paused ? 'control.pause' : 'control.resume', { inFlightAborted: paused ? abortControllers.size : 0, epoch: currentEpoch() });
   if (paused) {
     for (const [, controller] of abortControllers) controller.abort(new Error('global pause'));
   }
   bus.emit('event', { type: 'pause_state', canvasId: null, paused, by: actor });
+}
+
+// True when an action from a run that started under `epoch` must be rejected.
+function epochStale(epoch) {
+  return isPaused() || currentEpoch() !== epoch;
 }
 
 function registerAbort(runId, controller) { abortControllers.set(runId, controller); }
@@ -66,6 +83,6 @@ function budgetExceeded() {
 }
 
 module.exports = {
-  isPaused, setPaused, registerAbort, unregisterAbort,
+  isPaused, setPaused, currentEpoch, epochStale, registerAbort, unregisterAbort,
   addUsage, getDailyUsage, getDailyBudget, setDailyBudget, budgetExceeded, nowIso,
 };

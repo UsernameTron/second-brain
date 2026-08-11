@@ -36,7 +36,18 @@ Open the service URL, sign in with a cloudtechgurus.com Google account. The allo
 
 ## Operations notes
 
-- **Models**: strong tier defaults to `claude-opus-5`, fast tier `claude-haiku-4-5` (override with `STRONG_MODEL` / `FAST_MODEL` env vars). Costs are metered per run/agent/day inside the app; the daily budget (default $25, owner-adjustable in the UI) suspends new runs when reached.
+- **Models**: strong tier defaults to `claude-sonnet-5` (the workhorse), fast tier `claude-haiku-4-5` for routing/classification; frontier models (`claude-opus-5`, `claude-fable-5`) are deliberate opt-ins via `STRONG_MODEL` for canvases that need them. Costs — including web searches at $10/1k — are metered per run/agent/day inside the app; the daily budget (default $25, owner-adjustable in the UI) suspends new runs when reached. Research agents get server-side web search (disable with `ENABLE_WEB_SEARCH=0`); web-sourced memory entries must carry URL + retrieval-time provenance (enforced by the agent contract).
+- **Authoritative audit record**: every audit entry is hash-chained in SQLite (the queryable index) *and* mirrored as structured JSON to stdout, which Cloud Run delivers to Cloud Logging — a store the application runtime cannot update or delete. For regulator-grade immutability, route these entries to a dedicated log bucket with a **locked** retention policy (locking is deliberately irreversible — run this only once you're sure of the retention window):
+
+  ```bash
+  gcloud logging buckets create audit-locked --location=us-central1 --retention-days=365 --project agent-canvas-ctg
+  gcloud logging sinks create agent-canvas-audit \
+    logging.googleapis.com/projects/agent-canvas-ctg/locations/us-central1/buckets/audit-locked \
+    --project agent-canvas-ctg \
+    --log-filter='resource.type="cloud_run_revision" jsonPayload.audit=true'
+  # After validating entries arrive, lock it (IRREVERSIBLE):
+  # gcloud logging buckets update audit-locked --location=us-central1 --locked --project agent-canvas-ctg
+  ```
 - **Database durability**: SQLite on the instance disk, restored from `gs://agent-canvas-ctg-db` on cold start and continuously replicated by Litestream. `--max-instances 1` is required (single writer). If the workspace ever outgrows this, the storage layer is isolated in `server/db.js` for a Cloud SQL migration.
 - **Auth model**: the Cloud Run service allows unauthenticated ingress, and the app itself enforces Google sign-in (`hd=cloudtechgurus.com` + email_verified + allowlist, re-checked on every request) with signed httpOnly session cookies. Roles: owner / member, enforced server-side.
 - **Global pause**: any member can pause (kills in-flight model calls); only the owner can resume.
@@ -62,4 +73,4 @@ npm test
 
 - Cloud Run: scale-to-zero, 1 vCPU/1 GiB — normal light internal use stays inside the free tier or low single dollars/month.
 - Cloud Storage (database replica): pennies.
-- Anthropic API: dominated by agent runs. The verified demo workflow (three agents, 12 rows, ~19 model steps) cost ≈ $1.00 on Haiku-only; with `claude-opus-5` as the strong tier expect roughly $3–6 per full enrichment batch. The in-app daily budget caps the blast radius.
+- Anthropic API: dominated by agent runs. The verified demo workflow (three agents, 12 rows, ~19 model steps) cost ≈ $1.00 on Haiku-only; with `claude-sonnet-5` as the strong tier expect roughly $2–4 per full enrichment batch (plus $0.01 per web search). The in-app daily budget caps the blast radius.

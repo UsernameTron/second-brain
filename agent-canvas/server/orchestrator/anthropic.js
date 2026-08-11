@@ -11,9 +11,13 @@
 
 const Anthropic = require('@anthropic-ai/sdk');
 
+// claude-sonnet-5 is the workhorse strong tier; claude-haiku-4-5 handles
+// routing/classification. Frontier models (claude-opus-5 / claude-fable-5)
+// stay out of routine traffic — opt in per deployment via STRONG_MODEL.
 const FAST_MODEL = process.env.FAST_MODEL || 'claude-haiku-4-5';
-const STRONG_MODEL = process.env.STRONG_MODEL || 'claude-opus-5';
+const STRONG_MODEL = process.env.STRONG_MODEL || 'claude-sonnet-5';
 const REFUSAL_FALLBACK_MODEL = process.env.REFUSAL_FALLBACK_MODEL || 'claude-opus-4-8';
+const WEB_SEARCH_COST_USD = 0.01; // $10 per 1,000 searches, billed per request
 
 // USD per million tokens (input, output).
 const PRICING = {
@@ -49,7 +53,15 @@ function modelForTier(tier) {
 function costOf(model, usage) {
   const price = PRICING[model] || DEFAULT_PRICE;
   const inputTokens = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
-  return (inputTokens * price.in + (usage.output_tokens || 0) * price.out) / 1_000_000;
+  const searches = (usage.server_tool_use && usage.server_tool_use.web_search_requests) || 0;
+  return (inputTokens * price.in + (usage.output_tokens || 0) * price.out) / 1_000_000 + searches * WEB_SEARCH_COST_USD;
+}
+
+// Server-side web search for research work: version depends on model family
+// (Haiku 4.5 supports the basic variant only).
+function webSearchToolFor(model) {
+  const type = /haiku/.test(model) ? 'web_search_20250305' : 'web_search_20260209';
+  return { type, name: 'web_search', max_uses: 5 };
 }
 
 // One model call. On a safety-classifier refusal (stop_reason "refusal"),
@@ -69,4 +81,4 @@ async function callModel({ model, system, messages, tools, maxTokens = 8192, sig
   return response;
 }
 
-module.exports = { getClient, callModel, costOf, modelForTier, FAST_MODEL, STRONG_MODEL, REFUSAL_FALLBACK_MODEL, PRICING };
+module.exports = { getClient, callModel, costOf, modelForTier, webSearchToolFor, FAST_MODEL, STRONG_MODEL, REFUSAL_FALLBACK_MODEL, PRICING };

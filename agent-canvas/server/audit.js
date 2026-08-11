@@ -24,7 +24,13 @@ function audit(actorType, actorId, action, detail = {}) {
   const prev = lastStmt.get();
   const prevHash = prev ? prev.hash : 'genesis';
   const hash = rowHash(prevHash, ts, actorType, actorId, action, detailJson);
-  insertStmt.run(ts, actorType, actorId, action, detailJson, prevHash, hash);
+  const { lastInsertRowid } = insertStmt.run(ts, actorType, actorId, action, detailJson, prevHash, hash);
+  // Authoritative copy: mirror every entry to stdout as structured JSON. On
+  // Cloud Run this lands in Cloud Logging, which the application runtime
+  // cannot update or delete — and can be routed to a locked log bucket for
+  // regulator-grade immutability (docs/DEPLOY.md). The SQLite table is the
+  // queryable index; this stream is the tamper-independent record.
+  process.stdout.write(`${JSON.stringify({ audit: true, seq: Number(lastInsertRowid), ts, actor_type: actorType, actor_id: actorId, action, detail, hash })}\n`);
   return { ts, action, hash };
 }
 

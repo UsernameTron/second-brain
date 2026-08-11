@@ -52,6 +52,17 @@ function correctEntry({ entryId, content, epistemic, reason = '', authorType, au
   tx(() => {
     const old = db.prepare('SELECT * FROM memory_entries WHERE id = ?').get(entryId);
     if (!old) throw new Error(`memory entry not found: ${entryId}`);
+    // Verification authority: an agent may not upgrade ITS OWN inference or
+    // assumption to "verified". Independent verification is required — another
+    // agent with direct evidence, deterministic validation, or a human.
+    if (
+      authorType === 'agent' && epistemic === 'verified' &&
+      old.author_type === 'agent' && old.author_id === authorId && old.epistemic !== 'verified'
+    ) {
+      throw new Error(
+        'verification authority: you cannot upgrade your own inference/assumption to "verified". Keep the corrected label honest (inference/assumption), or let independent verification (another agent with direct evidence, a deterministic check, or a human) do the upgrade.'
+      );
+    }
     if (old.superseded_by) {
       conflictResult = { conflict: true, current: getEntryTx(old.superseded_by), original: rowToEntry(old) };
       return;

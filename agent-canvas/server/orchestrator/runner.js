@@ -7,7 +7,7 @@ const { db, nowIso } = require('../db');
 const { audit } = require('../audit');
 const bus = require('../bus');
 const memory = require('../memory');
-const { callModel, modelForTier } = require('./anthropic');
+const { callModel, modelForTier, webSearchToolFor } = require('./anthropic');
 const { toolsForRole, executeTool, createEscalation } = require('./tools');
 const control = require('./control');
 
@@ -37,6 +37,9 @@ ${agent.system_prompt}
 - When you build on existing entries, cite them (cites). When an entry you read is labeled inference or assumption, carry that uncertainty forward — do not present it as fact.
 - Entries marked tainted were built on since-corrected information: re-verify before relying on them.
 - If you discover an existing entry is wrong, use memory_correct with the reason — never write a contradicting entry without superseding the old one.
+- Reading contract: memory delivered to you always carries its epistemic state and provenance — preserve both when you use, summarize, or pass it on; never restate an assumption or inference as plain fact. Superseded entries are excluded from what you see; do not resurrect them.
+- Verification authority: you may NEVER upgrade your own earlier inference or assumption to "verified" (the server rejects it). Independent verification — another agent checking a primary source, a deterministic check, or a human decision — is what upgrades an entry.
+- Web-sourced findings must carry retrieval provenance: put the URL, retrieval time, and the supporting quoted passage in the entry's source/content.
 
 ## Working rules
 - You have a hard budget of ${run.step_budget} model steps and ${Math.round(run.wall_ms_budget / 1000)}s wall clock for this run. Batch your tool calls; do not re-read what you already know.
@@ -67,9 +70,16 @@ async function executeRun(runId) {
 
   const controller = new AbortController();
   control.registerAbort(runId, controller);
+  // The workspace generation this run belongs to. If pause bumps the epoch
+  // while a model call is in flight, the response is dropped — its tool calls
+  // never execute (zombie rejection).
+  const runEpoch = control.currentEpoch();
 
   const system = buildSystemPrompt(agent, canvas, run);
   const tools = toolsForRole(agent.role);
+  if (agent.role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0') {
+    tools.push(webSearchToolFor(model));
+  }
   const messages = [{ role: 'user', content: run.instruction }];
   const ctx = { run, agent, canvas };
 
@@ -135,9 +145,28 @@ async function executeRun(runId) {
           `${agent.name}'s request was declined by the model's safety classifiers (and the fallback model also declined): "${run.instruction.slice(0, 160)}". Rephrase the task or handle it manually.`);
       }
 
+      // Epoch check AFTER the model call: if pause hit while the request was in
+      // flight (and the response landed before the abort), drop it — no tool
+      // from a stale epoch executes.
+      if (control.epochStale(runEpoch)) {
+        return finish('halted_paused', { error: 'global pause (stale epoch — response dropped)' });
+      }
+
       const textBlocks = response.content.filter((b) => b.type === 'text');
       for (const block of textBlocks) {
         if (block.text.trim()) recordEvent(run, 'text', { text: block.text.slice(0, 2000) });
+      }
+      for (const block of response.content) {
+        if (block.type === 'server_tool_use') {
+          recordEvent(run, 'web_search', { query: (block.input && block.input.query) || '' });
+        }
+      }
+
+      // Server-side tool loop paused mid-turn: append the assistant turn and
+      // re-request — the API resumes where it left off.
+      if (response.stop_reason === 'pause_turn') {
+        messages.push({ role: 'assistant', content: response.content });
+        continue;
       }
 
       const toolUses = response.content.filter((b) => b.type === 'tool_use');
