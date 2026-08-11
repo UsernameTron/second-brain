@@ -241,18 +241,79 @@ gcloud run deploy "${SERVICE}" \
   ${SECRET_FLAGS}
 
 URL="$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" --format='value(status.url)')"
+ACCOUNT_Q="$(printf '%s' "${ACTIVE_ACCOUNT}" | sed 's/@/%40/')"
+
 echo
-echo "==> Deployed: ${URL}  (model provider: ${MODEL_PROVIDER})"
+echo "============================================================"
+echo "  DEPLOYED: ${URL}"
+echo "  model provider: ${MODEL_PROVIDER}"
+echo "============================================================"
 echo
+
+# Everything below needs a browser, so print it as an ordered checklist with
+# the URLs already filled in. Hunting for the right console page across five
+# tabs is where a deploy actually loses its afternoon.
+STEP=1
 if [ "${MODEL_PROVIDER}" = "vertex" ]; then
-  echo "NOTE (one-time): Claude models on Vertex must be enabled once for this project:"
-  echo "  Console -> Vertex AI -> Model Garden -> search 'Claude' -> Enable on the models"
-  echo "  (claude-sonnet-5, claude-haiku-4-5, claude-opus-4-8). Then verify with a probe run"
-  echo "  in the app; a 403/404 from the first agent run means the models are not enabled yet."
+  echo "STEP ${STEP} — enable the Claude models (one-time, ~2 min)"
+  echo "  https://console.cloud.google.com/vertex-ai/model-garden?project=${PROJECT_ID}&authuser=${ACCOUNT_Q}"
+  echo "  Search 'Claude' -> Enable: claude-sonnet-5, claude-haiku-4-5, claude-opus-4-8."
+  echo "  Until this is done every agent run fails with 403/404 and the MODEL lamp stays red."
+  echo
+  STEP=$((STEP + 1))
 fi
+
 if [ -z "${GOOGLE_CLIENT_ID:-}" ]; then
-  echo "NEXT (required for sign-in): create the OAuth client for ${URL} — see docs/DEPLOY.md step 2, then:"
-  echo "  gcloud run services update ${SERVICE} --project ${PROJECT_ID} --region ${REGION} --update-env-vars GOOGLE_CLIENT_ID=<client-id>"
+  echo "STEP ${STEP} — OAuth consent screen (required before anyone can sign in)"
+  echo "  https://console.cloud.google.com/apis/credentials/consent?project=${PROJECT_ID}&authuser=${ACCOUNT_Q}"
+  echo "  App name 'Agent Canvas', support email ${OWNER_EMAIL}."
+  echo "  If 'Internal' is greyed out, this project is outside the Workspace org — choose"
+  echo "  External, and ADD EVERY TEAM MEMBER AS A TEST USER. In Testing mode a person who"
+  echo "  is not a listed test user cannot sign in at all, whatever the app allowlist says."
+  echo
+  STEP=$((STEP + 1))
+  echo "STEP ${STEP} — OAuth client (Web application)"
+  echo "  https://console.cloud.google.com/apis/credentials?project=${PROJECT_ID}&authuser=${ACCOUNT_Q}"
+  echo "  Authorized JavaScript origin:  ${URL}"
+  echo "  Authorized redirect URI:       ${URL}/api/google/oauth/callback"
+  echo "  Copy the client ID and the client secret, then run STEP $((STEP + 1))."
+  echo
+  STEP=$((STEP + 1))
+  echo "STEP ${STEP} — attach the credentials (copy-paste, fill in the two values)"
+  echo
+  echo "    CLIENT_ID=<paste>.apps.googleusercontent.com"
+  echo "    CLIENT_SECRET=<paste>"
+  echo
+  echo "    printf '%s' \"\${CLIENT_SECRET}\" | gcloud secrets create google-oauth-secret \\"
+  echo "      --project ${PROJECT_ID} --data-file=- 2>/dev/null \\"
+  echo "      || printf '%s' \"\${CLIENT_SECRET}\" | gcloud secrets versions add google-oauth-secret \\"
+  echo "      --project ${PROJECT_ID} --data-file=-"
+  echo
+  echo "    gcloud secrets add-iam-policy-binding google-oauth-secret --project ${PROJECT_ID} \\"
+  echo "      --member=serviceAccount:${SA_EMAIL} --role=roles/secretmanager.secretAccessor"
+  echo
+  echo "    gcloud run services update ${SERVICE} --project ${PROJECT_ID} --region ${REGION} \\"
+  echo "      --update-env-vars GOOGLE_CLIENT_ID=\"\${CLIENT_ID}\" \\"
+  echo "      --update-secrets GOOGLE_CLIENT_SECRET=google-oauth-secret:latest"
+  echo
+  STEP=$((STEP + 1))
 else
-  echo "Confirm ${URL} is listed as an authorized JavaScript origin on the OAuth client."
+  echo "STEP ${STEP} — confirm the OAuth client lists these (sign-in fails silently otherwise):"
+  echo "  Authorized JavaScript origin:  ${URL}"
+  echo "  Authorized redirect URI:       ${URL}/api/google/oauth/callback"
+  echo
+  STEP=$((STEP + 1))
 fi
+
+echo "STEP ${STEP} — go live"
+echo "  1. Open ${URL} and sign in as ${OWNER_EMAIL}."
+echo "  2. Open Capabilities. Every lamp should be green except HUBSPOT and MCP,"
+echo "     which are dark by design (not wired yet)."
+echo "  3. Click 'Connect Google Workspace' and grant the six scopes."
+echo "  4. CHECK THE ALLOWLIST before inviting anyone: top-bar avatar -> Admin."
+echo "     It is seeded with first-name@ addresses (fred@, darren@, jessica@)."
+echo "     If a real mailbox differs, fix it there or that person cannot sign in."
+echo "  5. Probe one agent: command bar -> \"have Scout confirm the model connection\""
+echo "     works with one short memory entry\". A completed run proves the model path."
+echo
+echo "Deployment is idempotent: re-run this script any time to repair or update."
