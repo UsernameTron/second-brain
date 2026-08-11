@@ -42,8 +42,8 @@ test('gmailCreateDraft targets the drafts endpoint, never send', async () => {
   const urls = [];
   const realFetch = global.fetch;
   global.fetch = async (url, opts) => {
-    urls.push(String(url));
-    if (String(url).includes('oauth2.googleapis.com')) {
+    urls.push(new URL(String(url)));
+    if (new URL(String(url)).hostname === 'oauth2.googleapis.com') {
       return { ok: true, status: 200, json: async () => ({ access_token: 'at', expires_in: 3600 }) };
     }
     return { ok: true, status: 200, json: async () => ({ id: 'draft-1' }) };
@@ -51,9 +51,13 @@ test('gmailCreateDraft targets the drafts endpoint, never send', async () => {
   try {
     const out = await ws.gmailCreateDraft({ email: 'pete@cloudtechgurus.com', to: 'x@y.com', subject: 's', body: 'b' });
     assert.equal(out.draftId, 'draft-1');
-    const apiCalls = urls.filter((u) => u.includes('gmail.googleapis.com'));
-    assert.ok(apiCalls.every((u) => u.includes('/drafts')), 'gmail call must hit /drafts');
-    assert.ok(urls.every((u) => !u.includes('/send')), 'no URL may contain /send');
+    // exact hostname comparison — a substring check would also match
+    // evil.example/gmail.googleapis.com, and the assertion should prove the
+    // call went to the real host, not just a lookalike path
+    const apiCalls = urls.filter((u) => u.hostname === 'gmail.googleapis.com');
+    assert.ok(apiCalls.length > 0, 'the draft call must go to gmail.googleapis.com');
+    assert.ok(apiCalls.every((u) => u.pathname.includes('/drafts')), 'gmail call must hit /drafts');
+    assert.ok(urls.every((u) => !u.pathname.includes('/send')), 'no URL path may contain /send');
   } finally { global.fetch = realFetch; }
 });
 

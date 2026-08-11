@@ -245,8 +245,15 @@ function assertValues(values) {
 }
 
 // --- Drive / Docs ---
+// Drive query strings escape with backslash, so backslashes must be escaped
+// FIRST, then quotes — quote-only escaping lets an input ending in \ turn the
+// added escape into a literal and break out of the string (CodeQL js/incomplete-sanitization).
+function escapeDriveQuery(value) {
+  return String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
 async function driveSearch({ email, query, limit = 10 }) {
-  const q = `fullText contains '${String(query).replace(/'/g, "\\'")}' or name contains '${String(query).replace(/'/g, "\\'")}'`;
+  const escaped = escapeDriveQuery(query);
+  const q = `fullText contains '${escaped}' or name contains '${escaped}'`;
   const d = await gcall(email, `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q + ' and trashed = false')}&pageSize=${Math.min(limit, 25)}&fields=files(id,name,mimeType,modifiedTime,owners(displayName),webViewLink)`);
   audit('user', email, 'workspace.drive_search', { query });
   return (d.files || []).map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, modified: f.modifiedTime, link: f.webViewLink }));
