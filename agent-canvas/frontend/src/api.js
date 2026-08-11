@@ -2,9 +2,12 @@
 // Same-origin, cookie-authenticated: no custom auth headers, ever.
 
 export async function api(path, opts = {}) {
+  // Requests can only ever target this origin's API: the URL is built from a
+  // constant prefix, never from the caller's string alone.
   if (typeof path !== 'string' || !path.startsWith('/api')) {
     throw Object.assign(new Error('invalid API path'), { status: 0 });
   }
+  const url = '/api' + path.slice(4);
   const { body, headers, ...rest } = opts;
   const init = { ...rest, headers: { ...(headers || {}) } };
   if (body !== undefined) {
@@ -13,7 +16,7 @@ export async function api(path, opts = {}) {
   }
   let res;
   try {
-    res = await fetch(path, init);
+    res = await fetch(url, init);
   } catch {
     throw Object.assign(new Error('network error — server unreachable'), { status: 0 });
   }

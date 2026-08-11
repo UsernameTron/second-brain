@@ -81,7 +81,7 @@ async function executeRun(runId) {
     tools.push(webSearchToolFor(model));
   }
   const messages = [{ role: 'user', content: run.instruction }];
-  const ctx = { run, agent, canvas };
+  const ctx = { run, agent, canvas, runEpoch };
 
   const finish = (status, { summary = null, error = null } = {}) => {
     db.prepare('UPDATE runs SET status = ?, summary = ?, error = ?, ended_at = ? WHERE id = ?')
@@ -175,6 +175,9 @@ async function executeRun(runId) {
         const results = [];
         let end = null;
         for (const toolUse of toolUses) {
+          if (control.epochStale(runEpoch)) {
+            return finish('halted_paused', { error: 'global pause (stale epoch mid tool batch)' });
+          }
           recordEvent(run, 'tool_call', { name: toolUse.name, input: toolUse.input });
           let result;
           try {

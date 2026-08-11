@@ -23,9 +23,22 @@ function writeEntry({ canvasId, content, epistemic, authorType, authorId, author
   const ts = nowIso();
   const uniqueCites = [...new Set(cites)].filter(Boolean);
   tx(() => {
+    const citedRows = [];
     for (const citeId of uniqueCites) {
-      const exists = db.prepare('SELECT id FROM memory_entries WHERE id = ?').get(citeId);
-      if (!exists) throw new Error(`cited memory entry not found: ${citeId}`);
+      const cited = db.prepare('SELECT id, author_type, author_id, epistemic FROM memory_entries WHERE id = ?').get(citeId);
+      if (!cited) throw new Error(`cited memory entry not found: ${citeId}`);
+      citedRows.push(cited);
+    }
+    // Verification laundering guard: an agent cannot mint a "verified" entry
+    // whose entire support is its own unverified entries — that is the same
+    // self-upgrade the supersession rule blocks, via a side door.
+    if (
+      authorType === 'agent' && epistemic === 'verified' && citedRows.length > 0 &&
+      citedRows.every((c) => c.author_type === 'agent' && c.author_id === authorId && c.epistemic !== 'verified')
+    ) {
+      throw new Error(
+        'verification authority: a "verified" entry cannot rest solely on your own unverified entries. Label it inference/assumption, or cite independent evidence (another author, a verified entry, or a primary source).'
+      );
     }
     db.prepare(
       `INSERT INTO memory_entries (id, canvas_id, content, epistemic, author_type, author_id, author_name, source, run_id, created_at)

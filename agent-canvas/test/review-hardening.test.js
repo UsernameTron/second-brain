@@ -79,3 +79,46 @@ test('web search requests are metered into cost', () => {
   const without = costOf('claude-sonnet-5', { input_tokens: 1000, output_tokens: 100 });
   assert.ok(Math.abs((withSearch - without) - 0.03) < 1e-9);
 });
+
+test('verification laundering guard: agent cannot mint verified from only its own unverified entries', () => {
+  const a = memory.writeEntry({ canvasId: CANVAS, content: 'my hunch 1', epistemic: 'inference', authorType: 'agent', authorId: 'agent-r' });
+  const b = memory.writeEntry({ canvasId: CANVAS, content: 'my hunch 2', epistemic: 'assumption', authorType: 'agent', authorId: 'agent-r' });
+  assert.throws(() => memory.writeEntry({
+    canvasId: CANVAS, content: 'now it is a fact', epistemic: 'verified',
+    authorType: 'agent', authorId: 'agent-r', cites: [a.id, b.id],
+  }), /verification authority/);
+  // citing someone else's entry (even unverified) is allowed — cross-checking is independent work
+  const other = memory.writeEntry({ canvasId: CANVAS, content: 'their hunch', epistemic: 'inference', authorType: 'agent', authorId: 'agent-z' });
+  const ok = memory.writeEntry({
+    canvasId: CANVAS, content: 'confirmed against the registry', epistemic: 'verified',
+    authorType: 'agent', authorId: 'agent-r', cites: [a.id, other.id],
+  });
+  assert.equal(ok.epistemic, 'verified');
+});
+
+test('verify_changes: a row is verified only when ALL its changes are approved', async () => {
+  const { db: sdb, nowIso: iso } = require('../server/db');
+  const crypto2 = require('node:crypto');
+  const rowId = crypto2.randomUUID();
+  sdb.prepare("INSERT INTO sheet_rows (id, canvas_id, row_index, data, status, updated_at) VALUES (?, ?, 99, ?, 'corrected', ?)")
+    .run(rowId, CANVAS, JSON.stringify({ phone: 'bad', name: 'DR. X' }), iso());
+  const csId = crypto2.randomUUID();
+  sdb.prepare("INSERT INTO changesets (id, canvas_id, status, created_at) VALUES (?, ?, 'proposed', ?)").run(csId, CANVAS, iso());
+  const c1 = crypto2.randomUUID(); const c2 = crypto2.randomUUID();
+  sdb.prepare("INSERT INTO changes (id, changeset_id, row_id, field, old_value, new_value, ts) VALUES (?, ?, ?, 'phone', 'bad', '+15550000000', ?)").run(c1, csId, rowId, iso());
+  sdb.prepare("INSERT INTO changes (id, changeset_id, row_id, field, old_value, new_value, ts) VALUES (?, ?, ?, 'name', 'DR. X', 'X', ?)").run(c2, csId, rowId, iso());
+  const agent = sdb.prepare("SELECT * FROM agents WHERE id = 'agent-r'").get();
+  const canvas = sdb.prepare('SELECT * FROM canvases WHERE id = ?').get(CANVAS);
+  const run = { id: 'verify-run', canvas_id: CANVAS, agent_id: 'agent-r' };
+  const result = await executeTool('verify_changes', {
+    changeset_id: csId,
+    verdicts: [
+      { change_id: c2, verdict: 'rejected', reason: 'wrong fix' },
+      { change_id: c1, verdict: 'approved', reason: 'good' },
+    ],
+  }, { run, agent, canvas });
+  assert.ok(!result.isError, result.content);
+  const row = sdb.prepare('SELECT * FROM sheet_rows WHERE id = ?').get(rowId);
+  assert.equal(row.status, 'flagged', 'row with any rejected change must NOT be verified');
+  assert.equal(JSON.parse(row.data).phone, '+15550000000', 'approved change still applied to data');
+});

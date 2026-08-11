@@ -247,11 +247,11 @@ async function executeTool(name, input, ctx) {
   const { run, agent, canvas } = ctx;
   const ts = nowIso();
 
-  // Defense in depth for the global pause: no tool mutates anything while the
-  // workspace is paused, even if a stale run somehow reaches this point.
+  // Defense in depth for the global pause: no tool from a paused workspace OR
+  // a stale pause epoch mutates anything, even if a zombie run reaches here.
   const control = require('./control');
-  if (control.isPaused()) {
-    return { content: 'Workspace is paused — this action was rejected server-side.', isError: true };
+  if (ctx.runEpoch !== undefined ? control.epochStale(ctx.runEpoch) : control.isPaused()) {
+    return { content: 'Workspace is paused (or was paused since this run started) — this action was rejected server-side.', isError: true };
   }
 
   switch (name) {
@@ -465,20 +465,28 @@ async function executeTool(name, input, ctx) {
       const cs = db.prepare('SELECT * FROM changesets WHERE id = ? AND canvas_id = ?').get(input.changeset_id, canvas.id);
       if (!cs) return { content: `No changeset ${input.changeset_id} on this canvas`, isError: true };
       let approved = 0; let rejected = 0;
+      const rowOutcomes = new Map(); // row_id -> false once ANY change is rejected
       for (const verdict of input.verdicts || []) {
         const change = db.prepare('SELECT * FROM changes WHERE id = ? AND changeset_id = ?').get(verdict.change_id, cs.id);
         if (!change) continue;
         db.prepare('UPDATE changes SET verdict = ?, verdict_reason = ? WHERE id = ?').run(verdict.verdict, verdict.reason || '', change.id);
         const row = db.prepare('SELECT * FROM sheet_rows WHERE id = ?').get(change.row_id);
-        if (verdict.verdict === 'approved' && row) {
+        if (!row) continue;
+        if (verdict.verdict === 'approved') {
           const data = JSON.parse(row.data);
           data[change.field] = change.new_value;
-          db.prepare('UPDATE sheet_rows SET data = ?, status = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(data), 'verified', ts, row.id);
+          db.prepare('UPDATE sheet_rows SET data = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(data), ts, row.id);
           approved++;
-        } else if (row) {
-          db.prepare('UPDATE sheet_rows SET status = ?, updated_at = ? WHERE id = ?').run('flagged', ts, row.id);
+          if (!rowOutcomes.has(row.id)) rowOutcomes.set(row.id, true);
+        } else {
           rejected++;
+          rowOutcomes.set(row.id, false);
         }
+      }
+      // A row is done only when EVERY change to it in this set was approved.
+      for (const [rowId, allApproved] of rowOutcomes) {
+        db.prepare('UPDATE sheet_rows SET status = ?, updated_at = ? WHERE id = ?')
+          .run(allApproved ? 'verified' : 'flagged', ts, rowId);
       }
       const status = rejected === 0 ? 'verified' : approved === 0 ? 'rejected' : 'partially_verified';
       db.prepare('UPDATE changesets SET status = ? WHERE id = ?').run(status, cs.id);

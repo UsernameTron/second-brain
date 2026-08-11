@@ -136,6 +136,32 @@ router.get('/canvases/:canvasId', auth.requireCanvas, (req, res) => {
   });
 });
 
+router.patch('/canvases/:canvasId', auth.requireOwner, (req, res) => {
+  const canvas = db.prepare('SELECT * FROM canvases WHERE id = ?').get(req.params.canvasId);
+  if (!canvas) return res.status(404).json({ error: 'canvas not found' });
+  const mode = req.body.access_mode;
+  if (!['workspace', 'restricted'].includes(mode)) return res.status(400).json({ error: 'access_mode must be workspace|restricted' });
+  db.prepare('UPDATE canvases SET access_mode = ? WHERE id = ?').run(mode, canvas.id);
+  audit('user', req.user.email, 'canvas.set_access_mode', { canvasId: canvas.id, mode });
+  res.json({ ok: true });
+});
+
+router.post('/canvases/:canvasId/members', auth.requireOwner, (req, res) => {
+  const email = String(req.body.email || '').toLowerCase().trim();
+  if (!auth.allowlistEntry(email)) return res.status(400).json({ error: 'member must be on the workspace allowlist' });
+  db.prepare("INSERT INTO canvas_members (canvas_id, user_email, access) VALUES (?, ?, 'edit') ON CONFLICT(canvas_id, user_email) DO NOTHING")
+    .run(req.params.canvasId, email);
+  audit('user', req.user.email, 'canvas.member_add', { canvasId: req.params.canvasId, email });
+  res.json({ ok: true });
+});
+
+router.delete('/canvases/:canvasId/members/:email', auth.requireOwner, (req, res) => {
+  db.prepare('DELETE FROM canvas_members WHERE canvas_id = ? AND user_email = ?')
+    .run(req.params.canvasId, String(req.params.email).toLowerCase());
+  audit('user', req.user.email, 'canvas.member_remove', { canvasId: req.params.canvasId, email: req.params.email });
+  res.json({ ok: true });
+});
+
 // ---------- agents ----------
 router.post('/canvases/:canvasId/agents', auth.requireCanvas, (req, res) => {
   const id = crypto.randomUUID();
@@ -217,10 +243,10 @@ router.post('/canvases/:canvasId/memory', auth.requireCanvas, (req, res) => {
 });
 
 router.post('/canvases/:canvasId/memory/:entryId/correct', auth.requireCanvas, (req, res) => {
-  const { content, epistemic, reason = '', cites = [] } = req.body;
+  const { content, epistemic, reason = '', source = '', cites = [] } = req.body;
   try {
     const result = memory.correctEntry({
-      entryId: req.params.entryId, content, epistemic, reason,
+      entryId: req.params.entryId, content, epistemic, reason, source,
       authorType: 'user', authorId: req.user.email, authorName: req.user.name || req.user.email, cites,
     });
     if (result.conflict) {
@@ -245,7 +271,25 @@ router.get('/memory/:entryId/lineage', (req, res) => {
     const check = auth.canAccessCanvas(req.user, trace.entry.canvasId);
     if (!check.ok) return res.status(check.status).json({ error: check.error });
   }
-  res.json(trace);
+  // Cross-canvas hydration must not leak restricted content: entries from
+  // canvases the requester cannot access are redacted, not returned.
+  const accessCache = new Map();
+  const canSee = (canvasId) => {
+    if (!canvasId) return true;
+    if (!accessCache.has(canvasId)) accessCache.set(canvasId, auth.canAccessCanvas(req.user, canvasId).ok);
+    return accessCache.get(canvasId);
+  };
+  const redact = (entry) => (canSee(entry.canvasId) ? entry : {
+    id: entry.id, canvasId: entry.canvasId, epistemic: entry.epistemic, depth: entry.depth,
+    tainted: entry.tainted, redacted: true, content: '[entry on a canvas you cannot access]',
+    author: { type: 'redacted', id: '', name: '' }, source: '', cites: [], citedBy: [],
+  });
+  res.json({
+    ...trace,
+    upstream: trace.upstream.map(redact),
+    downstream: trace.downstream.map(redact),
+    runReads: trace.runReads.map(redact),
+  });
 });
 
 // ---------- notes ----------
