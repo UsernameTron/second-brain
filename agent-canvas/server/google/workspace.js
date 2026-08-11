@@ -351,8 +351,28 @@ async function calendarCreate({ email, summary, description, startIso, endIso, a
   return { id: d.id, link: d.htmlLink, note: 'Event created. Agents cannot modify or cancel events — changes are up to humans.' };
 }
 
+// Cheap, read-only liveness probes per surface — used by the systems board.
+// Each hits the lightest authenticated endpoint the surface offers.
+const PROBES = {
+  gmail: (email) => gcall(email, 'https://gmail.googleapis.com/gmail/v1/users/me/profile'),
+  drive: (email) => gcall(email, 'https://www.googleapis.com/drive/v3/about?fields=user'),
+  calendar: (email) => gcall(email, 'https://www.googleapis.com/calendar/v3/users/me/calendarList/primary'),
+  // Sheets has no ping endpoint; the Drive probe exercises the same token path.
+  sheets: (email) => gcall(email, 'https://www.googleapis.com/drive/v3/about?fields=user'),
+};
+async function probeSurface(email, surface) {
+  const probe = PROBES[surface];
+  if (!probe) throw Object.assign(new Error(`no probe for surface ${surface}`), { status: 404 });
+  const t0 = Date.now();
+  await probe(email);
+  const ms = Date.now() - t0;
+  audit('user', email, 'workspace.probe', { surface, ms });
+  return { ok: true, ms };
+}
+
 module.exports = {
   SCOPES, CAPABILITIES, oauthReady, isConnected, buildAuthUrl, exchangeCode, disconnect,
+  probeSurface,
   sheetsRead, sheetsAppend, sheetsUpdate, driveSearch, driveReadText, docsCreate,
   gmailSearch, gmailRead, gmailCreateDraft, calendarList, calendarCreate,
   _internal: { encrypt, decrypt, assertValues, accessTokenFor },

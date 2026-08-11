@@ -12,7 +12,7 @@ const auth = require('./auth');
 const control = require('./orchestrator/control');
 const { dispatchRun, resumePump, queueState } = require('./orchestrator/queue');
 const { createEscalation } = require('./orchestrator/tools');
-const { callModel, tierConfig, FAST_MODEL, STRONG_MODEL } = require('./orchestrator/anthropic');
+const { callModel, tierConfig, FAST_MODEL, STRONG_MODEL, currentProvider } = require('./orchestrator/anthropic');
 
 const { rateLimit } = require('./ratelimit');
 const workspace = require('./google/workspace');
@@ -109,6 +109,77 @@ router.get('/google/oauth/callback', rateLimit('auth', 10, 60_000), asyncRoute(a
   if (claims.purpose !== 'ws-connect' || claims.email !== req.user.email) return res.status(403).send('state mismatch');
   await workspace.exchangeCode({ code: String(code), redirectUri: `${externalBase(req)}/api/google/oauth/callback`, email: req.user.email });
   res.redirect('/?ws=connected');
+}));
+
+// ---------- systems board: integration health with real statuses ----------
+// States: ready (green) / attention (amber) / down (red, blinking) /
+// planned (dark lamp — declared, deliberately not wired yet; never fake green).
+router.get('/health/integrations', (req, res) => {
+  const provider = currentProvider();
+  const modelConfigured = provider === 'anthropic'
+    ? Boolean(process.env.ANTHROPIC_API_KEY)
+    : Boolean(process.env.VERTEX_PROJECT_ID);
+  const connected = workspace.isConnected(req.user.email);
+  const oauth = workspace.oauthReady();
+  const wsSurface = (id, label, probe) => ({
+    id, label, probe: probe && oauth && connected,
+    status: !oauth ? 'planned' : (connected ? 'ready' : 'attention'),
+    detail: !oauth
+      ? 'OAuth client not configured on this deployment — see docs/DEPLOY.md.'
+      : (connected ? 'Connected as you. Agents you direct act with your permissions.'
+                   : 'Your Google account is not connected — Capabilities → Connect.'),
+  });
+  let chainOk = true;
+  try { chainOk = verifyChain().ok !== false; } catch { chainOk = false; }
+  const replicated = Boolean(process.env.LITESTREAM_REPLICA_URL);
+  const integrations = [
+    {
+      id: 'model', label: `MODEL · ${provider.toUpperCase()}`,
+      status: modelConfigured ? 'ready' : 'down',
+      detail: modelConfigured
+        ? `${FAST_MODEL} (fast) / ${STRONG_MODEL} (strong) via ${provider}`
+        : 'No model credential: set VERTEX_PROJECT_ID (keyless) or ANTHROPIC_API_KEY. Every agent run fails until this is set.',
+    },
+    wsSurface('gmail', 'GMAIL', true),
+    wsSurface('drive', 'DRIVE / DOCS', true),
+    wsSurface('sheets', 'SHEETS', true),
+    wsSurface('calendar', 'CALENDAR', true),
+    {
+      id: 'audit', label: 'AUDIT CHAIN',
+      status: chainOk ? 'ready' : 'down',
+      detail: chainOk ? 'Hash chain verified end-to-end just now.' : 'AUDIT CHAIN BROKEN — records were altered or lost. Investigate before trusting any log.',
+    },
+    {
+      id: 'db', label: 'DATABASE',
+      status: replicated ? 'ready' : (process.env.NODE_ENV === 'production' ? 'attention' : 'ready'),
+      detail: replicated ? 'SQLite replicated continuously to Cloud Storage (Litestream).'
+        : (process.env.NODE_ENV === 'production' ? 'PRODUCTION WITHOUT REPLICATION — a container restart loses data.' : 'Local dev disk — replication applies on Cloud Run.'),
+    },
+    {
+      id: 'websearch', label: 'WEB SEARCH',
+      status: process.env.ENABLE_WEB_SEARCH === '0' ? 'planned' : 'ready',
+      detail: process.env.ENABLE_WEB_SEARCH === '0' ? 'Disabled by ENABLE_WEB_SEARCH=0.' : 'Research agents can search with citations; $10/1k searches, metered per run.',
+    },
+    {
+      id: 'hubspot', label: 'HUBSPOT',
+      status: 'planned',
+      detail: 'Not wired yet — this lamp stays dark until a real CRM integration lands. Say the word and it is next.',
+    },
+    {
+      id: 'mcp', label: 'MCP CONNECTORS',
+      status: 'planned',
+      detail: 'Reserved slots for Model Context Protocol connectors. Not wired yet.',
+    },
+  ];
+  const rank = { down: 3, attention: 2, ready: 1, planned: 0 };
+  const aggregate = integrations.reduce((worst, i) => (rank[i.status] > rank[worst] ? i.status : worst), 'ready');
+  res.json({ integrations, aggregate, queue: queueState(), provider });
+});
+
+router.post('/health/probe', rateLimit('auth', 10, 60_000), asyncRoute(async (req, res) => {
+  const surface = String(req.body.surface || '');
+  const result = await workspace.probeSurface(req.user.email, surface);
+  res.json(result);
 }));
 
 router.post('/google/disconnect', (req, res) => {

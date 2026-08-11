@@ -39,6 +39,15 @@ export default function Workspace() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [capsOpen, setCapsOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(null); // null = unknown yet
+  const [health, setHealth] = useState(null);
+  const refreshHealth = useCallback(() => {
+    api('/api/health/integrations').then(setHealth).catch(() => {});
+  }, []);
+  useEffect(() => {
+    refreshHealth();
+    const t = setInterval(refreshHealth, 60_000);
+    return () => clearInterval(t);
+  }, [refreshHealth]);
   const refreshCaps = useCallback(() => {
     api('/api/capabilities').then((d) => setWsConnected(!!d.connected)).catch(() => {});
   }, []);
@@ -716,6 +725,41 @@ export default function Workspace() {
           ) : null}
         </div>
 
+        <div className="hud" role="status" aria-label="Systems console">
+          <button className="hud-cell hud-btn" onClick={() => setCapsOpen(true)} title="Open the systems board">
+            <span className={`lamp hexlamp lamp-${health?.aggregate || 'planned'}`} />
+            <span className="hud-label">Systems</span>
+          </button>
+          <span className={`hud-cell`} title={health?.integrations?.find((i) => i.id === 'model')?.detail || ''}>
+            <span className={`lamp lamp-${health?.integrations?.find((i) => i.id === 'model')?.status || 'planned'}`} />
+            <span className="hud-label">Model</span>
+            <span className="hud-val mono">{(health?.provider || '—').toUpperCase()}</span>
+          </span>
+          <span className="hud-cell" title="Google Workspace connection for your account">
+            <span className={`lamp lamp-${health?.integrations?.find((i) => i.id === 'gmail')?.status || 'planned'}`} />
+            <span className="hud-label">Workspace</span>
+          </span>
+          <span className="hud-cell" title={wsOk ? 'Live link up' : 'Live link down — reconnecting'}>
+            <span className={`lamp ${wsOk ? 'lamp-ready' : 'lamp-down'}`} />
+            <span className="hud-label">Link</span>
+          </span>
+          <span className="hud-sep" />
+          <span className="hud-cell">
+            <span className="hud-label">Runs</span>
+            <span className="hud-val mono">
+              {(state?.agents || []).filter((a) => a.status === 'running').length} act · {health?.queue?.queued ?? '—'} q
+            </span>
+          </span>
+          <span className="hud-cell">
+            <span className="hud-label">Needs you</span>
+            <span className={`hud-val mono ${openEscalations.length > 0 ? 'hud-hot' : ''}`}>{openEscalations.length}</span>
+          </span>
+          <span className="hud-cell hud-gauge-cell" title="Daily spend against budget">
+            <span className="hud-label">Spend</span>
+            <span className="hud-gauge"><span className="hud-gauge-fill" style={{ width: `${Math.min(100, budget?.budget_usd ? (100 * (budget.cost_usd || 0)) / budget.budget_usd : 0)}%` }} /></span>
+            <span className="hud-val mono">{budget ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '—'}</span>
+          </span>
+        </div>
         <ActivityDock
           activity={activity}
           handoffs={handoffs}
@@ -726,7 +770,7 @@ export default function Workspace() {
       </div>
 
       {adminOpen ? <AdminModal onClose={() => setAdminOpen(false)} toast={toast} selfEmail={user.email} /> : null}
-      {capsOpen ? <CapabilitiesModal onClose={() => { setCapsOpen(false); refreshCaps(); }} toast={toast} /> : null}
+      {capsOpen ? <CapabilitiesModal onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}
     </div>
   );
 }

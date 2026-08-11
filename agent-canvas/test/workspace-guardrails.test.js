@@ -141,3 +141,48 @@ test('every advertised capability maps to a real tool; every cannot has no tool'
     assert.ok(!/send|delete|cancel|clear|share/i.test(t), `tool ${t} contradicts the cannot column`);
   }
 });
+
+// ---------- systems board ----------
+test('health endpoint reports real statuses and never fakes green', async () => {
+  const express = require('express');
+  const routes = require('../server/routes');
+  const jwt = require('jsonwebtoken');
+  const app = express();
+  app.use(express.json());
+  app.use('/api', routes);
+  db.prepare("INSERT OR IGNORE INTO allowlist (email, role, display_name, added_by, added_at) VALUES ('pete@cloudtechgurus.com', 'owner', 'Pete', 'test', '')").run();
+  const server = app.listen(0);
+  await new Promise((r) => server.once('listening', r));
+  const port = server.address().port;
+  try {
+    const auth = await fetch(`http://127.0.0.1:${port}/api/auth/dev`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'pete@cloudtechgurus.com' }),
+    });
+    const cookie = auth.headers.get('set-cookie').split(';')[0];
+    const res = await fetch(`http://127.0.0.1:${port}/api/health/integrations`, { headers: { cookie } });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    const byId = Object.fromEntries(body.integrations.map((i) => [i.id, i]));
+    // no model credential in the test env -> the lamp is red, not green
+    assert.equal(byId.model.status, 'down', 'model without credentials must show down');
+    // no OAuth client in the test env -> workspace surfaces are dark, not green
+    for (const id of ['gmail', 'drive', 'sheets', 'calendar']) {
+      assert.equal(byId[id].status, 'planned', `${id} without an OAuth client must be dark`);
+    }
+    // unwired-by-design integrations are dark and say so
+    assert.equal(byId.hubspot.status, 'planned');
+    assert.match(byId.hubspot.detail, /not wired/i);
+    // audit chain verifies green on a healthy database
+    assert.equal(byId.audit.status, 'ready');
+    // aggregate reflects the worst real state (model is down)
+    assert.equal(body.aggregate, 'down');
+    assert.ok(body.queue && typeof body.queue.queued === 'number');
+    // probing an unconnected surface fails loudly, not silently
+    const probe = await fetch(`http://127.0.0.1:${port}/api/health/probe`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ surface: 'gmail' }),
+    });
+    assert.ok(probe.status >= 400, 'probe without a connected account must error');
+  } finally { server.close(); }
+});

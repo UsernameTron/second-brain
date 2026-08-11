@@ -9,9 +9,25 @@ const ICONS = { mail: '✉', folder: '🗀', grid: '▦', calendar: '🗓', shie
 
 export default function CapabilitiesModal({ onClose, toast }) {
   const [caps, setCaps] = useState(null);
+  const [health, setHealth] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [probing, setProbing] = useState({});
 
-  const load = () => api('/api/capabilities').then(setCaps).catch((e) => toast(e.message));
+  const load = () => Promise.all([
+    api('/api/capabilities').then(setCaps),
+    api('/api/health/integrations').then(setHealth),
+  ]).catch((e) => toast(e.message));
+
+  const probe = async (surface) => {
+    setProbing((p0) => ({ ...p0, [surface]: '…' }));
+    try {
+      const r = await api('/api/health/probe', { method: 'POST', body: { surface } });
+      setProbing((p0) => ({ ...p0, [surface]: `${r.ms}ms` }));
+    } catch (e) {
+      setProbing((p0) => ({ ...p0, [surface]: 'FAIL' }));
+      toast(e.message);
+    }
+  };
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const connect = async () => {
@@ -39,6 +55,22 @@ export default function CapabilitiesModal({ onClose, toast }) {
           <button className="icon-btn" onClick={onClose} title="Close">✕</button>
         </div>
         <div className="modal-body">
+          <div className="sys-board">
+            <div className="sys-title">Systems status</div>
+            {(health?.integrations || []).map((i) => (
+              <div className="sys-row" key={i.id} title={i.detail}>
+                <span className="sys-label">{i.label}</span>
+                <span className="sys-arrow">▶</span>
+                <span className={`lamp lamp-${i.status}`} />
+                <span className="sys-detail dim">{i.detail}</span>
+                {i.probe ? (
+                  <button className="btn small sys-probe" onClick={() => probe(i.id)}>
+                    {probing[i.id] || 'Probe'}
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
           <div className="caps-connect">
             {caps?.connected ? (
               <>
