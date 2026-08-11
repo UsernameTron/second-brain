@@ -59,7 +59,22 @@ if ! gcloud projects describe "${PROJECT_ID}" >/dev/null 2>&1; then
     gcloud projects create "${PROJECT_ID}" --name="Agent Canvas Workspace"
   fi
 fi
-gcloud billing projects link "${PROJECT_ID}" --billing-account="${BILLING_ACCOUNT}"
+# gcloud's billing commands need the Cloud Billing API enabled on whatever
+# quota project the CLI picks, which is often a stale one the caller cannot
+# touch. Enable it on this project and pin the quota project to it; if the CLI
+# still cannot link, say exactly what to click rather than failing obscurely.
+gcloud services enable cloudbilling.googleapis.com --project "${PROJECT_ID}" >/dev/null 2>&1 || true
+if ! gcloud billing projects link "${PROJECT_ID}" --billing-account="${BILLING_ACCOUNT}" --billing-project="${PROJECT_ID}" >/dev/null 2>&1 \
+   && ! gcloud billing projects link "${PROJECT_ID}" --billing-account="${BILLING_ACCOUNT}" >/dev/null 2>&1; then
+  LINKED="$(gcloud beta billing projects describe "${PROJECT_ID}" --format='value(billingEnabled)' --billing-project="${PROJECT_ID}" 2>/dev/null || echo '')"
+  if [ "${LINKED}" != "True" ]; then
+    echo "!! Could not link billing from the CLI (it is using a quota project you cannot access)." >&2
+    echo "   Link it in the browser — 2 clicks — then re-run this script:" >&2
+    echo "   https://console.cloud.google.com/billing/linkedaccount?project=${PROJECT_ID}" >&2
+    exit 1
+  fi
+fi
+echo "==> Billing linked."
 
 # 2. APIs.
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
