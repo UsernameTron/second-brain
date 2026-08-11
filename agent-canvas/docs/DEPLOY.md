@@ -55,6 +55,20 @@ Enable it:
 
 Scope review note: gmail.readonly/compose and drive.readonly are *restricted* scopes. On an **Internal** consent screen (project inside the org) no Google verification is needed. On an External screen in Testing mode they work for up to 100 test users — add each member as a test user; that covers this team, but it is one more reason to move the project into the cloudtechgurus.com organization and flip to Internal.
 
+## HubSpot (via the CTG Ops Runner — optional)
+
+Agent Canvas does not hold any HubSpot credential. Agents are IAM-authenticated
+clients of `ctg-hs-ops-runner` (project `ctg-hs-exec-tool`) — the estate's
+policy-gated, sandbox-locked execution service (ADR-0041 Rev A). Reads are
+free; changes are preview-first (`hs_preview_change` always dry-runs) and apply
+only in a run resumed from a human-approved escalation. Destructive verbs are
+refused client-side and policy-denied at the runner; the real customer portal
+is unreachable by design (sandbox 246460341 portal guard).
+
+Wire it: grant `roles/run.invoker` on the runner to the canvas service account,
+then set `HS_OPS_RUNNER_URL` (the deploy checklist prints both commands). The
+HUBSPOT lamp flips from dark to green, with a live `whoami` probe.
+
 ## Brand assets (optional, before building)
 
 Copy the approved CTG mascot into the frontend so CUE appears on the sign-in card and the clear needs-you tray:

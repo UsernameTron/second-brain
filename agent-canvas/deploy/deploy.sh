@@ -229,6 +229,9 @@ if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
   SECRET_FLAGS="${SECRET_FLAGS},GOOGLE_CLIENT_SECRET=google-oauth-secret:latest"
 fi
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then ENV_VARS="${ENV_VARS},GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"; fi
+# HubSpot Ops Runner (optional): agents become IAM-authenticated clients of the
+# policy-gated sandbox runner. No HubSpot credential enters this service.
+if [ -n "${HS_OPS_RUNNER_URL:-}" ]; then ENV_VARS="${ENV_VARS},HS_OPS_RUNNER_URL=${HS_OPS_RUNNER_URL}"; fi
 gcloud run deploy "${SERVICE}" \
   --image "${IMAGE}" \
   --project "${PROJECT_ID}" \
@@ -324,6 +327,19 @@ else
   STEP=$((STEP + 1))
 fi
 
+echo "STEP ${STEP} — OPTIONAL: light the HUBSPOT lamp (Ops Runner client)"
+echo "  The canvas talks to ctg-hs-ops-runner via Cloud Run IAM — no HubSpot key here."
+echo "  a) Grant the canvas permission to call the runner (you own ctg-hs-exec-tool):"
+echo "     gcloud run services add-iam-policy-binding ctg-hs-ops-runner \\"
+echo "       --project ctg-hs-exec-tool --region us-central1 \\"
+echo "       --member serviceAccount:${SA_EMAIL} --role roles/run.invoker"
+echo "  b) Re-run this deploy with HS_OPS_RUNNER_URL=\$(gcloud run services describe \\"
+echo "       ctg-hs-ops-runner --region us-central1 --project ctg-hs-exec-tool \\"
+echo "       --format='value(status.url)'), or attach it directly:"
+echo "     gcloud run services update ${SERVICE} --project ${PROJECT_ID} --region ${REGION} \\"
+echo "       --update-env-vars HS_OPS_RUNNER_URL=<runner-url>"
+echo
+STEP=$((STEP + 1))
 echo "STEP ${STEP} — go live"
 echo "  1. Open ${URL} and sign in as ${OWNER_EMAIL}."
 if [ -n "${URL_ALT}" ]; then echo "     (or ${URL_ALT} — both reach the same service)"; fi

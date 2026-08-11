@@ -16,6 +16,7 @@ const { callModel, tierConfig, FAST_MODEL, STRONG_MODEL, currentProvider } = req
 
 const { rateLimit } = require('./ratelimit');
 const workspace = require('./google/workspace');
+const opsrunner = require('./hubspot/opsrunner');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
@@ -75,9 +76,23 @@ router.use(auth.requireAuth);
 
 // ---------- Google Workspace: capabilities + per-user connection ----------
 // The matrix the UI renders is the same object the tool layer enforces.
+const HUBSPOT_SURFACE = {
+  surface: 'HubSpot CRM (sandbox)', icon: 'grid',
+  can: [
+    { id: 'hs_search', label: 'Search and read the CRM', detail: 'All object types in the practice portal, including custom objects (commission, referral_partner, suppliers).' },
+    { id: 'hs_preview', label: 'Preview changes as dry runs', detail: 'Create/update/upsert previews show exactly what would change. Nothing applies at this step.' },
+    { id: 'hs_apply', label: 'Apply after a named human approves', detail: 'Apply only works in a run resumed from an approved escalation — the preview → approval → apply ceremony is enforced on both sides.' },
+  ],
+  cannot: [
+    { label: 'Delete or merge anything', detail: 'Policy-denied at the Ops Runner and never exposed to agents here.' },
+    { label: 'Touch the real customer portal', detail: 'The Ops Runner is locked to sandbox portal 246460341 — the production CRM is unreachable by design.' },
+  ],
+};
 router.get('/capabilities', (req, res) => {
+  const surfaces = [...workspace.CAPABILITIES];
+  if (opsrunner.configured()) surfaces.splice(surfaces.length - 1, 0, HUBSPOT_SURFACE);
   res.json({
-    surfaces: workspace.CAPABILITIES,
+    surfaces,
     oauthReady: workspace.oauthReady(),
     connected: workspace.isConnected(req.user.email),
     identityModel: 'Agents act with the Google permissions of the person who directed the run — never more.',
@@ -144,7 +159,7 @@ router.get('/health/integrations', (req, res) => {
   const replicated = Boolean(process.env.LITESTREAM_REPLICA_URL);
   const integrations = [
     {
-      id: 'model', label: `MODEL · ${provider.toUpperCase()}`,
+      id: 'model', label: `MODEL · ${provider.toUpperCase()}`, probe: modelConfigured,
       status: modelConfigured ? 'ready' : 'down',
       detail: modelConfigured
         ? `${FAST_MODEL} (fast) / ${STRONG_MODEL} (strong) via ${provider}`
@@ -171,9 +186,11 @@ router.get('/health/integrations', (req, res) => {
       detail: process.env.ENABLE_WEB_SEARCH === '0' ? 'Disabled by ENABLE_WEB_SEARCH=0.' : 'Research agents can search with citations; $10/1k searches, metered per run.',
     },
     {
-      id: 'hubspot', label: 'HUBSPOT',
-      status: 'planned',
-      detail: 'Not wired yet — this lamp stays dark until a real CRM integration lands. Say the word and it is next.',
+      id: 'hubspot', label: 'HUBSPOT · OPS RUNNER', probe: opsrunner.configured(),
+      status: opsrunner.configured() ? 'ready' : 'planned',
+      detail: opsrunner.configured()
+        ? 'Wired to ctg-hs-ops-runner (sandbox portal 246460341 — real CRM unreachable by design). Reads free; changes preview-first, applied only after human approval. Probe verifies reach + IAM.'
+        : 'Not wired — set HS_OPS_RUNNER_URL and grant run.invoker to the canvas service account (see docs/DEPLOY.md).',
     },
     {
       id: 'mcp', label: 'MCP CONNECTORS',
@@ -188,6 +205,26 @@ router.get('/health/integrations', (req, res) => {
 
 router.post('/health/probe', rateLimit('auth', 10, 60_000), asyncRoute(async (req, res) => {
   const surface = String(req.body.surface || '');
+  if (surface === 'model') {
+    // One tiny live call through the real model path. This is the difference
+    // between "credential present" and "Model Garden actually enabled" — a 403
+    // here is the enablement detector, surfaced with the upstream message.
+    const t0 = Date.now();
+    const { model } = tierConfig('fast');
+    await callModel({ model, system: 'Reply with the single word: ok', messages: [{ role: 'user', content: 'ping' }], maxTokens: 8 });
+    audit('user', req.user.email, 'health.model_probe', { model, ms: Date.now() - t0 });
+    return res.json({ ok: true, ms: Date.now() - t0, model });
+  }
+  if (surface === 'hubspot') {
+    const opsrunner = require('./hubspot/opsrunner');
+    const result = await opsrunner.probe(req.user.email);
+    return res.json(result);
+  }
+  if (surface.startsWith('mcp:')) {
+    const mcp = require('./mcp/client');
+    const result = await mcp.probeServer(surface.slice(4));
+    return res.json(result);
+  }
   const result = await workspace.probeSurface(req.user.email, surface);
   res.json(result);
 }));

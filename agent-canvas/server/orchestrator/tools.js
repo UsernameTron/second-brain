@@ -293,8 +293,71 @@ const WORKSPACE_WRITE_TOOLS = [
   },
 ];
 
+// HubSpot tools — thin clients of the ctg-hs-ops-runner policy service
+// (sandbox portal only; the real CRM is unreachable by design). Reads are
+// free; changes are preview-first: hs_preview_change always dry-runs, and
+// hs_apply_change only works in a run resumed from a human-approved
+// escalation.
+const HUBSPOT_TOOLS = [
+  {
+    name: 'hs_types',
+    description: 'List every CRM object type in the HubSpot sandbox, including custom objects (commission, referral_partner, suppliers).',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'hs_search',
+    description: 'Search HubSpot sandbox records. Filter syntax: "email~acme.com" (contains), "email=x@y.com" (exact), "amount>1000 AND dealstage=closedwon".',
+    input_schema: { type: 'object', properties: { type: { type: 'string' }, filter: { type: 'string' }, properties: { type: 'array', items: { type: 'string' }, description: 'property names to include' } }, required: ['type', 'filter'] },
+  },
+  {
+    name: 'hs_get',
+    description: 'Fetch one HubSpot sandbox record by id.',
+    input_schema: { type: 'object', properties: { type: { type: 'string' }, id: { type: 'string' }, properties: { type: 'array', items: { type: 'string' } } }, required: ['type', 'id'] },
+  },
+  {
+    name: 'hs_list',
+    description: 'List a page of HubSpot sandbox records of one type.',
+    input_schema: { type: 'object', properties: { type: { type: 'string' }, properties: { type: 'array', items: { type: 'string' } } }, required: ['type'] },
+  },
+  {
+    name: 'hs_pipelines',
+    description: 'List HubSpot pipelines (and use hs_pipeline_stages for their stages) for a type such as deals.',
+    input_schema: { type: 'object', properties: { type: { type: 'string' } }, required: ['type'] },
+  },
+  {
+    name: 'hs_pipeline_stages',
+    description: 'List pipeline stages for a HubSpot object type such as deals.',
+    input_schema: { type: 'object', properties: { type: { type: 'string' } }, required: ['type'] },
+  },
+  {
+    name: 'hs_owners',
+    description: 'List HubSpot CRM owners/users in the sandbox.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'hs_properties',
+    description: 'List the property schema for a HubSpot object type.',
+    input_schema: { type: 'object', properties: { type: { type: 'string' } }, required: ['type'] },
+  },
+  {
+    name: 'hs_associations',
+    description: 'List associations from one HubSpot record to another type (e.g. contact → companies).',
+    input_schema: { type: 'object', properties: { from_type: { type: 'string' }, from_id: { type: 'string' }, to_type: { type: 'string' } }, required: ['from_type', 'from_id', 'to_type'] },
+  },
+  {
+    name: 'hs_preview_change',
+    description: 'PREVIEW a HubSpot create/update/upsert as a dry run — nothing is applied. Attach the returned preview to an escalation so a human can approve; only a run resumed from that approval may apply.',
+    input_schema: { type: 'object', properties: { operation: { type: 'string', enum: ['create', 'update', 'upsert'] }, type: { type: 'string' }, id: { type: 'string', description: 'required for update' }, properties: { type: 'object', description: 'property name → value' } }, required: ['operation', 'type', 'properties'] },
+  },
+  {
+    name: 'hs_apply_change',
+    description: 'APPLY a previously previewed HubSpot change. Only works in a run resumed from a human-approved escalation; otherwise escalate with the preview first.',
+    input_schema: { type: 'object', properties: { operation: { type: 'string', enum: ['create', 'update', 'upsert'] }, type: { type: 'string' }, id: { type: 'string' }, properties: { type: 'object' } }, required: ['operation', 'type', 'properties'] },
+  },
+];
+
 function toolsForRole(role) {
-  return [...COMMON_TOOLS, ...WORKSPACE_READ_TOOLS, ...WORKSPACE_WRITE_TOOLS, ...(ROLE_TOOLS[role] || [{
+  return [...COMMON_TOOLS, ...WORKSPACE_READ_TOOLS, ...WORKSPACE_WRITE_TOOLS, ...HUBSPOT_TOOLS, ...(ROLE_TOOLS[role] || [{
     name: 'read_rows',
     description: 'Read rows of the conference-lead workbook on this canvas.',
     input_schema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer' } }, required: [] },
@@ -549,6 +612,42 @@ async function executeTool(name, input, ctx) {
         }
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
         return { content: JSON.stringify(out) };
+      } catch (err) {
+        return { content: String(err.message || err), isError: true };
+      }
+    }
+
+        case 'hs_types': case 'hs_search': case 'hs_get': case 'hs_list':
+    case 'hs_pipelines': case 'hs_pipeline_stages': case 'hs_owners':
+    case 'hs_properties': case 'hs_associations':
+    case 'hs_preview_change': case 'hs_apply_change': {
+      const opsrunner = require('../hubspot/opsrunner');
+      const initiator = run.initiated_by;
+      if (!initiator) {
+        return { content: 'This run has no directing user, so HubSpot tools are unavailable (system-triggered runs cannot touch the CRM). Escalate if a human needs to authorize this.', isError: true };
+      }
+      if (!opsrunner.configured()) {
+        return { content: 'The HubSpot Ops Runner is not wired on this deployment (HS_OPS_RUNNER_URL unset) — the HUBSPOT lamp on the systems board is dark. Tell the owner.', isError: true };
+      }
+      try {
+        let out;
+        if (name === 'hs_preview_change') {
+          const argv = opsrunner.buildArgv('change', input);
+          out = await opsrunner.runArgv({ argv, confirm: false, actorEmail: initiator });
+          out = JSON.stringify({ preview: true, applied: false, result: out, next: 'escalate with this preview; a human must approve before hs_apply_change' });
+        } else if (name === 'hs_apply_change') {
+          if (run.trigger_kind !== 'escalation_resume') {
+            return { content: 'REFUSED: hs_apply_change only works in a run resumed from a human-approved escalation. Use hs_preview_change, escalate with the preview, and apply after approval.', isError: true };
+          }
+          const argv = opsrunner.buildArgv('change', input);
+          out = await opsrunner.runArgv({ argv, confirm: true, actorEmail: initiator });
+        } else {
+          const op = name.slice(3); // hs_<op>
+          const argv = opsrunner.buildArgv(op, input);
+          out = await opsrunner.runArgv({ argv, actorEmail: initiator });
+        }
+        bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
+        return { content: out };
       } catch (err) {
         return { content: String(err.message || err), isError: true };
       }
