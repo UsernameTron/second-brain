@@ -67,7 +67,7 @@ router.get('/me', auth.requireAuth, (req, res) => {
 });
 
 function publicUser(u) {
-  return { id: u.id, email: u.email, name: u.name, picture: u.picture, role: u.role };
+  return { id: u.id, email: u.email, name: u.name, picture: u.picture, role: u.role, theme: u.theme || 'light' };
 }
 
 // Everything below requires a signed-in allowlisted user.
@@ -110,6 +110,16 @@ router.get('/google/oauth/callback', rateLimit('auth', 10, 60_000), asyncRoute(a
   await workspace.exchangeCode({ code: String(code), redirectUri: `${externalBase(req)}/api/google/oauth/callback`, email: req.user.email });
   res.redirect('/?ws=connected');
 }));
+
+// ---------- per-user display preference ----------
+// Stored on the account so a person's choice follows them across devices.
+const THEMES = ['light', 'dark'];
+router.patch('/me/theme', (req, res) => {
+  const theme = String(req.body.theme || '');
+  if (!THEMES.includes(theme)) return res.status(400).json({ error: `theme must be one of ${THEMES.join(', ')}` });
+  db.prepare('UPDATE users SET theme = ? WHERE email = ?').run(theme, req.user.email);
+  res.json({ ok: true, theme });
+});
 
 // ---------- systems board: integration health with real statuses ----------
 // States: ready (green) / attention (amber) / down (red, blinking) /

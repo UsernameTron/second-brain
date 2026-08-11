@@ -9,6 +9,17 @@ let toastSeq = 0;
 export default function App() {
   const [config, setConfig] = useState(null);
   const [user, setUser] = useState(undefined); // undefined = booting, null = signed out
+  // Theme is applied to <html data-theme> so CSS drives everything. Read the
+  // last-known value synchronously at module scope (see bootTheme in main.jsx)
+  // so there is no flash, then reconcile with the account preference on load.
+  const [theme, setThemeState] = useState(() => document.documentElement.dataset.theme || 'light');
+  const setTheme = useCallback((next) => {
+    setThemeState(next);
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('ac_theme', next); } catch { /* private mode */ }
+    document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', next);
+    api('/api/me/theme', { method: 'PATCH', body: { theme: next } }).catch(() => {});
+  }, []);
   const [toasts, setToasts] = useState([]);
 
   const toast = useCallback((msg, kind = 'error') => {
@@ -22,12 +33,21 @@ export default function App() {
       .then(setConfig)
       .catch((e) => { setConfig({}); toast(`config: ${e.message}`); });
     api('/api/me')
-      .then((d) => setUser(d.user))
+      .then((d) => {
+        setUser(d.user);
+        // The account is the source of truth; adopt it if it differs from the
+        // value this browser remembered.
+        if (d.user?.theme && d.user.theme !== document.documentElement.dataset.theme) {
+          setThemeState(d.user.theme);
+          document.documentElement.dataset.theme = d.user.theme;
+          try { localStorage.setItem('ac_theme', d.user.theme); } catch { /* private mode */ }
+        }
+      })
       .catch(() => setUser(null));
   }, [toast]);
 
   return (
-    <AppCtx.Provider value={{ config, user, setUser, toast }}>
+    <AppCtx.Provider value={{ config, user, setUser, toast, theme, setTheme }}>
       {user === undefined || config === null ? (
         <div className="boot-screen"><div className="boot-glyph" /><div>Waking the canvas…</div></div>
       ) : user ? (

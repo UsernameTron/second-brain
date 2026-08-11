@@ -14,7 +14,7 @@ import CapabilitiesModal from './CapabilitiesModal.jsx';
 let liveSeq = 0;
 
 export default function Workspace() {
-  const { user, setUser, toast } = useContext(AppCtx);
+  const { user, setUser, toast, theme, setTheme } = useContext(AppCtx);
   const isOwner = user.role === 'owner';
 
   const [canvases, setCanvases] = useState([]);
@@ -671,6 +671,9 @@ export default function Workspace() {
                   <a href="/api/export" download>Export workspace JSON</a>
                 </>
               ) : null}
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+                {theme === 'dark' ? 'Light theme — CTG brand' : 'Dark theme — bridge console'}
+              </button>
               <button onClick={signOut}>Sign out</button>
             </div>
           ) : null}
@@ -749,6 +752,15 @@ export default function Workspace() {
             <span className="hud-label">Link</span>
           </span>
           <span className="hud-sep" />
+          <span className="hud-cell" title="One segment per agent — lit green while running, amber waiting, red on error">
+            <span className="hud-label">Agents</span>
+            <span className="segbar">
+              {(state?.agents || []).slice(0, 12).map((a) => (
+                <span key={a.id} className={`seg seg-${a.status || 'idle'}`} title={`${a.name} — ${a.status || 'idle'}`} />
+              ))}
+              {(state?.agents || []).length === 0 ? <span className="seg seg-idle" /> : null}
+            </span>
+          </span>
           <span className="hud-cell">
             <span className="hud-label">Runs</span>
             <span className="hud-val mono">
