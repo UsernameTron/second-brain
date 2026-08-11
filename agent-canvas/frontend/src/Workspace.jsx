@@ -38,6 +38,18 @@ export default function Workspace() {
   const [wsOk, setWsOk] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [capsOpen, setCapsOpen] = useState(false);
+  const [wsConnected, setWsConnected] = useState(null); // null = unknown yet
+  const refreshCaps = useCallback(() => {
+    api('/api/capabilities').then((d) => setWsConnected(!!d.connected)).catch(() => {});
+  }, []);
+  useEffect(() => { refreshCaps(); }, [refreshCaps]);
+  useEffect(() => {
+    const ws = new URLSearchParams(window.location.search).get('ws');
+    if (!ws) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    if (ws === 'connected') { toast('Google Workspace connected — agents you direct can now use it', 'ok'); refreshCaps(); setCapsOpen(true); }
+    else if (ws === 'denied') { toast('Workspace connection was cancelled'); }
+  }, [refreshCaps, toast]);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const wsRef = useRef(null);
@@ -615,17 +627,20 @@ export default function Workspace() {
         </button>
         <button className={`btn ghost ${panel?.type === 'memory' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'memory' ? null : { type: 'memory' })}>Memory</button>
         <button className={`btn ghost ${panel?.type === 'workbook' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'workbook' ? null : { type: 'workbook' })}>Workbook</button>
-        <button className="btn ghost" onClick={() => setCapsOpen(true)} title="What agents can and cannot do in Google Workspace">Capabilities</button>
+        <button className="btn ghost caps-btn" onClick={() => setCapsOpen(true)} title={wsConnected ? 'Google Workspace connected — see what agents can and cannot do' : 'Google Workspace not connected — click to see what agents can do and connect'}>
+          <span className={`caps-state-dot ${wsConnected ? 'on' : 'off'}`} />
+          Capabilities
+        </button>
         {pause.paused
           ? (isOwner ? <button className="btn ok" onClick={resumeAll}>Resume</button> : <span className="chip paused-chip">paused</span>)
           : <button className="btn danger" onClick={pauseAll} title="Emergency stop — halts every agent">Pause</button>}
-        <div className="presence-stack" title={presence.map((p) => p.name).join(', ')}>
-          {presence.slice(0, 6).map((p) => (
+        <div className="presence-stack" title={presence.filter((p) => p.email !== user.email).map((p) => p.name).join(', ') || 'No one else is here'}>
+          {presence.filter((p) => p.email !== user.email).slice(0, 6).map((p) => (
             <span key={p.email} className="avatar" style={{ background: p.color }} title={`${p.name} (${p.email})`}>
               {initials(p.name)}
             </span>
           ))}
-          {presence.length > 6 ? <span className="avatar more">+{presence.length - 6}</span> : null}
+          {presence.filter((p) => p.email !== user.email).length > 6 ? <span className="avatar more">+{presence.filter((p) => p.email !== user.email).length - 6}</span> : null}
         </div>
         <div className="user-menu-wrap">
           <button className="avatar me" onClick={() => setMenuOpen((v) => !v)} title={user.email}>
@@ -711,7 +726,7 @@ export default function Workspace() {
       </div>
 
       {adminOpen ? <AdminModal onClose={() => setAdminOpen(false)} toast={toast} selfEmail={user.email} /> : null}
-      {capsOpen ? <CapabilitiesModal onClose={() => setCapsOpen(false)} toast={toast} /> : null}
+      {capsOpen ? <CapabilitiesModal onClose={() => { setCapsOpen(false); refreshCaps(); }} toast={toast} /> : null}
     </div>
   );
 }
