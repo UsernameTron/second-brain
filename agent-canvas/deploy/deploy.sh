@@ -176,9 +176,12 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
   --member="serviceAccount:${BUILD_SA_EMAIL}" --role=roles/cloudbuild.builds.builder >/dev/null
 
 submit_build() {
-  # A user-specified build service account requires an explicit bucket policy;
-  # without it Cloud Build refuses to write logs to a Google-owned bucket.
-  gcloud builds submit "${APP_DIR}" --tag "${IMAGE}" --project "${PROJECT_ID}" \
+  # --config, not --tag: the build must run under cloudbuild.yaml so BuildKit is
+  # on (the Dockerfile's optional build_ca secret mount is BuildKit-only syntax).
+  # A user-specified build service account also requires an explicit bucket
+  # policy; without it Cloud Build refuses to write logs to a Google-owned bucket.
+  gcloud builds submit "${APP_DIR}" --project "${PROJECT_ID}" \
+    --config "${APP_DIR}/cloudbuild.yaml" --substitutions=_IMAGE="${IMAGE}" \
     --service-account="projects/${PROJECT_ID}/serviceAccounts/${BUILD_SA_EMAIL}" \
     --default-buckets-behavior=regional-user-owned-bucket
 }
@@ -199,7 +202,8 @@ if [ "${BUILD_OK}" -ne 1 ]; then
   # on `builds submit`. Fall back to project defaults before giving up, so an
   # out-of-date CLI is not mistaken for a permissions problem.
   echo "==> Retrying the build with project default service accounts." >&2
-  gcloud builds submit "${APP_DIR}" --tag "${IMAGE}" --project "${PROJECT_ID}"
+  gcloud builds submit "${APP_DIR}" --project "${PROJECT_ID}" \
+    --config "${APP_DIR}/cloudbuild.yaml" --substitutions=_IMAGE="${IMAGE}"
 fi
 
 # 7. Deploy. max-instances=1 because SQLite is single-writer (Litestream replicates
