@@ -139,12 +139,18 @@ if [ "${MODEL_PROVIDER}" = "anthropic" ]; then
 fi
 gcloud secrets describe jwt-secret --project "${PROJECT_ID}" >/dev/null 2>&1 || \
   create_or_update_secret jwt-secret "$(head -c 32 /dev/urandom | xxd -p -c 64)"
+# Workspace OAuth client secret (enables the agents' Google Workspace tools;
+# optional — without it the app runs with canvas-only capabilities).
+if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
+  create_or_update_secret google-oauth-secret "${GOOGLE_CLIENT_SECRET}"
+fi
 
 # 5. Runtime service account (least privilege: bucket objects + the two secrets).
 gcloud iam service-accounts describe "${SA_EMAIL}" --project "${PROJECT_ID}" >/dev/null 2>&1 || \
   gcloud iam service-accounts create "${SA_NAME}" --project "${PROJECT_ID}" --display-name="Agent Canvas Cloud Run"
 gcloud storage buckets add-iam-policy-binding "${BUCKET}" --member="serviceAccount:${SA_EMAIL}" --role=roles/storage.objectAdmin >/dev/null
 SECRETS_TO_GRANT="jwt-secret"
+if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then SECRETS_TO_GRANT="${SECRETS_TO_GRANT} google-oauth-secret"; fi
 if [ "${MODEL_PROVIDER}" = "anthropic" ]; then SECRETS_TO_GRANT="anthropic-api-key jwt-secret"; fi
 for secret in ${SECRETS_TO_GRANT}; do
   gcloud secrets add-iam-policy-binding "${secret}" --project "${PROJECT_ID}" \
@@ -218,6 +224,9 @@ if [ "${MODEL_PROVIDER}" != "anthropic" ]; then
   SECRET_FLAGS="--set-secrets JWT_SECRET=jwt-secret:latest"
 else
   SECRET_FLAGS="--set-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest,JWT_SECRET=jwt-secret:latest"
+fi
+if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
+  SECRET_FLAGS="${SECRET_FLAGS},GOOGLE_CLIENT_SECRET=google-oauth-secret:latest"
 fi
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then ENV_VARS="${ENV_VARS},GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"; fi
 gcloud run deploy "${SERVICE}" \

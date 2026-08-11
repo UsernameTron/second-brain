@@ -249,6 +249,14 @@ CREATE TABLE IF NOT EXISTS audit_log (
   hash TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS google_tokens (
+  user_email TEXT PRIMARY KEY,
+  refresh_token_enc TEXT NOT NULL,
+  scopes TEXT NOT NULL DEFAULT '',
+  connected_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -287,5 +295,8 @@ function tx(fn) {
     throw err;
   }
 }
+
+// Additive migrations for databases created before a column existed.
+try { db.exec('ALTER TABLE runs ADD COLUMN initiated_by TEXT'); } catch { /* already present */ }
 
 module.exports = { db, tx, nowIso, getSetting, setSetting, DB_PATH };

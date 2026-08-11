@@ -9,6 +9,7 @@ import MemoryPanel from './MemoryPanel.jsx';
 import Workbook from './Workbook.jsx';
 import { AgentPanel, NotePanel, SpendPanel } from './Panels.jsx';
 import AdminModal from './AdminModal.jsx';
+import CapabilitiesModal from './CapabilitiesModal.jsx';
 
 let liveSeq = 0;
 
@@ -36,6 +37,7 @@ export default function Workspace() {
   const [hoverHandoffId, setHoverHandoffId] = useState(null);
   const [wsOk, setWsOk] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [capsOpen, setCapsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const wsRef = useRef(null);
@@ -613,6 +615,7 @@ export default function Workspace() {
         </button>
         <button className={`btn ghost ${panel?.type === 'memory' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'memory' ? null : { type: 'memory' })}>Memory</button>
         <button className={`btn ghost ${panel?.type === 'workbook' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'workbook' ? null : { type: 'workbook' })}>Workbook</button>
+        <button className="btn ghost" onClick={() => setCapsOpen(true)} title="What agents can and cannot do in Google Workspace">Capabilities</button>
         {pause.paused
           ? (isOwner ? <button className="btn ok" onClick={resumeAll}>Resume</button> : <span className="chip paused-chip">paused</span>)
           : <button className="btn danger" onClick={pauseAll} title="Emergency stop — halts every agent">Pause</button>}
@@ -708,6 +711,7 @@ export default function Workspace() {
       </div>
 
       {adminOpen ? <AdminModal onClose={() => setAdminOpen(false)} toast={toast} selfEmail={user.email} /> : null}
+      {capsOpen ? <CapabilitiesModal onClose={() => setCapsOpen(false)} toast={toast} /> : null}
     </div>
   );
 }

@@ -229,8 +229,72 @@ const ROLE_TOOLS = {
   ],
 };
 
+// Google Workspace tools. Read tools go to every role; write tools carry the
+// guardrails in their own descriptions so the model knows the contract it is
+// operating under. The hard enforcement lives in server/google/workspace.js —
+// destructive operations do not exist there to be called.
+const WORKSPACE_READ_TOOLS = [
+  {
+    name: 'ws_sheets_read',
+    description: 'Read a cell range from a Google Sheet the directing user can open. Use A1 notation (e.g. "Leads!A1:F50").',
+    input_schema: { type: 'object', properties: { spreadsheet_id: { type: 'string' }, range: { type: 'string' } }, required: ['spreadsheet_id', 'range'] },
+  },
+  {
+    name: 'ws_drive_search',
+    description: 'Search the directing user\'s Google Drive by name/content. Returns file ids, names, types, links.',
+    input_schema: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer' } }, required: ['query'] },
+  },
+  {
+    name: 'ws_drive_read',
+    description: 'Read a Google Doc, Sheet (as CSV), or text/CSV file from Drive as plain text (size-capped). Read-only: you cannot edit existing files.',
+    input_schema: { type: 'object', properties: { file_id: { type: 'string' } }, required: ['file_id'] },
+  },
+  {
+    name: 'ws_gmail_search',
+    description: 'Search the directing user\'s Gmail (standard Gmail query syntax). Returns subjects, senders, snippets.',
+    input_schema: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer' } }, required: ['query'] },
+  },
+  {
+    name: 'ws_gmail_read',
+    description: 'Read one email\'s full text by message id (from ws_gmail_search).',
+    input_schema: { type: 'object', properties: { message_id: { type: 'string' } }, required: ['message_id'] },
+  },
+  {
+    name: 'ws_calendar_list',
+    description: 'List the directing user\'s calendar events (ISO timeMin/timeMax optional).',
+    input_schema: { type: 'object', properties: { time_min: { type: 'string' }, time_max: { type: 'string' }, limit: { type: 'integer' } }, required: [] },
+  },
+];
+const WORKSPACE_WRITE_TOOLS = [
+  {
+    name: 'ws_sheets_append',
+    description: 'Append new rows to the bottom of a sheet range. Never overwrites existing data. Cite where each value came from in memory.',
+    input_schema: { type: 'object', properties: { spreadsheet_id: { type: 'string' }, range: { type: 'string' }, values: { type: 'array', items: { type: 'array' } } }, required: ['spreadsheet_id', 'range', 'values'] },
+  },
+  {
+    name: 'ws_sheets_update',
+    description: 'Write specific values to a specific cell range. Writes that would only blank cells are refused server-side — this tool cannot clear data. Record what you changed and why in memory.',
+    input_schema: { type: 'object', properties: { spreadsheet_id: { type: 'string' }, range: { type: 'string' }, values: { type: 'array', items: { type: 'array' } } }, required: ['spreadsheet_id', 'range', 'values'] },
+  },
+  {
+    name: 'ws_gmail_draft',
+    description: 'Create an email DRAFT in the directing user\'s Drafts folder. You cannot send email — the send permission does not exist in this system. A human reviews and sends.',
+    input_schema: { type: 'object', properties: { to: { type: 'string' }, subject: { type: 'string' }, body: { type: 'string' } }, required: ['to', 'subject', 'body'] },
+  },
+  {
+    name: 'ws_calendar_create',
+    description: 'Create a new calendar event for the directing user. You cannot modify or cancel existing events.',
+    input_schema: { type: 'object', properties: { summary: { type: 'string' }, description: { type: 'string' }, start_iso: { type: 'string' }, end_iso: { type: 'string' }, attendees: { type: 'array', items: { type: 'string' } } }, required: ['summary', 'start_iso', 'end_iso'] },
+  },
+  {
+    name: 'ws_docs_create',
+    description: 'Create a new Google Doc (brief, summary, report) in the directing user\'s Drive. You cannot edit or delete existing documents.',
+    input_schema: { type: 'object', properties: { title: { type: 'string' }, text: { type: 'string' } }, required: ['title', 'text'] },
+  },
+];
+
 function toolsForRole(role) {
-  return [...COMMON_TOOLS, ...(ROLE_TOOLS[role] || [{
+  return [...COMMON_TOOLS, ...WORKSPACE_READ_TOOLS, ...WORKSPACE_WRITE_TOOLS, ...(ROLE_TOOLS[role] || [{
     name: 'read_rows',
     description: 'Read rows of the conference-lead workbook on this canvas.',
     input_schema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer' } }, required: [] },
@@ -458,7 +522,39 @@ async function executeTool(name, input, ctx) {
       return { content: JSON.stringify({ ok: true, changeset_id: changesetId, changes: results }) };
     }
 
-    case 'read_changesets': {
+    case 'ws_sheets_read': case 'ws_drive_search': case 'ws_drive_read':
+    case 'ws_gmail_search': case 'ws_gmail_read': case 'ws_calendar_list':
+    case 'ws_sheets_append': case 'ws_sheets_update': case 'ws_gmail_draft':
+    case 'ws_calendar_create': case 'ws_docs_create': {
+      const ws = require('../google/workspace');
+      const initiator = run.initiated_by;
+      if (!initiator) {
+        return { content: 'This run has no directing user, so Workspace tools are unavailable (system-triggered runs cannot touch Google Workspace). Escalate if a human needs to authorize this.', isError: true };
+      }
+      try {
+        let out;
+        switch (name) {
+          case 'ws_sheets_read': out = await ws.sheetsRead({ email: initiator, spreadsheetId: input.spreadsheet_id, range: input.range }); break;
+          case 'ws_drive_search': out = await ws.driveSearch({ email: initiator, query: input.query, limit: input.limit }); break;
+          case 'ws_drive_read': out = await ws.driveReadText({ email: initiator, fileId: input.file_id }); break;
+          case 'ws_gmail_search': out = await ws.gmailSearch({ email: initiator, query: input.query, limit: input.limit }); break;
+          case 'ws_gmail_read': out = await ws.gmailRead({ email: initiator, messageId: input.message_id }); break;
+          case 'ws_calendar_list': out = await ws.calendarList({ email: initiator, timeMin: input.time_min, timeMax: input.time_max, limit: input.limit }); break;
+          case 'ws_sheets_append': out = await ws.sheetsAppend({ email: initiator, spreadsheetId: input.spreadsheet_id, range: input.range, values: input.values }); break;
+          case 'ws_sheets_update': out = await ws.sheetsUpdate({ email: initiator, spreadsheetId: input.spreadsheet_id, range: input.range, values: input.values }); break;
+          case 'ws_gmail_draft': out = await ws.gmailCreateDraft({ email: initiator, to: input.to, subject: input.subject, body: input.body }); break;
+          case 'ws_calendar_create': out = await ws.calendarCreate({ email: initiator, summary: input.summary, description: input.description, startIso: input.start_iso, endIso: input.end_iso, attendees: input.attendees }); break;
+          case 'ws_docs_create': out = await ws.docsCreate({ email: initiator, title: input.title, text: input.text }); break;
+          default: throw new Error('unreachable');
+        }
+        bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
+        return { content: JSON.stringify(out) };
+      } catch (err) {
+        return { content: String(err.message || err), isError: true };
+      }
+    }
+
+        case 'read_changesets': {
       const sets = db.prepare('SELECT * FROM changesets WHERE canvas_id = ? ORDER BY created_at DESC LIMIT 10').all(canvas.id);
       const out = sets.map((cs) => ({
         id: cs.id,

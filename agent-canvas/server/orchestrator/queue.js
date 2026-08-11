@@ -18,7 +18,7 @@ const DEFAULT_WALL_MS = Number(process.env.RUN_WALL_MS || 240_000);
 const queue = [];
 let runningCount = 0;
 
-function dispatchRun({ agentId, canvasId, instruction, triggerKind = 'user', parentRunId = null, initialReads = [], stepBudget, wallMs, actor = 'system' }) {
+function dispatchRun({ agentId, canvasId, instruction, triggerKind = 'user', parentRunId = null, initialReads = [], stepBudget, wallMs, actor = 'system', initiatedBy = null }) {
   const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND canvas_id = ?').get(agentId, canvasId);
   if (!agent) throw Object.assign(new Error('agent not found on this canvas'), { status: 404 });
   if (control.budgetExceeded()) {
@@ -27,10 +27,16 @@ function dispatchRun({ agentId, canvasId, instruction, triggerKind = 'user', par
     throw err;
   }
   const id = crypto.randomUUID();
+  // Whose Google identity workspace tools act as: an explicit initiator wins;
+  // a handoff/resume child inherits its parent's; system runs have none.
+  let initiator = initiatedBy;
+  if (!initiator && parentRunId) {
+    initiator = db.prepare('SELECT initiated_by FROM runs WHERE id = ?').get(parentRunId)?.initiated_by || null;
+  }
   db.prepare(
-    `INSERT INTO runs (id, agent_id, canvas_id, parent_run_id, trigger_kind, instruction, status, step_budget, wall_ms_budget, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`
-  ).run(id, agentId, canvasId, parentRunId, triggerKind, instruction, stepBudget || DEFAULT_STEP_BUDGET, wallMs || DEFAULT_WALL_MS, nowIso());
+    `INSERT INTO runs (id, agent_id, canvas_id, parent_run_id, trigger_kind, instruction, status, step_budget, wall_ms_budget, created_at, initiated_by)
+     VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)`
+  ).run(id, agentId, canvasId, parentRunId, triggerKind, instruction, stepBudget || DEFAULT_STEP_BUDGET, wallMs || DEFAULT_WALL_MS, nowIso(), initiator);
   if (initialReads.length) memory.recordRunReads(id, initialReads);
   audit(triggerKind === 'user' ? 'user' : 'system', actor, 'run.dispatch', { runId: id, agentId, canvasId, triggerKind });
   bus.emit('event', { type: 'run_status', canvasId, runId: id, agentId, status: 'queued' });

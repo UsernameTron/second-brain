@@ -15,6 +15,8 @@ const { createEscalation } = require('./orchestrator/tools');
 const { callModel, tierConfig, FAST_MODEL, STRONG_MODEL } = require('./orchestrator/anthropic');
 
 const { rateLimit } = require('./ratelimit');
+const workspace = require('./google/workspace');
+const jwt = require('jsonwebtoken');
 
 const router = express.Router();
 
@@ -70,6 +72,49 @@ function publicUser(u) {
 
 // Everything below requires a signed-in allowlisted user.
 router.use(auth.requireAuth);
+
+// ---------- Google Workspace: capabilities + per-user connection ----------
+// The matrix the UI renders is the same object the tool layer enforces.
+router.get('/capabilities', (req, res) => {
+  res.json({
+    surfaces: workspace.CAPABILITIES,
+    oauthReady: workspace.oauthReady(),
+    connected: workspace.isConnected(req.user.email),
+    identityModel: 'Agents act with the Google permissions of the person who directed the run — never more.',
+  });
+});
+
+function oauthStateSecret() {
+  return process.env.JWT_SECRET || 'dev-state-secret';
+}
+function externalBase(req) {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  return `${proto}://${req.get('host')}`;
+}
+
+router.post('/google/connect', rateLimit('auth', 10, 60_000), (req, res) => {
+  if (!workspace.oauthReady()) {
+    return res.status(503).json({ error: 'Workspace OAuth is not configured on this deployment (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET unset).' });
+  }
+  const redirectUri = `${externalBase(req)}/api/google/oauth/callback`;
+  const state = jwt.sign({ email: req.user.email, purpose: 'ws-connect' }, oauthStateSecret(), { expiresIn: '15m' });
+  res.json({ url: workspace.buildAuthUrl({ state, redirectUri }) });
+});
+
+router.get('/google/oauth/callback', rateLimit('auth', 10, 60_000), asyncRoute(async (req, res) => {
+  const { code, state, error } = req.query;
+  if (error) return res.redirect('/?ws=denied');
+  let claims;
+  try { claims = jwt.verify(String(state || ''), oauthStateSecret()); } catch { return res.status(400).send('invalid state'); }
+  if (claims.purpose !== 'ws-connect' || claims.email !== req.user.email) return res.status(403).send('state mismatch');
+  await workspace.exchangeCode({ code: String(code), redirectUri: `${externalBase(req)}/api/google/oauth/callback`, email: req.user.email });
+  res.redirect('/?ws=connected');
+}));
+
+router.post('/google/disconnect', (req, res) => {
+  workspace.disconnect(req.user.email);
+  res.json({ ok: true });
+});
 
 // ---------- allowlist (owner only) ----------
 router.get('/allowlist', auth.requireOwner, (req, res) => {
@@ -192,7 +237,7 @@ router.post('/canvases/:canvasId/agents/:agentId/dispatch', rateLimit('model', 3
   try {
     const run = dispatchRun({
       agentId: req.params.agentId, canvasId: req.params.canvasId, instruction,
-      triggerKind: 'user', actor: req.user.email,
+      triggerKind: 'user', actor: req.user.email, initiatedBy: req.user.email,
       stepBudget: req.body.step_budget, wallMs: req.body.wall_ms,
     });
     res.json({ run });
@@ -445,7 +490,7 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
     run = dispatchRun({
       agentId, canvasId: escalation.canvas_id,
       instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}\nHuman decision (${req.user.email}): ${answer}\nApply this decision now: record it in memory as a "verified" entry (source: "human decision ${req.user.email}"), and if it fixes workbook fields, apply them with apply_row_fix using escalation_id ${escalation.id}. Then complete. Your summary must state exactly what you changed — nothing more.`,
-      triggerKind: 'escalation_resume', actor: req.user.email,
+      triggerKind: 'escalation_resume', actor: req.user.email, initiatedBy: req.user.email,
     });
   }
   bus.emit('event', { type: 'escalation_resolved', canvasId: escalation.canvas_id, escalationId: escalation.id, status, by: req.user.email });

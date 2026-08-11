@@ -30,7 +30,7 @@ The script is idempotent. It creates a **new dedicated project** `agent-canvas-c
    If the project is outside the org, moving it in later (`gcloud beta projects move`, an Organization Administrator, non-destructive) restores the Internal option; switch the consent screen afterwards and nothing else changes.
 2. **APIs & Services → Credentials → Create credentials → OAuth client ID → Web application.** (The client may live in a different project from the Cloud Run service — an org-resident project can issue an *Internal* client that an outside-the-org deployment then uses, which recovers the second gate without moving anything.)
    - Authorized JavaScript origins: the service URL from step 1.
-   - No redirect URIs needed (Google Identity Services popup flow).
+   - Authorized redirect URIs: `<service-url>/api/google/oauth/callback` (required for the Workspace tools; sign-in itself uses the popup flow and needs none).
 3. Copy the client ID and attach it:
 
 ```bash
@@ -41,6 +41,19 @@ gcloud run services update agent-canvas --project agent-canvas-ctg --region us-c
 ## Step 3 — sign in and check the seed
 
 Open the service URL, sign in with a cloudtechgurus.com Google account. The allowlist is seeded with pete@ (owner), fred@, darren@, jessica@ — **if the real mailbox names differ, the owner fixes them in-app** (top bar → Admin → Allowlist) or pre-seeds via `OWNER_EMAIL` / `SEED_MEMBERS` env vars. Remaining domain users are added from the same Admin panel — no redeploy.
+
+## Workspace tools (agents' hands — optional but recommended)
+
+Agents can read and act in Google Workspace **as the person who directed the run** — per-user OAuth, no service-account key, no domain-wide delegation. The contract is read broadly / write reasonably / destroy never: search+read Gmail but only *draft* (send is never granted), read Drive/Docs but create-only (no edits/deletes), read+append+update Sheets (blanking writes refused server-side), read+create Calendar (no modify/cancel). The full matrix lives in the app under **Capabilities**, rendered from the same object the server enforces; `test/workspace-guardrails.test.js` proves the destructive operations are structurally absent.
+
+Enable it:
+
+1. On the OAuth client from step 2, add the redirect URI `<service-url>/api/google/oauth/callback` and note the client secret.
+2. Redeploy with `GOOGLE_CLIENT_SECRET=<secret>` (stored in Secret Manager as `google-oauth-secret`), or attach it later:
+   `gcloud run services update agent-canvas --project <project> --region us-central1 --update-secrets GOOGLE_CLIENT_SECRET=google-oauth-secret:latest` (after `printf '%s' '<secret>' | gcloud secrets create google-oauth-secret --data-file=-`).
+3. Each user clicks **Capabilities → Connect Google Workspace** once and grants the six scopes (drive.readonly, drive.file, spreadsheets, gmail.readonly, gmail.compose, calendar.events).
+
+Scope review note: gmail.readonly/compose and drive.readonly are *restricted* scopes. On an **Internal** consent screen (project inside the org) no Google verification is needed. On an External screen in Testing mode they work for up to 100 test users — add each member as a test user; that covers this team, but it is one more reason to move the project into the cloudtechgurus.com organization and flip to Internal.
 
 ## Brand assets (optional, before building)
 

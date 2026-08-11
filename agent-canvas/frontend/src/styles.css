@@ -970,6 +970,39 @@ a:hover { text-decoration: underline; }
 .chain-badge.chain-ok { color: var(--green); border-color: rgba(22, 158, 106, 0.5); box-shadow: 0 0 10px rgba(22, 158, 106, 0.2); }
 .chain-badge.chain-broken { color: var(--red); border-color: var(--red); box-shadow: 0 0 12px rgba(196, 54, 42, 0.4); }
 
+/* ---------- capabilities matrix ---------- */
+.caps-modal { width: min(760px, calc(100% - 40px)); }
+.caps-identity { font-size: 12px; max-width: 380px; line-height: 1.35; }
+.caps-connect {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--bg2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+}
+.caps-on { color: var(--green); border-color: color-mix(in srgb, var(--green) 50%, transparent); }
+.caps-off { color: var(--text-faint); }
+.caps-connect .btn { margin-left: auto; }
+.caps-surface { margin-top: 4px; }
+.caps-grid { display: flex; flex-direction: column; gap: 2px; }
+.caps-row {
+  display: grid; grid-template-columns: 22px 200px 1fr;
+  gap: 10px; align-items: baseline;
+  padding: 6px 8px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+.caps-row:hover { background: var(--bg2); }
+.caps-mark { font-weight: 800; text-align: center; }
+.caps-mark.can { color: var(--green); }
+.caps-mark.cannot { color: var(--red); }
+.caps-label { font-weight: 600; }
+.caps-detail { font-size: 12px; line-height: 1.4; }
+.caps-foot { font-size: 12px; margin-top: 14px; border-top: 1px solid var(--line-soft); padding-top: 10px; line-height: 1.5; }
+@media (max-width: 700px) { .caps-row { grid-template-columns: 20px 1fr; } .caps-detail { grid-column: 2; } }
+
 /* ---------- toasts ---------- */
 .toasts {
   position: fixed;
