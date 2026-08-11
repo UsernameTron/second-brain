@@ -379,6 +379,35 @@ export default function Workspace() {
   }, [toast]);
 
   const moveLive = useCallback((kind, id, x, y) => applyMove(kind, id, x, y), []);
+
+  // Tidy: deterministic pipeline layout. Tasks along the top, agents in role
+  // columns ordered research -> coding -> review (other roles after, A-Z),
+  // notes then files in rows below. Layout is presentation, not semantics —
+  // handoffs and memory never depend on where a node sits.
+  const [fitSignal, setFitSignal] = useState(0);
+  const arrangeCanvas = useCallback(async () => {
+    if (!state) return;
+    const ROLE_ORDER = ['research', 'coding', 'review'];
+    const roles = [...new Set((state.agents || []).map((a) => a.role))].sort((a, b) => {
+      const ia = ROLE_ORDER.indexOf(a); const ib = ROLE_ORDER.indexOf(b);
+      return (ia === -1 ? 9 : ia) - (ib === -1 ? 9 : ib) || String(a).localeCompare(String(b));
+    });
+    const moves = [];
+    const rowByRole = {};
+    for (const a of state.agents || []) {
+      const col = roles.indexOf(a.role);
+      const row = (rowByRole[a.role] = (rowByRole[a.role] ?? -1) + 1);
+      moves.push({ kind: 'agent', id: a.id, x: 150 + col * 340, y: 200 + row * 200 });
+    }
+    (state.tasks || []).forEach((t, i) => moves.push({ kind: 'task', id: t.id, x: 150 + i * 250, y: 20 }));
+    (state.notes || []).forEach((n, i) => moves.push({ kind: 'note', id: n.id, x: 150 + i * 260, y: 640 }));
+    (state.files || []).forEach((f, i) => moves.push({ kind: 'file', id: f.id, x: 150 + i * 240, y: 840 }));
+    for (const m of moves) applyMove(m.kind, m.id, m.x, m.y);
+    setFitSignal((n) => n + 1);
+    try {
+      await Promise.all(moves.map((m) => api(`/api/canvases/${canvasIdRef.current}/positions`, { method: 'POST', body: m })));
+    } catch (e) { toast(e.message); }
+  }, [state, toast]);
   const moveEnd = useCallback((kind, id, x, y) => {
     applyMove(kind, id, x, y);
     api(`/api/canvases/${canvasIdRef.current}/positions`, { method: 'POST', body: { kind, id, x, y } })
@@ -648,6 +677,8 @@ export default function Workspace() {
               onOpen={openNode}
               onMoveLive={moveLive}
               onMoveEnd={moveEnd}
+              fitSignal={fitSignal}
+              onArrange={arrangeCanvas}
               onCursor={sendCursor}
               onSelect={selectNode}
             />

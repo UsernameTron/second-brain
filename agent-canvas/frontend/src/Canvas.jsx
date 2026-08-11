@@ -11,6 +11,7 @@ export default function Canvas({
   agents, notes, tasks, files, canvasId, handoffs, memoryMap, agentsById,
   cursors, selections, mySelection, spendByAgent, amberAgents, paused,
   hoverHandoffId, onOpen, onMoveLive, onMoveEnd, onCursor, onSelect,
+  fitSignal, onArrange,
 }) {
   const rootRef = useRef(null);
   const [view, setView] = useState({ x: 80, y: 60, z: 0.9 });
@@ -65,12 +66,10 @@ export default function Canvas({
     return () => clearInterval(t);
   }, []);
 
-  // auto-fit content once per canvas
-  useEffect(() => {
-    if (fittedRef.current) return;
+  // fit all content in view (used on first load, on demand, and after Tidy)
+  const fitNow = useCallback(() => {
     const pts = [...agents, ...notes, ...tasks, ...files];
-    if (!pts.length || !size.w || !size.h) return;
-    fittedRef.current = true;
+    if (!pts.length || !size.w || !size.h) return false;
     const xs = pts.map((p) => p.x);
     const ys = pts.map((p) => p.y);
     const minX = Math.min(...xs) - 90;
@@ -83,7 +82,23 @@ export default function Canvas({
       y: size.h / 2 - ((minY + maxY) / 2) * z,
       z,
     });
+    return true;
   }, [agents, notes, tasks, files, size]);
+
+  // auto-fit content once per canvas
+  useEffect(() => {
+    if (fittedRef.current) return;
+    if (fitNow()) fittedRef.current = true;
+  }, [fitNow]);
+
+  // refit exactly once per external signal (after Tidy re-lays nodes out)
+  const lastFitSignal = useRef(0);
+  useEffect(() => {
+    if (fitSignal && fitSignal !== lastFitSignal.current) {
+      lastFitSignal.current = fitSignal;
+      fitNow();
+    }
+  }, [fitSignal, fitNow]);
 
   const toWorld = useCallback((clientX, clientY) => {
     const rect = rootRef.current.getBoundingClientRect();
@@ -306,6 +321,10 @@ export default function Canvas({
         onJump={(wx, wy) => jumpTo(wx, wy)}
       />
 
+      <div className="canvas-controls">
+        <button className="btn small" onClick={onArrange} title="Line the canvas up: tasks on top, agents in role columns (research → coding → review), notes and files below. Positions are presentation only — handoffs never depend on them.">Tidy up</button>
+        <button className="btn small" onClick={fitNow} title="Fit everything in view">Fit</button>
+      </div>
       <div className="zoom-readout mono">{Math.round(view.z * 100)}%</div>
 
       {tip ? (

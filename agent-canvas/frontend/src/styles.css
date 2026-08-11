@@ -163,9 +163,9 @@ a:hover { text-decoration: underline; }
   height: 100%;
   display: flex; align-items: center; justify-content: center;
   background:
-    radial-gradient(ellipse 700px 480px at 24% 18%, rgba(48, 160, 240, 0.10), transparent),
-    radial-gradient(ellipse 640px 460px at 78% 78%, rgba(32, 128, 208, 0.08), transparent),
-    var(--bg0);
+    radial-gradient(ellipse 700px 480px at 24% 18%, rgba(48, 160, 240, 0.25), transparent),
+    radial-gradient(ellipse 640px 460px at 78% 78%, rgba(32, 128, 208, 0.18), transparent),
+    var(--grad-brand);
 }
 .signin-card {
   width: 380px;
@@ -216,11 +216,24 @@ a:hover { text-decoration: underline; }
 .topbar {
   display: flex; align-items: center; gap: 10px;
   height: 50px; padding: 0 14px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: saturate(180%) blur(12px);
-  border-bottom: 1px solid var(--line);
+  background: var(--ctg-navy-deep);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 60;
 }
+.topbar .btn { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.25); color: #fff; box-shadow: none; }
+.topbar .btn:hover:not(:disabled) { border-color: var(--ctg-blue-bright); box-shadow: none; }
+.topbar .btn.danger { background: rgba(196, 54, 42, 0.35); border-color: #e0705f; color: #ffd9d2; }
+.topbar .btn.ok { background: rgba(22, 158, 106, 0.3); border-color: rgba(120, 220, 180, 0.7); color: #d8f5e9; }
+.topbar .canvas-switch { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.25); color: #fff; }
+.topbar .canvas-switch option { color: var(--text); background: #fff; }
+.topbar .budget-meter { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.2); }
+.topbar .budget-meter:hover { border-color: var(--ctg-blue-bright); }
+.topbar .budget-label { color: #cfe0f5; }
+.topbar .budget-bar { background-color: rgba(255, 255, 255, 0.15); }
+.topbar .avatar { border-color: var(--ctg-navy-deep); }
+.topbar .avatar.me, .topbar .avatar.more { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.topbar .icon-btn { color: #cfe0f5; }
+.topbar .icon-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
 .brand-glyph {
   width: 20px; height: 20px; border-radius: 50%;
@@ -324,6 +337,7 @@ a:hover { text-decoration: underline; }
 .canvas-root:active { cursor: grabbing; }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .edges-layer { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.canvas-controls { position: absolute; left: 14px; bottom: 14px; display: flex; gap: 6px; z-index: 46; }
 .zoom-readout {
   position: absolute; right: 232px; bottom: 14px;
   color: var(--text-faint); font-size: 11px;
@@ -496,8 +510,8 @@ a:hover { text-decoration: underline; }
 /* ---------- minimap ---------- */
 .minimap {
   position: absolute; right: 14px; bottom: 14px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(11, 44, 95, 0.4);
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(7, 27, 63, 0.12);
@@ -1017,7 +1031,7 @@ a:hover { text-decoration: underline; }
   text-transform: uppercase;
   font-weight: 700;
 }
-.brand { font-size: 12px; color: var(--ctg-navy); }
+.brand { font-size: 12px; color: #fff; }
 
 /* running-agent ring: calm blue pulse, no incandescence */
 @keyframes filament {
