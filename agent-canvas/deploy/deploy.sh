@@ -44,14 +44,20 @@ APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 echo "==> Deploying ${APP_DIR} to project ${PROJECT_ID} (${REGION})"
 
 # 1. Dedicated project inside the cloudtechgurus.com organization.
-ORG_ID="$(gcloud organizations list --format='value(ID)' --filter='displayName=cloudtechgurus.com' | head -1)"
-if [ -z "${ORG_ID}" ]; then
-  echo "!! Could not find the cloudtechgurus.com organization for this gcloud account." >&2
-  echo "   gcloud organizations list  — and pass ORG_ID explicitly if needed." >&2
-  exit 1
-fi
+# An organization is preferred (the project lands under cloudtechgurus.com
+# governance) but is not required: a Workspace domain only has a Cloud
+# organization once someone sets Cloud up for it. Without one, create a
+# standalone project so the deploy still works.
+ORG_ID="${ORG_ID:-$(gcloud organizations list --format='value(ID)' --filter='displayName=cloudtechgurus.com' 2>/dev/null | head -1)}"
 if ! gcloud projects describe "${PROJECT_ID}" >/dev/null 2>&1; then
-  gcloud projects create "${PROJECT_ID}" --organization="${ORG_ID}" --name="Agent Canvas Workspace"
+  if [ -n "${ORG_ID}" ]; then
+    gcloud projects create "${PROJECT_ID}" --organization="${ORG_ID}" --name="Agent Canvas Workspace"
+  else
+    echo "!! No cloudtechgurus.com Cloud organization visible to this account."
+    echo "   Creating a standalone project instead. To place it under the org later,"
+    echo "   an Organization Administrator can move it (gcloud beta projects move)."
+    gcloud projects create "${PROJECT_ID}" --name="Agent Canvas Workspace"
+  fi
 fi
 gcloud billing projects link "${PROJECT_ID}" --billing-account="${BILLING_ACCOUNT}"
 
