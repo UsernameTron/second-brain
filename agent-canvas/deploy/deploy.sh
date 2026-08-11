@@ -32,13 +32,24 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:latest"
 SA_NAME="agent-canvas-run"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
-: "${BILLING_ACCOUNT:?Set BILLING_ACCOUNT (see: gcloud billing accounts list)}"
 MODEL_PROVIDER="${MODEL_PROVIDER:-vertex}"
 case "${MODEL_PROVIDER}" in vertex|gemini|anthropic) ;; *) echo "MODEL_PROVIDER must be vertex|gemini|anthropic" >&2; exit 1;; esac
 VERTEX_REGION="${VERTEX_REGION:-global}"
 if [ "${MODEL_PROVIDER}" = "anthropic" ]; then
   : "${ANTHROPIC_API_KEY:?MODEL_PROVIDER=anthropic requires ANTHROPIC_API_KEY (console.anthropic.com)}"
 fi
+
+# gcloud must never stop to ask a question mid-deploy, and it must never bill
+# API quota to a stale project the caller cannot access. A leftover quota
+# project in the caller's config or ADC is what produces the
+# "API [cloudbilling.googleapis.com] not enabled on project <numeric id>.
+# Would you like to enable and retry?" prompt that hangs an unattended run on a
+# project the caller has no rights to. Pin quota to the project we are building.
+export CLOUDSDK_CORE_DISABLE_PROMPTS=1
+export CLOUDSDK_BILLING_QUOTA_PROJECT="${PROJECT_ID}"
+
+ACTIVE_ACCOUNT="$(gcloud config get-value account 2>/dev/null || echo unknown)"
+echo "==> Authenticated as ${ACTIVE_ACCOUNT}"
 
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 echo "==> Deploying ${APP_DIR} to project ${PROJECT_ID} (${REGION})"
@@ -59,26 +70,54 @@ if ! gcloud projects describe "${PROJECT_ID}" >/dev/null 2>&1; then
     gcloud projects create "${PROJECT_ID}" --name="Agent Canvas Workspace"
   fi
 fi
-# gcloud's billing commands need the Cloud Billing API enabled on whatever
-# quota project the CLI picks, which is often a stale one the caller cannot
-# touch. Enable it on this project and pin the quota project to it; if the CLI
-# still cannot link, say exactly what to click rather than failing obscurely.
-gcloud services enable cloudbilling.googleapis.com --project "${PROJECT_ID}" >/dev/null 2>&1 || true
-if ! gcloud billing projects link "${PROJECT_ID}" --billing-account="${BILLING_ACCOUNT}" --billing-project="${PROJECT_ID}" >/dev/null 2>&1 \
-   && ! gcloud billing projects link "${PROJECT_ID}" --billing-account="${BILLING_ACCOUNT}" >/dev/null 2>&1; then
-  LINKED="$(gcloud beta billing projects describe "${PROJECT_ID}" --format='value(billingEnabled)' --billing-project="${PROJECT_ID}" 2>/dev/null || echo '')"
-  if [ "${LINKED}" != "True" ]; then
-    echo "!! Could not link billing from the CLI (it is using a quota project you cannot access)." >&2
-    echo "   Link it in the browser — 2 clicks — then re-run this script:" >&2
+# Bootstrap APIs, before anything that depends on them. Cloud Resource Manager
+# backs every `gcloud projects add-iam-policy-binding` call -- step 5 uses one to
+# grant the runtime service account Vertex AI access -- and Service Usage backs
+# every `services enable`. Neither is reliably on in a brand-new project, and a
+# missing Resource Manager API does not fail here: it fails much later, as an
+# opaque SERVICE_DISABLED on the IAM binding, after the image has already built.
+for api in cloudresourcemanager.googleapis.com serviceusage.googleapis.com cloudbilling.googleapis.com; do
+  gcloud services enable "${api}" --project "${PROJECT_ID}" >/dev/null 2>&1 || true
+done
+
+# Billing. Already-linked is the common case on a re-run, and it needs no
+# BILLING_ACCOUNT at all, so check before asking for one.
+CURRENT_BILLING="$(gcloud beta billing projects describe "${PROJECT_ID}" \
+  --format='value(billingAccountName)' 2>/dev/null | sed 's|billingAccounts/||' || true)"
+if [ -n "${CURRENT_BILLING}" ]; then
+  echo "==> Billing already linked (${CURRENT_BILLING})."
+else
+  # Resolve the account: explicit wins; otherwise auto-select only when the
+  # choice is unambiguous. Guessing which account to spend from is not ours.
+  if [ -z "${BILLING_ACCOUNT:-}" ]; then
+    OPEN_ACCOUNTS="$(gcloud billing accounts list --filter='open=true' \
+      --format='value(name)' 2>/dev/null | sed 's|billingAccounts/||' | grep '[^[:space:]]' || true)"
+    OPEN_COUNT="$(printf '%s\n' "${OPEN_ACCOUNTS}" | grep -c '[^[:space:]]' || true)"
+    if [ "${OPEN_COUNT}" = "1" ]; then
+      BILLING_ACCOUNT="$(printf '%s' "${OPEN_ACCOUNTS}" | tr -d '[:space:]')"
+      echo "==> Using the only open billing account visible to ${ACTIVE_ACCOUNT}: ${BILLING_ACCOUNT}"
+    else
+      echo "!! Set BILLING_ACCOUNT -- ${ACTIVE_ACCOUNT} can see ${OPEN_COUNT} open billing accounts:" >&2
+      printf '%s\n' "${OPEN_ACCOUNTS}" >&2
+      exit 1
+    fi
+  fi
+  if ! gcloud billing projects link "${PROJECT_ID}" --billing-account="${BILLING_ACCOUNT}" >/dev/null 2>&1; then
+    echo "!! Could not link billing from the CLI." >&2
+    echo "   Linking needs two permissions held by two different resources:" >&2
+    echo "     - on the project ${PROJECT_ID}: resourcemanager.projects.createBillingAssignment" >&2
+    echo "     - on the billing account ${BILLING_ACCOUNT}: billing.resourceAssociations.create" >&2
+    echo "   If one identity does not hold both, link it in the browser (2 clicks) and re-run:" >&2
     echo "   https://console.cloud.google.com/billing/linkedaccount?project=${PROJECT_ID}" >&2
     exit 1
   fi
+  echo "==> Billing linked."
 fi
-echo "==> Billing linked."
 
 # 2. APIs.
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
-  secretmanager.googleapis.com storage.googleapis.com iam.googleapis.com aiplatform.googleapis.com --project "${PROJECT_ID}"
+  secretmanager.googleapis.com storage.googleapis.com iam.googleapis.com aiplatform.googleapis.com \
+  cloudresourcemanager.googleapis.com --project "${PROJECT_ID}"
 
 # 3. Artifact Registry + database bucket.
 gcloud artifacts repositories describe "${REPO}" --location="${REGION}" --project "${PROJECT_ID}" >/dev/null 2>&1 || \
