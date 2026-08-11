@@ -241,11 +241,24 @@ gcloud run deploy "${SERVICE}" \
   ${SECRET_FLAGS}
 
 URL="$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" --format='value(status.url)')"
+# Cloud Run issues TWO hostnames for one service: the deterministic
+# service-projectnumber.region.run.app form and a legacy service-hash-code.a.run.app
+# form. `status.url` reports only one, and which one differs by service age. OAuth
+# origins must match the browsed host character for character, so a deploy that
+# advertises one hostname while the console hands the user the other produces a
+# silent origin mismatch at sign-in. Compute both; register both.
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)' 2>/dev/null || echo '')"
+URL_ALT=""
+if [ -n "${PROJECT_NUMBER}" ]; then
+  CANDIDATE="https://${SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+  if [ "${CANDIDATE}" != "${URL}" ]; then URL_ALT="${CANDIDATE}"; fi
+fi
 ACCOUNT_Q="$(printf '%s' "${ACTIVE_ACCOUNT}" | sed 's/@/%40/')"
 
 echo
 echo "============================================================"
 echo "  DEPLOYED: ${URL}"
+if [ -n "${URL_ALT}" ]; then echo "       ALSO: ${URL_ALT}"; echo "             (same service, second hostname — both work)"; fi
 echo "  model provider: ${MODEL_PROVIDER}"
 echo "============================================================"
 echo
@@ -274,8 +287,14 @@ if [ -z "${GOOGLE_CLIENT_ID:-}" ]; then
   STEP=$((STEP + 1))
   echo "STEP ${STEP} — OAuth client (Web application)"
   echo "  https://console.cloud.google.com/apis/credentials?project=${PROJECT_ID}&authuser=${ACCOUNT_Q}"
-  echo "  Authorized JavaScript origin:  ${URL}"
-  echo "  Authorized redirect URI:       ${URL}/api/google/oauth/callback"
+  echo "  Authorized JavaScript origins — ADD BOTH (same service, two hostnames):"
+  echo "      ${URL}"
+  if [ -n "${URL_ALT}" ]; then echo "      ${URL_ALT}"; fi
+  echo "  Authorized redirect URIs — ADD BOTH:"
+  echo "      ${URL}/api/google/oauth/callback"
+  if [ -n "${URL_ALT}" ]; then echo "      ${URL_ALT}/api/google/oauth/callback"; fi
+  echo "  Registering one and browsing to the other fails sign-in with an origin"
+  echo "  mismatch and no useful error. Adding both costs nothing."
   echo "  Copy the client ID and the client secret, then run STEP $((STEP + 1))."
   echo
   STEP=$((STEP + 1))
@@ -298,15 +317,16 @@ if [ -z "${GOOGLE_CLIENT_ID:-}" ]; then
   echo
   STEP=$((STEP + 1))
 else
-  echo "STEP ${STEP} — confirm the OAuth client lists these (sign-in fails silently otherwise):"
-  echo "  Authorized JavaScript origin:  ${URL}"
-  echo "  Authorized redirect URI:       ${URL}/api/google/oauth/callback"
+  echo "STEP ${STEP} — confirm the OAuth client lists ALL of these (sign-in fails silently otherwise):"
+  echo "  Origins:   ${URL}${URL_ALT:+   ${URL_ALT}}"
+  echo "  Redirects: ${URL}/api/google/oauth/callback${URL_ALT:+   ${URL_ALT}/api/google/oauth/callback}"
   echo
   STEP=$((STEP + 1))
 fi
 
 echo "STEP ${STEP} — go live"
 echo "  1. Open ${URL} and sign in as ${OWNER_EMAIL}."
+if [ -n "${URL_ALT}" ]; then echo "     (or ${URL_ALT} — both reach the same service)"; fi
 echo "  2. Open Capabilities. Every lamp should be green except HUBSPOT and MCP,"
 echo "     which are dark by design (not wired yet)."
 echo "  3. Click 'Connect Google Workspace' and grant the six scopes."
