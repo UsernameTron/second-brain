@@ -21,7 +21,17 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1); // one proxy hop (Cloud Run LB); req.ip = real client IP
 
-app.use(express.json({ limit: '2mb' }));
+// The file-upload route takes raw bytes. Keep the JSON body parser away from
+// it entirely: otherwise a caller choosing Content-Type: application/json gets
+// their body parsed into an object, express.raw() skips, and the route's
+// "body is a Buffer" assumption is caller-controlled. Excluding the path here
+// means req.body on that route is always a Buffer, whatever header is sent.
+const jsonParser = express.json({ limit: '2mb' });
+const RAW_UPLOAD_PATH = /^\/api\/canvases\/[^/]+\/files\/?$/;
+app.use((req, res, next) => {
+  if (req.method === 'POST' && RAW_UPLOAD_PATH.test(req.path)) return next();
+  return jsonParser(req, res, next);
+});
 
 app.get('/healthz', (req, res) => res.json({ ok: true, paused: control.isPaused() }));
 
