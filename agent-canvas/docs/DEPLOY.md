@@ -43,6 +43,12 @@ Open the service URL, sign in with a cloudtechgurus.com Google account. The allo
 - **Export**: owner → top bar → Export downloads the full workspace (memory, canvases, runs, audit log) as JSON.
 - **Dev auth (`DEV_AUTH=1`) is never set in production** — the Dockerfile doesn't set it and deploy.sh doesn't pass it. It exists only for local development and tests.
 
+## Image build notes
+
+- The Dockerfile vendors the Mozilla CA bundle (`deploy/cacert.pem`, from python-certifi) for Litestream's TLS to Cloud Storage — `node:22-slim` ships no system CA store. Refresh it occasionally (`pip download certifi` or copy from any current certifi release).
+- `--build-arg BASE_IMAGE=mirror.gcr.io/library/node:22-slim` substitutes a mirror of the official base image in environments where Docker Hub is blocked; Cloud Build uses the default `node:22-slim`.
+- `--secret id=build_ca,src=<ca.pem>` supplies an extra CA to npm during the build for TLS-intercepting corporate networks; unused on Cloud Build.
+
 ## Local development
 
 ```bash
