@@ -12,7 +12,7 @@ const auth = require('./auth');
 const control = require('./orchestrator/control');
 const { dispatchRun, resumePump, queueState } = require('./orchestrator/queue');
 const { createEscalation } = require('./orchestrator/tools');
-const { callModel, FAST_MODEL, STRONG_MODEL } = require('./orchestrator/anthropic');
+const { callModel, tierConfig, FAST_MODEL, STRONG_MODEL } = require('./orchestrator/anthropic');
 
 const { rateLimit } = require('./ratelimit');
 
@@ -444,13 +444,15 @@ router.post('/canvases/:canvasId/intent', rateLimit('model', 30, 60_000), auth.r
   const text = String(req.body.text || '').trim();
   if (!text) return res.status(400).json({ error: 'text required' });
   const agents = db.prepare('SELECT id, name, role FROM agents WHERE canvas_id = ?').all(req.params.canvasId);
+  const fastTier = tierConfig('fast');
   const response = await callModel({
-    model: FAST_MODEL,
+    provider: fastTier.provider,
+    model: fastTier.model,
     system: `You parse spoken/typed commands for a multi-agent canvas. Available agents:\n${agents.map((a) => `- ${a.name} (${a.role}, id ${a.id})`).join('\n')}\nReturn ONLY a JSON object, no prose: {"action": "dispatch"|"pause"|"resume"|"unknown", "agent_id": "<id or null>", "agent_name": "<name or null>", "instruction": "<what the agent should do, cleaned up>", "echo": "<short confirmation of what will happen, e.g. 'Ask Scout (research) to re-check rows 3-5'>"}. If the command names no agent but implies a role, pick the matching agent. If genuinely unclear, action "unknown" with echo explaining why.`,
     messages: [{ role: 'user', content: text }],
     maxTokens: 300,
   });
-  control.addUsage(response.model || FAST_MODEL, response.usage || {});
+  control.addUsage(response.model || fastTier.model, response.usage || {});
   const raw = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
   let parsed;
   try {

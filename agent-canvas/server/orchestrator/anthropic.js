@@ -21,6 +21,10 @@ const Anthropic = require('@anthropic-ai/sdk');
 
 const FAST_MODEL = process.env.FAST_MODEL || 'claude-haiku-4-5';
 const STRONG_MODEL = process.env.STRONG_MODEL || 'claude-sonnet-5';
+// Gemini tier models (used when a tier's provider is "gemini"). Check these
+// against Google's current lineup at deploy time — they are config, not law.
+const GEMINI_FAST_MODEL = process.env.GEMINI_FAST_MODEL || 'gemini-2.5-flash';
+const GEMINI_STRONG_MODEL = process.env.GEMINI_STRONG_MODEL || 'gemini-2.5-pro';
 const REFUSAL_FALLBACK_MODEL = process.env.REFUSAL_FALLBACK_MODEL || 'claude-opus-4-8';
 const WEB_SEARCH_COST_USD = 0.01; // $10 per 1,000 searches, billed per request
 
@@ -32,13 +36,33 @@ const PRICING = {
   'claude-opus-5': { in: 5, out: 25 },
   'claude-opus-4-8': { in: 5, out: 25 },
   'claude-sonnet-5': { in: 3, out: 15 },
+  // Gemini list-price estimates; the Google invoice is authoritative.
+  'gemini-2.5-flash': { in: 0.3, out: 2.5 },
+  'gemini-2.5-pro': { in: 1.25, out: 10 },
 };
 const DEFAULT_PRICE = { in: 5, out: 25 };
 
+const PROVIDERS = ['vertex', 'anthropic', 'gemini'];
+
 function currentProvider() {
   const explicit = (process.env.MODEL_PROVIDER || '').toLowerCase();
-  if (explicit === 'vertex' || explicit === 'anthropic') return explicit;
+  if (PROVIDERS.includes(explicit)) return explicit;
   return process.env.VERTEX_PROJECT_ID ? 'vertex' : 'anthropic';
+}
+
+// Mixed fleets: each tier can run on its own provider (e.g. fast tier on
+// Gemini Flash, strong tier on Claude). Defaults to the workspace provider.
+function providerForTier(tier) {
+  const env = (process.env[tier === 'fast' ? 'FAST_PROVIDER' : 'STRONG_PROVIDER'] || '').toLowerCase();
+  return PROVIDERS.includes(env) ? env : currentProvider();
+}
+
+function tierConfig(tier) {
+  const provider = providerForTier(tier);
+  const model = provider === 'gemini'
+    ? (tier === 'fast' ? GEMINI_FAST_MODEL : GEMINI_STRONG_MODEL)
+    : (tier === 'fast' ? FAST_MODEL : STRONG_MODEL);
+  return { provider, model };
 }
 
 // Vertex model IDs: current-generation models use the bare first-party ID;
@@ -55,11 +79,10 @@ function normalizeModelId(model) {
   return String(model || '').replace(/@\d+$/, '');
 }
 
-let client = null;
-let clientProvider = null;
-function getClient() {
-  const provider = currentProvider();
-  if (client && clientProvider === provider) return client;
+const clients = new Map();
+function getClient(provider = currentProvider()) {
+  if (clients.has(provider)) return clients.get(provider);
+  let client;
   const common = { timeout: 120_000, maxRetries: 2 };
   if (provider === 'vertex') {
     const { AnthropicVertex } = require('@anthropic-ai/vertex-sdk');
@@ -79,7 +102,7 @@ function getClient() {
   } else {
     throw new Error('No model credential: set VERTEX_PROJECT_ID (Vertex, keyless) or ANTHROPIC_API_KEY (direct API)');
   }
-  clientProvider = provider;
+  clients.set(provider, client);
   return client;
 }
 
@@ -104,9 +127,13 @@ function webSearchToolFor(model, provider = currentProvider()) {
 // One model call. On a safety-classifier refusal (stop_reason "refusal"),
 // retries once on the fallback model; if that also refuses, the caller sees
 // stop_reason "refusal" and escalates.
-async function callModel({ model, system, messages, tools, maxTokens = 8192, signal }) {
-  const anthropic = getClient();
-  const onVertex = currentProvider() === 'vertex';
+async function callModel({ provider = currentProvider(), model, system, messages, tools, maxTokens = 8192, signal }) {
+  if (provider === 'gemini') {
+    const { callGemini } = require('./gemini');
+    return callGemini({ model, system, messages, tools, maxTokens, signal });
+  }
+  const anthropic = getClient(provider);
+  const onVertex = provider === 'vertex';
   const wireModel = onVertex ? vertexModelId(model) : model;
   const params = { model: wireModel, max_tokens: maxTokens, system, messages };
   if (tools && tools.length) params.tools = tools;
@@ -123,6 +150,6 @@ async function callModel({ model, system, messages, tools, maxTokens = 8192, sig
 
 module.exports = {
   getClient, callModel, costOf, modelForTier, webSearchToolFor,
-  currentProvider, vertexModelId, normalizeModelId,
+  currentProvider, providerForTier, tierConfig, vertexModelId, normalizeModelId,
   FAST_MODEL, STRONG_MODEL, REFUSAL_FALLBACK_MODEL, PRICING,
 };

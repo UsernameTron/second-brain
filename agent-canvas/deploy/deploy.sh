@@ -11,7 +11,8 @@
 #   BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX   # from `gcloud billing accounts list`
 # Model provider (default: vertex — Claude on Vertex AI, inside the Google
 # perimeter, keyless via the runtime service account; no model API key exists):
-#   MODEL_PROVIDER=vertex|anthropic
+#   MODEL_PROVIDER=vertex|gemini|anthropic   (vertex = Claude on Vertex; gemini = Gemini on Vertex)
+#   FAST_PROVIDER / STRONG_PROVIDER          # optional per-tier override for mixed fleets
 #   ANTHROPIC_API_KEY=sk-ant-...           # required ONLY when MODEL_PROVIDER=anthropic
 # Optional:
 #   GOOGLE_CLIENT_ID=....apps.googleusercontent.com   # OAuth web client (see step 2 of docs/DEPLOY.md);
@@ -33,6 +34,7 @@ SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 : "${BILLING_ACCOUNT:?Set BILLING_ACCOUNT (see: gcloud billing accounts list)}"
 MODEL_PROVIDER="${MODEL_PROVIDER:-vertex}"
+case "${MODEL_PROVIDER}" in vertex|gemini|anthropic) ;; *) echo "MODEL_PROVIDER must be vertex|gemini|anthropic" >&2; exit 1;; esac
 VERTEX_REGION="${VERTEX_REGION:-global}"
 if [ "${MODEL_PROVIDER}" = "anthropic" ]; then
   : "${ANTHROPIC_API_KEY:?MODEL_PROVIDER=anthropic requires ANTHROPIC_API_KEY (console.anthropic.com)}"
@@ -88,9 +90,9 @@ for secret in ${SECRETS_TO_GRANT}; do
   gcloud secrets add-iam-policy-binding "${secret}" --project "${PROJECT_ID}" \
     --member="serviceAccount:${SA_EMAIL}" --role=roles/secretmanager.secretAccessor >/dev/null
 done
-# Vertex mode: the runtime service account calls Claude on Vertex AI directly —
-# keyless, no model API key anywhere in the system.
-if [ "${MODEL_PROVIDER}" = "vertex" ]; then
+# Vertex modes (claude-on-vertex or gemini): the runtime service account calls
+# Vertex AI directly — keyless, no model API key anywhere in the system.
+if [ "${MODEL_PROVIDER}" != "anthropic" ]; then
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${SA_EMAIL}" --role=roles/aiplatform.user >/dev/null
 fi
@@ -103,8 +105,10 @@ gcloud builds submit "${APP_DIR}" --tag "${IMAGE}" --project "${PROJECT_ID}"
 #    the service is publicly reachable but every API call requires an allowlisted
 #    cloudtechgurus.com Google account.
 ENV_VARS="NODE_ENV=production,OWNER_EMAIL=${OWNER_EMAIL},LITESTREAM_REPLICA_URL=gcs://${PROJECT_ID}-db/agent-canvas,MODEL_PROVIDER=${MODEL_PROVIDER}"
-if [ "${MODEL_PROVIDER}" = "vertex" ]; then
+if [ "${MODEL_PROVIDER}" != "anthropic" ]; then
   ENV_VARS="${ENV_VARS},VERTEX_PROJECT_ID=${PROJECT_ID},VERTEX_REGION=${VERTEX_REGION}"
+  if [ -n "${FAST_PROVIDER:-}" ]; then ENV_VARS="${ENV_VARS},FAST_PROVIDER=${FAST_PROVIDER}"; fi
+  if [ -n "${STRONG_PROVIDER:-}" ]; then ENV_VARS="${ENV_VARS},STRONG_PROVIDER=${STRONG_PROVIDER}"; fi
   SECRET_FLAGS="--set-secrets JWT_SECRET=jwt-secret:latest"
 else
   SECRET_FLAGS="--set-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest,JWT_SECRET=jwt-secret:latest"

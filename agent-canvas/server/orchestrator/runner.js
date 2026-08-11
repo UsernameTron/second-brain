@@ -7,7 +7,7 @@ const { db, nowIso } = require('../db');
 const { audit } = require('../audit');
 const bus = require('../bus');
 const memory = require('../memory');
-const { callModel, modelForTier, webSearchToolFor } = require('./anthropic');
+const { callModel, tierConfig, webSearchToolFor } = require('./anthropic');
 const { toolsForRole, executeTool, createEscalation } = require('./tools');
 const control = require('./control');
 
@@ -59,7 +59,7 @@ async function executeRun(runId) {
     return;
   }
 
-  const model = modelForTier(agent.model_tier);
+  const { provider, model } = tierConfig(agent.model_tier);
   const startedAt = Date.now();
   db.prepare("UPDATE runs SET status = 'running', model = ?, started_at = ? WHERE id = ?").run(model, nowIso(), runId);
   run.status = 'running'; run.model = model;
@@ -77,8 +77,10 @@ async function executeRun(runId) {
 
   const system = buildSystemPrompt(agent, canvas, run);
   const tools = toolsForRole(agent.role);
-  if (agent.role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0') {
-    tools.push(webSearchToolFor(model));
+  // Web search rides the Claude providers only in v1 (Google grounding has a
+  // different result shape); Gemini research agents work from row data + memory.
+  if (agent.role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0' && provider !== 'gemini') {
+    tools.push(webSearchToolFor(model, provider));
   }
   const messages = [{ role: 'user', content: run.instruction }];
   const ctx = { run, agent, canvas, runEpoch };
@@ -121,7 +123,7 @@ async function executeRun(runId) {
 
       let response;
       try {
-        response = await callModel({ model, system, messages, tools, signal: controller.signal });
+        response = await callModel({ provider, model, system, messages, tools, signal: controller.signal });
       } catch (err) {
         if (controller.signal.aborted || /abort/i.test(String(err.message))) {
           return finish(control.isPaused() ? 'halted_paused' : 'failed', { error: control.isPaused() ? 'global pause' : `aborted: ${err.message}` });
