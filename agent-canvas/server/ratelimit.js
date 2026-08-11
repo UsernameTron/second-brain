@@ -1,32 +1,34 @@
 'use strict';
-// Minimal in-memory sliding-window rate limiter (per client IP per bucket).
-// Suitable for a single-instance Cloud Run service (max-instances=1).
+// Rate limiting via express-rate-limit (in-memory store — fine for the
+// single-instance Cloud Run deployment, max-instances=1). Buckets:
+//   auth   — sign-in attempts (credential stuffing surface)
+//   model  — routes that trigger Anthropic API spend
+//   api    — broad safety net across /api
+//   static — SPA fallback file serving
 
-const windows = new Map(); // `${bucket}:${ip}` -> number[] (timestamps)
+const { rateLimit: expressRateLimit } = require('express-rate-limit');
 
-function rateLimit(bucket, max, windowMs) {
-  return (req, res, next) => {
-    const key = `${bucket}:${req.ip || 'unknown'}`;
-    const now = Date.now();
-    const hits = (windows.get(key) || []).filter((t) => now - t < windowMs);
-    if (hits.length >= max) {
-      res.setHeader('Retry-After', Math.ceil(windowMs / 1000));
-      return res.status(429).json({ error: 'rate limit exceeded — slow down' });
-    }
-    hits.push(now);
-    windows.set(key, hits);
-    next();
-  };
-}
+const BUCKETS = {
+  auth: { windowMs: 60_000, limit: 10 },
+  model: { windowMs: 60_000, limit: 30 },
+  api: { windowMs: 60_000, limit: 300 },
+  static: { windowMs: 60_000, limit: 120 },
+};
 
-// Periodic sweep so idle keys don't accumulate.
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, hits] of windows) {
-    const alive = hits.filter((t) => now - t < 300_000);
-    if (alive.length === 0) windows.delete(key);
-    else windows.set(key, alive);
+const limiters = new Map();
+
+function rateLimit(bucket) {
+  if (!limiters.has(bucket)) {
+    const config = BUCKETS[bucket] || BUCKETS.api;
+    limiters.set(bucket, expressRateLimit({
+      windowMs: config.windowMs,
+      limit: config.limit,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'rate limit exceeded — slow down' },
+    }));
   }
-}, 300_000).unref();
+  return limiters.get(bucket);
+}
 
 module.exports = { rateLimit };

@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "description": "Agent Canvas Workspace — shared multi-agent visual canvas for cloudtechgurus.com",
   "main": "server/index.js",
-  "engines": { "node": ">=22.5" },
+  "engines": {
+    "node": ">=22.5"
+  },
   "scripts": {
     "start": "node server/index.js",
     "dev": "DEV_AUTH=1 node server/index.js",
@@ -14,6 +16,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.0",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.6.2",
     "google-auth-library": "^11.0.1",
     "jsonwebtoken": "^9.0.2",
     "ws": "^8.18.0"

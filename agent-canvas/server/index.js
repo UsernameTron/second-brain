@@ -19,7 +19,7 @@ const { db, getSetting } = require('./db');
 const PORT = Number(process.env.PORT || 8080);
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', true); // Cloud Run sits behind a proxy; req.ip = real client IP
+app.set('trust proxy', 1); // one proxy hop (Cloud Run LB); req.ip = real client IP
 
 app.use(express.json({ limit: '2mb' }));
 
