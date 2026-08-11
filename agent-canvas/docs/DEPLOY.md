@@ -22,8 +22,13 @@ The script is idempotent. It creates a **new dedicated project** `agent-canvas-c
 
 ## Step 2 — create the Google OAuth client (one-time, ~2 minutes)
 
-1. Console → the `agent-canvas-ctg` project → **APIs & Services → OAuth consent screen**: User type **Internal** (this alone restricts sign-in to cloudtechgurus.com accounts at Google's side; the app additionally verifies the `hd` claim and its own allowlist server-side). App name "Agent Canvas", support email Pete's.
-2. **APIs & Services → Credentials → Create credentials → OAuth client ID → Web application.**
+1. Console → the deployed project → **APIs & Services → OAuth consent screen**. App name "Agent Canvas", support email Pete's. **User type depends on where the project lives, and Internal is not always offered:**
+
+   - **Internal** — available *only* when the project sits inside the cloudtechgurus.com Cloud organization. Prefer it when offered: Google itself then refuses every non-cloudtechgurus.com account, so sign-in has two independent gates.
+   - **External** — the only option for a project outside the organization, including one created under a personal account. The Internal radio is greyed out there; this is a property of the project's parent, not a misconfiguration. Sign-in stays restricted, but by one gate instead of two: `signInWithGoogle` verifies the ID token's signature and audience, requires `email_verified`, requires the `hd` claim to equal `cloudtechgurus.com`, and re-checks the allowlist on *every request* — so a personal Gmail is refused by the app even though Google will let it reach the consent screen. The app requests only `openid email profile`, which are non-sensitive scopes, so publishing requires no Google verification review. While the app is in **Testing**, add each member as a test user; **Publish** removes both the 100-user cap and the unverified-app interstitial for these scopes.
+
+   If the project is outside the org, moving it in later (`gcloud beta projects move`, an Organization Administrator, non-destructive) restores the Internal option; switch the consent screen afterwards and nothing else changes.
+2. **APIs & Services → Credentials → Create credentials → OAuth client ID → Web application.** (The client may live in a different project from the Cloud Run service — an org-resident project can issue an *Internal* client that an outside-the-org deployment then uses, which recovers the second gate without moving anything.)
    - Authorized JavaScript origins: the service URL from step 1.
    - No redirect URIs needed (Google Identity Services popup flow).
 3. Copy the client ID and attach it:
