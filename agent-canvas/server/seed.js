@@ -271,6 +271,20 @@ const MEMORY_SEEDS = [
   ['Growth levers: ARR scaling to the $3M target, AI SDR deployment, vendor-neutral scoring tooling as sellable governance moat, enterprise upmarket motion.', THESIS_SOURCE],
 ];
 
+// Databases seeded before the CTG rebrand still carry the retro agent palette;
+// recolor those exact legacy values in place (idempotent, touches nothing else).
+const LEGACY_RECOLOR = { '#4cc2ab': '#2080D0', '#eaa521': '#104080', '#e8641f': '#169E6A', '#a67fc0': '#30A0F0' };
+function recolorLegacyAgents() {
+  if (getSetting('seed_v3_recolor')) return { recolored: 0 };
+  let n = 0;
+  for (const [oldC, newC] of Object.entries(LEGACY_RECOLOR)) {
+    n += db.prepare('UPDATE agents SET color = ? WHERE lower(color) = lower(?)').run(newC, oldC).changes;
+  }
+  setSetting('seed_v3_recolor', nowIso());
+  if (n) audit('system', 'seed', 'workspace.recolor_legacy', { agents: n });
+  return { recolored: n };
+}
+
 function seedExecCanvas(ownerEmail) {
   if (getSetting('seed_exec_v2')) return { seeded: false };
   const ts = nowIso();
@@ -299,4 +313,4 @@ function seedExecCanvas(ownerEmail) {
   return { seeded: true, canvasId };
 }
 
-module.exports = { seedIfEmpty, DEMO_KICKOFF, OWNER_EMAIL , seedExecCanvas };
+module.exports = { seedIfEmpty, DEMO_KICKOFF, OWNER_EMAIL , seedExecCanvas, recolorLegacyAgents };

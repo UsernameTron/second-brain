@@ -58,3 +58,15 @@ test('seeded memory is verified with named provenance and no confidential figure
     assert.ok(!/1\.6\d?\s*M|1,6\d{2}|6\.1x/.test(e.content), 'confidential ARR/valuation figures must not be seeded');
   }
 });
+
+test('legacy retro agent colors are recolored in place, exactly once', () => {
+  const { recolorLegacyAgents } = require('../server/seed');
+  const crypto5 = require('node:crypto');
+  const { nowIso } = require('../server/db');
+  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at) VALUES (?, ?, 'Old', 'research', '#4cc2ab', 'fast', '', 0, 0, ?)")
+    .run(crypto5.randomUUID(), first.canvasId, nowIso());
+  const r = recolorLegacyAgents();
+  assert.ok(r.recolored >= 1, 'legacy color updated');
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM agents WHERE color = '#4cc2ab'").get().n, 0);
+  assert.equal(recolorLegacyAgents().recolored, 0, 'second call is a no-op');
+});

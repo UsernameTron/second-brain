@@ -974,16 +974,16 @@ a:hover { text-decoration: underline; }
    Square translucent jellybeans on dark panel: bright specular at upper-left,
    saturated body, deep glow. Red faults blink; planned slots are dark. */
 .lamp {
-  display: inline-block; width: 14px; height: 14px; border-radius: 4px; flex: none;
+  display: inline-block; width: 17px; height: 17px; border-radius: 5px; flex: none;
   background: radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.9), var(--lamp-hi, #2a3a55) 38%, var(--lamp-lo, #16202f) 100%);
   box-shadow: 0 0 10px var(--lamp-glow, transparent), inset 0 -2px 4px rgba(0, 0, 0, 0.45);
 }
-.lamp-ready { --lamp-hi: #33d98a; --lamp-lo: #0d7a4a; --lamp-glow: rgba(51, 217, 138, 0.65); }
+.lamp-ready { --lamp-hi: #3ff29b; --lamp-lo: #0d7a4a; --lamp-glow: rgba(51, 217, 138, 0.9); }
 .lamp-attention { --lamp-hi: #f2b23e; --lamp-lo: #a3670a; --lamp-glow: rgba(242, 178, 62, 0.6); }
-.lamp-down { --lamp-hi: #ff5f4a; --lamp-lo: #a3170a; --lamp-glow: rgba(255, 95, 74, 0.75); animation: lampBlink 1.1s ease-in-out infinite; }
+.lamp-down { --lamp-hi: #ff6f57; --lamp-lo: #a3170a; --lamp-glow: rgba(255, 95, 74, 0.95); animation: lampBlink 1.1s ease-in-out infinite; }
 .lamp-planned { background: #101b2e; box-shadow: inset 0 0 0 1.5px rgba(120, 150, 200, 0.35); }
 @keyframes lampBlink { 50% { filter: brightness(0.45); box-shadow: 0 0 3px var(--lamp-glow), inset 0 -2px 4px rgba(0, 0, 0, 0.45); } }
-.hexlamp { clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0% 50%); border-radius: 0; width: 16px; height: 16px; }
+.hexlamp { clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0% 50%); border-radius: 0; width: 20px; height: 20px; }
 
 /* ---------- HUD console strip ---------- */
 .hud {

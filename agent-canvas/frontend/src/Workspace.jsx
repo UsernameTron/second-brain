@@ -40,8 +40,11 @@ export default function Workspace() {
   const [capsOpen, setCapsOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(null); // null = unknown yet
   const [health, setHealth] = useState(null);
+  const [healthDown, setHealthDown] = useState(false);
   const refreshHealth = useCallback(() => {
-    api('/api/health/integrations').then(setHealth).catch(() => {});
+    api('/api/health/integrations')
+      .then((d) => { setHealth(d); setHealthDown(false); })
+      .catch(() => setHealthDown(true));
   }, []);
   useEffect(() => {
     refreshHealth();
@@ -726,9 +729,11 @@ export default function Workspace() {
         </div>
 
         <div className="hud" role="status" aria-label="Systems console">
-          <button className="hud-cell hud-btn" onClick={() => setCapsOpen(true)} title="Open the systems board">
-            <span className={`lamp hexlamp lamp-${health?.aggregate || 'planned'}`} />
+          <button className="hud-cell hud-btn" onClick={() => setCapsOpen(true)}
+            title={healthDown ? 'TELEMETRY OFFLINE — the server predates this console or is unreachable. Restart the app (Ctrl+C, npm run dev).' : 'Open the systems board'}>
+            <span className={`lamp hexlamp lamp-${healthDown ? 'down' : (health?.aggregate || 'planned')}`} />
             <span className="hud-label">Systems</span>
+            {healthDown ? <span className="hud-val mono hud-hot">TELEMETRY OFFLINE — RESTART SERVER</span> : null}
           </button>
           <span className={`hud-cell`} title={health?.integrations?.find((i) => i.id === 'model')?.detail || ''}>
             <span className={`lamp lamp-${health?.integrations?.find((i) => i.id === 'model')?.status || 'planned'}`} />

@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const express = require('express');
 
-const { seedIfEmpty, DEMO_KICKOFF, seedExecCanvas, OWNER_EMAIL } = require('./seed');
+const { seedIfEmpty, DEMO_KICKOFF, seedExecCanvas, recolorLegacyAgents, OWNER_EMAIL } = require('./seed');
 const { rateLimit } = require('./ratelimit');
 const routes = require('./routes');
 const { attachWebSocket } = require('./ws');
@@ -67,6 +67,7 @@ if (fs.existsSync(distDir)) {
 
 const seedResult = seedIfEmpty();
 const execSeed = seedExecCanvas(OWNER_EMAIL);
+recolorLegacyAgents();
 const orphans = recoverOrphans();
 
 const server = http.createServer(app);
