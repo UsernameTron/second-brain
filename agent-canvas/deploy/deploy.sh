@@ -9,7 +9,10 @@
 #
 # Required environment:
 #   BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX   # from `gcloud billing accounts list`
-#   ANTHROPIC_API_KEY=sk-ant-...           # Console API key for agent runs (stored in Secret Manager)
+# Model provider (default: vertex — Claude on Vertex AI, inside the Google
+# perimeter, keyless via the runtime service account; no model API key exists):
+#   MODEL_PROVIDER=vertex|anthropic
+#   ANTHROPIC_API_KEY=sk-ant-...           # required ONLY when MODEL_PROVIDER=anthropic
 # Optional:
 #   GOOGLE_CLIENT_ID=....apps.googleusercontent.com   # OAuth web client (see step 2 of docs/DEPLOY.md);
 #                                                      # can be added later with a `gcloud run services update`
@@ -29,7 +32,11 @@ SA_NAME="agent-canvas-run"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 : "${BILLING_ACCOUNT:?Set BILLING_ACCOUNT (see: gcloud billing accounts list)}"
-: "${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY (create one at console.anthropic.com)}"
+MODEL_PROVIDER="${MODEL_PROVIDER:-vertex}"
+VERTEX_REGION="${VERTEX_REGION:-global}"
+if [ "${MODEL_PROVIDER}" = "anthropic" ]; then
+  : "${ANTHROPIC_API_KEY:?MODEL_PROVIDER=anthropic requires ANTHROPIC_API_KEY (console.anthropic.com)}"
+fi
 
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 echo "==> Deploying ${APP_DIR} to project ${PROJECT_ID} (${REGION})"
@@ -48,7 +55,7 @@ gcloud billing projects link "${PROJECT_ID}" --billing-account="${BILLING_ACCOUN
 
 # 2. APIs.
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
-  secretmanager.googleapis.com storage.googleapis.com iam.googleapis.com --project "${PROJECT_ID}"
+  secretmanager.googleapis.com storage.googleapis.com iam.googleapis.com aiplatform.googleapis.com --project "${PROJECT_ID}"
 
 # 3. Artifact Registry + database bucket.
 gcloud artifacts repositories describe "${REPO}" --location="${REGION}" --project "${PROJECT_ID}" >/dev/null 2>&1 || \
@@ -65,7 +72,9 @@ create_or_update_secret() {
     printf '%s' "${value}" | gcloud secrets create "${name}" --project "${PROJECT_ID}" --data-file=-
   fi
 }
-create_or_update_secret anthropic-api-key "${ANTHROPIC_API_KEY}"
+if [ "${MODEL_PROVIDER}" = "anthropic" ]; then
+  create_or_update_secret anthropic-api-key "${ANTHROPIC_API_KEY}"
+fi
 gcloud secrets describe jwt-secret --project "${PROJECT_ID}" >/dev/null 2>&1 || \
   create_or_update_secret jwt-secret "$(head -c 32 /dev/urandom | xxd -p -c 64)"
 
@@ -73,10 +82,18 @@ gcloud secrets describe jwt-secret --project "${PROJECT_ID}" >/dev/null 2>&1 || 
 gcloud iam service-accounts describe "${SA_EMAIL}" --project "${PROJECT_ID}" >/dev/null 2>&1 || \
   gcloud iam service-accounts create "${SA_NAME}" --project "${PROJECT_ID}" --display-name="Agent Canvas Cloud Run"
 gcloud storage buckets add-iam-policy-binding "${BUCKET}" --member="serviceAccount:${SA_EMAIL}" --role=roles/storage.objectAdmin >/dev/null
-for secret in anthropic-api-key jwt-secret; do
+SECRETS_TO_GRANT="jwt-secret"
+if [ "${MODEL_PROVIDER}" = "anthropic" ]; then SECRETS_TO_GRANT="anthropic-api-key jwt-secret"; fi
+for secret in ${SECRETS_TO_GRANT}; do
   gcloud secrets add-iam-policy-binding "${secret}" --project "${PROJECT_ID}" \
     --member="serviceAccount:${SA_EMAIL}" --role=roles/secretmanager.secretAccessor >/dev/null
 done
+# Vertex mode: the runtime service account calls Claude on Vertex AI directly —
+# keyless, no model API key anywhere in the system.
+if [ "${MODEL_PROVIDER}" = "vertex" ]; then
+  gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${SA_EMAIL}" --role=roles/aiplatform.user >/dev/null
+fi
 
 # 6. Build the image with Cloud Build (no local docker needed).
 gcloud builds submit "${APP_DIR}" --tag "${IMAGE}" --project "${PROJECT_ID}"
@@ -85,7 +102,13 @@ gcloud builds submit "${APP_DIR}" --tag "${IMAGE}" --project "${PROJECT_ID}"
 #    to the bucket; a cold start restores it). The app enforces sign-in itself, so
 #    the service is publicly reachable but every API call requires an allowlisted
 #    cloudtechgurus.com Google account.
-ENV_VARS="NODE_ENV=production,OWNER_EMAIL=${OWNER_EMAIL},LITESTREAM_REPLICA_URL=gcs://${PROJECT_ID}-db/agent-canvas"
+ENV_VARS="NODE_ENV=production,OWNER_EMAIL=${OWNER_EMAIL},LITESTREAM_REPLICA_URL=gcs://${PROJECT_ID}-db/agent-canvas,MODEL_PROVIDER=${MODEL_PROVIDER}"
+if [ "${MODEL_PROVIDER}" = "vertex" ]; then
+  ENV_VARS="${ENV_VARS},VERTEX_PROJECT_ID=${PROJECT_ID},VERTEX_REGION=${VERTEX_REGION}"
+  SECRET_FLAGS="--set-secrets JWT_SECRET=jwt-secret:latest"
+else
+  SECRET_FLAGS="--set-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest,JWT_SECRET=jwt-secret:latest"
+fi
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then ENV_VARS="${ENV_VARS},GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"; fi
 gcloud run deploy "${SERVICE}" \
   --image "${IMAGE}" \
@@ -96,12 +119,18 @@ gcloud run deploy "${SERVICE}" \
   --min-instances 0 --max-instances 1 \
   --memory 1Gi --cpu 1 \
   --set-env-vars "${ENV_VARS}" \
-  --set-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,JWT_SECRET=jwt-secret:latest"
+  ${SECRET_FLAGS}
 
 URL="$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" --format='value(status.url)')"
 echo
-echo "==> Deployed: ${URL}"
+echo "==> Deployed: ${URL}  (model provider: ${MODEL_PROVIDER})"
 echo
+if [ "${MODEL_PROVIDER}" = "vertex" ]; then
+  echo "NOTE (one-time): Claude models on Vertex must be enabled once for this project:"
+  echo "  Console -> Vertex AI -> Model Garden -> search 'Claude' -> Enable on the models"
+  echo "  (claude-sonnet-5, claude-haiku-4-5, claude-opus-4-8). Then verify with a probe run"
+  echo "  in the app; a 403/404 from the first agent run means the models are not enabled yet."
+fi
 if [ -z "${GOOGLE_CLIENT_ID:-}" ]; then
   echo "NEXT (required for sign-in): create the OAuth client for ${URL} — see docs/DEPLOY.md step 2, then:"
   echo "  gcloud run services update ${SERVICE} --project ${PROJECT_ID} --region ${REGION} --update-env-vars GOOGLE_CLIENT_ID=<client-id>"

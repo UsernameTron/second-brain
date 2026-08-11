@@ -122,3 +122,20 @@ test('verify_changes: a row is verified only when ALL its changes are approved',
   assert.equal(row.status, 'flagged', 'row with any rejected change must NOT be verified');
   assert.equal(JSON.parse(row.data).phone, '+15550000000', 'approved change still applied to data');
 });
+
+test('model provider resolution and Vertex ID mapping', () => {
+  const { vertexModelId, normalizeModelId, webSearchToolFor, costOf: cost } = require('../server/orchestrator/anthropic');
+  // dated-snapshot model gets the @-separated Vertex ID; current-gen stay bare
+  assert.equal(vertexModelId('claude-haiku-4-5'), 'claude-haiku-4-5@20251001');
+  assert.equal(vertexModelId('claude-sonnet-5'), 'claude-sonnet-5');
+  assert.equal(vertexModelId('claude-opus-4-8'), 'claude-opus-4-8');
+  // pricing lookups survive the Vertex ID form
+  assert.equal(normalizeModelId('claude-haiku-4-5@20251001'), 'claude-haiku-4-5');
+  const direct = cost('claude-haiku-4-5', { input_tokens: 1_000_000, output_tokens: 0 });
+  const viaVertexId = cost('claude-haiku-4-5@20251001', { input_tokens: 1_000_000, output_tokens: 0 });
+  assert.equal(direct, viaVertexId);
+  // web search: Vertex always basic; first-party keeps the newer variant on non-Haiku
+  assert.equal(webSearchToolFor('claude-sonnet-5', 'vertex').type, 'web_search_20250305');
+  assert.equal(webSearchToolFor('claude-sonnet-5', 'anthropic').type, 'web_search_20260209');
+  assert.equal(webSearchToolFor('claude-haiku-4-5', 'anthropic').type, 'web_search_20250305');
+});

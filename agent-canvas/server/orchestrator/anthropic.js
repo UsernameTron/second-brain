@@ -1,25 +1,32 @@
 'use strict';
-// Anthropic API access for agent runs.
+// Model access for agent runs, through one of two doors:
 //
-// Credential resolution: ANTHROPIC_API_KEY (production, x-api-key header) or
-// an OAuth access token (ANTHROPIC_OAUTH_TOKEN / ANTHROPIC_AUTH_TOKEN), which
-// goes on Authorization: Bearer plus the oauth-2025-04-20 beta header.
+//   provider "vertex"    — Claude served on Google Cloud Vertex AI, inside the
+//                          organization's perimeter. Keyless: authenticates with
+//                          the runtime service account's Application Default
+//                          Credentials; billed on the Google invoice.
+//   provider "anthropic" — Anthropic's first-party API. ANTHROPIC_API_KEY
+//                          (x-api-key) or an OAuth access token
+//                          (Authorization: Bearer + oauth-2025-04-20 beta).
 //
-// Model routing by task weight: the fast tier (claude-haiku-4-5) handles
-// classification and intent parsing; the strong tier (claude-opus-5 by
-// default) does the real agent work. Both are env-overridable.
+// Resolution: MODEL_PROVIDER wins; otherwise VERTEX_PROJECT_ID being set
+// selects vertex; otherwise anthropic.
+//
+// Model routing by task weight is unchanged: the fast tier (claude-haiku-4-5)
+// handles classification and intent parsing; the strong tier (claude-sonnet-5
+// by default — the workhorse; frontier models opt-in via STRONG_MODEL) does
+// the real agent work.
 
 const Anthropic = require('@anthropic-ai/sdk');
 
-// claude-sonnet-5 is the workhorse strong tier; claude-haiku-4-5 handles
-// routing/classification. Frontier models (claude-opus-5 / claude-fable-5)
-// stay out of routine traffic — opt in per deployment via STRONG_MODEL.
 const FAST_MODEL = process.env.FAST_MODEL || 'claude-haiku-4-5';
 const STRONG_MODEL = process.env.STRONG_MODEL || 'claude-sonnet-5';
 const REFUSAL_FALLBACK_MODEL = process.env.REFUSAL_FALLBACK_MODEL || 'claude-opus-4-8';
 const WEB_SEARCH_COST_USD = 0.01; // $10 per 1,000 searches, billed per request
 
-// USD per million tokens (input, output).
+// USD per million tokens (input, output) at Anthropic first-party list rates.
+// Vertex partner pricing differs slightly; treat metering as an estimate there
+// (the authoritative number is the Google invoice).
 const PRICING = {
   'claude-haiku-4-5': { in: 1, out: 5 },
   'claude-opus-5': { in: 5, out: 25 },
@@ -28,11 +35,40 @@ const PRICING = {
 };
 const DEFAULT_PRICE = { in: 5, out: 25 };
 
+function currentProvider() {
+  const explicit = (process.env.MODEL_PROVIDER || '').toLowerCase();
+  if (explicit === 'vertex' || explicit === 'anthropic') return explicit;
+  return process.env.VERTEX_PROJECT_ID ? 'vertex' : 'anthropic';
+}
+
+// Vertex model IDs: current-generation models use the bare first-party ID;
+// dated-snapshot models use an @-separated version.
+const VERTEX_MODEL_IDS = {
+  'claude-haiku-4-5': 'claude-haiku-4-5@20251001',
+};
+function vertexModelId(model) {
+  return VERTEX_MODEL_IDS[model] || model;
+}
+
+// Strip a Vertex @date suffix so pricing lookups work for either provider.
+function normalizeModelId(model) {
+  return String(model || '').replace(/@\d+$/, '');
+}
+
 let client = null;
+let clientProvider = null;
 function getClient() {
-  if (client) return client;
+  const provider = currentProvider();
+  if (client && clientProvider === provider) return client;
   const common = { timeout: 120_000, maxRetries: 2 };
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (provider === 'vertex') {
+    const { AnthropicVertex } = require('@anthropic-ai/vertex-sdk');
+    client = new AnthropicVertex({
+      ...common,
+      projectId: process.env.VERTEX_PROJECT_ID,
+      region: process.env.VERTEX_REGION || 'global',
+    });
+  } else if (process.env.ANTHROPIC_API_KEY) {
     client = new Anthropic({ ...common, apiKey: process.env.ANTHROPIC_API_KEY });
   } else if (process.env.ANTHROPIC_OAUTH_TOKEN || process.env.ANTHROPIC_AUTH_TOKEN) {
     client = new Anthropic({
@@ -41,8 +77,9 @@ function getClient() {
       defaultHeaders: { 'anthropic-beta': 'oauth-2025-04-20' },
     });
   } else {
-    throw new Error('No Anthropic credential: set ANTHROPIC_API_KEY (or ANTHROPIC_OAUTH_TOKEN for OAuth)');
+    throw new Error('No model credential: set VERTEX_PROJECT_ID (Vertex, keyless) or ANTHROPIC_API_KEY (direct API)');
   }
+  clientProvider = provider;
   return client;
 }
 
@@ -51,16 +88,16 @@ function modelForTier(tier) {
 }
 
 function costOf(model, usage) {
-  const price = PRICING[model] || DEFAULT_PRICE;
+  const price = PRICING[normalizeModelId(model)] || DEFAULT_PRICE;
   const inputTokens = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
   const searches = (usage.server_tool_use && usage.server_tool_use.web_search_requests) || 0;
   return (inputTokens * price.in + (usage.output_tokens || 0) * price.out) / 1_000_000 + searches * WEB_SEARCH_COST_USD;
 }
 
-// Server-side web search for research work: version depends on model family
-// (Haiku 4.5 supports the basic variant only).
-function webSearchToolFor(model) {
-  const type = /haiku/.test(model) ? 'web_search_20250305' : 'web_search_20260209';
+// Server-side web search for research work. On Vertex only the basic variant
+// is served; on the first-party API the newer variant runs on non-Haiku models.
+function webSearchToolFor(model, provider = currentProvider()) {
+  const type = (provider === 'vertex' || /haiku/.test(model)) ? 'web_search_20250305' : 'web_search_20260209';
   return { type, name: 'web_search', max_uses: 5 };
 }
 
@@ -69,11 +106,14 @@ function webSearchToolFor(model) {
 // stop_reason "refusal" and escalates.
 async function callModel({ model, system, messages, tools, maxTokens = 8192, signal }) {
   const anthropic = getClient();
-  const params = { model, max_tokens: maxTokens, system, messages };
+  const onVertex = currentProvider() === 'vertex';
+  const wireModel = onVertex ? vertexModelId(model) : model;
+  const params = { model: wireModel, max_tokens: maxTokens, system, messages };
   if (tools && tools.length) params.tools = tools;
   let response = await anthropic.messages.create(params, { signal });
-  if (response.stop_reason === 'refusal' && model !== REFUSAL_FALLBACK_MODEL) {
-    const retry = await anthropic.messages.create({ ...params, model: REFUSAL_FALLBACK_MODEL }, { signal });
+  if (response.stop_reason === 'refusal' && normalizeModelId(model) !== REFUSAL_FALLBACK_MODEL) {
+    const fallbackModel = onVertex ? vertexModelId(REFUSAL_FALLBACK_MODEL) : REFUSAL_FALLBACK_MODEL;
+    const retry = await anthropic.messages.create({ ...params, model: fallbackModel }, { signal });
     retry._refusalFallbackFrom = model;
     retry._priorUsage = response.usage;
     response = retry;
@@ -81,4 +121,8 @@ async function callModel({ model, system, messages, tools, maxTokens = 8192, sig
   return response;
 }
 
-module.exports = { getClient, callModel, costOf, modelForTier, webSearchToolFor, FAST_MODEL, STRONG_MODEL, REFUSAL_FALLBACK_MODEL, PRICING };
+module.exports = {
+  getClient, callModel, costOf, modelForTier, webSearchToolFor,
+  currentProvider, vertexModelId, normalizeModelId,
+  FAST_MODEL, STRONG_MODEL, REFUSAL_FALLBACK_MODEL, PRICING,
+};

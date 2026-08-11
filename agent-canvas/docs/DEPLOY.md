@@ -11,9 +11,12 @@ gcloud auth login                       # keyless user auth — no service-accou
 gcloud billing accounts list            # note the billing account ID
 
 export BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX
-export ANTHROPIC_API_KEY=sk-ant-...     # console.anthropic.com → API keys
-./agent-canvas/deploy/deploy.sh
+./agent-canvas/deploy/deploy.sh         # default: Claude via Vertex AI — inside the perimeter, keyless
 ```
+
+**Model provider — inside the perimeter by default.** The deploy defaults to `MODEL_PROVIDER=vertex`: agent conversations go to Claude served on **Vertex AI inside this Google Cloud project** — no data leaves the Google perimeter, there is no model API key anywhere in the system (the runtime service account authenticates), and model usage lands on the Google invoice under Google's Vertex data-use terms. One extra one-time step applies: in the console, **Vertex AI → Model Garden → search "Claude" → Enable** on claude-sonnet-5, claude-haiku-4-5, and claude-opus-4-8. To use Anthropic's first-party API instead, deploy with `MODEL_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=sk-ant-...` (stored in Secret Manager). Switching later is one redeploy with the other values. A Gemini-on-Vertex adapter is the designed follow-on: the model layer is one file (`server/orchestrator/anthropic.js`) behind a provider switch, and per-agent provider routing extends the existing fast/strong tier system — budget re-running the workflow verification when agent behavior moves to a different model family.
+
+After the first Vertex deploy, probe it end to end before inviting the team: sign in, open the command bar, and send "have Scout confirm the model connection works with one short memory entry" — a completed run in the activity dock proves the keyless Vertex path; a 403/404 error means the Model Garden enablement step is still pending.
 
 The script is idempotent. It creates a **new dedicated project** `agent-canvas-ctg` inside the cloudtechgurus.com organization, enables Cloud Run / Cloud Build / Artifact Registry / Secret Manager / Cloud Storage, creates a least-privilege runtime service account, stores the Anthropic key and a JWT secret in Secret Manager, builds the image with Cloud Build, and deploys. It prints the service URL at the end (like `https://agent-canvas-XXXXXXXX-uc.a.run.app`).
 
