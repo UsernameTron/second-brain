@@ -17,6 +17,7 @@ const { callModel, tierConfig, FAST_MODEL, STRONG_MODEL, currentProvider } = req
 const { rateLimit } = require('./ratelimit');
 const workspace = require('./google/workspace');
 const opsrunner = require('./hubspot/opsrunner');
+const mcp = require('./mcp/client');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
@@ -91,6 +92,19 @@ const HUBSPOT_SURFACE = {
 router.get('/capabilities', (req, res) => {
   const surfaces = [...workspace.CAPABILITIES];
   if (opsrunner.configured()) surfaces.splice(surfaces.length - 1, 0, HUBSPOT_SURFACE);
+  const mcpServers = mcp.listServers().filter((srv) => srv.enabledTools.length);
+  if (mcpServers.length) {
+    surfaces.splice(surfaces.length - 1, 0, {
+      surface: 'MCP connectors', icon: 'shield',
+      can: mcpServers.map((srv) => ({
+        id: `mcp:${srv.name}`, label: `${srv.name}: ${srv.enabledTools.join(', ')}`,
+        detail: 'Owner-enabled tools on a trusted external MCP server. They do what their server says they do; every call is audited with the directing user.',
+      })),
+      cannot: [
+        { label: 'Use any tool the owner has not named', detail: 'Per-tool explicit enablement — a server offering fifty tools exposes exactly the ones listed above.' },
+      ],
+    });
+  }
   res.json({
     surfaces,
     oauthReady: workspace.oauthReady(),
@@ -192,11 +206,21 @@ router.get('/health/integrations', (req, res) => {
         ? 'Wired to ctg-hs-ops-runner (sandbox portal 246460341 — real CRM unreachable by design). Reads free; changes preview-first, applied only after human approval. Probe verifies reach + IAM.'
         : 'Not wired — set HS_OPS_RUNNER_URL and grant run.invoker to the canvas service account (see docs/DEPLOY.md).',
     },
-    {
+    ...(mcp.configError() ? [{
+      id: 'mcp', label: 'MCP CONFIG',
+      status: 'down',
+      detail: `MCP configuration failed to parse: ${mcp.configError()} — no connector is active until this is fixed.`,
+    }] : (mcp.listServers().length ? mcp.listServers().map((srv) => ({
+      id: `mcp:${srv.name}`, label: `MCP · ${srv.name.toUpperCase()}`, probe: true,
+      status: srv.enabledTools.length ? 'ready' : 'attention',
+      detail: srv.enabledTools.length
+        ? `${srv.enabledTools.length} tool(s) enabled by the owner: ${srv.enabledTools.join(', ')}. Third-party tools do what their server says they do — every call is audited. Probe verifies the handshake.`
+        : 'Server configured but no tools enabled — nothing is exposed to agents until the owner names tools in enabledTools.',
+    })) : [{
       id: 'mcp', label: 'MCP CONNECTORS',
       status: 'planned',
-      detail: 'Reserved slots for Model Context Protocol connectors. Not wired yet.',
-    },
+      detail: 'No connectors configured. Set MCP_SERVERS (or config/mcp.json) with per-tool enablement — see docs/DEPLOY.md.',
+    }])),
   ];
   const rank = { down: 3, attention: 2, ready: 1, planned: 0 };
   const aggregate = integrations.reduce((worst, i) => (rank[i.status] > rank[worst] ? i.status : worst), 'ready');
@@ -217,6 +241,7 @@ router.post('/health/probe', rateLimit('auth', 10, 60_000), asyncRoute(async (re
   }
   if (surface === 'hubspot') {
     const opsrunner = require('./hubspot/opsrunner');
+const mcp = require('./mcp/client');
     const result = await opsrunner.probe(req.user.email);
     return res.json(result);
   }

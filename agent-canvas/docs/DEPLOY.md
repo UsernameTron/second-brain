@@ -69,6 +69,23 @@ Wire it: grant `roles/run.invoker` on the runner to the canvas service account,
 then set `HS_OPS_RUNNER_URL` (the deploy checklist prints both commands). The
 HUBSPOT lamp flips from dark to green, with a live `whoami` probe.
 
+## MCP connectors (optional)
+
+Agents can call tools on external Model Context Protocol servers (Streamable
+HTTP). Configuration is owner-only, with **per-tool explicit enablement** —
+a server offering fifty tools exposes exactly the ones you name:
+
+```bash
+gcloud run services update agent-canvas --project <project> --region us-central1 \
+  --update-env-vars 'MCP_SERVERS=[{"name":"crm-intel","url":"https://mcp.example.com/mcp","authHeader":"Bearer <token>","enabledTools":["search_signals"]}]'
+```
+
+(or commit the same JSON as `config/mcp.json`). Each server gets its own lamp
+on the systems board with a live handshake probe. Honesty note: unlike the
+Google/HubSpot surfaces, we cannot make third-party tool semantics structurally
+safe — the guardrails here are owner consent per tool, the directing-user
+requirement, and the audit trail. Enable only servers you trust.
+
 ## Brand assets (optional, before building)
 
 Copy the approved CTG mascot into the frontend so CUE appears on the sign-in card and the clear needs-you tray:

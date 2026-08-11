@@ -357,7 +357,8 @@ const HUBSPOT_TOOLS = [
 ];
 
 function toolsForRole(role) {
-  return [...COMMON_TOOLS, ...WORKSPACE_READ_TOOLS, ...WORKSPACE_WRITE_TOOLS, ...HUBSPOT_TOOLS, ...(ROLE_TOOLS[role] || [{
+  const mcpDefs = require('../mcp/client').getCachedDefs();
+  return [...COMMON_TOOLS, ...WORKSPACE_READ_TOOLS, ...WORKSPACE_WRITE_TOOLS, ...HUBSPOT_TOOLS, ...mcpDefs, ...(ROLE_TOOLS[role] || [{
     name: 'read_rows',
     description: 'Read rows of the conference-lead workbook on this canvas.',
     input_schema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer' } }, required: [] },
@@ -379,6 +380,25 @@ async function executeTool(name, input, ctx) {
   const control = require('./control');
   if (ctx.runEpoch !== undefined ? control.epochStale(ctx.runEpoch) : control.isPaused()) {
     return { content: 'Workspace is paused (or was paused since this run started) — this action was rejected server-side.', isError: true };
+  }
+
+  // MCP tools are dynamically named (mcp_<server>_<tool>) — dispatch before the
+  // static switch. Same rules as every external surface: directing user
+  // required, pause-epoch already checked above, every call audited.
+  if (name.startsWith('mcp_')) {
+    const mcp = require('../mcp/client');
+    const target = mcp.resolveToolName(name);
+    if (!target) return { content: `Unknown or no-longer-enabled MCP tool ${name}.`, isError: true };
+    if (!run.initiated_by) {
+      return { content: 'This run has no directing user, so MCP tools are unavailable (system-triggered runs cannot call external connectors).', isError: true };
+    }
+    try {
+      const out = await mcp.callTool({ server: target.server, tool: target.tool, args: input, actorEmail: run.initiated_by });
+      bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
+      return { content: out };
+    } catch (err) {
+      return { content: String(err.message || err), isError: true };
+    }
   }
 
   switch (name) {
