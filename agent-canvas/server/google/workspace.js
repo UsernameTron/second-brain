@@ -361,8 +361,12 @@ const PROBES = {
   sheets: (email) => gcall(email, 'https://www.googleapis.com/drive/v3/about?fields=user'),
 };
 async function probeSurface(email, surface) {
-  const probe = PROBES[surface];
-  if (!probe) throw Object.assign(new Error(`no probe for surface ${surface}`), { status: 404 });
+  // Own-property lookup only: a bare PROBES[surface] with a user-controlled
+  // key resolves inherited members too — surface="constructor" yields Object,
+  // passes a truthiness check, and dispatches Object(email)
+  // (CodeQL js/unvalidated-dynamic-method-call).
+  const probe = Object.hasOwn(PROBES, surface) ? PROBES[surface] : null;
+  if (!probe) throw Object.assign(new Error(`no probe for surface ${String(surface).slice(0, 40)}`), { status: 404 });
   const t0 = Date.now();
   await probe(email);
   const ms = Date.now() - t0;

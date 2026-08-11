@@ -186,3 +186,13 @@ test('health endpoint reports real statuses and never fakes green', async () => 
     assert.ok(probe.status >= 400, 'probe without a connected account must error');
   } finally { server.close(); }
 });
+
+test('probe surface lookup ignores inherited properties (no prototype dispatch)', async () => {
+  for (const evil of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+    await assert.rejects(
+      () => ws.probeSurface('pete@cloudtechgurus.com', evil),
+      (err) => err.status === 404 && /no probe/.test(err.message),
+      `PROBES lookup must reject inherited key ${evil}`,
+    );
+  }
+});
