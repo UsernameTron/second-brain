@@ -182,3 +182,39 @@ test('file upload rejects a caller-controlled non-Buffer body (CodeQL type confu
     server.close();
   }
 });
+
+test('file download returns raw bytes, not a JSON-serialized Uint8Array', async () => {
+  // SQLite hands BLOBs back as Uint8Array; res.send() would serialize that as
+  // {"0":104,...}, silently corrupting every download.
+  const express = require('express');
+  const routes = require('../server/routes');
+  const app = express();
+  app.use(express.json({ limit: '2mb' }));
+  app.use('/api', routes);
+  const server = app.listen(0);
+  await new Promise((r) => server.once('listening', r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const signIn = await fetch(`${base}/api/auth/dev`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'pete@cloudtechgurus.com' }),
+    });
+    const cookie = (signIn.headers.get('set-cookie') || '').split(';')[0];
+
+    const payload = Buffer.from([0x68, 0x69, 0x00, 0xff, 0xfe, 0x21]); // includes NUL and high bytes
+    const up = await fetch(`${base}/api/canvases/${CANVAS}/files?name=rt.bin`, {
+      method: 'POST', headers: { cookie, 'content-type': 'application/octet-stream' }, body: payload,
+    });
+    assert.equal(up.status, 200);
+    const fileId = (await up.json()).file.id;
+
+    const down = await fetch(`${base}/api/canvases/${CANVAS}/files/${fileId}`, { headers: { cookie } });
+    assert.equal(down.status, 200);
+    assert.match(down.headers.get('content-type') || '', /octet-stream/);
+    const bytes = Buffer.from(await down.arrayBuffer());
+    assert.deepEqual([...bytes], [...payload], 'downloaded bytes are byte-identical to what was uploaded');
+    assert.ok(!bytes.toString('utf8').startsWith('{"0":'), 'not a JSON-serialized array');
+  } finally {
+    server.close();
+  }
+});

@@ -387,14 +387,18 @@ router.post('/canvases/:canvasId/files', auth.requireCanvas, express.raw({ type:
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
     return res.status(400).json({ error: 'upload requires a non-empty binary body; do not send a JSON content-type' });
   }
+  // Normalize into a value whose type is established here rather than inherited
+  // from the request, so nothing downstream depends on what the caller sent.
+  const bytes = Buffer.from(req.body);
+  const size = bytes.byteLength;
   const id = crypto.randomUUID();
   const name = qstr(req.query.name, 'file.bin').slice(0, 200);
   const mime = String(req.headers['content-type'] || 'application/octet-stream').slice(0, 128);
   db.prepare('INSERT INTO files (id, canvas_id, name, mime, size, content, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(id, req.params.canvasId, name, mime, req.body.length, req.body, req.user.email, nowIso());
-  audit('user', req.user.email, 'file.upload', { fileId: id, name, size: req.body.length });
+    .run(id, req.params.canvasId, name, mime, size, bytes, req.user.email, nowIso());
+  audit('user', req.user.email, 'file.upload', { fileId: id, name, size });
   bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
-  res.json({ file: { id, name, mime, size: req.body.length } });
+  res.json({ file: { id, name, mime, size } });
 });
 
 router.get('/canvases/:canvasId/files/:fileId', auth.requireCanvas, (req, res) => {
@@ -402,7 +406,9 @@ router.get('/canvases/:canvasId/files/:fileId', auth.requireCanvas, (req, res) =
   if (!file) return res.status(404).json({ error: 'file not found' });
   res.setHeader('Content-Type', file.mime);
   res.setHeader('Content-Disposition', `attachment; filename="${file.name.replace(/"/g, '')}"`);
-  res.send(file.content);
+  // SQLite returns BLOBs as Uint8Array; res.send() would JSON-serialize that
+  // ({"0":104,...}) instead of sending bytes. Convert to a Buffer.
+  res.send(Buffer.from(file.content));
 });
 
 // ---------- escalations (the needs-you tray) ----------
