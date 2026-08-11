@@ -269,6 +269,7 @@ export default function Workspace() {
           setBudget(ev.usage);
           setPause((p) => ({ ...p, paused: !!ev.usage.paused }));
         }
+        scheduleSpend(); // keep per-agent spend live
         break;
       default:
         break;
