@@ -158,7 +158,49 @@ if [ "${MODEL_PROVIDER}" != "anthropic" ]; then
 fi
 
 # 6. Build the image with Cloud Build (no local docker needed).
-gcloud builds submit "${APP_DIR}" --tag "${IMAGE}" --project "${PROJECT_ID}"
+# Projects created recently do not get the legacy Cloud Build service account
+# (PROJECT_NUMBER@cloudbuild.gserviceaccount.com), and they only have a Compute
+# Engine default service account if the Compute API happens to be on. When
+# neither exists, `builds submit` fails with a bare "PERMISSION_DENIED: The
+# caller does not have permission" that names no principal and misleadingly
+# implicates the human caller, who is usually a project Owner. Rather than
+# depend on whichever default a given project happens to have, build as a
+# service account we create and grant explicitly.
+BUILD_SA_NAME="agent-canvas-build"
+BUILD_SA_EMAIL="${BUILD_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+gcloud iam service-accounts describe "${BUILD_SA_EMAIL}" --project "${PROJECT_ID}" >/dev/null 2>&1 || \
+  gcloud iam service-accounts create "${BUILD_SA_NAME}" --project "${PROJECT_ID}" --display-name="Agent Canvas Cloud Build"
+# builds.builder bundles what a build needs: write logs, pull/push Artifact
+# Registry, read the source bucket.
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${BUILD_SA_EMAIL}" --role=roles/cloudbuild.builds.builder >/dev/null
+
+submit_build() {
+  # A user-specified build service account requires an explicit bucket policy;
+  # without it Cloud Build refuses to write logs to a Google-owned bucket.
+  gcloud builds submit "${APP_DIR}" --tag "${IMAGE}" --project "${PROJECT_ID}" \
+    --service-account="projects/${PROJECT_ID}/serviceAccounts/${BUILD_SA_EMAIL}" \
+    --default-buckets-behavior=regional-user-owned-bucket
+}
+
+# Enabling cloudbuild.googleapis.com provisions a service agent asynchronously,
+# so the first submit after a fresh enable can lose a race it will win a minute
+# later. Retry before concluding anything is actually wrong.
+BUILD_OK=0
+for attempt in 1 2 3; do
+  if submit_build; then BUILD_OK=1; break; fi
+  if [ "${attempt}" -lt 3 ]; then
+    echo "==> Build attempt ${attempt} failed; waiting 45s for API/service-agent propagation and retrying." >&2
+    sleep 45
+  fi
+done
+if [ "${BUILD_OK}" -ne 1 ]; then
+  # Older gcloud releases do not know --service-account/--default-buckets-behavior
+  # on `builds submit`. Fall back to project defaults before giving up, so an
+  # out-of-date CLI is not mistaken for a permissions problem.
+  echo "==> Retrying the build with project default service accounts." >&2
+  gcloud builds submit "${APP_DIR}" --tag "${IMAGE}" --project "${PROJECT_ID}"
+fi
 
 # 7. Deploy. max-instances=1 because SQLite is single-writer (Litestream replicates
 #    to the bucket; a cold start restores it). The app enforces sign-in itself, so
