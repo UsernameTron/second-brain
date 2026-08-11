@@ -1,0 +1,23 @@
+{
+  "name": "agent-canvas",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Agent Canvas Workspace — shared multi-agent visual canvas for cloudtechgurus.com",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "DEV_AUTH=1 node server/index.js",
+    "seed": "node server/seed.js",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.0",
+    "express": "^4.21.2",
+    "google-auth-library": "^9.15.1",
+    "jsonwebtoken": "^9.0.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}
