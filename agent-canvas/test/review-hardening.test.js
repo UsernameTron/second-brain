@@ -5,6 +5,19 @@
 // - web search cost is metered
 
 const test = require('node:test');
+
+// Poll until `check(get())` is true or `ms` elapses; returns the last value.
+// Replaces fixed sleeps: on a loaded CI runner a fixed sleep is a coin flip,
+// while a condition wait is deterministic and usually faster.
+async function waitFor(get, check, ms = 5000) {
+  const deadline = Date.now() + ms;
+  let value = get();
+  while (!check(value) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 25));
+    value = get();
+  }
+  return value;
+}
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -226,8 +239,11 @@ test('a run that fails before starting is recorded and escalated, never left que
   // handler marks it failed. The point is that it never stays 'queued'.
   const before = sdb.prepare("SELECT COUNT(*) n FROM runs WHERE status='queued'").get().n;
   const { id } = dispatchRun({ agentId: 'agent-r', canvasId: CANVAS, instruction: 'startup failure probe' });
-  await new Promise((r) => setTimeout(r, 600));
-  const row = sdb.prepare('SELECT status, error FROM runs WHERE id = ?').get(id);
+  const row = await waitFor(
+    () => sdb.prepare('SELECT status, error FROM runs WHERE id = ?').get(id),
+    (r) => r && r.status !== 'queued',
+    5000,
+  );
   assert.notEqual(row.status, 'queued', `run must not be stranded in queued (got ${row.status})`);
   const after = sdb.prepare("SELECT COUNT(*) n FROM runs WHERE status='queued'").get().n;
   assert.ok(after <= before, 'no growth in stranded queued runs');
@@ -263,7 +279,11 @@ test('a stranded queued run is picked back up, and escalated if it keeps failing
   const id = crypto4.randomUUID();
   const stale = () => new Date(Date.now() - 120_000).toISOString();
   const strand = () => sdb.prepare("UPDATE runs SET status='queued', started_at=NULL, ended_at=NULL, created_at=? WHERE id=?").run(stale(), id);
-  const settle = () => new Promise((r) => setTimeout(r, 250)); // let the pump drain
+  const pumped = () => waitFor(
+    () => sdb.prepare('SELECT status FROM runs WHERE id = ?').get(id),
+    (r) => r && r.status !== 'queued',
+    5000,
+  ); // let the pump drain, by evidence rather than by clock
 
   sdb.prepare(`INSERT INTO runs (id, agent_id, canvas_id, instruction, status, step_budget, wall_ms_budget, created_at)
                VALUES (?, 'agent-r', ?, 'stranded work', 'queued', 5, 60000, ?)`).run(id, CANVAS, stale());
@@ -274,12 +294,15 @@ test('a stranded queued run is picked back up, and escalated if it keeps failing
 
   // Keep stranding it past the retry budget: it must fail loudly, not sit forever.
   for (let i = 0; i < 3; i++) {
-    await settle();
+    await pumped();
     strand();
     reconcileStrandedRuns();
   }
-  await settle();
-  const final = sdb.prepare('SELECT status, error FROM runs WHERE id = ?').get(id);
+  const final = await waitFor(
+    () => sdb.prepare('SELECT status, error FROM runs WHERE id = ?').get(id),
+    (r) => r && r.status === 'failed',
+    5000,
+  );
   assert.equal(final.status, 'failed', `exhausted retries must end in a recorded failure (got ${final.status})`);
   const esc = sdb.prepare("SELECT COUNT(*) n FROM escalations WHERE run_id = ? AND kind='error'").get(id).n;
   assert.ok(esc >= 1, 'and a human is told');
