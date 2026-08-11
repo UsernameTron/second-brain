@@ -165,7 +165,7 @@ router.delete('/canvases/:canvasId/members/:email', auth.requireOwner, (req, res
 // ---------- agents ----------
 router.post('/canvases/:canvasId/agents', auth.requireCanvas, (req, res) => {
   const id = crypto.randomUUID();
-  const { name, role = 'research', color = '#7c6cff', model_tier = 'strong', system_prompt = '', x = 0, y = 0 } = req.body;
+  const { name, role = 'research', color = '#a67fc0', model_tier = 'strong', system_prompt = '', x = 0, y = 0 } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   db.prepare('INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .run(id, req.params.canvasId, name, role, color, model_tier === 'fast' ? 'fast' : 'strong', system_prompt, x, y, nowIso());

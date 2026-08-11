@@ -7,7 +7,7 @@ const { WebSocketServer } = require('ws');
 const bus = require('./bus');
 const { tokenFromReq, verifySessionToken, canAccessCanvas } = require('./auth');
 
-const PRESENCE_COLORS = ['#ff6b9d', '#3ddad7', '#ffd166', '#9b8cff', '#6be675', '#ff9d5c', '#5cb8ff', '#ff5c7a'];
+const PRESENCE_COLORS = ['#e8641f', '#4cc2ab', '#eaa521', '#a67fc0', '#a9c94f', '#d9482b', '#6aa1c4', '#c9b48e'];
 
 function attachWebSocket(server) {
   const wss = new WebSocketServer({ noServer: true });
