@@ -1111,6 +1111,9 @@ a:hover { text-decoration: underline; }
 .sys-probe { flex: none; background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.2); color: #dce9fa; box-shadow: none; }
 .sys-probe:hover:not(:disabled) { border-color: var(--ctg-blue-bright); box-shadow: none; }
 
+.theme-btn { display: inline-flex; align-items: center; gap: 7px; }
+.theme-glyph { font-size: 13px; line-height: 1; color: var(--amber); text-shadow: 0 0 8px color-mix(in srgb, var(--amber) 60%, transparent); }
+
 /* ---------- capabilities matrix ---------- */
 .caps-btn { display: inline-flex; align-items: center; gap: 7px; }
 .caps-state-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }

@@ -639,6 +639,15 @@ export default function Workspace() {
         </button>
         <button className={`btn ghost ${panel?.type === 'memory' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'memory' ? null : { type: 'memory' })}>Memory</button>
         <button className={`btn ghost ${panel?.type === 'workbook' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'workbook' ? null : { type: 'workbook' })}>Workbook</button>
+        <button
+          className="btn ghost theme-btn"
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          title={theme === 'dark' ? 'Switch to the light CTG theme' : 'Switch to the dark bridge console'}
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        >
+          <span className="theme-glyph" aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
+          {theme === 'dark' ? 'Light' : 'Dark'}
+        </button>
         <button className="btn ghost caps-btn" onClick={() => setCapsOpen(true)} title={wsConnected ? 'Google Workspace connected — see what agents can and cannot do' : 'Google Workspace not connected — click to see what agents can do and connect'}>
           <span className={`caps-state-dot ${wsConnected ? 'on' : 'off'}`} />
           Capabilities
@@ -671,9 +680,6 @@ export default function Workspace() {
                   <a href="/api/export" download>Export workspace JSON</a>
                 </>
               ) : null}
-              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-                {theme === 'dark' ? 'Light theme — CTG brand' : 'Dark theme — bridge console'}
-              </button>
               <button onClick={signOut}>Sign out</button>
             </div>
           ) : null}
