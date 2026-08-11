@@ -48,6 +48,7 @@ function SignIn() {
   const { config, setUser, toast } = useContext(AppCtx);
   const [err, setErr] = useState(null);
   const [devEmail, setDevEmail] = useState('');
+  const [mascotOk, setMascotOk] = useState(true);
   const [busy, setBusy] = useState(false);
   const gsiRef = useRef(null);
 
@@ -99,7 +100,16 @@ function SignIn() {
   return (
     <div className="signin">
       <div className="signin-card">
-        <div className="signin-glyph" />
+        {mascotOk ? (
+          <img
+            className="signin-mascot"
+            src="/mascot.png"
+            alt="CUE, the Cloud Tech Gurus mascot"
+            onError={() => setMascotOk(false)}
+          />
+        ) : (
+          <div className="signin-glyph" />
+        )}
         <h1>Agent Canvas</h1>
         <p className="signin-sub">
           A shared workspace where your agents work in the open.

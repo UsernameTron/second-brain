@@ -143,7 +143,7 @@ export default function MemoryPanel({
             {d.producingRun ? (
               <div className="lineage-run">
                 <div>
-                  <span className="dot-inline" style={{ background: agentsById[d.producingRun.agent_id]?.color || '#666' }} />
+                  <span className="dot-inline" style={{ background: agentsById[d.producingRun.agent_id]?.color || '#8a94a8' }} />
                   <b>{agentsById[d.producingRun.agent_id]?.name || d.producingRun.agent_id}</b>
                   <span className={`chip run-${d.producingRun.status === 'completed' ? 'completed' : 'halted'}`}>{d.producingRun.status}</span>
                   <button className="link-btn" onClick={() => onOpenRun(d.producingRun.id)}>open ↗</button>

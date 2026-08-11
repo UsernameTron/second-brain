@@ -79,6 +79,7 @@ function TrayItem({ esc, agentsById, agents, onResolve }) {
 // Pinned to the top of the viewport, always visible, never inside the canvas layout.
 export default function Tray({ escalations, agentsById, agents, onResolve }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mascotOk, setMascotOk] = useState(true);
   const n = escalations.length;
 
   return (
@@ -91,7 +92,14 @@ export default function Tray({ escalations, agentsById, agents, onResolve }) {
             <span className="tray-caret">{collapsed ? '▾' : '▴'}</span>
           </>
         ) : (
-          <><span className="tray-clear-mark">✓</span> Nothing needs you</>
+          <>
+            {mascotOk ? (
+              <img className="tray-mascot" src="/mascot.png" alt="" onError={() => setMascotOk(false)} />
+            ) : (
+              <span className="tray-clear-mark">✓</span>
+            )}{' '}
+            Nothing needs you
+          </>
         )}
       </button>
       {!collapsed && n > 0 ? (

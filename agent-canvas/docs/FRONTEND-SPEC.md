@@ -42,7 +42,7 @@ Reconnect WS with backoff; on reconnect re-`join` and refetch canvas state + esc
 
 ## Design direction (this must look DESIGNED, not templated)
 
-- Deep dark ground: near-black blue/violet (#07070f–#0d0d1c range), vivid saturated accents (role colors from agent data: teal #3ddad7, amber #ffd166, magenta #ff6b9d, violet #9b8cff), luminous glows (box-shadow + blur), subtle dot-grid canvas background that moves with pan.
+- CTG light theme (rebranded 2026-08-11 to the Cloud Tech Gurus design system): cool light ground (#f2f5fa), white raised cards with hairline borders and navy-tinted shadows, brand navy #104080 / blue #2080D0 / blue-bright #30A0F0 accents, semantic success #169E6A / warning #D98A14 / danger #C4362A, Montserrat badging + Inter body, pill buttons. Role colors come from agent data (seeded: research blue, coding navy, review green). Subtle navy dot-grid canvas background that moves with pan. Epistemic state stays double-encoded — border *style* (solid/dashed/dotted) carries it independent of color. The mascot CUE renders from `/mascot.png` on the sign-in card and the clear tray when present (see frontend/public/README.md).
 - Typography with a point of view: display font "Space Grotesk" (Google Fonts `<link>`), mono accents "IBM Plex Mono" for ids/data. NEVER Inter/Roboto/Arial-default look. Tight, confident spacing; generous radii (10–14px); thin luminous 1px borders (rgba white 8–12%).
 - Micro-motion: agent pulse while running, edge flow animation, tray items slide in, ripple keyframes red (#ff4d6d) → amber (#ffd166) → fade. Respect `prefers-reduced-motion`.
 - Epistemic encoding must survive B/W: solid vs dashed vs dotted borders, filled vs half vs hollow dots (shape, not just color).
@@ -54,4 +54,4 @@ Reconnect WS with backoff; on reconnect re-`join` and refetch canvas state + esc
 - No external UI/component/canvas/graph libraries. React + react-dom + vite + @vitejs/plugin-react only.
 - `npm run build` in `frontend/` must succeed; that is your acceptance gate. Also add `"dev": "vite"` for local work.
 - Keep the whole app in ~8–14 source files under `frontend/src/`. CSS in one `styles.css` (plain CSS, CSS variables for the palette).
-- index.html: `<title>Agent Canvas — cloudtechgurus</title>`, dark `<meta name="color-scheme" content="dark">`, favicon inline SVG data URI (a luminous node glyph).
+- index.html: `<title>Agent Canvas — Cloud Tech Gurus</title>`, `<meta name="color-scheme" content="light">`, theme-color #104080, favicon inline SVG data URI (node glyph on brand navy).

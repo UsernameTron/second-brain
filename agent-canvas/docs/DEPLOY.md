@@ -42,6 +42,16 @@ gcloud run services update agent-canvas --project agent-canvas-ctg --region us-c
 
 Open the service URL, sign in with a cloudtechgurus.com Google account. The allowlist is seeded with pete@ (owner), fred@, darren@, jessica@ — **if the real mailbox names differ, the owner fixes them in-app** (top bar → Admin → Allowlist) or pre-seeds via `OWNER_EMAIL` / `SEED_MEMBERS` env vars. Remaining domain users are added from the same Admin panel — no redeploy.
 
+## Brand assets (optional, before building)
+
+Copy the approved CTG mascot into the frontend so CUE appears on the sign-in card and the clear needs-you tray:
+
+```bash
+cp "<design-system>/assets/mascot-full.png" agent-canvas/frontend/public/mascot.png
+```
+
+The UI hides the slot when the file is absent, so skipping this never breaks a build.
+
 ## Operations notes
 
 - **Models**: strong tier defaults to `claude-sonnet-5` (the workhorse), fast tier `claude-haiku-4-5` for routing/classification; frontier models (`claude-opus-5`, `claude-fable-5`) are deliberate opt-ins via `STRONG_MODEL` for canvases that need them. Costs — including web searches at $10/1k — are metered per run/agent/day inside the app; the daily budget (default $25, owner-adjustable in the UI) suspends new runs when reached. Research agents get server-side web search (disable with `ENABLE_WEB_SEARCH=0`); web-sourced memory entries must carry URL + retrieval-time provenance (enforced by the agent contract).

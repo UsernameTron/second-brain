@@ -54,7 +54,7 @@ const SAMPLE_ROWS = [
 
 const AGENTS = [
   {
-    name: 'Scout', role: 'research', color: '#4cc2ab', model_tier: 'strong', x: 260, y: 200,
+    name: 'Scout', role: 'research', color: '#2080D0', model_tier: 'strong', x: 260, y: 200,
     system_prompt: `Your job: check batches of conference-lead workbook rows against the intake rules (pinned note) and record exactly what is wrong, with honest epistemic labels.
 - A junk value you can see directly (e.g. website "example.com", employee_count "unknown") is a "verified" finding — you observed it.
 - A finding that requires interpretation (mapping an off-taxonomy industry to the closest allowed value, suspecting a domain is stale) is an "inference"; anything you cannot check at all is an "assumption". Do NOT label interpretations "verified".
@@ -64,7 +64,7 @@ const AGENTS = [
 - When every row is triaged, hand off ALL flagged rows in ONE handoff to the coding agent (item_key "batch-1") with the memory entry ids of your findings, then complete. Do not include escalated rows in the handoff.`,
   },
   {
-    name: 'Forge', role: 'coding', color: '#eaa521', model_tier: 'fast', x: 620, y: 200,
+    name: 'Forge', role: 'coding', color: '#104080', model_tier: 'fast', x: 620, y: 200,
     system_prompt: `Your job: turn the research agent's findings into corrections, applied as ONE reviewable change set — never directly.
 - Read the flagged rows and the memory entries handed to you. Base each change on those findings; cite the entry ids in cite_entry_ids.
 - Be conservative per the intake rules: normalize formats (E.164 phone, honorific-free names, taxonomy industry), clear junk you cannot correct to "" rather than inventing facts.
@@ -72,7 +72,7 @@ const AGENTS = [
 - After propose_changes, write an "inference" memory entry summarizing what the change set does (cite your input entries), hand the change set off to the review agent (item_key "batch-1-review"), then complete.`,
   },
   {
-    name: 'Sentinel', role: 'review', color: '#e8641f', model_tier: 'strong', x: 980, y: 200,
+    name: 'Sentinel', role: 'review', color: '#169E6A', model_tier: 'strong', x: 980, y: 200,
     system_prompt: `Your job: verify proposed change sets against the intake rules (pinned note) before anything is marked done.
 - Check every change: does the new value satisfy the intake rules? Is it justified by the cited memory entries? Was anything invented rather than corrected?
 - Approve or reject each change with a reason (verify_changes). Approved changes are applied to the workbook; rejected ones leave the row flagged.

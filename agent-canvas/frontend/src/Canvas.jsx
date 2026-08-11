@@ -289,7 +289,7 @@ export default function Canvas({
         {Object.entries(cursors).map(([email, c]) => (
           <div key={email} className="peer-cursor" style={{ left: c.x, top: c.y, transform: `scale(${1 / view.z})` }}>
             <svg width="15" height="17" viewBox="0 0 15 17">
-              <path d="M1 1 L14 8.4 L8 9.8 L5.6 16 Z" fill={c.color} stroke="#0b0b17" strokeWidth="1" />
+              <path d="M1 1 L14 8.4 L8 9.8 L5.6 16 Z" fill={c.color} stroke="#ffffff" strokeWidth="1" />
             </svg>
             <span className="peer-name" style={{ background: c.color }}>{c.name}</span>
           </div>
@@ -394,7 +394,7 @@ function Minimap({ agents, notes, tasks, files, view, size, onJump }) {
               cx={mx(n.x + NODE_SIZES.agent.w / 2) + 5}
               cy={my(n.y + NODE_SIZES.agent.h / 2) - 5}
               r="2"
-              fill={n.status === 'running' ? '#6be675' : '#ffd166'}
+              fill={n.status === 'running' ? '#169E6A' : '#D98A14'}
               opacity={n.status === 'running' ? 1 : 0.55}
             />
           </g>
