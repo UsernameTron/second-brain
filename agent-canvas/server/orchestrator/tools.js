@@ -337,6 +337,15 @@ async function executeTool(name, input, ctx) {
         audit('agent', agent.id, 'run.livelock', { runId: run.id, itemKey, escalationId: escalation.id });
         return { content: JSON.stringify({ livelock: true, escalation_id: escalation.id, message: 'This item has bounced back and forth too many times. It has been escalated to a human instead of handed off. Move on to other work.' }), isError: true };
       }
+      // An identical handoff (same pair, same item) is a duplicate, not new
+      // work: dispatching it again would double-run the target and trip the
+      // livelock detector on the agent's own repetition.
+      const duplicate = db.prepare(
+        'SELECT id FROM handoffs WHERE canvas_id = ? AND item_key = ? AND from_agent_id = ? AND to_agent_id = ? LIMIT 1'
+      ).get(canvas.id, itemKey, agent.id, target.id);
+      if (duplicate) {
+        return { content: JSON.stringify({ ok: true, duplicate: true, handoff_id: duplicate.id, note: `You already handed "${itemKey}" to ${target.name}; they are working on it. Do not hand it off again — continue with your remaining work or complete.` }) };
+      }
       const entryIds = [...new Set(input.entry_ids || [])];
       const handoffId = crypto.randomUUID();
       db.prepare(

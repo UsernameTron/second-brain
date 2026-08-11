@@ -218,3 +218,69 @@ test('file download returns raw bytes, not a JSON-serialized Uint8Array', async 
     server.close();
   }
 });
+
+test('a run that fails before starting is recorded and escalated, never left queued', async () => {
+  const { dispatchRun } = require('../server/orchestrator/queue');
+  const { db: sdb } = require('../server/db');
+  // Dispatch against an agent row whose canvas is missing: executeRun's own
+  // handler marks it failed. The point is that it never stays 'queued'.
+  const before = sdb.prepare("SELECT COUNT(*) n FROM runs WHERE status='queued'").get().n;
+  const { id } = dispatchRun({ agentId: 'agent-r', canvasId: CANVAS, instruction: 'startup failure probe' });
+  await new Promise((r) => setTimeout(r, 600));
+  const row = sdb.prepare('SELECT status, error FROM runs WHERE id = ?').get(id);
+  assert.notEqual(row.status, 'queued', `run must not be stranded in queued (got ${row.status})`);
+  const after = sdb.prepare("SELECT COUNT(*) n FROM runs WHERE status='queued'").get().n;
+  assert.ok(after <= before, 'no growth in stranded queued runs');
+});
+
+test('an identical repeat handoff is a no-op, not a duplicate dispatch or a livelock', async () => {
+  const { db: sdb, nowIso: iso } = require('../server/db');
+  const crypto3 = require('node:crypto');
+  const a1 = crypto3.randomUUID(); const a2 = crypto3.randomUUID();
+  sdb.prepare("INSERT INTO agents (id, canvas_id, name, role, created_at) VALUES (?, ?, 'Sender', 'research', ?)").run(a1, CANVAS, iso());
+  sdb.prepare("INSERT INTO agents (id, canvas_id, name, role, created_at) VALUES (?, ?, 'Receiver', 'coding', ?)").run(a2, CANVAS, iso());
+  const agent = sdb.prepare('SELECT * FROM agents WHERE id = ?').get(a1);
+  const canvas = sdb.prepare('SELECT * FROM canvases WHERE id = ?').get(CANVAS);
+  const run = { id: 'handoff-run', canvas_id: CANVAS, agent_id: a1 };
+  const args = { to_agent_name: 'Receiver', item_key: 'batch-dup', message: 'take this' };
+
+  const first = JSON.parse((await executeTool('handoff', args, { run, agent, canvas })).content);
+  assert.ok(first.dispatched_run, 'first handoff dispatches');
+  const second = JSON.parse((await executeTool('handoff', args, { run, agent, canvas })).content);
+  assert.equal(second.duplicate, true, 'identical repeat is recognized as a duplicate');
+  assert.ok(!second.dispatched_run, 'duplicate does not dispatch a second run');
+
+  const handoffs = sdb.prepare("SELECT COUNT(*) n FROM handoffs WHERE item_key = 'batch-dup'").get().n;
+  assert.equal(handoffs, 1, 'only one handoff recorded');
+  const livelocks = sdb.prepare("SELECT COUNT(*) n FROM escalations WHERE kind='livelock' AND question LIKE '%batch-dup%'").get().n;
+  assert.equal(livelocks, 0, 'repetition by one agent is not reported as a livelock');
+});
+
+test('a stranded queued run is picked back up, and escalated if it keeps failing', async () => {
+  const { reconcileStrandedRuns } = require('../server/orchestrator/queue');
+  const { db: sdb } = require('../server/db');
+  const crypto4 = require('node:crypto');
+  const id = crypto4.randomUUID();
+  const stale = () => new Date(Date.now() - 120_000).toISOString();
+  const strand = () => sdb.prepare("UPDATE runs SET status='queued', started_at=NULL, ended_at=NULL, created_at=? WHERE id=?").run(stale(), id);
+  const settle = () => new Promise((r) => setTimeout(r, 250)); // let the pump drain
+
+  sdb.prepare(`INSERT INTO runs (id, agent_id, canvas_id, instruction, status, step_budget, wall_ms_budget, created_at)
+               VALUES (?, 'agent-r', ?, 'stranded work', 'queued', 5, 60000, ?)`).run(id, CANVAS, stale());
+
+  assert.ok(reconcileStrandedRuns() >= 1, 'sweeper sees the stranded run');
+  const requeued = sdb.prepare("SELECT COUNT(*) n FROM audit_log WHERE action='run.requeued' AND detail LIKE ?").get(`%${id}%`).n;
+  assert.ok(requeued >= 1, 'it is re-queued rather than abandoned');
+
+  // Keep stranding it past the retry budget: it must fail loudly, not sit forever.
+  for (let i = 0; i < 3; i++) {
+    await settle();
+    strand();
+    reconcileStrandedRuns();
+  }
+  await settle();
+  const final = sdb.prepare('SELECT status, error FROM runs WHERE id = ?').get(id);
+  assert.equal(final.status, 'failed', `exhausted retries must end in a recorded failure (got ${final.status})`);
+  const esc = sdb.prepare("SELECT COUNT(*) n FROM escalations WHERE run_id = ? AND kind='error'").get(id).n;
+  assert.ok(esc >= 1, 'and a human is told');
+});
