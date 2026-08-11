@@ -8,6 +8,7 @@ const http = require('node:http');
 const express = require('express');
 
 const { seedIfEmpty, DEMO_KICKOFF } = require('./seed');
+const { rateLimit } = require('./ratelimit');
 const routes = require('./routes');
 const { attachWebSocket } = require('./ws');
 const { recoverOrphans, dispatchRun } = require('./orchestrator/queue');
@@ -18,6 +19,8 @@ const { db, getSetting } = require('./db');
 const PORT = Number(process.env.PORT || 8080);
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', true); // Cloud Run sits behind a proxy; req.ip = real client IP
+
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/healthz', (req, res) => res.json({ ok: true, paused: control.isPaused() }));
@@ -25,7 +28,7 @@ app.get('/healthz', (req, res) => res.json({ ok: true, paused: control.isPaused(
 app.use('/api', routes);
 
 // Demo kickoff: dispatches the seeded enrichment workflow on the demo canvas.
-app.post('/api/canvases/:canvasId/demo/run', auth.requireAuth, (req, res) => {
+app.post('/api/canvases/:canvasId/demo/run', rateLimit('model', 10, 60_000), auth.requireAuth, (req, res) => {
   const check = auth.canAccessCanvas(req.user, req.params.canvasId);
   if (!check.ok) return res.status(check.status).json({ error: check.error });
   const research = db.prepare("SELECT * FROM agents WHERE canvas_id = ? AND role = 'research' LIMIT 1").get(req.params.canvasId);
@@ -47,7 +50,7 @@ app.post('/api/canvases/:canvasId/demo/run', auth.requireAuth, (req, res) => {
 const distDir = path.join(__dirname, '..', 'frontend', 'dist');
 if (fs.existsSync(distDir)) {
   app.use(express.static(distDir));
-  app.get(/^\/(?!api|ws|healthz).*/, (req, res) => res.sendFile(path.join(distDir, 'index.html')));
+  app.get(/^\/(?!api|ws|healthz).*/, rateLimit('static', 120, 60_000), (req, res) => res.sendFile(path.join(distDir, 'index.html')));
 } else {
   app.get('/', (req, res) => res.status(200).send('Agent Canvas API running (frontend not built — run npm run build in frontend/)'));
 }

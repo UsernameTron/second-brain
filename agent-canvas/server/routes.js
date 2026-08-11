@@ -14,6 +14,8 @@ const { dispatchRun, resumePump, queueState } = require('./orchestrator/queue');
 const { createEscalation } = require('./orchestrator/tools');
 const { callModel, FAST_MODEL, STRONG_MODEL } = require('./orchestrator/anthropic');
 
+const { rateLimit } = require('./ratelimit');
+
 const router = express.Router();
 
 function asyncRoute(fn) {
@@ -21,6 +23,15 @@ function asyncRoute(fn) {
     res.status(err.status || 500).json({ error: err.message || 'internal error' });
   });
 }
+
+// Query params can arrive as arrays (?a=1&a=2) — always reduce to one string.
+function qstr(value, fallback = undefined) {
+  if (Array.isArray(value)) value = value[0];
+  return value === undefined || value === null ? fallback : String(value);
+}
+
+// Broad safety net for all API routes; tighter buckets on sensitive ones below.
+router.use(rateLimit('api', 300, 60_000));
 
 // ---------- config + auth ----------
 router.get('/config', (req, res) => {
@@ -32,13 +43,13 @@ router.get('/config', (req, res) => {
   });
 });
 
-router.post('/auth/google', asyncRoute(async (req, res) => {
+router.post('/auth/google', rateLimit('auth', 10, 60_000), asyncRoute(async (req, res) => {
   const user = await auth.signInWithGoogle(req.body.credential);
   auth.issueSession(res, user);
   res.json({ user: publicUser(user) });
 }));
 
-router.post('/auth/dev', asyncRoute(async (req, res) => {
+router.post('/auth/dev', rateLimit('auth', 10, 60_000), asyncRoute(async (req, res) => {
   const user = auth.signInDev(req.body.email);
   auth.issueSession(res, user);
   res.json({ user: publicUser(user) });
@@ -148,7 +159,7 @@ router.patch('/canvases/:canvasId/agents/:agentId', auth.requireCanvas, (req, re
 });
 
 // ---------- runs ----------
-router.post('/canvases/:canvasId/agents/:agentId/dispatch', auth.requireCanvas, (req, res) => {
+router.post('/canvases/:canvasId/agents/:agentId/dispatch', rateLimit('model', 30, 60_000), auth.requireCanvas, (req, res) => {
   if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused — resume before dispatching' });
   const instruction = String(req.body.instruction || '').trim();
   if (!instruction) return res.status(400).json({ error: 'instruction required' });
@@ -171,7 +182,7 @@ router.get('/canvases/:canvasId/runs/:runId/events', auth.requireCanvas, (req, r
 });
 
 router.get('/canvases/:canvasId/activity', auth.requireCanvas, (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 200, 1000);
+  const limit = Math.min(Number(qstr(req.query.limit)) || 200, 1000);
   const events = db.prepare('SELECT * FROM run_events WHERE canvas_id = ? ORDER BY id DESC LIMIT ?').all(req.params.canvasId, limit)
     .map((e) => ({ ...e, payload: JSON.parse(e.payload) }));
   res.json({ events });
@@ -181,11 +192,11 @@ router.get('/canvases/:canvasId/activity', auth.requireCanvas, (req, res) => {
 router.get('/canvases/:canvasId/memory', auth.requireCanvas, (req, res) => {
   const entries = memory.listEntries({
     canvasId: req.params.canvasId,
-    includeSuperseded: req.query.include_superseded === '1',
-    epistemic: req.query.epistemic,
-    since: req.query.since,
-    query: req.query.q,
-    limit: req.query.limit,
+    includeSuperseded: qstr(req.query.include_superseded) === '1',
+    epistemic: qstr(req.query.epistemic),
+    since: qstr(req.query.since),
+    query: qstr(req.query.q),
+    limit: qstr(req.query.limit),
   });
   res.json({ entries });
 });
@@ -326,7 +337,7 @@ router.post('/canvases/:canvasId/positions', auth.requireCanvas, (req, res) => {
 // ---------- files ----------
 router.post('/canvases/:canvasId/files', auth.requireCanvas, express.raw({ type: '*/*', limit: '5mb' }), (req, res) => {
   const id = crypto.randomUUID();
-  const name = String(req.query.name || 'file.bin');
+  const name = qstr(req.query.name, 'file.bin').slice(0, 200);
   const mime = req.headers['content-type'] || 'application/octet-stream';
   db.prepare('INSERT INTO files (id, canvas_id, name, mime, size, content, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     .run(id, req.params.canvasId, name, mime, req.body.length, req.body, req.user.email, nowIso());
@@ -385,7 +396,7 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
 }));
 
 // ---------- voice/text intent parsing (fast model; echo before dispatch) ----------
-router.post('/canvases/:canvasId/intent', auth.requireCanvas, asyncRoute(async (req, res) => {
+router.post('/canvases/:canvasId/intent', rateLimit('model', 30, 60_000), auth.requireCanvas, asyncRoute(async (req, res) => {
   const text = String(req.body.text || '').trim();
   if (!text) return res.status(400).json({ error: 'text required' });
   const agents = db.prepare('SELECT id, name, role FROM agents WHERE canvas_id = ?').all(req.params.canvasId);
@@ -446,7 +457,17 @@ router.get('/canvases/:canvasId/spend', auth.requireCanvas, (req, res) => {
 
 // ---------- audit (owner only) ----------
 router.get('/audit', auth.requireOwner, (req, res) => {
-  res.json({ entries: queryAudit(req.query), chain: verifyChain() });
+  res.json({
+    entries: queryAudit({
+      action: qstr(req.query.action),
+      actorId: qstr(req.query.actorId),
+      since: qstr(req.query.since),
+      until: qstr(req.query.until),
+      limit: qstr(req.query.limit),
+      offset: qstr(req.query.offset),
+    }),
+    chain: verifyChain(),
+  });
 });
 
 // ---------- export (owner only) ----------

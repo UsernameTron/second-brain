@@ -2,6 +2,9 @@
 // Same-origin, cookie-authenticated: no custom auth headers, ever.
 
 export async function api(path, opts = {}) {
+  if (typeof path !== 'string' || !path.startsWith('/api')) {
+    throw Object.assign(new Error('invalid API path'), { status: 0 });
+  }
   const { body, headers, ...rest } = opts;
   const init = { ...rest, headers: { ...(headers || {}) } };
   if (body !== undefined) {

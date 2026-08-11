@@ -137,7 +137,7 @@ export function FileNode({ file, canvasId, ...shell }) {
       <div className="node-title"><span className="file-mark">▤</span> {short(file.name, 26)}</div>
       <div className="file-meta mono">
         {fmtBytes(file.size)}
-        <a href={`/api/canvases/${canvasId}/files/${file.id}`} download={file.name} title={`Download ${file.name}`}>
+        <a href={`/api/canvases/${encodeURIComponent(canvasId)}/files/${encodeURIComponent(file.id)}`} download={file.name} title={`Download ${file.name}`}>
           ↓ download
         </a>
       </div>
