@@ -60,7 +60,11 @@ export default function Workspace() {
     if (!ws) return;
     window.history.replaceState({}, '', window.location.pathname);
     if (ws === 'connected') { toast('Google Workspace connected — agents you direct can now use it', 'ok'); refreshCaps(); setCapsOpen(true); }
-    else if (ws === 'denied') { toast('Workspace connection was cancelled'); }
+    else if (ws === 'blocked') {
+      toast('Google blocked the connection: this account is not on the app\'s test-user list. Owner: Google Auth Platform → Audience → add the account as a test user (as the project-owner Google identity), wait ~2 minutes, retry. Or deploy with GOOGLE_WORKSPACE_SCOPES=standard to skip the tester gate (no Gmail).');
+      setCapsOpen(true);
+    }
+    else if (ws === 'denied') { toast('Workspace connection was cancelled before granting access'); }
   }, [refreshCaps, toast]);
   const [menuOpen, setMenuOpen] = useState(false);
 

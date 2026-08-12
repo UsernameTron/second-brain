@@ -132,7 +132,11 @@ router.post('/google/connect', rateLimit('auth', 10, 60_000), (req, res) => {
 
 router.get('/google/oauth/callback', rateLimit('auth', 10, 60_000), asyncRoute(async (req, res) => {
   const { code, state, error } = req.query;
-  if (error) return res.redirect('/?ws=denied');
+  if (error) {
+    // access_denied from an unverified External app in Testing means "this
+    // account is not on the tester list" — say that, not "cancelled".
+    return res.redirect(error === 'access_denied' ? '/?ws=blocked' : '/?ws=denied');
+  }
   let claims;
   try { claims = jwt.verify(String(state || ''), oauthStateSecret()); } catch { return res.status(400).send('invalid state'); }
   if (claims.purpose !== 'ws-connect' || claims.email !== req.user.email) return res.status(403).send('state mismatch');
@@ -160,14 +164,23 @@ router.get('/health/integrations', (req, res) => {
     : Boolean(process.env.VERTEX_PROJECT_ID);
   const connected = workspace.isConnected(req.user.email);
   const oauth = workspace.oauthReady();
-  const wsSurface = (id, label, probe) => ({
-    id, label, probe: probe && oauth && connected,
-    status: !oauth ? 'planned' : (connected ? 'ready' : 'attention'),
-    detail: !oauth
-      ? 'OAuth client not configured on this deployment — see docs/DEPLOY.md.'
-      : (connected ? 'Connected as you. Agents you direct act with your permissions.'
-                   : 'Your Google account is not connected — Capabilities → Connect.'),
-  });
+  const standardMode = workspace.scopeMode() === 'standard';
+  const wsSurface = (id, label, probe) => {
+    if (id === 'gmail' && standardMode) {
+      return {
+        id, label, probe: false, status: 'planned',
+        detail: 'Disabled: GOOGLE_WORKSPACE_SCOPES=standard drops the restricted Gmail scopes so Connect works without Google\'s tester list. Flip to full after verification or the org move.',
+      };
+    }
+    return {
+      id, label, probe: probe && oauth && connected,
+      status: !oauth ? 'planned' : (connected ? 'ready' : 'attention'),
+      detail: !oauth
+        ? 'OAuth client not configured on this deployment — see docs/DEPLOY.md.'
+        : (connected ? `Connected as you. Agents you direct act with your permissions.${id === 'drive' && standardMode ? ' Standard scopes: Drive is limited to files the app creates.' : ''}`
+                     : 'Your Google account is not connected — Capabilities → Connect.'),
+    };
+  };
   let chainOk = true;
   try { chainOk = verifyChain().ok !== false; } catch { chainOk = false; }
   const replicated = Boolean(process.env.LITESTREAM_REPLICA_URL);

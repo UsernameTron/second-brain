@@ -358,7 +358,12 @@ const HUBSPOT_TOOLS = [
 
 function toolsForRole(role) {
   const mcpDefs = require('../mcp/client').getCachedDefs();
-  return [...COMMON_TOOLS, ...WORKSPACE_READ_TOOLS, ...WORKSPACE_WRITE_TOOLS, ...HUBSPOT_TOOLS, ...mcpDefs, ...(ROLE_TOOLS[role] || [{
+  // In standard scope mode the Gmail tools are absent, not just refusing —
+  // a model should never see a tool the deployment cannot honor.
+  const gmailOn = require('../google/workspace').gmailEnabled();
+  const wsRead = gmailOn ? WORKSPACE_READ_TOOLS : WORKSPACE_READ_TOOLS.filter((t) => !t.name.startsWith('ws_gmail'));
+  const wsWrite = gmailOn ? WORKSPACE_WRITE_TOOLS : WORKSPACE_WRITE_TOOLS.filter((t) => t.name !== 'ws_gmail_draft');
+  return [...COMMON_TOOLS, ...wsRead, ...wsWrite, ...HUBSPOT_TOOLS, ...mcpDefs, ...(ROLE_TOOLS[role] || [{
     name: 'read_rows',
     description: 'Read rows of the conference-lead workbook on this canvas.',
     input_schema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer' } }, required: [] },

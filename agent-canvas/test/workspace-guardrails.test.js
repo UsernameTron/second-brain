@@ -196,3 +196,39 @@ test('probe surface lookup ignores inherited properties (no prototype dispatch)'
     );
   }
 });
+
+// ---------- scope modes (the tester-gate escape hatch) ----------
+test('standard scope mode drops exactly the restricted scopes and hides gmail tools', () => {
+  const prev = process.env.GOOGLE_WORKSPACE_SCOPES;
+  try {
+    process.env.GOOGLE_WORKSPACE_SCOPES = 'standard';
+    const active = ws.activeScopes();
+    assert.equal(active.length, 3);
+    for (const scope of active) {
+      assert.ok(!scope.includes('gmail'), 'standard mode must request no gmail scope');
+      assert.ok(!scope.endsWith('drive.readonly'), 'standard mode must not request drive.readonly');
+    }
+    assert.equal(ws.gmailEnabled(), false);
+    const { toolsForRole } = require('../server/orchestrator/tools');
+    const names = toolsForRole('research').map((t) => t.name);
+    assert.ok(!names.some((n) => n.startsWith('ws_gmail')), 'gmail tools must be absent, not just refusing');
+    assert.ok(names.includes('ws_sheets_read') && names.includes('ws_calendar_create'), 'non-restricted tools remain');
+
+    process.env.GOOGLE_WORKSPACE_SCOPES = 'full';
+    assert.equal(ws.activeScopes().length, 6);
+    assert.ok(require('../server/orchestrator/tools').toolsForRole('research').some((t) => t.name === 'ws_gmail_draft'));
+  } finally {
+    if (prev === undefined) delete process.env.GOOGLE_WORKSPACE_SCOPES; else process.env.GOOGLE_WORKSPACE_SCOPES = prev;
+  }
+});
+
+test('gmail operations refuse with the scope-mode explanation in standard mode', async () => {
+  const prev = process.env.GOOGLE_WORKSPACE_SCOPES;
+  try {
+    process.env.GOOGLE_WORKSPACE_SCOPES = 'standard';
+    await assert.rejects(() => ws.gmailSearch({ email: 'x@y.com', query: 'q' }), /GOOGLE_WORKSPACE_SCOPES=standard/);
+    await assert.rejects(() => ws.gmailCreateDraft({ email: 'x@y.com', to: 'a@b.c', subject: 's', body: 'b' }), /standard/);
+  } finally {
+    if (prev === undefined) delete process.env.GOOGLE_WORKSPACE_SCOPES; else process.env.GOOGLE_WORKSPACE_SCOPES = prev;
+  }
+});

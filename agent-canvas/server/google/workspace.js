@@ -30,14 +30,30 @@ const { audit } = require('../audit');
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 
-const SCOPES = [
-  'https://www.googleapis.com/auth/drive.readonly',      // read files & docs
-  'https://www.googleapis.com/auth/drive.file',          // create/manage only files the app creates
-  'https://www.googleapis.com/auth/spreadsheets',        // read + edit sheet cells
+// Two scope modes. Google treats gmail.* and drive.readonly as RESTRICTED
+// scopes: an unverified External app can only grant them to listed test
+// users, full stop. 'standard' mode drops exactly those, so Connect works
+// for ANY signed-in member through Google's unverified-app interstitial —
+// no tester list, no verification review. The cost is honest and visible:
+// no Gmail tools, and Drive limited to files the app itself creates/opens.
+// Owner picks with GOOGLE_WORKSPACE_SCOPES=full|standard (default full).
+const RESTRICTED_SCOPES = [
+  'https://www.googleapis.com/auth/drive.readonly',      // read all files & docs
   'https://www.googleapis.com/auth/gmail.readonly',      // read mail
   'https://www.googleapis.com/auth/gmail.compose',       // create DRAFTS — sending is not granted
+];
+const STANDARD_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',          // create/manage only files the app creates
+  'https://www.googleapis.com/auth/spreadsheets',        // read + edit sheet cells
   'https://www.googleapis.com/auth/calendar.events',     // read + create events (module never updates/deletes)
 ];
+function scopeMode() {
+  return process.env.GOOGLE_WORKSPACE_SCOPES === 'standard' ? 'standard' : 'full';
+}
+function activeScopes() {
+  return scopeMode() === 'standard' ? [...STANDARD_SCOPES] : [...STANDARD_SCOPES, ...RESTRICTED_SCOPES];
+}
+const SCOPES = activeScopes(); // snapshot for callers that import the constant
 
 // What the workspace can and cannot do — rendered verbatim in the UI.
 const CAPABILITIES = [
@@ -122,12 +138,14 @@ function isConnected(email) {
   return Boolean(db.prepare('SELECT 1 FROM google_tokens WHERE user_email = ?').get(String(email || '').toLowerCase()));
 }
 
+function gmailEnabled() { return scopeMode() === 'full'; }
+
 function buildAuthUrl({ state, redirectUri }) {
   const p = new URLSearchParams({
     client_id: CLIENT_ID,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: `openid email ${SCOPES.join(' ')}`,
+    scope: `openid email ${activeScopes().join(' ')}`,
     access_type: 'offline',
     prompt: 'consent',
     include_granted_scopes: 'true',
@@ -293,7 +311,13 @@ async function docsCreate({ email, title, text }) {
 }
 
 // --- Gmail ---
+function assertGmail() {
+  if (!gmailEnabled()) {
+    throw new Error('Gmail is disabled on this deployment (GOOGLE_WORKSPACE_SCOPES=standard drops the restricted Gmail scopes so Connect works without Google\'s tester list). Ask the owner to switch to full scopes once verification or the org move is done.');
+  }
+}
 async function gmailSearch({ email, query, limit = 10 }) {
+  assertGmail();
   const d = await gcall(email, `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${Math.min(limit, 20)}`);
   const out = [];
   for (const m of d.messages || []) {
@@ -313,12 +337,14 @@ function extractBody(payload) {
   return '';
 }
 async function gmailRead({ email, messageId }) {
+  assertGmail();
   const msg = await gcall(email, `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}?format=full`);
   const h = Object.fromEntries((msg.payload?.headers || []).map((x) => [x.name.toLowerCase(), x.value]));
   audit('user', email, 'workspace.gmail_read', { messageId });
   return { id: msg.id, subject: h.subject || '', from: h.from || '', to: h.to || '', date: h.date || '', body: extractBody(msg.payload).slice(0, TEXT_CAP) };
 }
 async function gmailCreateDraft({ email, to, subject, body }) {
+  assertGmail();
   // DRAFT ONLY. There is deliberately no function in this module that calls
   // messages.send or drafts.send — a human presses Send from their own inbox.
   const raw = Buffer.from(
@@ -375,7 +401,7 @@ async function probeSurface(email, surface) {
 }
 
 module.exports = {
-  SCOPES, CAPABILITIES, oauthReady, isConnected, buildAuthUrl, exchangeCode, disconnect,
+  SCOPES, CAPABILITIES, scopeMode, activeScopes, gmailEnabled, RESTRICTED_SCOPES, oauthReady, isConnected, buildAuthUrl, exchangeCode, disconnect,
   probeSurface,
   sheetsRead, sheetsAppend, sheetsUpdate, driveSearch, driveReadText, docsCreate,
   gmailSearch, gmailRead, gmailCreateDraft, calendarList, calendarCreate,
