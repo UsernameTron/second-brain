@@ -283,6 +283,9 @@ async function driveReadText({ email, fileId }) {
   if (meta.mimeType === 'application/vnd.google-apps.document') url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=text/plain`;
   else if (meta.mimeType === 'application/vnd.google-apps.spreadsheet') url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=text/csv`;
   else if ((meta.mimeType || '').startsWith('text/') || meta.mimeType === 'application/json' || meta.mimeType === 'text/csv') url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`;
+  else if ((meta.mimeType || '').includes('officedocument') || (meta.mimeType || '').includes('ms-excel') || (meta.mimeType || '').includes('msword')) {
+    throw new Error(`"${meta.name}" is an uploaded Office file (${meta.mimeType}), which this integration cannot extract text from yet. Workaround: ask the user to open it with Google Sheets/Docs (right-click in Drive → Open with) which creates a readable converted copy, or export it as CSV — then search Drive again for the converted file.`);
+  }
   else throw new Error(`unsupported file type for text read: ${meta.mimeType}`);
   const res = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`Google API error: HTTP ${res.status}`);
