@@ -172,16 +172,31 @@ function listEntries({ canvasId, includeSuperseded = false, epistemic, since, qu
   if (!includeSuperseded) clauses.push('superseded_by IS NULL');
   if (epistemic) { clauses.push('epistemic = ?'); params.push(epistemic); }
   if (since) { clauses.push('created_at >= ?'); params.push(since); }
-  if (query) {
-    for (const token of String(query).toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8)) {
-      clauses.push("LOWER(content) LIKE ?");
-      params.push(`%${token}%`);
-    }
+  // Multi-word queries score by matched tokens (at least half must hit) and
+  // rank best-first, instead of requiring every token. Field evidence: an
+  // agent searched "7-person team capacity constraint" against an entry
+  // containing "team size: 7 … feasible at 7-person scale" and strict-AND
+  // returned nothing — the memory was there, the search refused to see it.
+  const tokens = query ? String(query).toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8) : [];
+  if (tokens.length === 1) {
+    clauses.push('LOWER(content) LIKE ?');
+    params.push(`%${tokens[0]}%`);
   }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-  const rows = db.prepare(
-    `SELECT * FROM memory_entries ${where} ORDER BY created_at DESC LIMIT ?`
-  ).all(...params, Math.min(Number(limit) || 200, 1000));
+  const lim = Math.min(Number(limit) || 200, 1000);
+  let rows;
+  if (tokens.length >= 2) {
+    const scoreExpr = tokens.map(() => '(CASE WHEN LOWER(content) LIKE ? THEN 1 ELSE 0 END)').join(' + ');
+    const scoreParams = tokens.map((t) => `%${t}%`);
+    const threshold = Math.max(1, Math.ceil(tokens.length / 2));
+    rows = db.prepare(
+      `SELECT * FROM (SELECT *, ${scoreExpr} AS mscore FROM memory_entries ${where}) WHERE mscore >= ? ORDER BY mscore DESC, created_at DESC LIMIT ?`
+    ).all(...scoreParams, ...params, threshold, lim);
+  } else {
+    rows = db.prepare(
+      `SELECT * FROM memory_entries ${where} ORDER BY created_at DESC LIMIT ?`
+    ).all(...params, lim);
+  }
   const tainted = taintedSet(canvasId);
   return rows.map((row) => ({ ...rowToEntry(row), tainted: tainted.has(row.id) }));
 }

@@ -84,6 +84,8 @@ async function executeRun(runId) {
   }
   const messages = [{ role: 'user', content: run.instruction }];
   const ctx = { run, agent, canvas, runEpoch };
+  let lastText = '';
+  let lastWrite = '';
 
   const finish = (status, { summary = null, error = null } = {}) => {
     db.prepare('UPDATE runs SET status = ?, summary = ?, error = ?, ended_at = ? WHERE id = ?')
@@ -155,6 +157,8 @@ async function executeRun(runId) {
       }
 
       const textBlocks = response.content.filter((b) => b.type === 'text');
+      const turnText = textBlocks.map((b) => b.text).join('\n').trim();
+      if (turnText) lastText = turnText;
       for (const block of textBlocks) {
         if (block.text.trim()) recordEvent(run, 'text', { text: block.text.slice(0, 2000) });
       }
@@ -181,6 +185,9 @@ async function executeRun(runId) {
             return finish('halted_paused', { error: 'global pause (stale epoch mid tool batch)' });
           }
           recordEvent(run, 'tool_call', { name: toolUse.name, input: toolUse.input });
+          if (toolUse.name === 'memory_write' && toolUse.input && toolUse.input.content) {
+            lastWrite = String(toolUse.input.content);
+          }
           let result;
           try {
             result = await executeTool(toolUse.name, toolUse.input || {}, ctx);
@@ -202,8 +209,14 @@ async function executeRun(runId) {
         continue;
       }
 
-      // end_turn without complete(): treat the final text as the summary.
-      const summary = textBlocks.map((b) => b.text).join('\n').trim() || '(no summary)';
+      // end_turn without complete(): fall back through the run's own record —
+      // final text, else the last memory write (often the synthesis), else the
+      // last text anywhere in the run. "(no summary)" was what a run whose
+      // final act was writing its synthesis to memory used to show.
+      const summary = turnText
+        || (lastWrite ? `Wrote to memory: ${lastWrite.slice(0, 280)}` : '')
+        || lastText
+        || '(completed without a closing summary)';
       return finish('completed', { summary });
     }
   } catch (err) {

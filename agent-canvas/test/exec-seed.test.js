@@ -70,3 +70,18 @@ test('legacy retro agent colors are recolored in place, exactly once', () => {
   assert.equal(db.prepare("SELECT COUNT(*) n FROM agents WHERE color = '#4cc2ab'").get().n, 0);
   assert.equal(recolorLegacyAgents().recolored, 0, 'second call is a no-op');
 });
+
+test('scored memory search finds seeded facts from conceptual multi-word queries', () => {
+  const memory = require('../server/memory');
+  // Field-observed misses from the first live roundtable: strict-AND returned
+  // [] for both of these although the answers were seeded on the canvas.
+  const capacity = memory.listEntries({ canvasId: first.canvasId, query: '7-person team capacity constraint' });
+  assert.ok(capacity.some((e) => /team size: 7/i.test(e.content)), 'finds the team-size anchor');
+  const loa = memory.listEntries({ canvasId: first.canvasId, query: 'LOA vendor neutrality master agent' });
+  assert.ok(loa.some((e) => /vendor-neutral/i.test(e.content)), 'finds the neutrality-tension anchor');
+  // ranking: the best match comes first
+  assert.ok(capacity[0].content.includes('7'), 'best match ranked first');
+  // single-token behavior unchanged
+  const single = memory.listEntries({ canvasId: first.canvasId, query: 'Telarus' });
+  assert.ok(single.length >= 1);
+});
