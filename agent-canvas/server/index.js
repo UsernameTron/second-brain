@@ -71,6 +71,9 @@ if (fs.existsSync(distDir)) {
 const seedResult = seedIfEmpty();
 const execSeed = seedExecCanvas(OWNER_EMAIL);
 recolorLegacyAgents();
+const roster = require('./roster');
+roster.seedRoster();
+roster.linkExecAgents();
 const orphans = recoverOrphans();
 
 const server = http.createServer(app);

@@ -4,7 +4,8 @@
 
 const crypto = require('node:crypto');
 const express = require('express');
-const { db, nowIso } = require('./db');
+const { db, tx, nowIso } = require('./db');
+const roster = require('./roster');
 const { audit, queryAudit, verifyChain } = require('./audit');
 const memory = require('./memory');
 const bus = require('./bus');
@@ -306,6 +307,43 @@ router.delete('/allowlist/:email', auth.requireOwner, (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- agent roster (workspace-level template library) ----------
+router.get('/roster', (req, res) => {
+  const rows = db.prepare('SELECT * FROM roster_agents ORDER BY sort, created_at').all();
+  // Members staff canvases from enabled entries; the owner also sees disabled
+  // ones (the Roster tab is where they get re-enabled).
+  res.json({ roster: req.user.role === 'owner' ? rows : rows.filter((r) => r.enabled) });
+});
+
+router.post('/roster', auth.requireOwner, (req, res) => {
+  const { name, role = 'research', color = '#2080D0', model_tier = 'strong', system_prompt = '', companion_note_key = null, enabled = true, default_on = false, sort } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const id = crypto.randomUUID();
+  const ts = nowIso();
+  const maxSort = db.prepare('SELECT COALESCE(MAX(sort), 0) AS m FROM roster_agents').get().m;
+  db.prepare('INSERT INTO roster_agents (id, name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(id, name, role, color, ['fast', 'strong'].includes(model_tier) ? model_tier : 'strong', system_prompt,
+      companion_note_key, enabled ? 1 : 0, default_on ? 1 : 0, sort ?? maxSort + 1, ts, ts);
+  audit('user', req.user.email, 'roster.create', { rosterId: id, name });
+  res.json({ entry: db.prepare('SELECT * FROM roster_agents WHERE id = ?').get(id) });
+});
+
+router.patch('/roster/:id', auth.requireOwner, (req, res) => {
+  const entry = db.prepare('SELECT * FROM roster_agents WHERE id = ?').get(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'roster entry not found' });
+  const { name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort } = req.body;
+  db.prepare('UPDATE roster_agents SET name = ?, role = ?, color = ?, model_tier = ?, system_prompt = ?, companion_note_key = ?, enabled = ?, default_on = ?, sort = ?, updated_at = ? WHERE id = ?')
+    .run(name ?? entry.name, role ?? entry.role, color ?? entry.color,
+      ['fast', 'strong'].includes(model_tier) ? model_tier : entry.model_tier,
+      system_prompt ?? entry.system_prompt,
+      companion_note_key === undefined ? entry.companion_note_key : companion_note_key,
+      enabled === undefined ? entry.enabled : (enabled ? 1 : 0),
+      default_on === undefined ? entry.default_on : (default_on ? 1 : 0),
+      sort ?? entry.sort, nowIso(), entry.id);
+  audit('user', req.user.email, 'roster.update', { rosterId: entry.id });
+  res.json({ entry: db.prepare('SELECT * FROM roster_agents WHERE id = ?').get(entry.id) });
+});
+
 // ---------- canvases ----------
 router.get('/canvases', (req, res) => {
   const all = db.prepare('SELECT * FROM canvases ORDER BY created_at').all();
@@ -320,10 +358,21 @@ router.get('/canvases', (req, res) => {
 });
 
 router.post('/canvases', (req, res) => {
+  const rosterIds = Array.isArray(req.body.roster_ids) ? req.body.roster_ids : [];
   const id = crypto.randomUUID();
-  db.prepare('INSERT INTO canvases (id, name, description, access_mode, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(id, req.body.name || 'Untitled canvas', req.body.description || '', 'workspace', req.user.email, nowIso());
-  audit('user', req.user.email, 'canvas.create', { canvasId: id });
+  try {
+    // Canvas + staffed agents + companion notes land atomically or not at all.
+    tx(() => {
+      db.prepare('INSERT INTO canvases (id, name, description, access_mode, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(id, req.body.name || 'Untitled canvas', req.body.description || '', 'workspace', req.user.email, nowIso());
+      for (const rosterId of rosterIds) {
+        roster.instantiateOnCanvas({ canvasId: id, rosterId, actor: req.user.email });
+      }
+    });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+  audit('user', req.user.email, 'canvas.create', { canvasId: id, roster: rosterIds.length });
   res.json({ canvas: db.prepare('SELECT * FROM canvases WHERE id = ?').get(id) });
 });
 
@@ -396,6 +445,20 @@ router.delete('/canvases/:canvasId/members/:email', auth.requireOwner, (req, res
 
 // ---------- agents ----------
 router.post('/canvases/:canvasId/agents', auth.requireCanvas, (req, res) => {
+  if (req.body.roster_id) {
+    // Instantiate from the roster: template fields win; only placement is caller's.
+    try {
+      const out = tx(() => roster.instantiateOnCanvas({
+        canvasId: req.params.canvasId, rosterId: req.body.roster_id, actor: req.user.email,
+        x: req.body.x, y: req.body.y,
+      }));
+      audit('user', req.user.email, 'agent.create', { agentId: out.agent.id, canvasId: req.params.canvasId, role: out.agent.role, rosterId: req.body.roster_id });
+      bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
+      return res.json({ agent: out.agent });
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.message });
+    }
+  }
   const id = crypto.randomUUID();
   const { name, role = 'research', color = '#2080D0', model_tier = 'strong', system_prompt = '', x = 0, y = 0 } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
@@ -414,6 +477,20 @@ router.patch('/canvases/:canvasId/agents/:agentId', auth.requireCanvas, (req, re
     .run(x ?? agent.x, y ?? agent.y, system_prompt ?? agent.system_prompt,
       ['fast', 'strong'].includes(model_tier) ? model_tier : agent.model_tier, name ?? agent.name, color ?? agent.color, agent.id);
   res.json({ ok: true });
+});
+
+// Owner-only: re-copy prompt + tier from the source roster entry. Name and
+// color stay — they are per-canvas identity the owner may have customized.
+router.post('/canvases/:canvasId/agents/:agentId/resync', auth.requireOwner, (req, res) => {
+  const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND canvas_id = ?').get(req.params.agentId, req.params.canvasId);
+  if (!agent) return res.status(404).json({ error: 'agent not found' });
+  if (!agent.roster_id) return res.status(404).json({ error: 'agent has no roster provenance' });
+  const entry = db.prepare('SELECT * FROM roster_agents WHERE id = ?').get(agent.roster_id);
+  if (!entry) return res.status(404).json({ error: 'source roster entry no longer exists' });
+  db.prepare('UPDATE agents SET system_prompt = ?, model_tier = ? WHERE id = ?').run(entry.system_prompt, entry.model_tier, agent.id);
+  audit('user', req.user.email, 'agent.resync', { agentId: agent.id, canvasId: req.params.canvasId, rosterId: entry.id });
+  bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
+  res.json({ agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(agent.id) });
 });
 
 // ---------- runs ----------
