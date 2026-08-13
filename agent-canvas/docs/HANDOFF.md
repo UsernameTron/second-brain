@@ -76,21 +76,30 @@ Run the redeploy above.
 
 ## Open items, in rough order
 
-1. **Vertex return.** Quota requests for Anthropic models auto-DENIED on
-   2026-08-13 (new project + personal billing at the time). **Billing was
-   swapped to the org account Dev Ops Pipeline `01ED6F-426C14-5CCD33` later
-   that day** (verified `billingEnabled: true`), which was the lever — so the
-   REFILE is the pending action, not the swap. Refile small: Global online
-   prediction REQUESTS 10/min AND input tokens 100k/min, base_models
-   anthropic-claude-haiku-4-5 + anthropic-claude-sonnet, region **global**
-   (us-east5 404s these models for this project). On approval:
-   `--update-env-vars MODEL_PROVIDER=vertex`, then delete the Anthropic key.
-   If auto-denied again, reply to the denial email for human review, citing
-   the org-owned billing account and the 10-seat internal use case.
+1. **Vertex return — NOT BLOCKING, deprioritized.** Quota auto-denied TWICE
+   (2026-08-13), the second time explicitly citing billing history, after
+   billing moved to org account Dev Ops Pipeline `01ED6F-426C14-5CCD33`
+   ($0 spend history — that was the flaw in the swap; CTG Production
+   `01DDA7-18F84C-0510F2` has $84 but pete@ lacks
+   `billing.resourceAssociations.create` on it). The Anthropic bridge works
+   fine, so this is perimeter hygiene, not a blocker. Three paths, cheapest
+   first:
+   (a) **Wait.** The project now bills to Dev Ops Pipeline; running Agent
+       Canvas accrues history there. Retry in ~30 days.
+   (b) **Human review.** Reply to the denial email: org-owned billing,
+       internal 10-seat tool, minimal initial quota. Auto-denials are often
+       reversed by a human.
+   (c) **Link CTG Production instead** (has the history): grant pete@
+       Billing Account User at
+       `console.cloud.google.com/billing/01DDA7-18F84C-0510F2/manage?authuser=pete@cloudtechgurus.com`,
+       then `gcloud billing projects link agent-canvas-ctg-0811 --billing-account=01DDA7-18F84C-0510F2`,
+       then refile.
+   Refile shape when retrying: Global online prediction REQUESTS 10/min AND
+   input tokens 100k/min, base_models anthropic-claude-haiku-4-5 +
+   anthropic-claude-sonnet, region **global** (us-east5 404s these models).
+   On approval: `--update-env-vars MODEL_PROVIDER=vertex`, then delete the
+   Anthropic key.
 
-   Billing note: CTG Production (`01DDA7-18F84C-0510F2`) was the first choice
-   for its spend history, but pete@ lacks `billing.resourceAssociations.create`
-   on it; Dev Ops Pipeline linked without a grant. Either is org-owned.
 2. **HubSpot lamp.** Client built+tested; needs two commands (printed by the
    deploy banner, STEP 2): run.invoker grant on ctg-hs-ops-runner (project
    ctg-hs-exec-tool) + `HS_OPS_RUNNER_URL` env. Writes are preview-first;
