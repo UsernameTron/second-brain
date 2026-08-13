@@ -40,6 +40,7 @@ export default function Workspace() {
   const [hoverHandoffId, setHoverHandoffId] = useState(null);
   const [wsOk, setWsOk] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [archivedOpen, setArchivedOpen] = useState(false);
   const [capsOpen, setCapsOpen] = useState(false);
   const [wsConnected, setWsConnected] = useState(null); // null = unknown yet
   const [health, setHealth] = useState(null);
@@ -174,25 +175,28 @@ export default function Workspace() {
     } catch (e) { toast(e.message); }
   }, [newCanvasName, refreshCanvases, toast]);
 
-  const currentArchived = useMemo(
-    () => archivedCanvases.some((c) => c.id === canvasId),
-    [archivedCanvases, canvasId],
-  );
-
-  const toggleArchiveCanvas = useCallback(async () => {
+  const archiveCanvas = useCallback(async () => {
     if (!canvasId) return;
-    const archiving = !currentArchived;
     try {
-      await api(`/api/canvases/${canvasId}`, { method: 'PATCH', body: { archived: archiving } });
+      await api(`/api/canvases/${canvasId}`, { method: 'PATCH', body: { archived: true } });
       const d = await refreshCanvases();
-      if (archiving) {
-        // The current canvas just left the active list — land on the first
-        // remaining one (or the empty state). It stays reachable under Archived.
-        const next = (d.canvases || [])[0];
-        setCanvasId(next ? next.id : null);
-      }
+      // The current canvas just left the active list — land on the first
+      // remaining one (or the empty state). It stays reachable from the
+      // Archived canvases list in the user menu.
+      const next = (d.canvases || [])[0];
+      setCanvasId(next ? next.id : null);
     } catch (e) { toast(e.message); }
-  }, [canvasId, currentArchived, refreshCanvases, toast]);
+  }, [canvasId, refreshCanvases, toast]);
+
+  const restoreCanvas = useCallback(async (id) => {
+    try {
+      await api(`/api/canvases/${id}`, { method: 'PATCH', body: { archived: false } });
+      await refreshCanvases();
+      setCanvasId(id);
+      setArchivedOpen(false);
+      toast('Canvas restored', 'ok');
+    } catch (e) { toast(e.message); }
+  }, [refreshCanvases, toast]);
 
   // ---------- boot: canvases + control status ----------
   useEffect(() => {
@@ -671,13 +675,8 @@ export default function Workspace() {
           onChange={(e) => setCanvasId(e.target.value)}
           title="Switch canvas"
         >
-          {canvases.length === 0 && !(isOwner && archivedCanvases.length) ? <option value="">no canvases</option> : null}
+          {canvases.length === 0 ? <option value="">no canvases</option> : null}
           {canvases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          {isOwner && archivedCanvases.length ? (
-            <optgroup label="Archived">
-              {archivedCanvases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </optgroup>
-          ) : null}
         </select>
         {newCanvasOpen ? (
           <input
@@ -698,12 +697,10 @@ export default function Workspace() {
         {isOwner && canvasId ? (
           <button
             className="icon-btn"
-            title={currentArchived
-              ? 'Restore this canvas to the switcher'
-              : 'Archive this canvas — reversible, nothing is deleted'}
-            onClick={toggleArchiveCanvas}
+            title="Archive this canvas — reversible, nothing is deleted"
+            onClick={archiveCanvas}
           >
-            {currentArchived ? 'Restore' : 'Archive'}
+            Archive
           </button>
         ) : null}
         <div className="topbar-spacer" />
@@ -758,6 +755,9 @@ export default function Workspace() {
               {isOwner ? (
                 <>
                   <button onClick={() => { setAdminOpen(true); setMenuOpen(false); }}>Admin — allowlist &amp; audit</button>
+                  <button onClick={() => { setArchivedOpen(true); setMenuOpen(false); }}>
+                    Archived canvases{archivedCanvases.length ? ` (${archivedCanvases.length})` : ''}
+                  </button>
                   <a href="/api/export" download>Export workspace JSON</a>
                 </>
               ) : null}
@@ -874,6 +874,30 @@ export default function Workspace() {
       </div>
 
       {adminOpen ? <AdminModal onClose={() => setAdminOpen(false)} toast={toast} selfEmail={user.email} /> : null}
+      {archivedOpen ? (
+        <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setArchivedOpen(false); }}>
+          <div className="modal archived-modal">
+            <header className="modal-head">
+              <b>Archived canvases</b>
+              <button className="icon-btn" onClick={() => setArchivedOpen(false)} title="Close">×</button>
+            </header>
+            <div className="modal-body">
+              {archivedCanvases.length === 0 ? (
+                <p className="dim">Nothing here — archived canvases will show up in this list.</p>
+              ) : (
+                <ul className="archived-list">
+                  {archivedCanvases.map((c) => (
+                    <li key={c.id} className="archived-row">
+                      <span className="archived-name">{c.name}</span>
+                      <button className="btn ghost small" onClick={() => restoreCanvas(c.id)}>Restore</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
       {capsOpen ? <CapabilitiesModal onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}
     </div>
   );
