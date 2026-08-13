@@ -76,13 +76,21 @@ Run the redeploy above.
 
 ## Open items, in rough order
 
-1. **Vertex return.** Quota requests for Anthropic models auto-DENIED (new
-   project + fresh personal billing). Lever: swap project billing to the org's
-   established account (CTG Production) — may already be done, VERIFY — then
-   refile small (Global online prediction REQUESTS 10/min + input tokens
-   100k/min, base_models anthropic-claude-haiku-4-5 + anthropic-claude-sonnet),
-   then `--update-env-vars MODEL_PROVIDER=vertex` and retire the key. Note:
-   region must stay `global` (us-east5 404s these models for this project).
+1. **Vertex return.** Quota requests for Anthropic models auto-DENIED on
+   2026-08-13 (new project + personal billing at the time). **Billing was
+   swapped to the org account Dev Ops Pipeline `01ED6F-426C14-5CCD33` later
+   that day** (verified `billingEnabled: true`), which was the lever — so the
+   REFILE is the pending action, not the swap. Refile small: Global online
+   prediction REQUESTS 10/min AND input tokens 100k/min, base_models
+   anthropic-claude-haiku-4-5 + anthropic-claude-sonnet, region **global**
+   (us-east5 404s these models for this project). On approval:
+   `--update-env-vars MODEL_PROVIDER=vertex`, then delete the Anthropic key.
+   If auto-denied again, reply to the denial email for human review, citing
+   the org-owned billing account and the 10-seat internal use case.
+
+   Billing note: CTG Production (`01DDA7-18F84C-0510F2`) was the first choice
+   for its spend history, but pete@ lacks `billing.resourceAssociations.create`
+   on it; Dev Ops Pipeline linked without a grant. Either is org-owned.
 2. **HubSpot lamp.** Client built+tested; needs two commands (printed by the
    deploy banner, STEP 2): run.invoker grant on ctg-hs-ops-runner (project
    ctg-hs-exec-tool) + `HS_OPS_RUNNER_URL` env. Writes are preview-first;
