@@ -299,5 +299,6 @@ function tx(fn) {
 // Additive migrations for databases created before a column existed.
 try { db.exec('ALTER TABLE runs ADD COLUMN initiated_by TEXT'); } catch { /* already present */ }
 try { db.exec("ALTER TABLE users ADD COLUMN theme TEXT NOT NULL DEFAULT 'light'"); } catch { /* already present */ }
+try { db.exec('ALTER TABLE canvases ADD COLUMN archived INTEGER NOT NULL DEFAULT 0'); } catch { /* already present */ }
 
 module.exports = { db, tx, nowIso, getSetting, setSetting, DB_PATH };
