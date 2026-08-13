@@ -1246,3 +1246,39 @@ a:hover { text-decoration: underline; }
 .archived-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .archived-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: var(--bg3); }
 .archived-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- agent roster: new-canvas popover, add-agent modal, admin tab ---------- */
+.canvas-new-pop {
+  position: absolute; top: 46px; left: 220px; z-index: 60;
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--panel, #16181d); border: 1px solid var(--line, #2a2d34);
+  border-radius: 10px; padding: 12px; min-width: 260px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+.canvas-new-roster { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
+.roster-check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.roster-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.roster-dot.big { width: 14px; height: 14px; }
+.canvas-new-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.empty-canvas-cta {
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  pointer-events: none;
+}
+.empty-canvas-cta p { opacity: 0.7; }
+.empty-canvas-cta button { pointer-events: auto; }
+.roster-pick-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.roster-pick {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: transparent; border: 1px solid var(--line, #2a2d34); border-radius: 8px;
+  padding: 10px 12px; cursor: pointer; color: inherit; font: inherit;
+}
+.roster-pick:hover { border-color: var(--accent, #30a0f0); }
+.roster-pick-name { font-weight: 600; margin-right: auto; }
+.add-agent-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.add-agent-row input, .add-agent-row select { flex: 1; min-width: 0; }
+.add-agent-row input[type="color"] { flex: 0 0 44px; padding: 2px; }
+.add-agent-form textarea, .roster-edit textarea { width: 100%; box-sizing: border-box; margin-bottom: 8px; font-family: inherit; }
+.roster-admin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.roster-edit { padding: 10px 4px; }
+.roster-disabled { opacity: 0.45; }

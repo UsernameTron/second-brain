@@ -300,5 +300,26 @@ function tx(fn) {
 try { db.exec('ALTER TABLE runs ADD COLUMN initiated_by TEXT'); } catch { /* already present */ }
 try { db.exec("ALTER TABLE users ADD COLUMN theme TEXT NOT NULL DEFAULT 'light'"); } catch { /* already present */ }
 try { db.exec('ALTER TABLE canvases ADD COLUMN archived INTEGER NOT NULL DEFAULT 0'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE agents ADD COLUMN roster_id TEXT'); } catch { /* already present */ }
+
+// ===== Agent roster: workspace-level template library (owner-managed) =====
+// Canvas agents instantiated from a roster entry carry roster_id for
+// provenance and resync; the entry itself never runs.
+db.exec(`
+CREATE TABLE IF NOT EXISTS roster_agents (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  color TEXT NOT NULL,
+  model_tier TEXT NOT NULL CHECK (model_tier IN ('fast','strong')),
+  system_prompt TEXT NOT NULL DEFAULT '',
+  companion_note_key TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  default_on INTEGER NOT NULL DEFAULT 0,
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`);
 
 module.exports = { db, tx, nowIso, getSetting, setSetting, DB_PATH };

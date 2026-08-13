@@ -183,13 +183,13 @@ ${CONFIDENTIALITY_GUARD}`,
 
 VOICE: Warm professional. Open with a human beat, then the substance. Explain WHY THIS FITS THE BUYER before what to do. Detail is welcome — sequence, talk track, objection, follow-up. Sign outputs: Darren
 
-PRIORITIES (ranked): 1. Pipeline growth. 2. AI SDR development. 3. ICP targeting — enterprise contact-center leadership, 500–10,000+ seats, in healthcare, financial services, retail/e-commerce, technology, BPO. 4. Relationship nurturing — warm leads never go cold.
+PRIORITIES (ranked): 1. Pipeline growth. 2. AI SDR development. 3. ICP targeting — enterprise contact-center operators, 250–10,000 seats, per ICP registry sr-icp-v5: tier-1 healthcare, financial services, insurance, retail/e-commerce (technology/SaaS and BPO are CTG's supply side — vendors and partners, not buyers). 4. Relationship nurturing — warm leads never go cold.
 
 COMMERCIAL MATH: you carry the commercial-finance lane (there is no CFO voice — never defer to one). CTG's economics: master-agent TSD, 10–30% of gross billable, perpetual for the customer-relationship life. Peer benchmarks: Telarus, Avant, Intelisys — comparisons, not enemies. Translate findings to commission and ARR impact explicitly.
 
 FLAG THESE ANTI-PATTERNS: transactional one-shot pitches with no relationship scaffolding ("this reads transactional — what's the warm path?"); inbound signals with no follow-up sequence (a dropped opportunity).
 
-DELEGATION: anything past commercial close touching vendor payments, LOA rigor, or onboarding → Jess.
+DELEGATION: anything past commercial close touching vendor payments, LOA rigor, or onboarding → Jess. List scoring and lead-qualification legwork → the ICP-scoring agent (Radar) when one is on the canvas — scored against sr-icp-v5, never re-derived from memory.
 
 LANES (synthesis protocol): you HOLD on individual-deal tactics, ICP, outreach sequencing, objection handling. Fred holds on brand/positioning framing. Jess's governance holds when vendor-neutrality or LOA discipline is touched — adjust tactics to fit rather than argue. In a roundtable chain you speak SECOND: read Fred's frame from memory, add the commercial motion, hand off to Jess.
 ${CONFIDENTIALITY_GUARD}`,
@@ -224,7 +224,8 @@ WORKING RULES:
 2. Sheets edits that change meaning (not just formatting) go through a change set another agent or a human verifies — never silently rewrite data.
 3. If the directing user's Workspace is not connected, say exactly that and point them to the Capabilities panel — do not guess at content.
 4. Ambiguity about WHICH document/thread/event is meant → escalate with the candidates you found, don't pick one.
-5. Anything that looks like sending, sharing externally, spending, or deleting → refuse and name the human who should do it.`,
+5. Anything that looks like sending, sharing externally, spending, or deleting → refuse and name the human who should do it.
+${CONFIDENTIALITY_GUARD}`,
   },
 ];
 
@@ -259,7 +260,7 @@ const THESIS_SOURCE = 'CTG Funding Thesis (working abstraction), uploaded by Pet
 const MEMORY_SEEDS = [
   ['CTG commercial model: master-agent TSD earning 10-30% of gross billable, perpetual for the life of the customer relationship.', ANCHOR_SOURCE],
   ['CTG supplier footprint: 250+ technology suppliers, 40+ BPO providers, 500+ additional vendors via strategic distribution.', ANCHOR_SOURCE],
-  ['CTG target buyer: enterprise contact-center leadership, 500-10,000+ seats. Verticals: healthcare, financial services, retail/e-commerce, technology, BPO/outsourcing.', ANCHOR_SOURCE],
+  ['CTG target buyer (ICP sr-icp-v5): enterprise contact-center operators, 250-10,000 seats. Tier-1 verticals: healthcare, financial services, insurance, retail/e-commerce; tier-2: education, travel/hospitality, utilities/energy. Technology/SaaS and BPO/outsourcing are excluded as buyers — they are CTG supply side. Supersedes the 500-10,000+ constants-registry statement.', 'ICP registry sr-icp-v5 (ctg-signal-radar export, source of truth src/backend/icp_registry.py), uploaded by Pete Connor 2026-08-13'],
   ['Peer TSDs for benchmarking: Telarus, Avant, Intelisys — economic comparisons, not competitive enemies.', ANCHOR_SOURCE],
   ['CTG team size: 7 (as of 2026-04-15). Every plan must be feasible at 7-person scale.', ANCHOR_SOURCE],
   ['2026 ARR target: $3M. The 2025 baseline is confidential — reference "per CTG brief §Financial Position", never a number.', ANCHOR_SOURCE],
@@ -313,4 +314,4 @@ function seedExecCanvas(ownerEmail) {
   return { seeded: true, canvasId };
 }
 
-module.exports = { seedIfEmpty, DEMO_KICKOFF, OWNER_EMAIL , seedExecCanvas, recolorLegacyAgents };
+module.exports = { seedIfEmpty, DEMO_KICKOFF, OWNER_EMAIL, seedExecCanvas, recolorLegacyAgents, EXEC_AGENTS, CONFIDENTIALITY_GUARD, PROTOCOL_NOTE };

@@ -9,6 +9,7 @@ import MemoryPanel from './MemoryPanel.jsx';
 import Workbook from './Workbook.jsx';
 import { AgentPanel, NotePanel, SpendPanel } from './Panels.jsx';
 import AdminModal from './AdminModal.jsx';
+import AddAgentModal from './AddAgentModal.jsx';
 import CapabilitiesModal from './CapabilitiesModal.jsx';
 
 let liveSeq = 0;
@@ -21,6 +22,9 @@ export default function Workspace() {
   const [archivedCanvases, setArchivedCanvases] = useState([]);
   const [newCanvasOpen, setNewCanvasOpen] = useState(false);
   const [newCanvasName, setNewCanvasName] = useState('');
+  const [roster, setRoster] = useState([]);
+  const [rosterChecked, setRosterChecked] = useState(null); // null until roster loads
+  const [addAgentOpen, setAddAgentOpen] = useState(false);
   const [canvasId, setCanvasId] = useState(null);
   const [state, setState] = useState(null); // full GET /api/canvases/:id payload
   const [memory, setMemory] = useState([]);
@@ -167,13 +171,14 @@ export default function Workspace() {
     const name = newCanvasName.trim();
     if (!name) { setNewCanvasOpen(false); setNewCanvasName(''); return; }
     try {
-      const d = await api('/api/canvases', { method: 'POST', body: { name } });
+      const rosterIds = [...(rosterChecked || [])].filter((id) => roster.some((r) => r.id === id && r.enabled));
+      const d = await api('/api/canvases', { method: 'POST', body: { name, roster_ids: rosterIds } });
       await refreshCanvases();
       setCanvasId(d.canvas.id);
       setNewCanvasOpen(false);
       setNewCanvasName('');
     } catch (e) { toast(e.message); }
-  }, [newCanvasName, refreshCanvases, toast]);
+  }, [newCanvasName, roster, rosterChecked, refreshCanvases, toast]);
 
   const archiveCanvas = useCallback(async () => {
     if (!canvasId) return;
@@ -197,6 +202,17 @@ export default function Workspace() {
       toast('Canvas restored', 'ok');
     } catch (e) { toast(e.message); }
   }, [refreshCanvases, toast]);
+
+  // ---------- roster (workspace template library) ----------
+  const refreshRoster = useCallback(async () => {
+    try {
+      const d = await api('/api/roster');
+      const entries = d.roster || [];
+      setRoster(entries);
+      setRosterChecked((prev) => prev ?? new Set(entries.filter((r) => r.default_on).map((r) => r.id)));
+    } catch { /* roster endpoint unavailable - creation still works, unstaffed */ }
+  }, []);
+  useEffect(() => { refreshRoster(); }, [refreshRoster]);
 
   // ---------- boot: canvases + control status ----------
   useEffect(() => {
@@ -679,21 +695,49 @@ export default function Workspace() {
           {canvases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         {newCanvasOpen ? (
-          <input
-            className="canvas-new-input"
-            autoFocus
-            placeholder="New canvas name…"
-            value={newCanvasName}
-            onChange={(e) => setNewCanvasName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') createCanvas();
-              if (e.key === 'Escape') { setNewCanvasOpen(false); setNewCanvasName(''); }
-            }}
-            onBlur={() => { setNewCanvasOpen(false); setNewCanvasName(''); }}
-          />
+          <div className="canvas-new-pop">
+            <input
+              className="canvas-new-input"
+              autoFocus
+              placeholder="New canvas name…"
+              value={newCanvasName}
+              onChange={(e) => setNewCanvasName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') createCanvas();
+                if (e.key === 'Escape') { setNewCanvasOpen(false); setNewCanvasName(''); }
+              }}
+            />
+            {roster.filter((r) => r.enabled).length ? (
+              <div className="canvas-new-roster">
+                <span className="dim">Staff from the roster:</span>
+                {roster.filter((r) => r.enabled).map((r) => (
+                  <label key={r.id} className="roster-check">
+                    <input
+                      type="checkbox"
+                      checked={rosterChecked ? rosterChecked.has(r.id) : false}
+                      onChange={() => setRosterChecked((prev) => {
+                        const next = new Set(prev || []);
+                        if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
+                        return next;
+                      })}
+                    />
+                    <span className="roster-dot" style={{ background: r.color }} />
+                    {r.name} <span className="dim">{r.role}</span>
+                  </label>
+                ))}
+              </div>
+            ) : null}
+            <div className="canvas-new-actions">
+              <button className="btn ghost small" onClick={() => { setNewCanvasOpen(false); setNewCanvasName(''); }}>Cancel</button>
+              <button className="btn primary small" disabled={!newCanvasName.trim()} onClick={createCanvas}>Create</button>
+            </div>
+          </div>
         ) : (
           <button className="icon-btn" title="New canvas" onClick={() => setNewCanvasOpen(true)}>+</button>
         )}
+        {canvasId && state ? (
+          <button className="icon-btn agent-add-btn" title="Add an agent to this canvas" onClick={() => setAddAgentOpen(true)}>+ Agent</button>
+        ) : null}
         {isOwner && canvasId ? (
           <button
             className="icon-btn"
@@ -809,6 +853,13 @@ export default function Workspace() {
             </div>
           )}
 
+          {state && (state.agents || []).length === 0 ? (
+            <div className="empty-canvas-cta">
+              <p>This canvas has no agents yet.</p>
+              <button className="btn primary" onClick={() => setAddAgentOpen(true)}>Add your first agent</button>
+            </div>
+          ) : null}
+
           <Tray escalations={openEscalations} agentsById={agentsById} agents={state?.agents || []} onResolve={resolveEscalation} />
 
           {sidePanel}
@@ -873,7 +924,16 @@ export default function Workspace() {
         />
       </div>
 
-      {adminOpen ? <AdminModal onClose={() => setAdminOpen(false)} toast={toast} selfEmail={user.email} /> : null}
+      {adminOpen ? <AdminModal onClose={() => { setAdminOpen(false); refreshRoster(); }} toast={toast} selfEmail={user.email} /> : null}
+      {addAgentOpen && canvasId ? (
+        <AddAgentModal
+          canvasId={canvasId}
+          roster={roster.filter((r) => r.enabled)}
+          onClose={() => setAddAgentOpen(false)}
+          onAdded={() => { setAddAgentOpen(false); loadState(canvasId); }}
+          toast={toast}
+        />
+      ) : null}
       {archivedOpen ? (
         <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setArchivedOpen(false); }}>
           <div className="modal archived-modal">
