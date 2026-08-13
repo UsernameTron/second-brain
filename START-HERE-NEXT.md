@@ -1,7 +1,24 @@
 # START HERE — next session pickup
-_Written 2026-07-31, end of session. Refreshed each session; this is the current "pick up here."_
+_Vault/memory-pipeline sections written 2026-07-31. Agent Canvas section added 2026-08-13._
 
-## What last session accomplished (2026-07-31)
+> ## Two workstreams live in this repo — pick the right one
+>
+> **1. Agent Canvas (ACTIVE as of 2026-08-13)** — `agent-canvas/`, a deployed
+> Cloud Run product for cloudtechgurus.com, independent of the vault and the
+> memory pipeline. **Its handoff is the authority:
+> [agent-canvas/docs/HANDOFF.md](agent-canvas/docs/HANDOFF.md) — start there,
+> not here.** One-line state: the Agent Roster is live on revision
+> `00023-xhf`; branch `claude/agent-canvas-roster-heal` is pushed and green
+> but its PR still needs opening (this environment's proxy blocks GitHub API
+> writes), then a redeploy to heal pre-roster content in the live database.
+>
+> **2. Second Brain vault + memory pipeline** — everything below this block.
+> Last touched 2026-07-31; the P1-P8 task list is still accurate and still
+> unstarted. Nothing in the Agent Canvas work touched `src/`, `memory.md`,
+> the vault, or the eval harness, so these two do not interact.
+
+
+## Vault / memory pipeline — what the 2026-07-31 session accomplished
 - Merged PR #96 — the audit & improvement pass: 13 reliability fixes (7 from the 2026-07-30 audit, 6 from Codex review). Post-merge CI and CodeQL both green; master is at 161e9f0.
 - Killed the silent-loss bug in the memory pipeline: `acquireLock` (src/memory-proposals.js) now probes the recorded pid with `process.kill(pid,0)` before reclaiming a stale-by-age lock, so live/EPERM holders are never reclaimed and a SIGKILLed holder no longer leaves `proposals.lock` forever while every later candidate is buffered but reported as staged. That fix released the buffered backlog (reported as 483 candidates by the run that drained it; no pending-buffer artifact survives to re-verify that figure).
 - Timeout plumbing is real end to end: `callOptions.timeoutMs` now caps the local model (`Math.min` against `localTimeoutMs`, so the Stop hook passes 50000ms instead of inheriting the 900s config), sets the Anthropic SDK per-request `{ timeout }`, and acts as a single extraction-WIDE deadline in the extractor. `oversizeThresholdBytes` (5 MiB) is enforced instead of being dead config.

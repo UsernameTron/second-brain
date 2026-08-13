@@ -4,21 +4,59 @@ Fresh-context orientation for the next session. Everything here was true at
 handoff time; verify anything load-bearing with a probe or a gcloud describe
 before depending on it.
 
-## START HERE — one action, then this doc is fully true
+## START HERE — three actions, in order
 
-1. **REDEPLOY to pick up the roster heal (PR for `agent-canvas-roster-heal`).**
-   The roster shipped and is live on revision **00023-xhf**, but the
-   *pre-existing* Executive Roundtable agents still carry pre-roster prompts:
-   Darren states the superseded 500–10,000+ ICP (which Sentinel's own review
-   gate flags as stale), Atlas lacks the confidentiality guard, and the
-   target-buyer memory anchor still reads the old ICP. Three guarded
-   migrations fix all of it **on boot** — no console clicking, no manual
-   memory surgery. Redeploy with the block under "Redeploy procedure" and
-   confirm `workspace.roster_heal` appears in the audit log.
+**Live right now:** revision `agent-canvas-00023-xhf`, carrying the Agent
+Roster (PR #105, master `6953f5b`). Working, verified, in use.
 
-The prior handoff's three actions are DONE: PR #101 closed (2-byte mascot
-blob), PR #103 merged, *Conference Lead Cleanup* archived. Nothing else is
-owed.
+**Waiting:** branch `claude/agent-canvas-roster-heal` (commit `712819b`,
+pushed, 84/84 green) — three boot migrations that repair pre-roster content
+in the LIVE database. Until it deploys, the Executive Roundtable canvas is
+serving stale content: Darren states the superseded 500–10,000+ ICP (which
+Sentinel's own review gate is written to flag as stale), Atlas has no
+confidentiality guard, and the target-buyer memory anchor still reads the old
+ICP. Those three agents also cannot be fixed from the UI — `linkExecAgents`
+only stamps `roster_id` on a byte-exact template match, so drifted prompts are
+unreachable by the Admin → Roster resync button. The branch fixes that too.
+
+1. **Open the PR.** The authoring session could not — this environment's proxy
+   blocks GitHub API writes ("an org admin must connect the Claude GitHub App
+   for this organization"); `git push` works, PR creation does not. One click:
+   https://github.com/UsernameTron/second-brain/compare/master...claude/agent-canvas-roster-heal
+   Then merge it (CI job `agent-canvas-test` should be green — 84/84 locally).
+2. **Redeploy** with the block under "Redeploy procedure" below. Nothing else
+   to do: the migrations run on boot, are guarded by settings keys, and are
+   idempotent.
+3. **Confirm the heal fired** — this is the whole point of the redeploy:
+   ```bash
+   gcloud logging read 'resource.labels.service_name=agent-canvas' \
+     --project agent-canvas-ctg-0811 --freshness=30m --limit 200 --format=json \
+     | grep -iE 'roster_heal|roster_icp_memory'
+   ```
+   Expect `workspace.roster_heal` naming **Darren and Atlas**, and
+   `workspace.roster_icp_memory` with `entries: 1`. Then in the app: Darren's
+   prompt should read `sr-icp-v5`, and Memory should show the old target-buyer
+   entry superseded with reason "superseded by ICP registry sr-icp-v5".
+
+The heal is verified against a *simulated* pre-roster database
+(`test/roster-heal.test.js`), not against production — step 3 is what turns
+that into proof.
+
+### Not blocking, worth doing once you are in there
+
+- **Exercise the roster end to end:** topbar **+** → staffing popover (Fred,
+  Darren, Jess, Atlas pre-checked) → create a canvas. Expect four agents plus
+  two notes: `Synthesis protocol` (pinned) and `ICP registry — sr-icp-v5`
+  (unpinned — that is deliberate, see the Agent Roster section).
+- **Dispatch Radar** with three sample contacts (one tier-1 decision-maker,
+  one excluded-industry, one hard-excluded title). Expect three scores showing
+  the multiplication, each stamped "scored against sr-icp-v5". This is the
+  first real exercise of Radar — it has never run against live input.
+- **Enable Gauge** (Admin → Roster) when you want HubSpot CRM legwork. It
+  ships `enabled=0` on purpose.
+
+The previous handoff's three actions are all DONE: PR #101 closed (the 2-byte
+mascot blob), PR #103 merged, *Conference Lead Cleanup* archived.
 
 ## What this is
 
@@ -181,14 +219,46 @@ you want CRM legwork); **Radar** (ICP scoring against sr-icp-v5).
    registry's `excluded_vendor_domains` list". A test asserts this
    data-driven, so the vendor-surfacing rule holds by construction.
 
-**Self-healing migrations** (guarded, idempotent, run on boot in this order):
-`healExecAgents` → `linkExecAgents` → `supersedeStaleIcpMemory`. The heal only
+**Self-healing migrations — ON THE BRANCH, NOT YET LIVE** (see START HERE).
+Guarded, idempotent, run on boot in this order: `healExecAgents` →
+`linkExecAgents` → `supersedeStaleIcpMemory`. The heal only
 touches an agent whose prompt is **byte-for-byte** a known previous template —
 proof no human edited it. A hand-edited prompt is left alone and is not
 adopted into the roster; the owner resyncs explicitly from Admin → Roster.
 The memory fix goes through the normal `correctEntry` path, so the old anchor
 survives, stamped `superseded_by`, and the correction cites it. Verified
 against a simulated pre-roster database in `test/roster-heal.test.js`.
+
+## Session log — 2026-08-13 evening (roster + heal)
+
+What shipped, in order, so the next session can reconstruct the reasoning:
+
+1. **Agent Roster (PR #105, merged, live on 00023-xhf).** Nine CTG-tuned
+   templates, canvas staffing at create-time and after, owner-only Roster
+   admin tab, resync. Includes the committed sr-icp-v5 registry.
+2. **Two corrections found by reading the code against the plan**, both
+   shipped inside #105: Darren's seeded prompt carried the stale ICP the plan
+   itself said to supersede, and Atlas had no confidentiality guard while the
+   plan claimed all entries carried it. The seed constants are now correct —
+   which is why fresh databases are fine and only the *existing* live rows
+   need the heal.
+3. **Deployed** to `00023-xhf` and verified: `HS_OPS_RUNNER_URL`,
+   `MODEL_PROVIDER`, `GOOGLE_CLIENT_ID` intact through the wholesale env set;
+   `workspace.seed_roster` in the audit log.
+4. **The heal branch** (`claude/agent-canvas-roster-heal`) — written after
+   realizing the fix handed to Pete ("resync from Admin → Roster") was
+   impossible for exactly the two agents that needed it. Simulating the live
+   database showed `Darren=UNLINKED  Atlas=UNLINKED`, stale ICP, stale memory
+   anchor; after the migrations, all four linked and all three defects gone.
+
+**Decision worth preserving:** the heal refreshes an agent **only** when its
+prompt is byte-for-byte a known previous template
+(`server/config/legacy-exec-prompts.json`, generated from git `2ab68e3`).
+That is proof no human edited it. Anything hand-written is left verbatim and
+is not adopted into the roster. This is the same shape as the existing
+`recolorLegacyAgents` migration: exact-match old → new, guarded, idempotent.
+If you ever change a roster prompt and want live agents to follow, append the
+superseded text to that file rather than loosening the match.
 
 ## Open items, in rough order
 
