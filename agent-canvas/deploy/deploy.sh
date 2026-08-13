@@ -39,6 +39,24 @@ if [ "${MODEL_PROVIDER}" = "anthropic" ]; then
   : "${ANTHROPIC_API_KEY:?MODEL_PROVIDER=anthropic requires ANTHROPIC_API_KEY (console.anthropic.com)}"
 fi
 
+# Paste guards. Twice now a mangled paste has been stored as a REAL secret
+# version and served to the live revision (U+2022 bullets from a masking
+# terminal; a literal '<current key - ...>' runbook placeholder). Refuse
+# anything not shaped like the actual credential BEFORE it can reach Secret
+# Manager — a wrong secret version is far more expensive than a failed deploy.
+if [ "${MODEL_PROVIDER}" = "anthropic" ]; then
+  case "${ANTHROPIC_API_KEY}" in
+    sk-ant-*) ;;
+    *) echo "ANTHROPIC_API_KEY does not start with sk-ant- — that is a placeholder or a mangled paste, not the key. Nothing was deployed or stored." >&2; exit 1;;
+  esac
+fi
+if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
+  case "${GOOGLE_CLIENT_SECRET}" in
+    GOCSPX-*) ;;
+    *) echo "GOOGLE_CLIENT_SECRET does not start with GOCSPX- — that is a placeholder or a mangled paste, not the client secret. Nothing was deployed or stored." >&2; exit 1;;
+  esac
+fi
+
 # gcloud must never stop to ask a question mid-deploy, and it must never bill
 # API quota to a stale project the caller cannot access. A leftover quota
 # project in the caller's config or ADC is what produces the
