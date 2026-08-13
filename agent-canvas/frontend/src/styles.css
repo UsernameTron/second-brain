@@ -52,6 +52,7 @@
   --surface-solid: #ffffff;
   --surface-card: rgba(255, 255, 255, 0.94);
   --surface-glass: rgba(255, 255, 255, 0.82);
+  --surface-inset: rgba(238, 242, 248, 0.6);
   --shadow-1: rgba(7, 27, 63, 0.07);
   --shadow-2: rgba(7, 27, 63, 0.14);
   --shadow-3: rgba(7, 27, 63, 0.28);
@@ -85,6 +86,7 @@
   --surface-solid: #0d1018;
   --surface-card: rgba(13, 16, 24, 0.94);
   --surface-glass: rgba(8, 10, 16, 0.86);
+  --surface-inset: rgba(255, 255, 255, 0.045);
   --shadow-1: rgba(0, 0, 0, 0.5);
   --shadow-2: rgba(0, 0, 0, 0.65);
   --shadow-3: rgba(0, 0, 0, 0.8);
@@ -794,7 +796,7 @@ a:hover { text-decoration: underline; }
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   margin-bottom: 9px;
-  background: rgba(238, 242, 248, 0.6);
+  background: var(--surface-inset);
   font-size: 13px;
 }
 /* the epistemic state IS the border style — survives black & white */
@@ -828,11 +830,11 @@ a:hover { text-decoration: underline; }
 @keyframes rippleFlash {
   0% { background: rgba(196, 54, 42, 0.40); border-color: var(--red); box-shadow: 0 0 18px rgba(196, 54, 42, 0.5); }
   45% { background: rgba(217, 138, 20, 0.22); border-color: var(--amber); box-shadow: 0 0 14px rgba(217, 138, 20, 0.4); }
-  100% { background: rgba(238, 242, 248, 0.6); box-shadow: none; }
+  100% { background: var(--surface-inset); box-shadow: none; }
 }
 @keyframes correctedFlash {
   0% { background: rgba(32, 128, 208, 0.3); box-shadow: 0 0 20px rgba(32, 128, 208, 0.5); }
-  100% { background: rgba(238, 242, 248, 0.6); box-shadow: none; }
+  100% { background: var(--surface-inset); box-shadow: none; }
 }
 
 .correct-form { display: flex; flex-direction: column; gap: 7px; margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 8px; }
