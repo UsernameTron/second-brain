@@ -1,4 +1,4 @@
-# Agent Canvas — Session Handoff (2026-08-13)
+# Agent Canvas — Session Handoff (2026-08-13, end of day)
 
 Fresh-context orientation for the next session. Everything here was true at
 handoff time; verify anything load-bearing with a probe or a gcloud describe
@@ -15,8 +15,9 @@ taint propagation. Escalations go to a human tray; runs carry step budgets,
 wall clocks, spend metering against a daily cap, livelock detection, global
 pause with epoch fencing, and a hash-chained audit log.
 
-- **Code:** `agent-canvas/` in UsernameTron/second-brain, branch
-  `claude/agent-canvas-workspace-1qquiu` (~40 commits), **draft PR #99**.
+- **Code:** `agent-canvas/` in UsernameTron/second-brain — **PR #99 MERGED
+  to master 2026-08-13** (squash, ~55 commits; CodeQL-remediated, final
+  review hardened). Follow-up work starts from master on a fresh branch.
 - **Tests:** 62/62 (`cd agent-canvas && npm test`). CI job `agent-canvas-test`.
 - **Docs:** `docs/DEPLOY.md`, `docs/GO-LIVE-UNBLOCK.md`, `docs/FRONTEND-SPEC.md`.
 
@@ -54,7 +55,7 @@ whichever authuser the browser prefers. When a console page 403s, append
 ## Redeploy procedure (env vars are set WHOLESALE — partial redeploys drop them)
 
 ```bash
-cd ~/projects/second-brain && git pull origin claude/agent-canvas-workspace-1qquiu
+cd ~/projects/second-brain && git checkout master && git pull origin master
 export PROJECT_ID=agent-canvas-ctg-0811
 export MODEL_PROVIDER=anthropic
 export ANTHROPIC_API_KEY='<current key — console.anthropic.com>'
@@ -66,13 +67,33 @@ export OWNER_EMAIL=pete@cloudtechgurus.com
 Exports one-per-line on purpose: Pete's terminal mangles backslash
 continuations, and once masked a pasted key into literal U+2022 bullets that
 got stored as a real secret version (the health lamp now detects that case).
+The `<placeholders>` above are NOT copy-pasteable — deploy.sh now REFUSES
+values not shaped like the real credentials (sk-ant-* / GOCSPX-*) after the
+2026-08-13 incident below.
 
-## PENDING — a redeploy is owed
+## 2026-08-13 afternoon: the placeholder-paste incident (resolved)
 
-Four merged fixes are NOT yet on the live revision: masked-key detection,
-Office-file read workaround message, **scored memory retrieval** (agents'
-multi-word searches were silently missing seeded facts), run-summary fallback.
-Run the redeploy above.
+The redeploy runbook was pasted verbatim, placeholders included, and deploy.sh
+stored `<current key — console.anthropic.com>` as anthropic-api-key v4 and
+`<from Secret Manager google-oauth-secret>` as google-oauth-secret v3. Both
+env vars reference `:latest`, so the live revision served garbage: model calls
+failed (the masked-key lamp caught it — non-ASCII) and OAuth sign-in broke at
+token exchange. Recovery, in order: destroyed v4/v3 → discovered Secret
+Manager's `latest` does NOT fall back (it pins to the highest-numbered version
+even when destroyed, and new revisions fail validation) → copied the good
+payloads forward (anthropic v3→v5, oauth v2→v4) via piped gcloud calls →
+shape-checked `latest` (sk-ant- / GOCSPX-) → rolled revision agent-canvas-00018.
+Structural fix: deploy.sh paste-guard (merged). Lessons: `latest` is a version
+pointer, not a health pointer; and runbooks with placeholders get pasted whole.
+
+## Redeploy: DONE 2026-08-13
+
+All four fixes (masked-key detection, Office-file workaround message, scored
+memory retrieval, run-summary fallback) are live on revision
+agent-canvas-00018-czb with clean secrets (anthropic-api-key v5,
+google-oauth-secret v4, both shape-verified). In-app verification loop
+(sign-in, lamps, Scout probe, multi-word memory search, xlsx message) and
+Darren's tray answer were with Pete at handoff time — confirm before assuming.
 
 ## Open items, in rough order
 
@@ -100,10 +121,20 @@ Run the redeploy above.
    On approval: `--update-env-vars MODEL_PROVIDER=vertex`, then delete the
    Anthropic key.
 
-2. **HubSpot lamp.** Client built+tested; needs two commands (printed by the
-   deploy banner, STEP 2): run.invoker grant on ctg-hs-ops-runner (project
-   ctg-hs-exec-tool) + `HS_OPS_RUNNER_URL` env. Writes are preview-first;
-   apply only in escalation-resumed runs. Sandbox portal 246460341 only.
+2. **HubSpot lamp — PARKED after 2026-08-13 investigation.** The two banner
+   commands are correct in every coordinate (service `ctg-hs-ops-runner`,
+   project `ctg-hs-exec-tool`, us-central1, per the runner repo at
+   `~/projects/CTG-Workspace-Build/projects/ctg-hs-ops-runner/scripts/deploy.sh`),
+   BUT the Cloud Run Admin API is DISABLED on ctg-hs-exec-tool and cannot be
+   re-enabled: pete@ is roles/owner there, billing is healthy (CTG Production
+   01DDA7-18F84C-0510F2, enabled), yet `gcloud services enable
+   run.googleapis.com` fails with a serviceusage PreconditionFailure
+   (subject 110002, AUTH_PERMISSION_DENIED). Prime suspect: org-policy
+   restriction on service enablement. Next probe:
+   `gcloud resource-manager org-policies describe serviceuser.services --project ctg-hs-exec-tool --effective`.
+   Note the runner itself may need redeploying once the API is back (disabling
+   the API stops its services); token secret HUBSPOT_SANDBOX_OPS_TOKEN status
+   unverified. Writes are preview-first; sandbox portal 246460341 only.
 3. **Team launch.** Admin → verify allowlist matches real mailboxes
    (fred@/darren@/jessica@), invite; each clicks Connect once. Consent is
    Internal so no warnings. Set the daily budget deliberately (default $25).
@@ -112,11 +143,15 @@ Run the redeploy above.
 5. **xlsx parsing.** Darren found the real HubSpot CRM export in Drive and
    could not read it (Office file). Error now explains the convert-to-Sheet
    workaround; native parsing is the queued feature.
-6. **PR #99** — draft; mark ready/merge to call it shipped. CodeQL was clean
-   at last check; CI test job green after the condition-wait fix.
+6. **PR #99 — MERGED 2026-08-13** (squash, auto-merge after branch update).
+   Final review added: deploy.sh credential paste-guard, shared state-JWT
+   secret (dropped the hardcoded dev fallback), X-Content-Type-Options:
+   nosniff on all responses.
 7. **Loose ends:** CUE mascot → `frontend/public/mascot.png` + rebuild;
-   confirm old Anthropic keys (exposed in chat twice) are deleted, not just
-   superseded; billing-swap verification (item 1).
+   delete old Anthropic keys at console.anthropic.com (exposed in chat twice;
+   superseding isn't deleting) — the KEEPER is the key stored in
+   anthropic-api-key v3/v5 (shape-verified live 2026-08-13); billing-swap
+   verification (item 1).
 
 ## Architecture cheat sheet
 
