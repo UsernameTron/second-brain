@@ -51,7 +51,8 @@ Enable it:
 1. On the OAuth client from step 2, add the redirect URI `<service-url>/api/google/oauth/callback` and note the client secret.
 2. Redeploy with `GOOGLE_CLIENT_SECRET=<secret>` (stored in Secret Manager as `google-oauth-secret`), or attach it later:
    `gcloud run services update agent-canvas --project <project> --region us-central1 --update-secrets GOOGLE_CLIENT_SECRET=google-oauth-secret:latest` (after `printf '%s' '<secret>' | gcloud secrets create google-oauth-secret --data-file=-`).
-3. Each user clicks **Capabilities → Connect Google Workspace** once and grants the six scopes (drive.readonly, drive.file, spreadsheets, gmail.readonly, gmail.compose, calendar.events).
+3. The deploy enables the Workspace data APIs (gmail, drive, sheets, calendar) — three separate switches exist: per-project APIs (this), OAuth scopes (the user grant), and Model Garden (models). Missing any one fails differently.
+4. Each user clicks **Capabilities → Connect Google Workspace** once and grants the six scopes (drive.readonly, drive.file, spreadsheets, gmail.readonly, gmail.compose, calendar.events).
 
 Scope review note: gmail.readonly/compose and drive.readonly are *restricted* scopes. On an **Internal** consent screen (project inside the org) no Google verification is needed. On an External screen in Testing mode they work for up to 100 test users — add each member as a test user; that covers this team, but it is one more reason to move the project into the cloudtechgurus.com organization and flip to Internal.
 

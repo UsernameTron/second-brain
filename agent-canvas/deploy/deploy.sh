@@ -115,9 +115,14 @@ else
 fi
 
 # 2. APIs.
+# Infra APIs plus the Workspace DATA APIs the agents' tools call — scopes and
+# Model Garden are separate switches; without these the first live probe fails
+# with "Gmail API has not been used in project … or it is disabled".
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   secretmanager.googleapis.com storage.googleapis.com iam.googleapis.com aiplatform.googleapis.com \
-  cloudresourcemanager.googleapis.com --project "${PROJECT_ID}"
+  cloudresourcemanager.googleapis.com \
+  gmail.googleapis.com drive.googleapis.com sheets.googleapis.com calendar-json.googleapis.com \
+  --project "${PROJECT_ID}"
 
 # 3. Artifact Registry + database bucket.
 gcloud artifacts repositories describe "${REPO}" --location="${REGION}" --project "${PROJECT_ID}" >/dev/null 2>&1 || \
