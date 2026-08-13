@@ -18,7 +18,7 @@ pause with epoch fencing, and a hash-chained audit log.
 - **Code:** `agent-canvas/` in UsernameTron/second-brain — **PR #99 MERGED
   to master 2026-08-13** (squash, ~55 commits; CodeQL-remediated, final
   review hardened). Follow-up work starts from master on a fresh branch.
-- **Tests:** 62/62 (`cd agent-canvas && npm test`). CI job `agent-canvas-test`.
+- **Tests:** 68/68 (`cd agent-canvas && npm test`). CI job `agent-canvas-test`.
 - **Docs:** `docs/DEPLOY.md`, `docs/GO-LIVE-UNBLOCK.md`, `docs/FRONTEND-SPEC.md`.
 
 ## Deployed state (LIVE and proven)
@@ -86,16 +86,32 @@ shape-checked `latest` (sk-ant- / GOCSPX-) → rolled revision agent-canvas-0001
 Structural fix: deploy.sh paste-guard (merged). Lessons: `latest` is a version
 pointer, not a health pointer; and runbooks with placeholders get pasted whole.
 
-## Redeploy: DONE 2026-08-13
+## Redeploy: DONE 2026-08-13 (latest: revision agent-canvas-00022-d4s)
 
 All four fixes (masked-key detection, Office-file workaround message, scored
-memory retrieval, run-summary fallback) are live on revision
-agent-canvas-00019-wl8 with clean secrets (anthropic-api-key v5,
-google-oauth-secret v4, both shape-verified) and HS_OPS_RUNNER_URL wired.
+memory retrieval, run-summary fallback) went live on 00018; the day ended on
+**00022-d4s**, which additionally carries the CUE mascot (sign-in card +
+tray), the canvas-lifecycle feature (below), and HS_OPS_RUNNER_URL wired.
+Secret Manager versions have piled up (anthropic-api-key v8, google-oauth-secret
+v7) — that's deploy.sh re-adding the same good values each run, normal and
+harmless; latest is always shape-verified by the paste-guard.
 In-app verification CONFIRMED 2026-08-13 evening: sign-in, every lamp green
 (MODEL, GMAIL, DRIVE, SHEETS, CALENDAR, AUDIT CHAIN, DATABASE, WEB SEARCH,
 HUBSPOT), MCP dark by design, Workspace connected. Pete ran the full test
 pass — no errors.
+
+## Canvas lifecycle (merged + live 2026-08-13 evening, PR #102)
+
+The switcher is now a daily driver, not demo furniture: a **"+"** in the
+topbar creates canvases inline (any member); an owner-only **Archive/Restore**
+button hides a canvas from everyone's switcher while keeping it — rows,
+memory, audit lineage — fully intact under an owner-visible "Archived"
+optgroup. Additive `canvases.archived` column; `PATCH /canvases/:id` takes
+`archived` and/or `access_mode` with all-or-nothing validation; both flips
+audited. Plan of record: *Conference Lead Cleanup* (demo scaffolding: the
+"How this demo works" note, conference-leads.csv, batch task) gets archived;
+*Executive Roundtable* stays active — it holds the personas and the
+Darren→Jess demo artifact.
 
 ## Open items, in rough order
 
@@ -151,9 +167,13 @@ pass — no errors.
    script.google.com/.../exec URL also surfaced during wiring — that is a
    DIFFERENT Apps Script HubSpot tool, incompatible with the canvas's Cloud
    Run IAM auth; a natural first MCP connector candidate instead.)
-3. **Team launch.** Admin → verify allowlist matches real mailboxes
-   (fred@/darren@/jessica@), invite; each clicks Connect once. Consent is
-   Internal so no warnings. Set the daily budget deliberately (default $25).
+3. **Team launch — DONE 2026-08-13.** Allowlist verified against real
+   mailboxes, daily budget set deliberately, invites out to
+   fred@/darren@/jessica@ (Internal consent: one Connect click each, no
+   warnings). Darren's tray escalation answered the same evening (prospectus
+   data for the expo) — the human-in-the-loop demo is closed end-to-end. The
+   two chat-exposed Anthropic keys were deleted at console.anthropic.com;
+   the live key is the sole survivor.
 4. **MCP.** Layer built+tested (Streamable HTTP, per-tool enablement); no
    connector configured. `MCP_SERVERS` env or `config/mcp.json`.
 5. **xlsx parsing.** Darren found the real HubSpot CRM export in Drive and
