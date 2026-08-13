@@ -121,20 +121,29 @@ Darren's tray answer were with Pete at handoff time — confirm before assuming.
    On approval: `--update-env-vars MODEL_PROVIDER=vertex`, then delete the
    Anthropic key.
 
-2. **HubSpot lamp — PARKED after 2026-08-13 investigation.** The two banner
-   commands are correct in every coordinate (service `ctg-hs-ops-runner`,
-   project `ctg-hs-exec-tool`, us-central1, per the runner repo at
-   `~/projects/CTG-Workspace-Build/projects/ctg-hs-ops-runner/scripts/deploy.sh`),
-   BUT the Cloud Run Admin API is DISABLED on ctg-hs-exec-tool and cannot be
-   re-enabled: pete@ is roles/owner there, billing is healthy (CTG Production
-   01DDA7-18F84C-0510F2, enabled), yet `gcloud services enable
-   run.googleapis.com` fails with a serviceusage PreconditionFailure
-   (subject 110002, AUTH_PERMISSION_DENIED). Prime suspect: org-policy
-   restriction on service enablement. Next probe:
-   `gcloud resource-manager org-policies describe serviceuser.services --project ctg-hs-exec-tool --effective`.
-   Note the runner itself may need redeploying once the API is back (disabling
-   the API stops its services); token secret HUBSPOT_SANDBOX_OPS_TOKEN status
-   unverified. Writes are preview-first; sandbox portal 246460341 only.
+2. **HubSpot lamp — runner ALIVE, wiring via console (2026-08-13 evening).**
+   The runner is deployed and serving: Pete's console dashboard for
+   ctg-hs-exec-tool shows Cloud Run in Resources, requests flowing, billing
+   accruing. Coordinates confirmed against the runner repo
+   (`~/projects/CTG-Workspace-Build/projects/ctg-hs-ops-runner/scripts/deploy.sh`:
+   service `ctg-hs-ops-runner`, project `ctg-hs-exec-tool`, us-central1).
+   An earlier "Run API disabled / org-policy" diagnosis was WRONG — built on
+   a grep that swallowed stderr. The real problem is CLI-only: pete@ is
+   roles/owner yet every `gcloud run`/`gcloud services` call against this
+   project is denied (agent-canvas project works fine from the same shell).
+   Prime suspect: stale quota-project in gcloud config — probe with
+   `gcloud config list --format='value(billing.quota_project)'` and
+   `gcloud config unset billing/quota_project`, then retry
+   `gcloud run services list --project ctg-hs-exec-tool`.
+   Lamp wiring goes around the CLI: (a) console → Cloud Run →
+   ctg-hs-ops-runner → Security → add principal
+   `agent-canvas-run@agent-canvas-ctg-0811.iam.gserviceaccount.com` as
+   Cloud Run Invoker; (b) on the canvas project (CLI works there):
+   `gcloud run services update agent-canvas --project agent-canvas-ctg-0811
+   --region us-central1 --update-env-vars HS_OPS_RUNNER_URL=<console URL>`.
+   In flight with Pete at handoff time — check the HUBSPOT lamp before
+   assuming either way. Writes are preview-first; sandbox portal
+   246460341 only.
 3. **Team launch.** Admin → verify allowlist matches real mailboxes
    (fred@/darren@/jessica@), invite; each clicks Connect once. Consent is
    Internal so no warnings. Set the daily budget deliberately (default $25).
