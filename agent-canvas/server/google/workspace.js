@@ -382,7 +382,10 @@ async function calendarCreate({ email, summary, description, startIso, endIso, a
 const PROBES = {
   gmail: (email) => gcall(email, 'https://gmail.googleapis.com/gmail/v1/users/me/profile'),
   drive: (email) => gcall(email, 'https://www.googleapis.com/drive/v3/about?fields=user'),
-  calendar: (email) => gcall(email, 'https://www.googleapis.com/calendar/v3/users/me/calendarList/primary'),
+  // calendarList endpoints need the calendar.readonly scope, which we never
+  // request — probe the events endpoint, the one the tools actually use and
+  // the calendar.events grant actually covers.
+  calendar: (email) => gcall(email, 'https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=1'),
   // Sheets has no ping endpoint; the Drive probe exercises the same token path.
   sheets: (email) => gcall(email, 'https://www.googleapis.com/drive/v3/about?fields=user'),
 };
