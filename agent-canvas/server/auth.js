@@ -162,8 +162,13 @@ function requireCanvas(req, res, next) {
   next();
 }
 
+// The resolved signing secret (env in production, persisted random otherwise).
+// Exposed as a getter so other modules signing short-lived tokens (e.g. the
+// OAuth state JWT) share it instead of falling back to a hardcoded string.
+function sessionSecret() { return JWT_SECRET; }
+
 module.exports = {
   ALLOWED_DOMAIN, GOOGLE_CLIENT_ID, DEV_AUTH,
   signInWithGoogle, signInDev, issueSession, clearSession, tokenFromReq, verifySessionToken,
-  requireAuth, requireOwner, requireCanvas, canAccessCanvas, allowlistEntry, httpError,
+  requireAuth, requireOwner, requireCanvas, canAccessCanvas, allowlistEntry, httpError, sessionSecret,
 };

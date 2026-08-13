@@ -20,6 +20,9 @@ const PORT = Number(process.env.PORT || 8080);
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1); // one proxy hop (Cloud Run LB); req.ip = real client IP
+// Downloads carry caller-supplied MIME types; never let a browser second-guess
+// them into something executable.
+app.use((req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
 
 // The file-upload route takes raw bytes. Keep the JSON body parser away from
 // it entirely: otherwise a caller choosing Content-Type: application/json gets

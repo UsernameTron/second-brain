@@ -114,7 +114,9 @@ router.get('/capabilities', (req, res) => {
 });
 
 function oauthStateSecret() {
-  return process.env.JWT_SECRET || 'dev-state-secret';
+  // Same secret as sessions: env-provided in production, persisted random in
+  // dev. Never a hardcoded literal — a forgeable state token is a CSRF hole.
+  return auth.sessionSecret();
 }
 function externalBase(req) {
   const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
