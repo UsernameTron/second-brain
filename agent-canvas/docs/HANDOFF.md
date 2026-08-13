@@ -4,6 +4,25 @@ Fresh-context orientation for the next session. Everything here was true at
 handoff time; verify anything load-bearing with a probe or a gcloud describe
 before depending on it.
 
+## START HERE — three actions, then this doc is fully true
+
+1. **CLOSE PR #101 — do NOT merge it.** It is a GitHub web-UI rename of the
+   mascot ("Rename ChatGPT Image ... to mascot.png"). The web editor cannot
+   rename binaries: its `mascot.png` blob is **2 bytes**, while the live one
+   on master is **2,135,874 bytes**. Merging it replaces the working CUE image
+   with an empty file. The rename it wanted was already done correctly by
+   `git mv` in PR #100. It should show as conflicted (both sides add the same
+   path) — close it and delete the branch.
+2. **MERGE PR #103** — this handoff refresh. Docs-only, no redeploy needed.
+3. **In the app: archive *Conference Lead Cleanup*.** Owner-only Archive
+   button next to the canvas switcher (shipped in #102, live on revision
+   00022). That retires the demo scaffolding — the "How this demo works"
+   note, conference-leads.csv, and the batch task go with it, restorable
+   forever under the switcher's "Archived" group. *Executive Roundtable*
+   stays as the daily exec canvas.
+
+Nothing else is owed. The product is live, launched, and green.
+
 ## What this is
 
 Multi-agent canvas workspace for cloudtechgurus.com (~10 seats). Agents with
@@ -183,11 +202,31 @@ Darren→Jess demo artifact.
    Final review added: deploy.sh credential paste-guard, shared state-JWT
    secret (dropped the hardcoded dev fallback), X-Content-Type-Options:
    nosniff on all responses.
-7. **Loose ends:** CUE mascot → `frontend/public/mascot.png` + rebuild;
-   delete old Anthropic keys at console.anthropic.com (exposed in chat twice;
-   superseding isn't deleting) — the KEEPER is the key stored in
-   anthropic-api-key v3/v5 (shape-verified live 2026-08-13); billing-swap
-   verification (item 1).
+7. **Loose ends — mostly DONE 2026-08-13.** CUE mascot: live (committed as
+   `frontend/public/mascot.png`, baked into revision 00022; sign-in card +
+   tray, both with onError fallbacks). Old Anthropic keys: deleted at
+   console.anthropic.com. Still open: billing-swap verification (item 1), the
+   2.1 MB mascot could be downsized to ~512px for a lighter sign-in page, and
+   Dependabot alert #14 (1 high) on master.
+8. **ctg-hs-exec-tool CLI mystery — cosmetic, lamp is green regardless.**
+   Every `gcloud run` / `gcloud services` call against that project is denied
+   from Pete's Mac for BOTH identities even though pete@ is roles/owner and
+   billing is healthy; the console works fine (that is how the Invoker grant
+   was made). Ruled out: quota-project (unset, no change), billing, ownership.
+   Remaining suspect: an org policy or context-aware access rule that treats
+   external CLI clients differently. Cheapest probe: run the same command in
+   **Cloud Shell** (console → `>_`), which runs inside Google's trusted
+   context. If it works there, it is a perimeter rule, not a project defect.
+9. **Parked idea — let Claude close/merge PRs directly.** The GitHub MCP tools
+   were unavailable for stretches of 2026-08-13, so PR housekeeping fell to
+   manual clicks. A `Bash(curl https://api.github.com/*)` allow-rule in
+   `.claude/settings.json` would let an agent session do it (GH_TOKEN and
+   GITHUB_TOKEN are already in the environment; api.github.com is reachable).
+   NOT implemented — deliberately deferred. Note the tradeoff before adopting:
+   prefix-matched curl rules constrain only the start of the command, so
+   everything after the URL is unconstrained (curl accepts additional URLs and
+   `-o` writes). A repo-scoped prefix
+   (`https://api.github.com/repos/UsernameTron/second-brain/`) is tighter.
 
 ## Architecture cheat sheet
 
