@@ -301,6 +301,12 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 0 14px rgba(32, 128, 208, 0.6);
 }
 .canvas-switch { max-width: 240px; background: var(--bg2); }
+.canvas-new-input {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff; border-radius: 6px; padding: 4px 8px; font: inherit; width: 180px;
+}
+.canvas-new-input::placeholder { color: rgba(255, 255, 255, 0.5); }
 .topbar-spacer { flex: 1; }
 
 .ws-pip {

@@ -310,7 +310,13 @@ router.delete('/allowlist/:email', auth.requireOwner, (req, res) => {
 router.get('/canvases', (req, res) => {
   const all = db.prepare('SELECT * FROM canvases ORDER BY created_at').all();
   const visible = all.filter((c) => auth.canAccessCanvas(req.user, c.id).ok);
-  res.json({ canvases: visible });
+  // Archived canvases leave everyone's switcher. The owner gets them back in a
+  // separate list (the "Archived" section) — archive is tidiness, not
+  // destruction: rows, memory, audit lineage all stay.
+  res.json({
+    canvases: visible.filter((c) => !c.archived),
+    archived: req.user.role === 'owner' ? visible.filter((c) => Boolean(c.archived)) : [],
+  });
 });
 
 router.post('/canvases', (req, res) => {
@@ -349,10 +355,26 @@ router.get('/canvases/:canvasId', auth.requireCanvas, (req, res) => {
 router.patch('/canvases/:canvasId', auth.requireOwner, (req, res) => {
   const canvas = db.prepare('SELECT * FROM canvases WHERE id = ?').get(req.params.canvasId);
   if (!canvas) return res.status(404).json({ error: 'canvas not found' });
-  const mode = req.body.access_mode;
-  if (!['workspace', 'restricted'].includes(mode)) return res.status(400).json({ error: 'access_mode must be workspace|restricted' });
-  db.prepare('UPDATE canvases SET access_mode = ? WHERE id = ?').run(mode, canvas.id);
-  audit('user', req.user.email, 'canvas.set_access_mode', { canvasId: canvas.id, mode });
+  const { access_mode: mode, archived } = req.body;
+  // Validate everything before writing anything — a two-field patch must be
+  // all-or-nothing, never half-applied.
+  if (mode === undefined && archived === undefined) {
+    return res.status(400).json({ error: 'nothing to update — provide access_mode and/or archived' });
+  }
+  if (mode !== undefined && !['workspace', 'restricted'].includes(mode)) {
+    return res.status(400).json({ error: 'access_mode must be workspace|restricted' });
+  }
+  if (archived !== undefined && typeof archived !== 'boolean') {
+    return res.status(400).json({ error: 'archived must be true or false' });
+  }
+  if (mode !== undefined) {
+    db.prepare('UPDATE canvases SET access_mode = ? WHERE id = ?').run(mode, canvas.id);
+    audit('user', req.user.email, 'canvas.set_access_mode', { canvasId: canvas.id, mode });
+  }
+  if (archived !== undefined) {
+    db.prepare('UPDATE canvases SET archived = ? WHERE id = ?').run(archived ? 1 : 0, canvas.id);
+    audit('user', req.user.email, archived ? 'canvas.archive' : 'canvas.unarchive', { canvasId: canvas.id });
+  }
   res.json({ ok: true });
 });
 

@@ -18,6 +18,9 @@ export default function Workspace() {
   const isOwner = user.role === 'owner';
 
   const [canvases, setCanvases] = useState([]);
+  const [archivedCanvases, setArchivedCanvases] = useState([]);
+  const [newCanvasOpen, setNewCanvasOpen] = useState(false);
+  const [newCanvasName, setNewCanvasName] = useState('');
   const [canvasId, setCanvasId] = useState(null);
   const [state, setState] = useState(null); // full GET /api/canvases/:id payload
   const [memory, setMemory] = useState([]);
@@ -150,11 +153,53 @@ export default function Workspace() {
     }, 1200);
   }, [loadSpend]);
 
+  // ---------- canvas lifecycle: create + archive/restore ----------
+  // Archive is reversible by design (destroy-never): no confirm dialog needed.
+  const refreshCanvases = useCallback(async () => {
+    const d = await api('/api/canvases');
+    setCanvases(d.canvases || []);
+    setArchivedCanvases(d.archived || []);
+    return d;
+  }, []);
+
+  const createCanvas = useCallback(async () => {
+    const name = newCanvasName.trim();
+    if (!name) { setNewCanvasOpen(false); setNewCanvasName(''); return; }
+    try {
+      const d = await api('/api/canvases', { method: 'POST', body: { name } });
+      await refreshCanvases();
+      setCanvasId(d.canvas.id);
+      setNewCanvasOpen(false);
+      setNewCanvasName('');
+    } catch (e) { toast(e.message); }
+  }, [newCanvasName, refreshCanvases, toast]);
+
+  const currentArchived = useMemo(
+    () => archivedCanvases.some((c) => c.id === canvasId),
+    [archivedCanvases, canvasId],
+  );
+
+  const toggleArchiveCanvas = useCallback(async () => {
+    if (!canvasId) return;
+    const archiving = !currentArchived;
+    try {
+      await api(`/api/canvases/${canvasId}`, { method: 'PATCH', body: { archived: archiving } });
+      const d = await refreshCanvases();
+      if (archiving) {
+        // The current canvas just left the active list — land on the first
+        // remaining one (or the empty state). It stays reachable under Archived.
+        const next = (d.canvases || [])[0];
+        setCanvasId(next ? next.id : null);
+      }
+    } catch (e) { toast(e.message); }
+  }, [canvasId, currentArchived, refreshCanvases, toast]);
+
   // ---------- boot: canvases + control status ----------
   useEffect(() => {
     api('/api/canvases')
       .then((d) => {
         setCanvases(d.canvases || []);
+        setArchivedCanvases(d.archived || []);
         if (d.canvases && d.canvases.length) setCanvasId(d.canvases[0].id);
       })
       .catch((e) => toast(e.message));
@@ -626,9 +671,41 @@ export default function Workspace() {
           onChange={(e) => setCanvasId(e.target.value)}
           title="Switch canvas"
         >
-          {canvases.length === 0 ? <option value="">no canvases</option> : null}
+          {canvases.length === 0 && !(isOwner && archivedCanvases.length) ? <option value="">no canvases</option> : null}
           {canvases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {isOwner && archivedCanvases.length ? (
+            <optgroup label="Archived">
+              {archivedCanvases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </optgroup>
+          ) : null}
         </select>
+        {newCanvasOpen ? (
+          <input
+            className="canvas-new-input"
+            autoFocus
+            placeholder="New canvas name…"
+            value={newCanvasName}
+            onChange={(e) => setNewCanvasName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') createCanvas();
+              if (e.key === 'Escape') { setNewCanvasOpen(false); setNewCanvasName(''); }
+            }}
+            onBlur={() => { setNewCanvasOpen(false); setNewCanvasName(''); }}
+          />
+        ) : (
+          <button className="icon-btn" title="New canvas" onClick={() => setNewCanvasOpen(true)}>+</button>
+        )}
+        {isOwner && canvasId ? (
+          <button
+            className="icon-btn"
+            title={currentArchived
+              ? 'Restore this canvas to the switcher'
+              : 'Archive this canvas — reversible, nothing is deleted'}
+            onClick={toggleArchiveCanvas}
+          >
+            {currentArchived ? 'Restore' : 'Archive'}
+          </button>
+        ) : null}
         <div className="topbar-spacer" />
         {!wsOk ? <span className="ws-pip" title="Live connection lost — reconnecting"><span className="ws-dot" />reconnecting</span> : null}
         <button
