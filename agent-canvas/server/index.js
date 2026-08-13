@@ -73,7 +73,11 @@ const execSeed = seedExecCanvas(OWNER_EMAIL);
 recolorLegacyAgents();
 const roster = require('./roster');
 roster.seedRoster();
+// Heal first (refreshes pristine pre-roster prompts to the current template),
+// then link (stamps provenance on anything matching a template byte-for-byte).
+roster.healExecAgents();
 roster.linkExecAgents();
+roster.supersedeStaleIcpMemory(OWNER_EMAIL);
 const orphans = recoverOrphans();
 
 const server = http.createServer(app);
