@@ -232,3 +232,32 @@ test('gmail operations refuse with the scope-mode explanation in standard mode',
     if (prev === undefined) delete process.env.GOOGLE_WORKSPACE_SCOPES; else process.env.GOOGLE_WORKSPACE_SCOPES = prev;
   }
 });
+
+test('a bullet-masked ANTHROPIC_API_KEY shows a named down lamp, not a deep SDK error', async () => {
+  const prevKey = process.env.ANTHROPIC_API_KEY;
+  const prevProvider = process.env.MODEL_PROVIDER;
+  try {
+    process.env.MODEL_PROVIDER = 'anthropic';
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-a••••';
+    const express = require('express');
+    const routes = require('../server/routes');
+    const app = express(); app.use(express.json()); app.use('/api', routes);
+    const server = app.listen(0);
+    await new Promise((r) => server.once('listening', r));
+    try {
+      const auth = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/dev`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'pete@cloudtechgurus.com' }),
+      });
+      const cookie = auth.headers.get('set-cookie').split(';')[0];
+      const res = await fetch(`http://127.0.0.1:${server.address().port}/api/health/integrations`, { headers: { cookie } });
+      const body = await res.json();
+      const model = body.integrations.find((i) => i.id === 'model');
+      assert.equal(model.status, 'down', 'corrupted key must show down, not ready');
+      assert.match(model.detail, /masked terminal paste/i, 'the lamp names the actual failure');
+    } finally { server.close(); }
+  } finally {
+    if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = prevKey;
+    if (prevProvider === undefined) delete process.env.MODEL_PROVIDER; else process.env.MODEL_PROVIDER = prevProvider;
+  }
+});

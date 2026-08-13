@@ -159,8 +159,13 @@ router.patch('/me/theme', (req, res) => {
 // planned (dark lamp — declared, deliberately not wired yet; never fake green).
 router.get('/health/integrations', (req, res) => {
   const provider = currentProvider();
+  // A secret pasted through a masking terminal arrives as literal bullets
+  // (U+2022) and then fails deep in the SDK as "cannot convert to ByteString".
+  // Catch it here, where the lamp can say what actually happened.
+  const rawKey = process.env.ANTHROPIC_API_KEY || '';
+  const keyCorrupted = provider === 'anthropic' && rawKey !== '' && !/^[\x21-\x7E]+$/.test(rawKey);
   const modelConfigured = provider === 'anthropic'
-    ? Boolean(process.env.ANTHROPIC_API_KEY)
+    ? Boolean(rawKey) && !keyCorrupted
     : Boolean(process.env.VERTEX_PROJECT_ID);
   const connected = workspace.isConnected(req.user.email);
   const oauth = workspace.oauthReady();
@@ -190,7 +195,9 @@ router.get('/health/integrations', (req, res) => {
       status: modelConfigured ? 'ready' : 'down',
       detail: modelConfigured
         ? `${FAST_MODEL} (fast) / ${STRONG_MODEL} (strong) via ${provider}`
-        : 'No model credential: set VERTEX_PROJECT_ID (keyless) or ANTHROPIC_API_KEY. Every agent run fails until this is set.',
+        : (keyCorrupted
+          ? 'ANTHROPIC_API_KEY contains non-ASCII characters (e.g. \u2022 bullets from a masked terminal paste) — the stored secret is not the real key. Re-add the secret version with the actual key and roll a new revision.'
+          : 'No model credential: set VERTEX_PROJECT_ID (keyless) or ANTHROPIC_API_KEY. Every agent run fails until this is set.'),
     },
     wsSurface('gmail', 'GMAIL', true),
     wsSurface('drive', 'DRIVE / DOCS', true),
