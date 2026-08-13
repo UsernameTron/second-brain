@@ -4,30 +4,66 @@ Fresh-context orientation for the next session. Everything here was true at
 handoff time; verify anything load-bearing with a probe or a gcloud describe
 before depending on it.
 
-## START HERE — three actions, then this doc is fully true
+## START HERE — three actions, in order
 
-1. **CLOSE PR #101 — do NOT merge it.** It is a GitHub web-UI rename of the
-   mascot ("Rename ChatGPT Image ... to mascot.png"). The web editor cannot
-   rename binaries: its `mascot.png` blob is **2 bytes**, while the live one
-   on master is **2,135,874 bytes**. Merging it replaces the working CUE image
-   with an empty file. The rename it wanted was already done correctly by
-   `git mv` in PR #100. It should show as conflicted (both sides add the same
-   path) — close it and delete the branch.
-2. **MERGE PR #103** — this handoff refresh. Docs-only, no redeploy needed.
-3. **In the app: archive *Conference Lead Cleanup*.** Owner-only Archive
-   button next to the canvas switcher (shipped in #102, live on revision
-   00022). That retires the demo scaffolding — the "How this demo works"
-   note, conference-leads.csv, and the batch task go with it, restorable
-   forever under the switcher's "Archived" group. *Executive Roundtable*
-   stays as the daily exec canvas.
+**Live right now:** revision `agent-canvas-00023-xhf`, carrying the Agent
+Roster (PR #105, master `6953f5b`). Working, verified, in use.
 
-Nothing else is owed. The product is live, launched, and green.
+**Waiting:** branch `claude/agent-canvas-roster-heal` (commit `712819b`,
+pushed, 84/84 green) — three boot migrations that repair pre-roster content
+in the LIVE database. Until it deploys, the Executive Roundtable canvas is
+serving stale content: Darren states the superseded 500–10,000+ ICP (which
+Sentinel's own review gate is written to flag as stale), Atlas has no
+confidentiality guard, and the target-buyer memory anchor still reads the old
+ICP. Those three agents also cannot be fixed from the UI — `linkExecAgents`
+only stamps `roster_id` on a byte-exact template match, so drifted prompts are
+unreachable by the Admin → Roster resync button. The branch fixes that too.
+
+1. **Open the PR.** The authoring session could not — this environment's proxy
+   blocks GitHub API writes ("an org admin must connect the Claude GitHub App
+   for this organization"); `git push` works, PR creation does not. One click:
+   https://github.com/UsernameTron/second-brain/compare/master...claude/agent-canvas-roster-heal
+   Then merge it (CI job `agent-canvas-test` should be green — 84/84 locally).
+2. **Redeploy** with the block under "Redeploy procedure" below. Nothing else
+   to do: the migrations run on boot, are guarded by settings keys, and are
+   idempotent.
+3. **Confirm the heal fired** — this is the whole point of the redeploy:
+   ```bash
+   gcloud logging read 'resource.labels.service_name=agent-canvas' \
+     --project agent-canvas-ctg-0811 --freshness=30m --limit 200 --format=json \
+     | grep -iE 'roster_heal|roster_icp_memory'
+   ```
+   Expect `workspace.roster_heal` naming **Darren and Atlas**, and
+   `workspace.roster_icp_memory` with `entries: 1`. Then in the app: Darren's
+   prompt should read `sr-icp-v5`, and Memory should show the old target-buyer
+   entry superseded with reason "superseded by ICP registry sr-icp-v5".
+
+The heal is verified against a *simulated* pre-roster database
+(`test/roster-heal.test.js`), not against production — step 3 is what turns
+that into proof.
+
+### Not blocking, worth doing once you are in there
+
+- **Exercise the roster end to end:** topbar **+** → staffing popover (Fred,
+  Darren, Jess, Atlas pre-checked) → create a canvas. Expect four agents plus
+  two notes: `Synthesis protocol` (pinned) and `ICP registry — sr-icp-v5`
+  (unpinned — that is deliberate, see the Agent Roster section).
+- **Dispatch Radar** with three sample contacts (one tier-1 decision-maker,
+  one excluded-industry, one hard-excluded title). Expect three scores showing
+  the multiplication, each stamped "scored against sr-icp-v5". This is the
+  first real exercise of Radar — it has never run against live input.
+- **Enable Gauge** (Admin → Roster) when you want HubSpot CRM legwork. It
+  ships `enabled=0` on purpose.
+
+The previous handoff's three actions are all DONE: PR #101 closed (the 2-byte
+mascot blob), PR #103 merged, *Conference Lead Cleanup* archived.
 
 ## What this is
 
 Multi-agent canvas workspace for cloudtechgurus.com (~10 seats). Agents with
 executive personas (Fred/strategic, Darren/commercial, Jess/operational,
-Atlas/workspace) work on shared visual canvases, use the directing user's
+Atlas/workspace) work on shared visual canvases, staffed from a workspace-level
+CTG agent roster, use the directing user's
 Google Workspace, remember decisions in an append-only memory with epistemic
 states (verified/inference/assumption), supersession, citation lineage, and
 taint propagation. Escalations go to a human tray; runs carry step budgets,
@@ -37,7 +73,7 @@ pause with epoch fencing, and a hash-chained audit log.
 - **Code:** `agent-canvas/` in UsernameTron/second-brain — **PR #99 MERGED
   to master 2026-08-13** (squash, ~55 commits; CodeQL-remediated, final
   review hardened). Follow-up work starts from master on a fresh branch.
-- **Tests:** 68/68 (`cd agent-canvas && npm test`). CI job `agent-canvas-test`.
+- **Tests:** 84/84 (`cd agent-canvas && npm test`). CI job `agent-canvas-test`.
 - **Docs:** `docs/DEPLOY.md`, `docs/GO-LIVE-UNBLOCK.md`, `docs/FRONTEND-SPEC.md`.
 
 ## Deployed state (LIVE and proven)
@@ -77,11 +113,26 @@ whichever authuser the browser prefers. When a console page 403s, append
 cd ~/projects/second-brain && git checkout master && git pull origin master
 export PROJECT_ID=agent-canvas-ctg-0811
 export MODEL_PROVIDER=anthropic
-export ANTHROPIC_API_KEY='<current key — console.anthropic.com>'
-export GOOGLE_CLIENT_ID='1072020835166-veol39lc5meet0h5v1ftl272moudki9f.apps.googleusercontent.com'
-export GOOGLE_CLIENT_SECRET='<from Secret Manager google-oauth-secret>'
 export OWNER_EMAIL=pete@cloudtechgurus.com
+export GOOGLE_CLIENT_ID='1072020835166-veol39lc5meet0h5v1ftl272moudki9f.apps.googleusercontent.com'
+export ANTHROPIC_API_KEY="$(gcloud secrets versions access latest --secret anthropic-api-key --project agent-canvas-ctg-0811)"
+export GOOGLE_CLIENT_SECRET="$(gcloud secrets versions access latest --secret google-oauth-secret --project agent-canvas-ctg-0811)"
+export HS_OPS_RUNNER_URL="$(gcloud run services describe agent-canvas --region us-central1 --project agent-canvas-ctg-0811 --format=json | python3 -c 'import json,sys;print(next(e["value"] for e in json.load(sys.stdin)["spec"]["template"]["spec"]["containers"][0]["env"] if e["name"]=="HS_OPS_RUNNER_URL"))')"
 ./agent-canvas/deploy/deploy.sh
+```
+
+**No placeholders by construction** — every secret is read from Secret Manager
+and `HS_OPS_RUNNER_URL` from the running revision, so the paste incident below
+cannot recur, and deploy.sh's shape guards (`sk-ant-*` / `GOCSPX-*`) still
+validate before anything is stored. Env vars are set WHOLESALE: a var you do
+not export is DROPPED from the new revision — that is why the HubSpot URL is
+read back from the live service rather than omitted. Verify after deploying:
+
+```bash
+gcloud run services describe agent-canvas --region us-central1 --project agent-canvas-ctg-0811 \
+  --format='value(spec.template.spec.containers[0].env)' | tr ',' '\n' | grep -E 'HS_OPS|MODEL_PROVIDER|GOOGLE_CLIENT_ID'
+gcloud logging read 'resource.labels.service_name=agent-canvas' \
+  --project agent-canvas-ctg-0811 --freshness=30m --limit 200 --format=json | grep -iE 'seed_roster|roster_heal'
 ```
 Exports one-per-line on purpose: Pete's terminal mangles backslash
 continuations, and once masked a pasted key into literal U+2022 bullets that
@@ -105,14 +156,17 @@ shape-checked `latest` (sk-ant- / GOCSPX-) → rolled revision agent-canvas-0001
 Structural fix: deploy.sh paste-guard (merged). Lessons: `latest` is a version
 pointer, not a health pointer; and runbooks with placeholders get pasted whole.
 
-## Redeploy: DONE 2026-08-13 (latest: revision agent-canvas-00022-d4s)
+## Redeploy: DONE 2026-08-13 (latest: revision agent-canvas-00023-xhf)
 
 All four fixes (masked-key detection, Office-file workaround message, scored
-memory retrieval, run-summary fallback) went live on 00018; the day ended on
-**00022-d4s**, which additionally carries the CUE mascot (sign-in card +
-tray), the canvas-lifecycle feature (below), and HS_OPS_RUNNER_URL wired.
-Secret Manager versions have piled up (anthropic-api-key v8, google-oauth-secret
-v7) — that's deploy.sh re-adding the same good values each run, normal and
+memory retrieval, run-summary fallback) went live on 00018; 00022-d4s added
+the CUE mascot (sign-in card + tray), the canvas-lifecycle feature (below),
+and HS_OPS_RUNNER_URL wired. The day ended on **00023-xhf**, which carries
+the Agent Roster (below). Verified on 00023 by gcloud describe
+(HS_OPS_RUNNER_URL, MODEL_PROVIDER, GOOGLE_CLIENT_ID all intact through the
+wholesale env set) and by `workspace.seed_roster` in the audit log.
+Secret Manager versions have piled up (anthropic-api-key v9, google-oauth-secret
+v8) — that's deploy.sh re-adding the same good values each run, normal and
 harmless; latest is always shape-verified by the paste-guard.
 In-app verification CONFIRMED 2026-08-13 evening: sign-in, every lamp green
 (MODEL, GMAIL, DRIVE, SHEETS, CALENDAR, AUDIT CHAIN, DATABASE, WEB SEARCH,
@@ -131,6 +185,80 @@ audited. Plan of record: *Conference Lead Cleanup* (demo scaffolding: the
 "How this demo works" note, conference-leads.csv, batch task) gets archived;
 *Executive Roundtable* stays active — it holds the personas and the
 Darren→Jess demo artifact.
+
+## Agent Roster (merged 2026-08-13, live on 00023-xhf — Issue #2)
+
+New canvases used to be born empty with no UI to staff them. The roster is a
+workspace-level, owner-editable **template library**; canvas agents are
+instantiated copies carrying `roster_id` for provenance and resync.
+
+**The nine entries.** Fred, Darren, Jess, Atlas (lifted from the shared
+`EXEC_AGENTS` consts — exactly one copy of each prompt exists, so editing the
+seed edits the roster); Scout (research), Forge (build), Sentinel (review);
+**Gauge** (HubSpot ops, ships `enabled=0` — turn it on in Admin → Roster when
+you want CRM legwork); **Radar** (ICP scoring against sr-icp-v5).
+
+**Where things live.**
+- `server/roster.js` — the library, seeding, healing, instantiation.
+- `server/config/icp-sr-icp-v5.json` — the ctg-signal-radar ICP export
+  (source of truth `src/backend/icp_registry.py`). Radar's scoring digest is
+  **interpolated from this file**, so the prompt cannot drift from the data.
+  A fresh export is a new commit, not a live sync.
+- `server/config/legacy-exec-prompts.json` — the exec prompts exactly as PR
+  #99 seeded them. Generated from git; used only to recognize pristine
+  pre-roster agents. Do not hand-edit.
+
+**Two design rules worth not re-litigating.**
+1. **The ICP note is deliberately UNPINNED.** Pinned notes are injected
+   verbatim into *every* agent's system prompt on *every* run
+   (`orchestrator/runner.js`), so pinning a 12.8KB registry would tax every
+   dispatch on the canvas. Radar reads it on demand via `read_notes`. The
+   synthesis protocol stays pinned — it is small and load-bearing.
+2. **No vendor is ever named in a prompt.** The excluded-vendor list exists
+   only as data in the registry note; prompts refer to "any domain on the
+   registry's `excluded_vendor_domains` list". A test asserts this
+   data-driven, so the vendor-surfacing rule holds by construction.
+
+**Self-healing migrations — ON THE BRANCH, NOT YET LIVE** (see START HERE).
+Guarded, idempotent, run on boot in this order: `healExecAgents` →
+`linkExecAgents` → `supersedeStaleIcpMemory`. The heal only
+touches an agent whose prompt is **byte-for-byte** a known previous template —
+proof no human edited it. A hand-edited prompt is left alone and is not
+adopted into the roster; the owner resyncs explicitly from Admin → Roster.
+The memory fix goes through the normal `correctEntry` path, so the old anchor
+survives, stamped `superseded_by`, and the correction cites it. Verified
+against a simulated pre-roster database in `test/roster-heal.test.js`.
+
+## Session log — 2026-08-13 evening (roster + heal)
+
+What shipped, in order, so the next session can reconstruct the reasoning:
+
+1. **Agent Roster (PR #105, merged, live on 00023-xhf).** Nine CTG-tuned
+   templates, canvas staffing at create-time and after, owner-only Roster
+   admin tab, resync. Includes the committed sr-icp-v5 registry.
+2. **Two corrections found by reading the code against the plan**, both
+   shipped inside #105: Darren's seeded prompt carried the stale ICP the plan
+   itself said to supersede, and Atlas had no confidentiality guard while the
+   plan claimed all entries carried it. The seed constants are now correct —
+   which is why fresh databases are fine and only the *existing* live rows
+   need the heal.
+3. **Deployed** to `00023-xhf` and verified: `HS_OPS_RUNNER_URL`,
+   `MODEL_PROVIDER`, `GOOGLE_CLIENT_ID` intact through the wholesale env set;
+   `workspace.seed_roster` in the audit log.
+4. **The heal branch** (`claude/agent-canvas-roster-heal`) — written after
+   realizing the fix handed to Pete ("resync from Admin → Roster") was
+   impossible for exactly the two agents that needed it. Simulating the live
+   database showed `Darren=UNLINKED  Atlas=UNLINKED`, stale ICP, stale memory
+   anchor; after the migrations, all four linked and all three defects gone.
+
+**Decision worth preserving:** the heal refreshes an agent **only** when its
+prompt is byte-for-byte a known previous template
+(`server/config/legacy-exec-prompts.json`, generated from git `2ab68e3`).
+That is proof no human edited it. Anything hand-written is left verbatim and
+is not adopted into the roster. This is the same shape as the existing
+`recolorLegacyAgents` migration: exact-match old → new, guarded, idempotent.
+If you ever change a roster prompt and want live agents to follow, append the
+superseded text to that file rather than loosening the match.
 
 ## Open items, in rough order
 

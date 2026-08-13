@@ -24,7 +24,7 @@
 // large reference data — unpinned; Radar reads it via read_notes.
 
 const crypto = require('node:crypto');
-const { db, nowIso, getSetting, setSetting } = require('./db');
+const { db, tx, nowIso, getSetting, setSetting } = require('./db');
 const { audit } = require('./audit');
 const { EXEC_AGENTS, CONFIDENTIALITY_GUARD, PROTOCOL_NOTE } = require('./seed');
 
@@ -253,4 +253,79 @@ function instantiateOnCanvas({ canvasId, rosterId, actor, x, y }) {
   return { agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId), noteId };
 }
 
-module.exports = { ROSTER_AGENTS, ROSTER_NOTES, ICP, seedRoster, linkExecAgents, instantiateOnCanvas };
+
+// ---------------------------------------------------------------------------
+// Live-workspace healing. A workspace seeded before the roster existed carries
+// exec agents and memory written from the pre-roster constants: Darren's ICP
+// line predates sr-icp-v5, Atlas predates the confidentiality guard, and the
+// target-buyer memory entry still states the superseded 500-10,000+ ICP.
+//
+// These run once per database (settings-key guards, the seed_exec_v2 pattern)
+// so a deploy heals itself — no console clicking, no manual memory surgery.
+// They are deliberately conservative: an agent is only refreshed when its
+// prompt is byte-for-byte a known previous template, which proves no human
+// edited it. Anything else is left alone for the owner to resync explicitly.
+// ---------------------------------------------------------------------------
+
+const LEGACY_EXEC_PROMPTS = require('./config/legacy-exec-prompts.json').prompts;
+
+// The pre-sr-icp-v5 target-buyer anchor, exactly as seeded by PR #99.
+const STALE_ICP_MEMORY = 'CTG target buyer: enterprise contact-center leadership, 500-10,000+ seats. Verticals: healthcare, financial services, retail/e-commerce, technology, BPO/outsourcing.';
+const STALE_ICP_REASON = `superseded by ICP registry ${ICP.icp_version}`;
+
+function healExecAgents() {
+  if (getSetting('seed_roster_heal_v1')) return { healed: 0 };
+  const healed = [];
+  tx(() => {
+    for (const legacy of LEGACY_EXEC_PROMPTS) {
+      const entry = db.prepare('SELECT * FROM roster_agents WHERE name = ?').get(legacy.name);
+      if (!entry || entry.system_prompt === legacy.system_prompt) continue; // template unchanged — nothing to heal
+      const stale = db.prepare('SELECT id, canvas_id FROM agents WHERE name = ? AND system_prompt = ?')
+        .all(legacy.name, legacy.system_prompt);
+      for (const agent of stale) {
+        db.prepare('UPDATE agents SET system_prompt = ?, model_tier = ?, roster_id = COALESCE(roster_id, ?) WHERE id = ?')
+          .run(entry.system_prompt, entry.model_tier, entry.id, agent.id);
+        healed.push({ name: legacy.name, agentId: agent.id, canvasId: agent.canvas_id });
+      }
+    }
+    setSetting('seed_roster_heal_v1', nowIso());
+  });
+  if (healed.length) {
+    audit('system', 'seed', 'workspace.roster_heal', {
+      agents: healed.length, names: [...new Set(healed.map((h) => h.name))], icp: ICP.icp_version,
+    });
+  }
+  return { healed: healed.length, detail: healed };
+}
+
+// Supersede the pre-v5 target-buyer anchor through the normal append-only
+// correction path: the old entry survives, stamped superseded_by, and the
+// correction cites it. Nothing is deleted or rewritten in place.
+function supersedeStaleIcpMemory(ownerEmail) {
+  if (getSetting('seed_roster_icp_memory_v1')) return { superseded: 0 };
+  const memory = require('./memory');
+  const stale = db.prepare('SELECT * FROM memory_entries WHERE content = ? AND superseded_by IS NULL').all(STALE_ICP_MEMORY);
+  const corrected = [];
+  for (const row of stale) {
+    const result = memory.correctEntry({
+      entryId: row.id,
+      content: `CTG target buyer (ICP ${ICP.icp_version}): enterprise contact-center operators, ${SEAT_LO}-${SEAT_HI.toLocaleString('en-US')} seats. Tier-1 verticals: ${T1}. Tier-2: ${T2}. ${EXCLUDED} are excluded as buyers — technology/SaaS vendors and BPOs are CTG supply side, not demand side.`,
+      epistemic: 'verified',
+      reason: STALE_ICP_REASON,
+      authorType: 'user',
+      authorId: ownerEmail,
+      authorName: 'ICP registry migration',
+      source: `ICP registry ${ICP.icp_version} (ctg-signal-radar export, source of truth ${ICP.source_of_truth})`,
+    });
+    // A concurrent correction means a human already fixed it — leave theirs.
+    if (!result.conflict) corrected.push(row.id);
+  }
+  setSetting('seed_roster_icp_memory_v1', nowIso());
+  if (corrected.length) audit('system', 'seed', 'workspace.roster_icp_memory', { entries: corrected.length, icp: ICP.icp_version });
+  return { superseded: corrected.length };
+}
+
+module.exports = {
+  ROSTER_AGENTS, ROSTER_NOTES, ICP, LEGACY_EXEC_PROMPTS, STALE_ICP_MEMORY,
+  seedRoster, linkExecAgents, healExecAgents, supersedeStaleIcpMemory, instantiateOnCanvas,
+};
