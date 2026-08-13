@@ -90,10 +90,12 @@ pointer, not a health pointer; and runbooks with placeholders get pasted whole.
 
 All four fixes (masked-key detection, Office-file workaround message, scored
 memory retrieval, run-summary fallback) are live on revision
-agent-canvas-00018-czb with clean secrets (anthropic-api-key v5,
-google-oauth-secret v4, both shape-verified). In-app verification loop
-(sign-in, lamps, Scout probe, multi-word memory search, xlsx message) and
-Darren's tray answer were with Pete at handoff time — confirm before assuming.
+agent-canvas-00019-wl8 with clean secrets (anthropic-api-key v5,
+google-oauth-secret v4, both shape-verified) and HS_OPS_RUNNER_URL wired.
+In-app verification CONFIRMED 2026-08-13 evening: sign-in, every lamp green
+(MODEL, GMAIL, DRIVE, SHEETS, CALENDAR, AUDIT CHAIN, DATABASE, WEB SEARCH,
+HUBSPOT), MCP dark by design, Workspace connected. Pete ran the full test
+pass — no errors.
 
 ## Open items, in rough order
 
@@ -141,9 +143,14 @@ Darren's tray answer were with Pete at handoff time — confirm before assuming.
    Cloud Run Invoker; (b) on the canvas project (CLI works there):
    `gcloud run services update agent-canvas --project agent-canvas-ctg-0811
    --region us-central1 --update-env-vars HS_OPS_RUNNER_URL=<console URL>`.
-   In flight with Pete at handoff time — check the HUBSPOT lamp before
-   assuming either way. Writes are preview-first; sandbox portal
-   246460341 only.
+   DONE — lamp CONFIRMED GREEN 2026-08-13 evening ("Wired to
+   ctg-hs-ops-runner, sandbox portal 246460341"): deterministic URL
+   https://ctg-hs-ops-runner-874411154198.us-central1.run.app wired on
+   revision agent-canvas-00019-wl8, Invoker granted via console. Writes are
+   preview-first; sandbox portal 246460341 only. (Note: a
+   script.google.com/.../exec URL also surfaced during wiring — that is a
+   DIFFERENT Apps Script HubSpot tool, incompatible with the canvas's Cloud
+   Run IAM auth; a natural first MCP connector candidate instead.)
 3. **Team launch.** Admin → verify allowlist matches real mailboxes
    (fred@/darren@/jessica@), invite; each clicks Connect once. Consent is
    Internal so no warnings. Set the daily budget deliberately (default $25).
