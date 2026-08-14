@@ -46,13 +46,13 @@ export default function CapabilitiesModal({ onClose, toast }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal caps-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal caps-modal" role="dialog" aria-modal="true" aria-label="Capabilities and systems" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>What agents can do</h2>
           <span className="caps-identity dim">
             {caps?.identityModel || ''}
           </span>
-          <button className="icon-btn" onClick={onClose} title="Close">✕</button>
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">✕</button>
         </div>
         <div className="modal-body">
           <div className="sys-board">

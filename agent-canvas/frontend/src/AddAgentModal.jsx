@@ -42,14 +42,14 @@ export default function AddAgentModal({ canvasId, roster, onClose, onAdded, toas
 
   return (
     <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal add-agent-modal">
+      <div className="modal add-agent-modal" role="dialog" aria-modal="true" aria-label="Add agent">
         <header className="modal-head">
           <h2>Add agent</h2>
           <nav className="modal-tabs">
             <button className={tab === 'roster' ? 'active' : ''} onClick={() => setTab('roster')}>From roster</button>
             <button className={tab === 'custom' ? 'active' : ''} onClick={() => setTab('custom')}>Custom</button>
           </nav>
-          <button className="icon-btn" onClick={onClose} title="Close">✕</button>
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">✕</button>
         </header>
         {tab === 'roster' ? (
           <div className="modal-body">

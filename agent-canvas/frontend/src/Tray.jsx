@@ -83,8 +83,8 @@ export default function Tray({ escalations, agentsById, agents, onResolve }) {
   const n = escalations.length;
 
   return (
-    <div className={`tray ${n > 0 ? 'has-items' : 'clear'}`}>
-      <button className="tray-head" onClick={() => setCollapsed((v) => !v)} title={collapsed ? 'Expand' : 'Collapse'}>
+    <div className={`tray ${n > 0 ? 'has-items' : 'clear'}`} role="region" aria-label={`Needs you: ${n} open escalation${n === 1 ? '' : 's'}`}>
+      <button className="tray-head" onClick={() => setCollapsed((v) => !v)} aria-expanded={!collapsed} title={collapsed ? 'Expand' : 'Collapse'}>
         {n > 0 ? (
           <>
             <span className="tray-badge">{n}</span>

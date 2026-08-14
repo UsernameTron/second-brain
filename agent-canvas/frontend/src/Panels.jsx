@@ -7,7 +7,7 @@ export function Panel({ title, wide, onClose, headerExtra, children }) {
       <header className="panel-head">
         <h2>{title}</h2>
         <div className="panel-head-extra">{headerExtra}</div>
-        <button className="icon-btn" onClick={onClose} title="Close panel">✕</button>
+        <button className="icon-btn" onClick={onClose} title="Close panel" aria-label="Close panel">✕</button>
       </header>
       <div className="panel-body">{children}</div>
     </aside>

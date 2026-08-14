@@ -5,7 +5,8 @@ import { Panel } from './Panels.jsx';
 const DOT_SHAPE = { verified: 'filled', inference: 'half', assumption: 'hollow' };
 
 export function EpiDot({ epistemic }) {
-  return <span className={`epi-dot ${DOT_SHAPE[epistemic] || 'hollow'}`} />;
+  // Decorative: the epistemic label always sits next to it in text.
+  return <span className={`epi-dot ${DOT_SHAPE[epistemic] || 'hollow'}`} aria-hidden="true" />;
 }
 
 function Legend() {

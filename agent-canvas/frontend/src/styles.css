@@ -1307,3 +1307,18 @@ a:hover { text-decoration: underline; }
 .mem-filter-row .mem-filter { flex: 1; min-width: 0; }
 .kind-chip { text-transform: uppercase; letter-spacing: 0.04em; }
 .subject-chip { font-style: italic; }
+
+/* ===== Accessibility + responsive (wave 0b) ===== */
+/* Keyboard focus must be visible on every interactive element, both themes. */
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focus-visible {
+  outline: 2px solid var(--ctg-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Side panels and modals must not overflow small viewports. */
+@media (max-width: 700px) {
+  .panel, .panel-wide { width: calc(100% - 16px); top: 8px; right: 8px; bottom: 8px; }
+  .modal { width: calc(100% - 16px); max-height: calc(100vh - 24px); overflow-y: auto; }
+  .topbar { flex-wrap: wrap; row-gap: 4px; }
+  .cmdbar { width: calc(100% - 16px); }
+}

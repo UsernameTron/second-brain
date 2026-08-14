@@ -953,10 +953,10 @@ export default function Workspace() {
       ) : null}
       {archivedOpen ? (
         <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setArchivedOpen(false); }}>
-          <div className="modal archived-modal">
+          <div className="modal archived-modal" role="dialog" aria-modal="true" aria-label="Archived canvases">
             <header className="modal-head">
               <b>Archived canvases</b>
-              <button className="icon-btn" onClick={() => setArchivedOpen(false)} title="Close">×</button>
+              <button className="icon-btn" onClick={() => setArchivedOpen(false)} title="Close" aria-label="Close">×</button>
             </header>
             <div className="modal-body">
               {archivedCanvases.length === 0 ? (
