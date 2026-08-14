@@ -12,6 +12,33 @@ row, the hardening pass, and the two context registries: 124/124, deployed,
 its 3 tools, and an end-to-end agent run on `read_registry` with its audit
 entry confirmed in Cloud Logging (`stepsUsed: 2`, `costUsd: 0.164229`).
 
+**One console session clears three of the four blockers.** They share a single
+root cause, diagnosed 2026-08-14 and written up as open item 8: a **VPC
+Service Controls perimeter** (or org deny policy) around `ctg-hs-exec-tool`
+and `ctg-workspace-dev` that blocks every service API from a local CLI while
+leaving Resource Manager IAM working — pete@ holds `roles/owner` on both and
+is still denied. No grant fixes it. The console is the working surface.
+
+While you are in there, in this order:
+
+1. **Cloud Run → `enrichment-dispatch` → Security → Add principal**
+   `agent-canvas-run@agent-canvas-ctg-0811.iam.gserviceaccount.com`, role
+   **Cloud Run Invoker**. Then tell this repo, and one redeploy lights the
+   enrichment lane. `ED_DISPATCH_URL` is deliberately **not** set yet: setting
+   it before the grant would advertise four tools that 403 on every call,
+   which is the "never show a tool the deployment cannot honor" rule broken in
+   the other direction.
+2. **BigQuery → `ctg_gtm_marts` → Sharing → Add principal** pete@, role
+   **BigQuery Data Viewer**, **on the dataset — never the project.** The
+   project-level version reads `ctg_gtm_raw`, which holds 44k people's emails
+   and phones.
+3. **SOI** — the deploy in `ctg-workspace-dev`, per
+   [WAVE2-SOI-RUNBOOK.md](WAVE2-SOI-RUNBOOK.md). Same perimeter, so it needs
+   the console or Cloud Shell too.
+
+The fourth blocker is unrelated: the Wave 3 upstream ICP v6 harvest needs a
+push to `peteconnorCTG`, which is a machine-wide `gh auth switch`.
+
 **What is left, in the order it is worth doing.**
 
 1. **One `sr-icp-leadfinder` smoke run.** The row is live and probed but no
@@ -715,7 +742,57 @@ superseded text to that file rather than loosening the match.
    console.anthropic.com. Still open: billing-swap verification (item 1), the
    2.1 MB mascot could be downsized to ~512px for a lighter sign-in page, and
    Dependabot alert #14 (1 high) on master.
-8. **ctg-hs-exec-tool CLI mystery — cosmetic, lamp is green regardless.**
+8. **ctg-hs-exec-tool / ctg-workspace-dev CLI denial — DIAGNOSED 2026-08-14. It is a
+   perimeter, not a role gap, and no grant fixes it.** This item carried a
+   guess for days; here is the evidence that settles it.
+
+   `gcloud projects get-iam-policy` confirms pete@cloudtechgurus.com holds
+   **`roles/owner` AND `roles/run.admin`** on `ctg-hs-exec-tool`, and
+   **`roles/owner`** on `ctg-workspace-dev`. With those roles, IAM cannot deny
+   `run.services.list`. Yet from this Mac, on `ctg-hs-exec-tool`, pete@ is
+   denied **every service API tried**: Cloud Run
+   (`run.services.list`, `run.services.getIamPolicy`), Service Usage
+   (`services.list`), Secret Manager (`secrets.list`), Logging
+   (`logging.logs.list`), IAM (`service-accounts.list`), Storage
+   (`storage.buckets.list`) and BigQuery (`datasets.get`, `jobs.create`) —
+   while **Resource Manager works**: `projects get-iam-policy` returns, and
+   `projects add-iam-policy-binding` successfully wrote (and then removed) a
+   binding.
+
+   Resource Manager allowed + every data-plane API denied + owner held is the
+   signature of a **VPC Service Controls perimeter** (or an org-level deny
+   policy) around those projects, exempting the IAM control plane. Ruled out
+   previously and still ruled out: stale quota project, billing, ownership.
+
+   **Consequences, which are the useful part:**
+   - Nothing that needs Cloud Run, BigQuery, Secret Manager or Service Usage
+     on those two projects can be done from a local CLI — by anyone, with any
+     role. Stop trying to fix it with grants.
+   - The **Cloud Console is the working surface** and always has been; that is
+     how the ops-runner invoker grant was made (item 2 above).
+   - **Cloud Shell** is the decisive confirmation if anyone wants it: it runs
+     inside Google's trusted context, so if `gcloud run services list
+     --project ctg-hs-exec-tool` works there and not here, the perimeter
+     conclusion is proven rather than inferred.
+   - This is the single root cause behind **three** separate blocked items —
+     the enrichment lane's invoker grant, the GTM `dataViewer` grant, and the
+     SOI deploy. One console session clears all three.
+
+   **A correction worth recording, because the rule it broke is a named hard
+   rule.** While attempting the GTM grant this session, a **project-level**
+   `roles/bigquery.dataViewer` binding was added to `ctg-hs-exec-tool` for
+   pete@. That is precisely the shortcut-grant the fold-in spec forbids — it
+   reads every dataset including `ctg_gtm_raw`, which holds 44k people's
+   emails and phones — and the spec's wording is "per-dataset `dataViewer` on
+   `ctg_gtm_marts` ONLY … never shortcut-grant raw". It was removed within the
+   same minute and its absence verified (`get-iam-policy` filtered on that
+   role returns nothing). The dataset-scoped grant that *should* have been
+   used was then attempted and is itself denied by the perimeter above, which
+   is why GTM remains blocked. No data was read at any point: the only
+   BigQuery calls made were `datasets.get` and `INFORMATION_SCHEMA` probes,
+   all of which returned Access Denied.
+
+9. **ctg-hs-exec-tool CLI mystery — superseded by item 8's diagnosis.**
    Every `gcloud run` / `gcloud services` call against that project is denied
    from Pete's Mac for BOTH identities even though pete@ is roles/owner and
    billing is healthy; the console works fine (that is how the Invoker grant
