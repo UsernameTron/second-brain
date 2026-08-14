@@ -4,7 +4,49 @@ Fresh-context orientation for the next session. Everything here was true at
 handoff time; verify anything load-bearing with a probe or a gcloud describe
 before depending on it.
 
-## START HERE — one blocker (environment, not code), then two owner actions
+## START HERE (2026-08-14 late) — four merged PRs, nothing deployed
+
+The portfolio fold-in ran to the end of its wave order. **Nothing reached
+Cloud Run**: `./agent-canvas/deploy/deploy.sh` was refused by the executing
+session's permission layer, so every wave is `READY-TO-DEPLOY` or `BLOCKED`
+and **no row is `DONE`** — no connector probe, no agent smoke run, no lamp
+check has been performed against anything below. Treat every "shipped" claim
+in this file as *merged to master*, never as *live*, until you have run the
+bar yourself.
+
+Merged: **#121** Step-1 review · **#122** Wave 1 sr-icp connector row ·
+**#123** Wave 2 enrichment lane + SOI runbook · **#124** hardening + context
+registries. `npm test` 123/123 (was 95).
+
+**Do these in order.**
+
+1. **Redeploy** — the block under "Redeploy procedure" below, unchanged. This
+   single deploy carries #122, #123 and #124.
+2. **Probe `sr-icp-leadfinder`** in Admin → Connectors. Expect **3 tools**
+   (`ping`, `find_icp_leads`, `check_lead_search`) and a latency. Tick what you
+   want agents to have — it ships with none. Tell whoever uses it that the two
+   search tools are a **start/poll pair** and that results are **v5-scored**.
+3. **Re-probe the existing connectors.** #124 tightened the connector rule and
+   MCP URLs are now https-or-loopback. If a tool you had ticked disappears,
+   `GET /api/health/integrations` will now *say so* rather than dropping it
+   silently — check the message before assuming a bug.
+4. **One agent smoke run per new capability**, with its audit entry confirmed:
+   a Radar/Scout run using a ticked lead-finder tool, and a run that reads
+   `read_registry` (try `{registry: "suppliers", query: "wfm"}` and
+   `{registry: "org_context", query: "commission"}`).
+5. **Then flip the ledger rows** in AUTONOMOUS-EXECUTION.md from
+   `READY-TO-DEPLOY` to `DONE`, and only then. A row that fails for a fixable
+   reason stays `READY-TO-DEPLOY` with a memo.
+
+**Not deployable from here, and why** — each has its runbook:
+`enrichment-dispatch` needs a cross-project `run.invoker` grant on
+`ctg-hs-exec-tool` (see the Wave 2 section) · SOI needs a deploy in
+`ctg-workspace-dev`, where every `gcloud run`/`services` call is denied for
+both identities ([WAVE2-SOI-RUNBOOK.md](WAVE2-SOI-RUNBOOK.md)) · the GTM
+bridge needs `dataViewer` on `ctg_gtm_marts` · the Wave 3 upstream ICP v6
+harvest needs a push to `peteconnorCTG`, a machine-wide `gh auth switch`.
+
+## Earlier START HERE — one blocker (environment, not code), then two owner actions
 
 **PR #108 MERGED** — the MCP Connectors platform (roster+heal PR #106 was
 already merged prior) is on `master` as of commit `79ca6ad`. Code is done,
