@@ -7,9 +7,20 @@ kept for the reasoning, not the status.**
 
 ## CURRENT STATE (2026-08-14 evening — start here, ignore the older START HEREs)
 
-**Live:** `agent-canvas-00032-ss4`, tests **130/130** on master
-(`d1b9ba0`). The portfolio fold-in is deployed and verified end-to-end; the
-Radar polling-burn fix is deployed and smoke-tested.
+**Live:** `agent-canvas-00033-hp6` (deployed 2026-08-14 ~15:44Z from master
+`2b31a4b`, PR #134 — prompt caching + tool-result cap), tests **130/130**.
+The portfolio fold-in is deployed and verified end-to-end; the Radar
+polling-burn fix is deployed and smoke-tested.
+
+**Caching verified live on 00033:** a 321k-input-token run cost **$0.47** vs
+the pre-caching baseline's 279k for **$1.55** (run rows compared via read-only
+Litestream restore of the DB replica). Cache reads bill at 0.1× and the run
+ledger prices them correctly. Open item 2 below (Make Radar cheap) is DONE.
+Env verified intact through the wholesale set; `ED_DISPATCH_URL` still absent
+(hold preserved). Note for triage: a run whose agent calls
+`complete({outcome: "incomplete"})` renders as status `failed` with a $-cost
+and empty `error` — that is a deliberate park (usually an escalation pending),
+not a crash. Check `run_events` before diagnosing.
 
 **Done and verified this session (nine PRs, #121–#132):**
 - Waves 1–3 folded in: `sr-icp-leadfinder` connector (probed 3 tools),
@@ -39,9 +50,8 @@ invoker grant Pete made is inert while the URL is unset. Hold until F-01 closes.
    access). Spec in PORTFOLIO-FOLD-IN.md; ~150-line Streamable-HTTP MCP over 4
    named marts queries, `bigquery.jobUser` on the canvas project +
    dataset-scoped `dataViewer` on `ctg_gtm_marts` ONLY (never raw).
-2. **Make Radar cheap** — prompt caching + cap/trim the message array
-   (IMPROVE-FINDINGS finding 8 + the survey's token-amplifier notes). Biggest
-   cost lever on the whole product, not just Radar.
+2. ~~**Make Radar cheap**~~ — DONE: PR #134 shipped prompt caching + the
+   tool-result cap; verified live on 00033 ($0.47 vs $1.55 baseline, above).
 3. **Light the enrichment lane** — only after F-01 closes; one
    `ED_DISPATCH_URL=https://enrichment-dispatch-874411154198.us-central1.run.app`
    + redeploy. If dark after: check audience claim + runtime SA, not IAM.
