@@ -251,6 +251,20 @@ execution-time auth probe (claude.ai-configured, possibly OAuth-only) — wire
 member-visible if static auth works and tools return shareable map URLs,
 else drop. RapidAPI key: Pete's call, no rotation, one shared key.
 
+**Phase 3 STATUS (2026-08-13 night): verification DONE, /crm bridge BUILT.**
+The remote MCP check ran first as mandated: mcp.hubspot.com is **OAuth-only**
+(anonymous probe → 401 + `WWW-Authenticate: Bearer resource_metadata=
+.../oauth-protected-resource`; developers.hubspot.com/mcp confirms OAuth 2.0
+is the sole method, no PAT support). So the bridge stays. Shipped:
+`hubspot-mcp-bridge/` (raw JSON-RPC HTTP→stdio pass-through around pinned
+`@hubspot/mcp-server@0.4.0`, IAM-gated, `/crm` only — `/dev` deferred until
+Phase 2's CLI lands) plus `${GCP_IDTOKEN}` header support in `mcp/client.js`
+(keyless metadata-server identity, opsrunner.js pattern). End-to-end test:
+`test/hubspot-mcp-bridge.test.js`. To deploy: store the CTG Ops Automation
+key as secret `hubspot-mcp-token`, run `hubspot-mcp-bridge/deploy.sh`, then
+Admin → Connectors → add `hubspot-crm` at `<bridge URL>/crm` with header
+`authorization` = `${GCP_IDTOKEN}`, access=owner, probe, tick tools.
+
 **Phase 3 intel from Pete's HubSpot portal (2026-08-13 screenshots) — read
 before building the bridge:**
 - **"MCP Auth Apps" exists in his developer portal** ("client ID and secret,
