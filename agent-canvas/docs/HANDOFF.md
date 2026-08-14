@@ -39,6 +39,30 @@ While you are in there, in this order:
 The fourth blocker is unrelated: the Wave 3 upstream ICP v6 harvest needs a
 push to `peteconnorCTG`, which is a machine-wide `gh auth switch`.
 
+**RESOLVED 2026-08-14 evening — the "#130 perimeter" was a crossed credential,
+confirmed by Pete's GCP findings register (F-00).** The local gcloud credential
+*labeled* `pete@cloudtechgurus.com` held **cpeteconnor@gmail.com's refresh
+token**; `gcloud auth list` and `CLOUDSDK_CORE_ACCOUNT` report the label, not
+the token, so only `tokeninfo` caught it. pete@ held dataset-level BigQuery
+Data Owner on `ctg_gtm_marts` all along — **GTM was never blocked**; the bridge
+can be built against the real schema now. There was never a VPC-SC perimeter.
+
+**Radar smoke run passed (agent-canvas-00032-ss4):** 100 hot leads all ≥0.75,
+per-lead arithmetic, version-stamped, no spin — the behavior fixes and the
+prompt re-seed are confirmed live. It cost ~$1.56/~280k input tokens, though,
+*more* than the burn it replaced, because it succeeded and re-sent the growing
+100-lead payload across poll turns with no prompt caching. Making Radar cheap
+(prompt caching + message-array trimming) is a separate, still-open change —
+the survey's finding-8-adjacent token amplifier.
+
+**Security context now governs the enrichment lane.** Pete's findings register
+(F-01/F-07) documents the agent-canvas→`enrichment-dispatch`→`ctg-hs-exec-tool`
+chain as the exposure that reached production. `ED_DISPATCH_URL` is therefore
+**deliberately still unset** — lighting a new production ingress while F-01
+(external gmail identity with prod admin) and F-02 (DRS off) are open, during
+funding diligence, is the wrong direction. Hold until F-01 closes. The invoker
+grant Pete made is harmless while the URL is unset (the tools stay absent).
+
 **What is left, in the order it is worth doing.**
 
 1. **One `sr-icp-leadfinder` smoke run.** The row is live and probed but no
