@@ -12,6 +12,33 @@ const bus = require('../bus');
 // the next handoff attempt is a livelock and escalates instead of dispatching.
 const LIVELOCK_MAX_CROSSINGS = 2;
 
+// ---------- data/instruction boundary ----------
+// Everything a tool fetches from outside this workspace — a Gmail body, a Drive
+// doc, a CRM field, an enrichment payload, a third-party MCP server's reply —
+// arrives in the model's message array in the same position as the operator's
+// own instruction. Anyone who can mail a connected user, edit a CRM field, or
+// control an MCP server can therefore author text the agent may read as
+// direction, in a turn that also exposes ws_gmail_draft, ws_sheets_update,
+// ws_calendar_create, hs_preview_change and every enabled connector tool.
+//
+// The existing guardrails are structural (destructive verbs simply do not
+// exist as tools), which bounds the damage but does not close the steering
+// path. This wrapper marks the boundary so the system prompt can name it, and
+// exists once at the tool layer rather than per surface — the enrichment lane
+// added the fourth such site, so the pattern reproduces with every new
+// integration.
+//
+// ponytail: a delimiter plus a prompt clause, not a sanitizer. Stripping
+// imperative text from a CRM note would corrupt the data the agent was asked
+// to read; the honest fix is to label provenance and let the model apply it.
+function externalContent(source, text) {
+  const body = typeof text === 'string' ? text : JSON.stringify(text);
+  // A payload that contains the closing tag could otherwise forge the end of
+  // the untrusted region and continue as if it were the operator speaking.
+  const safe = String(body ?? '').replace(/<\/?external_content/gi, '<_external_content');
+  return `<external_content source="${String(source).replace(/[^a-z0-9:_-]/gi, '')}">\n${safe}\n</external_content>`;
+}
+
 const COMMON_TOOLS = [
   {
     name: 'memory_search',
@@ -479,7 +506,7 @@ async function executeTool(name, input, ctx) {
     try {
       const out = await mcp.callTool({ server: target.server, tool: target.tool, args: input, actorEmail: run.initiated_by });
       bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
-      return { content: out };
+      return { content: externalContent(`mcp:${target.server}`, out) };
     } catch (err) {
       return { content: String(err.message || err), isError: true };
     }
@@ -579,15 +606,16 @@ async function executeTool(name, input, ctx) {
       }
       const entryIds = [...new Set(input.entry_ids || [])];
       const handoffId = crypto.randomUUID();
-      db.prepare(
-        'INSERT INTO handoffs (id, canvas_id, run_id, from_agent_id, to_agent_id, item_key, message, payload_entry_ids, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(handoffId, canvas.id, run.id, agent.id, target.id, itemKey, input.message, JSON.stringify(entryIds), ts);
-      audit('agent', agent.id, 'run.handoff', { runId: run.id, to: target.name, itemKey, entryIds });
-
       const payloadEntries = entryIds.map((id) => memory.getEntry(id)).filter(Boolean);
       const payloadText = payloadEntries.length
         ? `\n\nMemory entries passed with this handoff (already recorded as your context):\n${payloadEntries.map((e) => `- [${e.epistemic}] (id ${e.id}) ${e.content} — ${e.author.name}, source: ${e.source}`).join('\n')}`
         : '';
+      // Dispatch BEFORE writing the handoffs row. dispatchRun throws 429 when
+      // the daily budget is spent — designed behaviour, not an exception — and
+      // in the old order that throw left an orphan row: every retry then hit
+      // the duplicate guard above and got back "they are working on it", which
+      // was false and which the agent believes. The orphan also counted toward
+      // the crossings tally, pushing the pair toward a phantom livelock.
       const { dispatchRun } = require('./queue');
       const child = dispatchRun({
         agentId: target.id,
@@ -597,6 +625,10 @@ async function executeTool(name, input, ctx) {
         parentRunId: run.id,
         initialReads: entryIds,
       });
+      db.prepare(
+        'INSERT INTO handoffs (id, canvas_id, run_id, from_agent_id, to_agent_id, item_key, message, payload_entry_ids, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(handoffId, canvas.id, run.id, agent.id, target.id, itemKey, input.message, JSON.stringify(entryIds), ts);
+      audit('agent', agent.id, 'run.handoff', { runId: run.id, to: target.name, itemKey, entryIds });
       bus.emit('event', {
         type: 'handoff', canvasId: canvas.id,
         handoff: { id: handoffId, fromAgentId: agent.id, toAgentId: target.id, itemKey, message: input.message, entryIds, ts, runId: run.id, childRunId: child.id },
@@ -715,7 +747,7 @@ async function executeTool(name, input, ctx) {
           default: throw new Error('unreachable');
         }
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
-        return { content: JSON.stringify(out) };
+        return { content: externalContent(`workspace:${name.replace(/^ws_/, '')}`, out) };
       } catch (err) {
         return { content: String(err.message || err), isError: true };
       }
@@ -751,7 +783,7 @@ async function executeTool(name, input, ctx) {
           out = await opsrunner.runArgv({ argv, actorEmail: initiator });
         }
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
-        return { content: out };
+        return { content: externalContent('hubspot', out) };
       } catch (err) {
         return { content: String(err.message || err), isError: true };
       }
@@ -775,7 +807,7 @@ async function executeTool(name, input, ctx) {
       try {
         const out = await dispatch.run(name, { ...input, actorEmail: initiator });
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
-        return { content: out };
+        return { content: externalContent('enrichment', out) };
       } catch (err) {
         return { content: String(err.message || err), isError: true };
       }
@@ -845,4 +877,4 @@ function createEscalation({ canvasId, runId, agentId, kind, question, context })
   return escalation;
 }
 
-module.exports = { toolsForRole, executeTool, createEscalation, LIVELOCK_MAX_CROSSINGS };
+module.exports = { toolsForRole, executeTool, createEscalation, externalContent, LIVELOCK_MAX_CROSSINGS };

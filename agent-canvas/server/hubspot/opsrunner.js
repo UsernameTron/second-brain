@@ -100,6 +100,9 @@ async function runArgv({ argv, confirm = false, stdinJsonl, actorEmail }) {
     method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
     body: JSON.stringify(body),
+    // Generous because the runner wraps a CLI operation, but finite: an
+    // unbounded wait here pins an agent step until the process restarts.
+    signal: AbortSignal.timeout(60_000),
   });
   const data = await res.json().catch(() => ({}));
   audit('user', actorEmail || 'system', 'hubspot.run', {

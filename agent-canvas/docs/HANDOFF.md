@@ -393,6 +393,63 @@ passed in rather than hardcoded.
 (orchestrator/anthropic.js) + the tested Gemini adapter already support it.
 Grok/OpenAI adapters: explicitly out of scope until Gemini cost data exists.
 
+## Hardening pass — 2026-08-14 (12 of 15 survey findings fixed)
+
+A read-only senior-advisor survey produced
+[IMPROVE-FINDINGS.md](IMPROVE-FINDINGS.md) — 15 findings, every claim anchored
+to a line that was actually read. Twelve are fixed; the disposition table at
+the top of that file says which three are still open and why. Suite 113/113.
+
+The four that change how the product behaves, and are worth not re-litigating:
+
+1. **Retrieved content is now delimited.** Everything fetched from outside the
+   workspace — mail bodies, Drive/Sheets text, CRM records, enrichment
+   payloads, connector replies — is wrapped as
+   `<external_content source="…">…</external_content>` by one helper in
+   `tools.js`, and the system prompt carries a non-negotiable clause saying
+   that anything inside those tags is evidence, never instruction. Previously
+   that text arrived in the message array byte-identical to the operator's own
+   instruction, in the same turn that exposes `ws_gmail_draft`,
+   `hs_preview_change`, and every enabled connector tool. The wrapper defangs a
+   payload that tries to forge the closing tag; it never scrubs the data —
+   stripping imperative text out of a CRM note would corrupt the thing the
+   agent was asked to read. **The reason this lives at the tool boundary rather
+   than per surface: the enrichment lane added the fourth such site the same
+   day, so the pattern reproduces with every new integration.**
+2. **Connectors are read lanes, in code.** A tool name that looks like a
+   mutation (`create`/`update`/`delete`/`merge`/`send`/`batch`/…) is refused in
+   `normalizeServer`, so a stale DB row cannot resurrect one, and the admin
+   routes name the rejected tool back to the owner. This closes the gap where
+   the live `hubspot-crm` connector's read-only-ness rested entirely on scopes
+   set out-of-band on one token — against the REAL portal — with zero lines of
+   code behind it. Connector URLs are https-only now too (the client mints a
+   Google-signed identity token and sends it as a Bearer header).
+3. **The wall-clock guarantee is real.** It was checked only *between* steps,
+   so one hung call ran past it unchecked: no `halted_timeout`, no escalation,
+   the agent row stuck `running` and holding a concurrency slot until the
+   process restarted. Each call now carries
+   `AbortSignal.any([controller, AbortSignal.timeout(remaining)])`, a deadline
+   abort routes to `halted_timeout` plus a tray escalation, and every outbound
+   `fetch` in `server/` finally has a `signal`.
+4. **A run finishes exactly once.** A throw from `createEscalation` used to
+   unwind to the outer catch and overwrite a `halted_budget`/`halted_steps`
+   halt with `failed` — mislabelling a run awaiting a human decision as a
+   crash and losing the tray item. Latch plus a try/catch that audits the
+   failure. Related: both `dispatchRun` callers (handoff, escalation-resolve)
+   now dispatch *before* writing their bookkeeping row, because `dispatchRun`
+   throws 429 on a spent daily budget — a designed state — and the old order
+   silently lost a human's decision or left an orphan handoff that made every
+   retry answer "they are working on it", which was false.
+
+**Two agents were added** (`.claude/agents/`, repo root — they load at session
+start, so a session that predates them cannot dispatch them):
+`canvas-integration-auditor` (verifies deployment/reachability claims with
+probes that actually discriminate — including the 401-vs-404 control that
+distinguishes an IAM-gated service from an absent hostname — and is required to
+answer UNVERIFIABLE rather than round up) and `canvas-tool-surface-reviewer`
+(reviews tool-surface changes against consent / one-write-lane /
+data-instruction-boundary / disabled-by-absence).
+
 ## Session log — 2026-08-13 evening (roster + heal)
 
 What shipped, in order, so the next session can reconstruct the reasoning:

@@ -95,6 +95,8 @@ async function request({ method, path, body, actorEmail, op }) {
       'x-caller-email': actorEmail || 'agent-canvas',
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
+    // Vendor fan-out is the slow part; 60s is the ceiling, not the target.
+    signal: AbortSignal.timeout(60_000),
   });
   const data = await res.json().catch(() => ({}));
   audit('user', actorEmail || 'system', 'enrichment.call', {

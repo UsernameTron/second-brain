@@ -29,6 +29,22 @@ const PROTOCOL_VERSION = '2025-06-18';
 const NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const OUTPUT_CAP = 30_000;
 
+// Connectors are read lanes. The live hubspot-crm connector reaches the REAL
+// portal 243103424, and its read-only-ness rested entirely on the scopes set
+// out-of-band on one private-app token — zero lines of code. A token swap or a
+// scope widened in the HubSpot UI would silently create a production CRM write
+// path that bypasses dry-run, human approval, and the sandbox guard, because
+// @hubspot/mcp-server ships object-mutating tools next to its read tools.
+//
+// Every CRM write in this product goes through the ops-runner preview/apply
+// lane (ADR-0041), which is enforced in code and tested. So a mutating tool
+// name is refused here, server-side, where a stale DB row cannot resurrect it.
+// Read tools are unaffected. If a connector ever legitimately needs a write
+// tool, that is a deliberate design change with its own approval lane — not a
+// checkbox in an admin tab.
+const MUTATING_TOOL_RE = /(^|[_-])(create|update|upsert|delete|remove|archive|merge|write|send|post|patch|put|batch)([_-]|$)/i;
+function isMutatingToolName(name) { return MUTATING_TOOL_RE.test(String(name)); }
+
 let loadError = null;
 
 function normalizeServer(srv) {
@@ -44,7 +60,7 @@ function normalizeServer(srv) {
     name: srv.name,
     url: srv.url,
     headers,
-    enabledTools: (Array.isArray(srv.enabledTools) ? srv.enabledTools : []).filter((t) => NAME_RE.test(String(t))),
+    enabledTools: (Array.isArray(srv.enabledTools) ? srv.enabledTools : []).filter((t) => NAME_RE.test(String(t)) && !isMutatingToolName(t)),
     access: srv.access === 'owner' ? 'owner' : 'members',
     roles: (Array.isArray(srv.roles) ? srv.roles : []).map(String).filter(Boolean),
   };
@@ -157,7 +173,10 @@ async function rpc(srv, method, params, { notify = false } = {}) {
   const body = notify
     ? { jsonrpc: '2.0', method, params }
     : { jsonrpc: '2.0', id: ++rpcId, method, params };
-  const res = await fetch(srv.url, { method: 'POST', headers, body: JSON.stringify(body) });
+  // A server that accepts the connection and never answers would otherwise
+  // pin an agent step forever — the bridge protects its own child process,
+  // but nothing protected this hop.
+  const res = await fetch(srv.url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(30_000) });
   const newSid = res.headers.get('mcp-session-id');
   if (newSid) sessions.set(srv.name, newSid);
   if (notify) return null;
@@ -275,6 +294,6 @@ if (servers.some((srv) => srv.enabledTools.length)) {
 
 module.exports = {
   listServers, configError, reload, enabledToolDefs, callTool, probeServer, discoverTools,
-  getCachedDefs, refreshDefs, resolveToolName,
+  getCachedDefs, refreshDefs, resolveToolName, isMutatingToolName,
   _internal: { loadConfig, parseBody },
 };

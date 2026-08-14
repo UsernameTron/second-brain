@@ -16,7 +16,14 @@ const { audit } = require('./audit');
 
 const ALLOWED_DOMAIN = process.env.ALLOWED_DOMAIN || 'cloudtechgurus.com';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const DEV_AUTH = process.env.DEV_AUTH === '1';
+// DEV_AUTH issues a full session for any allowlisted email with no credential,
+// on a route registered above requireAuth, on a service deployed
+// --allow-unauthenticated. Today no deploy sets it — but env vars are set
+// WHOLESALE on redeploy and the printed follow-up commands use
+// --update-env-vars, which merges, so the guarantee rests entirely on
+// operator discipline. NODE_ENV=production is set in the Dockerfile and by
+// deploy.sh, so this makes the guarantee structural instead.
+const DEV_AUTH = process.env.DEV_AUTH === '1' && process.env.NODE_ENV !== 'production';
 const COOKIE_NAME = 'ac_session';
 const SESSION_TTL = '7d';
 

@@ -20,7 +20,7 @@ async function identityToken(audience, { escapeHatchEnv } = {}) {
   if (hit && hit.exp > Date.now() + 60_000) return hit.token;
   const res = await fetch(
     `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${encodeURIComponent(audience)}`,
-    { headers: { 'Metadata-Flavor': 'Google' } },
+    { headers: { 'Metadata-Flavor': 'Google' }, signal: AbortSignal.timeout(10_000) },
   ).catch(() => null);
   if (!res || !res.ok) {
     throw new Error(`no service identity available for ${audience} — this call needs Cloud Run (or set ${escapeHatchEnv || 'an id-token env var'} for local dev)`);
