@@ -7,10 +7,19 @@ kept for the reasoning, not the status.**
 
 ## CURRENT STATE (2026-08-14 evening — start here, ignore the older START HEREs)
 
-**Live:** `agent-canvas-00036-lsh` (deployed 2026-08-14 evening; carries PRs
-#136 GTM bridge + #138 lamps-from-probe-evidence + #139 /intent gates +
-#140 audit tail-verify + #142 probe rate bucket — probing the board no longer
-burns the sign-in limit), tests **147/147**. `ED_DISPATCH_URL` still absent
+**Live:** `agent-canvas-00038-mlc` (2026-08-14 night), tests **148/148**.
+Carries everything above plus **Wave 3 / ICP v6, fully propagated**: the
+upstream harvest merged in ctg-signal-radar (peteconnorCTG PR #127 — panel
+title taxonomy, advisor-match vocab, 22 blocklist domains, registry bumped to
+sr-icp-v6, 2535/2535 upstream tests); the canvas recommitted the v6 artifact
+(#144) and reseed v3 (#145) propagated it to LIVE workspaces — verified by
+the `workspace.roster_reseed` audit line (13 updates: Scout/Sentinel/Radar
+prompts + the v6 ICP note added beside the preserved v5 note on every
+canvas). Radar's prompt now states the skew: the fly.dev lead finder scores
+sr-icp-v5 until re-exported; v5 and v6 scores are not comparable. Note for
+future prompt edits: run scripts/snapshot-roster-prompts.js BEFORE editing
+roster.js, then bump RESEED_KEY — #144 skipped that and #145 had to
+reconstruct the legacy snapshot from the pre-#144 tree. `ED_DISPATCH_URL` still absent
 (hold preserved). **Release note: all probeable lamps are AMBER after every
 deploy until probed once — that is finding 8 working, not a regression.**
 
@@ -81,8 +90,9 @@ invoker grant Pete made is inert while the URL is unset. Hold until F-01 closes.
 3. **Light the enrichment lane** — only after F-01 closes; one
    `ED_DISPATCH_URL=https://enrichment-dispatch-874411154198.us-central1.run.app`
    + redeploy. If dark after: check audience claim + runtime SA, not IAM.
-4. **SOI** ([WAVE2-SOI-RUNBOOK.md](WAVE2-SOI-RUNBOOK.md)) and **Wave 3 upstream
-   ICP v6** (needs a push to `peteconnorCTG`) remain as previously scoped.
+4. **SOI** ([WAVE2-SOI-RUNBOOK.md](WAVE2-SOI-RUNBOOK.md)) remains blocked on
+   the `ctg-workspace-dev` console (org policy denies CLI deploys). ~~Wave 3
+   ICP v6~~ — DONE (see Live block above).
 5. **IMPROVE-FINDINGS.md** still lists findings 8/10/13 open (lamps-from-config,
    verifyChain per-poll cost, `/intent` budget gate) with their reasoning.
 
