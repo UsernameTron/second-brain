@@ -91,9 +91,28 @@ function loadConfig() {
 function resolveHeaderValue(value) {
   return String(value).replace(/\$\{ENV:([A-Z0-9_]+)\}/g, (_, name) => process.env[name] || '');
 }
+
+// ${GCP_IDTOKEN} — Google-signed identity token for the server's origin, for
+// IAM-gated Cloud Run connectors (the hubspot-mcp-bridge). Same keyless
+// metadata-server pattern as hubspot/opsrunner.js, cached per audience.
+const idTokenCache = new Map(); // audience -> { token, exp }
+async function gcpIdToken(audience) {
+  if (process.env.MCP_GCP_ID_TOKEN) return process.env.MCP_GCP_ID_TOKEN; // dev/test escape hatch
+  const cached = idTokenCache.get(audience);
+  if (cached && cached.exp > Date.now() + 60_000) return cached.token;
+  const res = await fetch(
+    `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${encodeURIComponent(audience)}`,
+    { headers: { 'Metadata-Flavor': 'Google' } },
+  ).catch(() => null);
+  if (!res || !res.ok) throw new Error('no service identity available for ${GCP_IDTOKEN} — needs Cloud Run (or MCP_GCP_ID_TOKEN for local dev)');
+  const token = await res.text();
+  idTokenCache.set(audience, { token, exp: Date.now() + 45 * 60_000 });
+  return token;
+}
+
 function maskHeaderValue(value) {
   const v = String(value);
-  if (/^\$\{ENV:[A-Z0-9_]+\}$/.test(v)) return v; // a reference reveals nothing
+  if (/^\$\{(ENV:[A-Z0-9_]+|GCP_IDTOKEN)\}$/.test(v)) return v; // a reference reveals nothing
   return v.length <= 4 ? '••••' : `••••${v.slice(-4)}`;
 }
 let servers = loadConfig();
@@ -134,7 +153,15 @@ async function rpc(srv, method, params, { notify = false } = {}) {
     accept: 'application/json, text/event-stream',
     'mcp-protocol-version': PROTOCOL_VERSION,
   };
-  for (const [k, v] of Object.entries(srv.headers || {})) headers[k] = resolveHeaderValue(v);
+  for (const [k, v] of Object.entries(srv.headers || {})) {
+    if (String(v).includes('${GCP_IDTOKEN}')) {
+      const token = await gcpIdToken(new URL(srv.url).origin);
+      // a bare reference becomes a full Bearer credential; an embedded one substitutes verbatim
+      headers[k] = String(v) === '${GCP_IDTOKEN}' ? `Bearer ${token}` : String(v).replace('${GCP_IDTOKEN}', token);
+    } else {
+      headers[k] = resolveHeaderValue(v);
+    }
+  }
   const sid = sessions.get(srv.name);
   if (sid) headers['mcp-session-id'] = sid;
   const body = notify
