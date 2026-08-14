@@ -317,6 +317,123 @@ HubSpot writeback (ADR-0041), dashboard, dormant advisor-era code.
    surfaces (scope in their own pass; the panel dive covered only
    `/intel/*`).
 
+## Step-1 adversarial review (2026-08-14, local session, probe-verified)
+
+Required by [AUTONOMOUS-EXECUTION.md](AUTONOMOUS-EXECUTION.md) Step 1. Every
+line below cites the probe or file that produced it. Corrections here
+**supersede** the deep-dive specs where they conflict.
+
+### Re-verification of the three gating claims
+
+**SOI reachability — VERIFIED LIVE.** `GET
+https://soi-query-931330808000.us-central1.run.app/` returns `Invalid IAP
+credentials: Invalid bearer token. Invalid JWT audience.` — IAP answering
+proves the service exists *and* that it sits behind IAP, which is exactly why
+the spec's second, IAP-free `soi-mcp` service is required rather than
+optional. (`gcloud run services list --project ctg-workspace-dev` is denied
+for BOTH identities — the deterministic project-number hostname, project
+number 931330808000, is the only usable probe surface.)
+
+**enrichment-dispatch LIVE — VERIFIED, with two corrections.** The service
+answers on `https://enrichment-dispatch-874411154198.us-central1.run.app`:
+`/`, `/docs`, `/v1/enrich` all return the Google-frontend **401** that an
+existing IAM-gated Cloud Run service produces, while a fabricated control
+hostname in the same project returns **404**. That discriminator is the
+verification; `gcloud run describe` remains denied. Note the service's own
+`.planning/STATE.md:129` records that this service answers on two hostnames
+(hash form and project-number form) — the spec quoted the hash form, this
+probe used the project-number form, same service.
+
+- **CORRECTION 1 — the 150-credit figure does not exist.** Step 3 instructs
+  setting `ED_DAILY_BUDGET_CREDITS=150`, "deploy.sh's documented example
+  value", and to verify it in the external repo first. Verified: it is not
+  there. `scripts/deploy.sh:38` is `BUDGET="${BUDGET:-}"` — no default and no
+  example. The documented value is **25**, in `docs/ADMIN-GUIDE.md:62` and
+  `docs/DEVOPS-HANDOFF.md:181`, and `.planning/STATE.md:18` records the live
+  revision (`enrichment-dispatch-00015-rkp`) already serving
+  `ED_DAILY_BUDGET_CREDITS=25`, IAM-auth, dry-run held. **Action taken:**
+  change nothing. The precondition's intent — a real ceiling exists — is
+  already satisfied at 25, and 150 would be a 6× unreviewed raise justified by
+  a figure that isn't in the source. Setting it is also impossible from here
+  (cross-project IAM).
+- **CORRECTION 2 — the budget guard fails CLOSED, not open.** The spec says
+  "empty today = no daily ceiling", implying unset = unlimited spend. The code
+  is the opposite: `app/store.py:497` returns `None` when unset and
+  `app/company.py:246-254` then returns `{"status": "budget_unconfigured",
+  "reason": "ED_DAILY_BUDGET_CREDITS is not set; paid enrichment stays off"}`
+  — with a comment recording that the fail-open version was a fixed bug.
+  `ADMIN-GUIDE.md:99` agrees ("None (off)"). So the budget cap is an
+  **enablement** gate, not a safety gate: wiring the client lane cannot cause
+  spend even in the worst case. This lowers the risk of Wave 2's ED lane and
+  is why it proceeds rather than blocking.
+- **CORRECTION 3 — revision `00027-prt` is unverified.** The repo's own record
+  says `00015-rkp`. Neither can be confirmed without `gcloud describe`. The
+  revision number is not load-bearing for the client lane; the URL and the
+  IAM gate are, and both are verified.
+
+**GTM view→raw read-through — CANNOT BE VERIFIED. Wave 1's GTM half is
+BLOCKED.** Not merely the read-through question: there is no access to the
+dataset at all. `bq query --project_id=ctg-hs-exec-tool` → `Access Denied:
+User does not have bigquery.jobs.create permission`. Running the job in the
+canvas project instead (the exact production pattern the spec specifies —
+`bigquery.jobUser` here, `dataViewer` there) → `Access Denied: Table
+ctg-hs-exec-tool:ctg_gtm_marts.INFORMATION_SCHEMA.TABLES: User does not have
+permission to query`. Both identities, from the Mac. The marts' existence,
+their row counts, the physical-table-vs-view split, and the read-through risk
+are therefore all **documented-not-observed**. Building the bridge now would
+mean writing four named queries against a schema nobody in this session can
+see. Blocked pending the `dataViewer` grant on `ctg_gtm_marts`, which needs
+someone with admin on `ctg-hs-exec-tool` (see HANDOFF open item 8 — every
+CLI call against that project is denied for both identities despite pete@
+holding roles/owner; the console is the working surface).
+
+**Bonus verification — sr-icp-connector is LIVE and cheaper than specced.**
+`POST https://sr-icp-connector.fly.dev/mcp` `initialize` → 200,
+`serverInfo: {name: "CTG Lead Finder", version: "1.29.0"}`, Streamable-HTTP
+with SSE framing. `tools/list` → exactly three tools: `ping`,
+`find_icp_leads`, `check_lead_search` (async start/poll pair). **No auth
+header was required** — the endpoint is open to anyone who knows the URL.
+That is a finding, not a convenience: it means the connector row needs no
+secret, and it means the fly.dev service's own exposure is Pete's to decide
+on separately. Wave 1's sr-icp half is a data-only seed row.
+
+### Contradictions and gaps found by comparing the four exercises
+
+1. **Ontology distillation does NOT duplicate SOI retrieval — but they can
+   contradict each other.** SOI is live Vertex RAG over ~1,462 Drive
+   documents, answering at query time with citations. The Context Wave
+   registry is ~40-60 committed FACT nodes read on demand via `read_notes`,
+   zero external calls. Different mechanism, different content. The real
+   hazard is staleness skew: `ontology/` is **frozen 2026-07-28** while SOI
+   indexes live Drive. **Rule adopted:** where a distilled ontology fact and a
+   SOI answer disagree, SOI wins on recency; every distilled entry therefore
+   carries its source node id and the freeze date so the conflict is visible
+   rather than silent.
+2. **GTM `gtm_account_lookup` overlaps the `hubspot-crm` connector's read
+   tools.** Not redundant — hubspot-crm is the live portal per record with no
+   scoring; the marts are a nightly mirror carrying `account_scores`,
+   plain-English `reasons`, spend and DQ. But an agent handed both will
+   double-call. **Gap:** whichever wave lands the GTM bridge must also add the
+   one-line routing rule to the tool descriptions ("live record → hubspot-crm;
+   score, spend, or DQ → gtm_*; marts are yesterday's data").
+3. **Wave 3 creates a version skew the specs do not mention.** Wave 3
+   re-exports the ICP registry as **v6**; `sr-icp-connector.fly.dev` scores
+   server-side against **v5** and is not redeployed by anything in this plan.
+   After Wave 3 the canvas would hold two live ICP versions and no note saying
+   so — precisely the contradiction the panel dive rejected `sr-icp-v1-lite`
+   for importing. **Resolution adopted:** the v6 registry note records that
+   `find_icp_leads` results are v5-scored until that service is re-exported,
+   and the connector row's description says it too.
+4. **Nobody owns the Apps Script parity check.** The third exercise retires
+   the ctg-hs-exec-tool `/exec` Q&A page "after a parity check (each locked
+   button's question answered correctly in a canvas run)" — no wave was
+   assigned it. **Assigned:** Wave 3, as a documentation task; the canvas-side
+   capability (21 hubspot-crm read tools + exec personas) is already live, so
+   this is a verification run and a note, not a build.
+5. **No double-counting found between the shortlist and the deep dives** for
+   the six re-read projects; the two remaining shortlist entries not deep-read
+   (`ctg-ops-automation`, `ctg-signal-radar` full) are already parked.
+
 ## Apps Script URL audit (third exercise, 2026-08-14)
 
 All deployed `script.google.com/**/exec` web apps referenced across the
