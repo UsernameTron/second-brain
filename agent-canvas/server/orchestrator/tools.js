@@ -356,8 +356,19 @@ const HUBSPOT_TOOLS = [
   },
 ];
 
-function toolsForRole(role) {
-  const mcpDefs = require('../mcp/client').getCachedDefs();
+function toolsForRole(role, { userRole = 'member' } = {}) {
+  // MCP defs are filtered per directing user + agent role: owner-only
+  // connectors never reach a member-directed run's tool list, and role-scoped
+  // connectors are offered only to the agent roles the owner named. Both are
+  // re-checked at call time — a def leak alone can never authorize a call.
+  const mcpClient = require('../mcp/client');
+  const mcpDefs = mcpClient.getCachedDefs().filter((d) => {
+    const meta = mcpClient.resolveToolName(d.name);
+    if (!meta) return false;
+    if (meta.access === 'owner' && userRole !== 'owner') return false;
+    if (meta.roles && meta.roles.length && !meta.roles.includes(role)) return false;
+    return true;
+  });
   // In standard scope mode the Gmail tools are absent, not just refusing —
   // a model should never see a tool the deployment cannot honor.
   const gmailOn = require('../google/workspace').gmailEnabled();
@@ -396,6 +407,18 @@ async function executeTool(name, input, ctx) {
     if (!target) return { content: `Unknown or no-longer-enabled MCP tool ${name}.`, isError: true };
     if (!run.initiated_by) {
       return { content: 'This run has no directing user, so MCP tools are unavailable (system-triggered runs cannot call external connectors).', isError: true };
+    }
+    // Call-time authorization re-check (defense in depth — mirrors the
+    // hs_apply_change gate): the def filter decides what is OFFERED, this
+    // decides what may EXECUTE, from current config + the directing user's
+    // current workspace role.
+    if (target.access === 'owner') {
+      const { workspaceRole } = require('../auth');
+      if (workspaceRole(run.initiated_by) !== 'owner') {
+        const { audit } = require('../audit');
+        audit('user', run.initiated_by, 'mcp.denied', { server: target.server, tool: target.tool, reason: 'owner-only connector' });
+        return { content: `REFUSED: the ${target.server} connector is owner-only. Ask the workspace owner to run this, or escalate.`, isError: true };
+      }
     }
     try {
       const out = await mcp.callTool({ server: target.server, tool: target.tool, args: input, actorEmail: run.initiated_by });

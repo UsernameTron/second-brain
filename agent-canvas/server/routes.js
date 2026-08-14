@@ -344,6 +344,86 @@ router.patch('/roster/:id', auth.requireOwner, (req, res) => {
   res.json({ entry: db.prepare('SELECT * FROM roster_agents WHERE id = ?').get(entry.id) });
 });
 
+// ---------- MCP connectors (owner-managed; served to agents via mcp/client) ----------
+router.get('/mcp/servers', auth.requireOwner, (req, res) => {
+  const rows = db.prepare('SELECT * FROM mcp_servers ORDER BY name').all().map((r) => ({
+    id: r.id, name: r.name, url: r.url, access: r.access, enabled: r.enabled,
+    enabledTools: JSON.parse(r.enabled_tools_json || '[]'),
+    roles: JSON.parse(r.roles_json || '[]'),
+    headers: mcpMaskedHeaders(r.headers_json),
+    created_at: r.created_at, updated_at: r.updated_at,
+  }));
+  res.json({ servers: rows, configError: mcp.configError() });
+});
+
+const MCP_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+function mcpMaskedHeaders(headersJson) {
+  let headers;
+  try { headers = JSON.parse(headersJson || '{}'); } catch { return {}; }
+  const masked = {};
+  for (const [k, v] of Object.entries(headers)) {
+    const val = String(v);
+    masked[k] = /^\$\{ENV:[A-Z0-9_]+\}$/.test(val) ? val : (val.length <= 4 ? '••••' : `••••${val.slice(-4)}`);
+  }
+  return masked;
+}
+function mcpValidate({ name, url, access, model }) {
+  if (name !== undefined && !MCP_NAME_RE.test(String(name))) return 'name must be 1-64 chars [a-zA-Z0-9_-]';
+  if (url !== undefined && !/^https?:\/\//.test(String(url))) return 'url must be http(s)';
+  if (access !== undefined && !['owner', 'members'].includes(access)) return "access must be 'owner' or 'members'";
+  return null;
+}
+
+router.post('/mcp/servers', auth.requireOwner, (req, res) => {
+  const { name, url, headers = {}, enabledTools = [], access = 'members', roles = [], enabled = true } = req.body || {};
+  const bad = mcpValidate({ name: name || '', url: url || '', access });
+  if (!name || !url || bad) return res.status(400).json({ error: bad || 'name and url required' });
+  if (db.prepare('SELECT id FROM mcp_servers WHERE name = ?').get(name)) return res.status(409).json({ error: 'a connector with that name exists' });
+  const id = crypto.randomUUID();
+  const ts = nowIso();
+  db.prepare('INSERT INTO mcp_servers (id, name, url, headers_json, enabled_tools_json, access, roles_json, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(id, name, url, JSON.stringify(headers), JSON.stringify(enabledTools), access, JSON.stringify(roles), enabled ? 1 : 0, ts, ts);
+  audit('user', req.user.email, 'mcp.server_create', { serverId: id, name, access });
+  mcp.reload();
+  mcp.refreshDefs();
+  res.json({ ok: true, id });
+});
+
+router.patch('/mcp/servers/:id', auth.requireOwner, (req, res) => {
+  const row = db.prepare('SELECT * FROM mcp_servers WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'connector not found' });
+  const { name, url, headers, enabledTools, access, roles, enabled } = req.body || {};
+  const bad = mcpValidate({ name, url, access });
+  if (bad) return res.status(400).json({ error: bad });
+  db.prepare('UPDATE mcp_servers SET name = ?, url = ?, headers_json = ?, enabled_tools_json = ?, access = ?, roles_json = ?, enabled = ?, updated_at = ? WHERE id = ?')
+    .run(name ?? row.name, url ?? row.url,
+      headers === undefined ? row.headers_json : JSON.stringify(headers),
+      enabledTools === undefined ? row.enabled_tools_json : JSON.stringify(enabledTools),
+      access ?? row.access,
+      roles === undefined ? row.roles_json : JSON.stringify(roles),
+      enabled === undefined ? row.enabled : (enabled ? 1 : 0),
+      nowIso(), row.id);
+  audit('user', req.user.email, 'mcp.server_update', { serverId: row.id, name: name ?? row.name });
+  mcp.reload();
+  mcp.refreshDefs();
+  res.json({ ok: true });
+});
+
+// Probe: fresh handshake + tools/list, returning the tool inventory so the
+// admin tab can render per-tool enable checkboxes. Probing enables NOTHING.
+router.post('/mcp/servers/:id/probe', auth.requireOwner, asyncRoute(async (req, res) => {
+  const row = db.prepare('SELECT * FROM mcp_servers WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'connector not found' });
+  mcp.reload();
+  try {
+    const result = await mcp.probeServer(row.name);
+    const tools = await mcp.discoverTools(row.name);
+    res.json({ ok: true, ms: result.ms, tools });
+  } catch (err) {
+    res.status(502).json({ error: String(err.message || err) });
+  }
+}));
+
 // ---------- canvases ----------
 router.get('/canvases', (req, res) => {
   const all = db.prepare('SELECT * FROM canvases ORDER BY created_at').all();
