@@ -5,110 +5,63 @@ depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
 
-## CURRENT STATE (2026-08-14 evening — start here, ignore the older START HEREs)
+## CURRENT STATE (2026-08-14 session close — start here; everything below is history)
 
-**Live:** `agent-canvas-00040-xpw` (2026-08-14 night), tests **149/149**.
-Adds: system-prompt edits are OWNER-ONLY and audited (#147 — finding 11 fully
-closed by Pete's decision), and the **enrichment lane is LIT** (#148):
-`ED_DISPATCH_URL` verified on the revision, deploy.sh passes it through the
-wholesale env set, invoker grant verified in live IAM. Verify next sign-in:
-probe the enrichment lamp and run one enrichment tool end-to-end.
-`ctg-workspace-dev` CLI access now works (verified live), so the SOI runbook
-(WAVE2-SOI-RUNBOOK.md) is deployable from this Mac — the next real item.
-Carries everything above plus **Wave 3 / ICP v6, fully propagated**: the
-upstream harvest merged in ctg-signal-radar (peteconnorCTG PR #127 — panel
-title taxonomy, advisor-match vocab, 22 blocklist domains, registry bumped to
-sr-icp-v6, 2535/2535 upstream tests); the canvas recommitted the v6 artifact
-(#144) and reseed v3 (#145) propagated it to LIVE workspaces — verified by
-the `workspace.roster_reseed` audit line (13 updates: Scout/Sentinel/Radar
-prompts + the v6 ICP note added beside the preserved v5 note on every
-canvas). Radar's prompt now states the skew: the fly.dev lead finder scores
-sr-icp-v5 until re-exported; v5 and v6 scores are not comparable. Note for
-future prompt edits: run scripts/snapshot-roster-prompts.js BEFORE editing
-roster.js, then bump RESEED_KEY — #144 skipped that and #145 had to
-reconstruct the legacy snapshot from the pre-#144 tree. `ED_DISPATCH_URL` still absent
-(hold preserved). **Release note: all probeable lamps are AMBER after every
-deploy until probed once — that is finding 8 working, not a regression.**
+**Live:** `agent-canvas-00041-xk8`, tests **150/150** on master. Every open
+item that could be closed from this Mac is closed. Deploys only via the
+"Redeploy procedure" below, token-verified pete@ (`tokeninfo`, never
+`gcloud auth list`), and note `ED_DISPATCH_URL` is now a REQUIRED export in
+that procedure — deploy.sh passes it through, omitting it darkens the
+enrichment lane.
 
-**GTM bridge VERIFIED END-TO-END 2026-08-14:** Pete probed and ticked the 4
-tools; a live agent run read Medical Mutual (tier B, score 85, scored_at
-carried, routing caveat honored) and the query job ran + billed in the canvas
-project. Open item 1 fully closed.
+**What is live and verified (this session, PRs #134–#150 here + upstream):**
+- **GTM named-query bridge** — `gtm-mcp-bridge` on Cloud Run (dedicated SA,
+  `bigquery.jobUser` on the canvas project, dataset-scoped READER on
+  `ctg-hs-exec-tool:ctg_gtm_marts` only). 4 tools ticked; verified by a live
+  agent read (Medical Mutual, tier B) with the query job billed in the
+  canvas project.
+- **Prompt caching + tool-result cap** — verified live: 321k-token run at
+  $0.47 vs the 279k baseline at $1.55. Cache reads bill at 0.1×.
+- **IMPROVE findings: all 15 addressed.** 8 (lamps earn green from probe
+  evidence — AMBER after every deploy until probed, by design), 10 (health
+  poll tail-verifies the audit chain), 13 (/intent behind budget + pause),
+  11 (prompt edits OWNER-ONLY + audited, Pete's decision).
+- **ICP v6, fully propagated** — upstream harvest merged
+  (peteconnorCTG/CTG_Signal_Detection_App#127, 2535 tests), canvas carries
+  `config/icp-sr-icp-v6.json`, reseed v3 propagated prompts + the v6
+  registry note to live canvases (audit `workspace.roster_reseed`, 13
+  updates; v5 note preserved). **Skew:** the fly.dev lead finder scores
+  sr-icp-v5 until re-exported; Radar's prompt says so.
+- **Enrichment lane LIT** (Pete released the F-01 hold in-session) —
+  `ED_DISPATCH_URL` on the revision, ENRICHMENT · DISPATCH lamp on the
+  board, invoker grant verified in live IAM. Reads free
+  (`get_enriched_record`); paid enrichment is research/targeting/commercial
+  only, never system-triggered.
+- **Probe rate bucket** — probing the board no longer burns the sign-in
+  limit (they shared a 10/min bucket; probes now 60/min).
 
-**IMPROVE-FINDINGS closed out:** 8/10/13 FIXED (PRs #138/#139/#140), 11
-partial — prompt rewrites now audit as `agent.prompt_update`; whether that
-route goes owner-only is Pete's decision. See the disposition table.
+**Open for the next session (Pete said further improvements are coming):**
+1. **SOI** — now CLI-deployable (`ctg-workspace-dev` access verified live
+   this session). Runbook: [WAVE2-SOI-RUNBOOK.md](WAVE2-SOI-RUNBOOK.md).
+2. Enrichment lamp: Pete to probe once + one free `get_enriched_record`
+   agent run for the end-to-end proof.
+3. Parked per PORTFOLIO-FOLD-IN: qualification-engine lift, signal-radar
+   full integration, ctg-ai-platform's other surfaces.
 
-**GTM bridge deploy details (verification above — nothing pending):**
-`gtm-mcp-bridge` is live on Cloud Run (project `agent-canvas-ctg-0811`,
-IAM-gated, dedicated SA `gtm-bridge-run@` with `bigquery.jobUser` on the
-canvas project + dataset-scoped READER on `ctg-hs-exec-tool:ctg_gtm_marts`
-ONLY — grants verified against the live dataset ACL). The `gtm-marts`
-connector row seeded on 00034 (audit `workspace.seed_mcp servers:1`), tools
-unticked. **Pete: Admin → Connectors → Probe `gtm-marts` (expect 4 tools:
-gtm_account_lookup, gtm_tier_list, gtm_enrichment_spend, gtm_dq_snapshot) →
-tick → one smoke run** ("look up Medical Mutual in GTM, report tier and
-scored_at"). Ops note: IAM-gated Cloud Run in this org answers unauthorized
-callers with a **GFE 404, not 403** — hubspot-mcp-bridge does the same and
-works; a 404 from curl is the gate working, not a broken route (one service
-delete/recreate was burned learning this).
-The portfolio fold-in is deployed and verified end-to-end; the Radar
-polling-burn fix is deployed and smoke-tested.
-
-**Caching verified live on 00033:** a 321k-input-token run cost **$0.47** vs
-the pre-caching baseline's 279k for **$1.55** (run rows compared via read-only
-Litestream restore of the DB replica). Cache reads bill at 0.1× and the run
-ledger prices them correctly. Open item 2 below (Make Radar cheap) is DONE.
-Env verified intact through the wholesale set; `ED_DISPATCH_URL` still absent
-(hold preserved). Note for triage: a run whose agent calls
-`complete({outcome: "incomplete"})` renders as status `failed` with a $-cost
-and empty `error` — that is a deliberate park (usually an escalation pending),
-not a crash. Check `run_events` before diagnosing.
-
-**Done and verified this session (nine PRs, #121–#132):**
-- Waves 1–3 folded in: `sr-icp-leadfinder` connector (probed 3 tools),
-  enrichment client lane (built, **not lit** — see Held), context registries
-  (`read_registry`: suppliers + org-context), all hardening + review fixes.
-- Radar now returns **hot leads only (≥0.75) with per-lead `why`**, polls
-  bounded (1 check + ≤2 `wait`s then park), and `complete` can say
-  `incomplete`. Smoke run returned 100 hot leads, no spin. **Caveat:** that run
-  cost ~$1.56/~280k tokens — the empty-spin is gone but Radar isn't *cheap*;
-  making it cheap needs prompt caching + message-array trimming (open, below).
-- `hubspot-crm` connector: 14 read tools live; 7 write tools were refused and
-  the config converged (green). Writes stay on the ops-runner lane (ADR-0041).
-
-**Resolved:** GTM was **never blocked** — the "#130 perimeter" was a crossed
-local gcloud credential (pete@ label holding gmail's refresh token; only
-`tokeninfo` reveals it). pete@ has Data Owner on `ctg_gtm_marts`; `bq show`
-succeeds. See `tasks/lessons.md` (GCP-identity).
-
-**Enrichment lane LIT (Pete's direction, 2026-08-14 night):** `ED_DISPATCH_URL`
-is now exported in the runbook below and passed through by deploy.sh. The
-former hold (F-01) was released by Pete in-session; the invoker grant was
-already in place and verified against the live IAM policy.
-
-**Open, ranked (next session's menu — none blocking):**
-1. ~~**Build the GTM named-query bridge**~~ — DONE (PR #136, deployed,
-   seeded on 00034; see above). Remaining: Pete probes/ticks in Admin + one
-   smoke run.
-2. ~~**Make Radar cheap**~~ — DONE: PR #134 shipped prompt caching + the
-   tool-result cap; verified live on 00033 ($0.47 vs $1.55 baseline, above).
-3. **Light the enrichment lane** — only after F-01 closes; one
-   `ED_DISPATCH_URL=https://enrichment-dispatch-874411154198.us-central1.run.app`
-   + redeploy. If dark after: check audience claim + runtime SA, not IAM.
-4. **SOI** ([WAVE2-SOI-RUNBOOK.md](WAVE2-SOI-RUNBOOK.md)) remains blocked on
-   the `ctg-workspace-dev` console (org policy denies CLI deploys). ~~Wave 3
-   ICP v6~~ — DONE (see Live block above).
-5. **IMPROVE-FINDINGS.md** still lists findings 8/10/13 open (lamps-from-config,
-   verifyChain per-poll cost, `/intent` budget gate) with their reasoning.
-
-**Not mine to touch:** the GCP findings register (F-01/02/03/09) is IAM +
-org-policy remediation owned by Connor/Jessica; F-06 says security work needs a
-signed RoE first. One agent-canvas-adjacent note for whoever closes F-03: the
-`hubspot-mcp-bridge` runs as the default compute SA — same finding, same fix.
-
-**Deploy = the "Redeploy procedure" block below**, unchanged, from a local Mac
-with `gcloud` as a token-verified pete@ (`tokeninfo`, not `auth list`).
+**Operating lessons this session (verified, will bite again):**
+- IAM-gated Cloud Run in this org answers unauthorized callers **GFE 404,
+  not 403** — a 404 is the gate working, not a broken route.
+- Roster prompt edits: run `scripts/snapshot-roster-prompts.js` BEFORE
+  editing roster.js, then bump `RESEED_KEY` — or live agents silently keep
+  the old prompt (#145 had to reconstruct the snapshot from git history).
+- A run ending `complete({outcome: "incomplete"})` renders as status
+  `failed` with cost and empty error — a deliberate park (escalation
+  pending), not a crash. Check `run_events` first.
+- `gh auth switch` is machine-wide: `peteconnorCTG` owns signal-radar,
+  `UsernameTron` owns this repo — switch before pushing either.
+- ctg-signal-radar has 3 pre-existing uncommitted v2–v4 artifact deletions
+  stashed on `main` ("pre-existing uncommitted v2-v4 artifact deletions") —
+  Pete's to keep or drop.
 
 ---
 
