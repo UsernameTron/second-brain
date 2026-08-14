@@ -266,6 +266,10 @@ if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then ENV_VARS="${ENV_VARS},GOOGLE_CLIENT_ID=$
 # HubSpot Ops Runner (optional): agents become IAM-authenticated clients of the
 # policy-gated sandbox runner. No HubSpot credential enters this service.
 if [ -n "${HS_OPS_RUNNER_URL:-}" ]; then ENV_VARS="${ENV_VARS},HS_OPS_RUNNER_URL=${HS_OPS_RUNNER_URL}"; fi
+# Enrichment dispatch (optional, lit by Pete 2026-08-14 after F-01 sign-off):
+# same IAM-client pattern as the ops runner. Env is set WHOLESALE — without
+# this passthrough a redeploy silently drops the var and darkens the lane.
+if [ -n "${ED_DISPATCH_URL:-}" ]; then ENV_VARS="${ENV_VARS},ED_DISPATCH_URL=${ED_DISPATCH_URL}"; fi
 gcloud run deploy "${SERVICE}" \
   --image "${IMAGE}" \
   --project "${PROJECT_ID}" \
