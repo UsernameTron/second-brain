@@ -10,7 +10,7 @@
 // PRIORITIES / Operating rules / Escalation / DELEGATION-LANES /
 // CONFIDENTIALITY_GUARD.
 //
-// The sr-icp-v5 registry ships as config/icp-sr-icp-v5.json (exported by
+// The ICP registry ships as config/icp-sr-icp-<version>.json (exported by
 // ctg-signal-radar scripts/export_icp.py; source of truth
 // src/backend/icp_registry.py). Radar's digest below interpolates its numbers
 // from that data — the prompt cannot drift from the file. Exact lists (title
@@ -30,7 +30,7 @@ const { EXEC_AGENTS, CONFIDENTIALITY_GUARD, PROTOCOL_NOTE } = require('./seed');
 
 // Committed asset — a missing or corrupt file must fail the boot loudly, not
 // half-seed a roster.
-const ICP = require('./config/icp-sr-icp-v5.json');
+const ICP = require('./config/icp-sr-icp-v6.json');
 
 const execPrompt = (name) => EXEC_AGENTS.find((a) => a.name === name).system_prompt;
 
@@ -63,7 +63,7 @@ const ROSTER_NOTES = {
     title: ICP_NOTE_TITLE,
     pinned: false,
     content: `# ${ICP_NOTE_TITLE}
-Version: ${ICP.icp_version} — source of truth: ${ICP.source_of_truth} (exported by scripts/export_icp.py, ctg-signal-radar). The lists below are authoritative for scoring; prompts carry only the arithmetic digest. A fresh export is a new commit of config/icp-sr-icp-v5.json.
+Version: ${ICP.icp_version} — source of truth: ${ICP.source_of_truth} (exported by scripts/export_icp.py, ctg-signal-radar). The lists below are authoritative for scoring; prompts carry only the arithmetic digest. A fresh export is a new commit of the config/icp-sr-icp-<version>.json artifact.
 
 \`\`\`json
 ${JSON.stringify(ICP, null, 2)}
@@ -175,7 +175,7 @@ PRIORITIES (ranked — every action must advance one):
 HOT LEADS ONLY (what you return):
 - "Hot" means a fit score at or above ${HOT_MIN_SCORE}. When you call find_icp_leads, pass min_score: ${HOT_MIN_SCORE}. When you report, drop everything below it — do not lower the bar to fill a list. Zero hot leads is a real, correct answer: say so and say what you searched.
 - Report each hot lead with its name, title, company, LinkedIn, score, AND the "why" the search returns (the score breakdown). The "why" is not optional — a bare number cannot be acted on, and the same score can mean a perfect fit or a size mismatch depending on the breakdown.
-- The lead finder scores server-side against ${ICP.icp_version} on a 0–1 scale, so ${HOT_MIN_SCORE} is on that scale — state "scored against ${ICP.icp_version} (0–1)" so no one confuses it with your own arithmetic below, which can exceed 1.
+- VERSION SKEW: the lead finder scores server-side against sr-icp-v5 (the registry it was exported with), NOT ${ICP.icp_version} — its results stay v5-scored until that service is re-exported, and a v5 score and a ${ICP.icp_version} score are not comparable. State "scored against sr-icp-v5 (0–1)" on lead-finder results so no one confuses them with your own ${ICP.icp_version} arithmetic below, which can exceed 1.
 
 USING THE LEAD FINDER (find_icp_leads / check_lead_search — an async pair):
 - find_icp_leads starts a search and returns a job_id; it does NOT return leads. check_lead_search collects them, and answers "still running" until the search finishes (a few minutes).

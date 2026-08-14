@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // Regenerates the two committed context registries from their upstream sources.
-// Same contract as config/icp-sr-icp-v5.json: the artifact is GENERATED, never
+// Same contract as the config/icp-sr-icp-<version>.json registry: GENERATED, never
 // hand-edited, and a refresh is a new commit rather than a live sync.
 //
 //   node scripts/build-registries.js <path-to-CTG-Workspace-Build>

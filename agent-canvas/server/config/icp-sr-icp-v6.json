@@ -61,22 +61,44 @@
   ],
   "excluded_vendor_domains": [
     "8x8.com",
+    "accenture.com",
     "avaya.com",
     "calabrio.com",
     "cisco.com",
+    "convoso.com",
+    "copc.com",
+    "deloitte.com",
+    "deloittedigital.com",
     "dialpad.com",
+    "etechgs.com",
     "five9.com",
     "freshworks.com",
+    "gartner.com",
     "genesys.com",
     "gladly.ai",
+    "gladly.com",
+    "interactions.com",
+    "iqor.com",
     "kustomer.com",
+    "mosaicx.com",
+    "movate.com",
     "nice.com",
+    "nwn.ai",
     "ringcentral.com",
+    "senture.com",
+    "servion.com",
+    "startek.com",
     "talkdesk.com",
+    "teleperformance.com",
+    "transcom.com",
+    "ttec.com",
+    "ttecdigital.com",
     "twilio.com",
     "ujet.cx",
     "verint.com",
     "vonage.com",
+    "waterfield.com",
+    "waterfieldtech.com",
     "zoom.com"
   ],
   "executive_level_aliases": {
@@ -119,7 +141,7 @@
   },
   "fortune_1000_revenue_proxy": 3000000000.0,
   "generated_by": "scripts/export_icp.py (ctg-signal-radar)",
-  "icp_version": "sr-icp-v5",
+  "icp_version": "sr-icp-v6",
   "industry_excluded_weight": 0.1,
   "industry_off_weight": 0.6,
   "industry_tiers": {
@@ -156,6 +178,7 @@
   },
   "priority_industries": {
     "Automotive": [
+      "aftermarket",
       "auto finance",
       "automotive",
       "dealership",
@@ -170,19 +193,23 @@
       "outsourcing"
     ],
     "Education": [
+      "certification",
       "college",
       "e-learning",
       "edtech",
       "education",
       "elearning",
+      "student loan",
       "university"
     ],
     "Financial Services": [
       "bank",
       "banking",
       "capital markets",
+      "collections",
       "credit intermediation",
       "credit union",
+      "debt recovery",
       "financial",
       "fintech",
       "lending",
@@ -236,13 +263,19 @@
       "philanthropy"
     ],
     "Retail & eCommerce": [
+      "apparel",
       "consumer goods",
       "cpg",
+      "department store",
       "e-commerce",
       "ecommerce",
+      "grocery",
+      "luxury",
+      "marketplace",
       "merchandise",
       "retail",
-      "shopping"
+      "shopping",
+      "subscription commerce"
     ],
     "Technology/SaaS": [
       "cloud",
@@ -266,13 +299,16 @@
       "wireless"
     ],
     "Travel & Hospitality": [
+      "accommodation",
       "airline",
       "airlines",
       "aviation",
       "booking",
+      "car rental",
       "cruise",
       "hospitality",
       "hotel",
+      "leisure",
       "resort",
       "tourism",
       "travel"
@@ -280,9 +316,11 @@
     "Utilities & Energy": [
       "electric",
       "energy",
+      "environmental services",
       "renewables",
       "utilities",
       "utility",
+      "wastewater",
       "water and wastewater"
     ]
   },
@@ -340,7 +378,14 @@
     "contact center agent",
     "customer service representative",
     "customer service agent",
-    "sales representative"
+    "sales representative",
+    "chief of staff",
+    "executive business partner",
+    "executive assistant",
+    "assistant to",
+    "administrative",
+    "retired",
+    "former"
   ],
   "title_exclusions_unless_senior": [
     "coordinator",
@@ -382,7 +427,9 @@
       "automation program manager",
       "ml engineer",
       "machine learning engineer",
-      "ai engineer"
+      "ai engineer",
+      "innovation lead",
+      "emerging tech"
     ],
     "cx_buyer": [
       "revenue cycle",
@@ -492,7 +539,21 @@
       "director policyholder services",
       "policyholder services",
       "vp policy administration",
-      "director policy services"
+      "director policy services",
+      "director conversational ai",
+      "head conversational ai",
+      "director contact center ai",
+      "director omnichannel",
+      "head cx automation",
+      "head cx technology",
+      "guest experience",
+      "guest services",
+      "consumer experience",
+      "voice of the customer",
+      "global support",
+      "support operations",
+      "retail banking",
+      "member engagement"
     ],
     "it_leader": [
       "cio",
@@ -528,7 +589,11 @@
       "vp intelligent automation",
       "head intelligent automation",
       "director ai",
-      "chief automation officer"
+      "chief automation officer",
+      "head ai strategy",
+      "head ai governance",
+      "director data ai",
+      "vp cloud"
     ]
   }
 }

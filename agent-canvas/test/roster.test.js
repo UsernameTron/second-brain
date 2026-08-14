@@ -18,7 +18,7 @@ process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
 const { server } = require('../server/index'); // boots app + runs all seeds
 const { db, getSetting } = require('../server/db');
 const roster = require('../server/roster');
-const ICP_FILE = require('../server/config/icp-sr-icp-v5.json');
+const ICP_FILE = require('../server/config/icp-sr-icp-v6.json');
 
 let base;
 let ownerCookie;
