@@ -7,9 +7,10 @@ kept for the reasoning, not the status.**
 
 ## CURRENT STATE (2026-08-14 evening — start here, ignore the older START HEREs)
 
-**Live:** `agent-canvas-00035-tx7` (deployed 2026-08-14 evening; carries PRs
+**Live:** `agent-canvas-00036-lsh` (deployed 2026-08-14 evening; carries PRs
 #136 GTM bridge + #138 lamps-from-probe-evidence + #139 /intent gates +
-#140 audit tail-verify), tests **146/146**. `ED_DISPATCH_URL` still absent
+#140 audit tail-verify + #142 probe rate bucket — probing the board no longer
+burns the sign-in limit), tests **147/147**. `ED_DISPATCH_URL` still absent
 (hold preserved). **Release note: all probeable lamps are AMBER after every
 deploy until probed once — that is finding 8 working, not a regression.**
 
