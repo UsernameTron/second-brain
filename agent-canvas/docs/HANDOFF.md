@@ -34,7 +34,8 @@ enabled; **Phase 3 /crm is COMPLETE** — see the Phase 3 STATUS block under
 smoke-tested end-to-end by a Scout run (`hubspot-get-user-details` → verified
 memory entry). Note from that run: the bridge's read-only key hits the REAL
 portal 243103424; writes remain sandbox-only via ops-runner (246460341).
-Remaining owner action: **Phase 2 (item 3)**. Deploy gotchas fixed along the
+Phase 2 (item 3) is now also DONE (verified 2026-08-14, see below) — **no
+owner action remains open from this list.** Deploy gotchas fixed along the
 way: `rapidapi-key` secret needed a manual `secretAccessor` grant for
 agent-canvas-run (now durable); squash-merge drops exec bits (deploy.sh
 needed `chmod +x`, PR #111).
@@ -48,10 +49,14 @@ needed `chmod +x`, PR #111).
    agents to have — connectors are inert until tools are explicitly enabled
    (consent model holds end to end). Access/roles editable there too (both
    seeded members-visible, scoped to research/targeting/commercial). **DONE**
-3. **Phase 2 (Claude-side HubSpot Agent CLI):** follow
-   [HUBSPOT-AGENT-CLI.md](HUBSPOT-AGENT-CLI.md) — two environment settings
-   (`npm install -g @hubspot/cli` setup command + `HUBSPOT_PERSONAL_ACCESS_KEY`),
-   then a **fresh** session verifies with `hs account info`.
+3. **Phase 2 (Claude-side HubSpot Agent CLI) — DONE, verified 2026-08-14.**
+   Repo-root environment carries the setup command + THREE env vars
+   (`USE_ENVIRONMENT_HUBSPOT_CONFIG=true`, `HUBSPOT_PERSONAL_ACCESS_KEY`,
+   `HUBSPOT_ACCOUNT_ID=243103424` — production portal, Pete's decision).
+   `hs project list --use-env` authenticated and returned "No projects
+   found" (correct: nothing uploaded yet). See
+   [HUBSPOT-AGENT-CLI.md](HUBSPOT-AGENT-CLI.md) for the verified
+   `--use-env` contract (`hs account info` can never verify env auth).
 4. **Phase 3 — DONE** (verification, build, deploy, wire, smoke test).
 
 ## What this is
