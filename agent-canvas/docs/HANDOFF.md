@@ -313,6 +313,23 @@ before building the bridge:**
   landing surface for Phase 2's `hs project create` work, not a missed
   integration.
 
+**Wave 1 — `sr-icp-leadfinder` connector (2026-08-14).** ctg-signal-radar's
+deployed remote MCP is now a seeded connector row: `https://sr-icp-connector
+.fly.dev/mcp`, members-visible, scoped research/targeting/commercial, tools
+EMPTY until ticked. Probed live before seeding — "CTG Lead Finder" v1.29.0,
+three tools (`ping`, `find_icp_leads`, `check_lead_search`), **no auth header
+of any kind**, so the row carries no `${ENV:…}` reference and needed no
+secret. `find_icp_leads`/`check_lead_search` are an async start/poll pair —
+an agent that calls the first and stops gets nothing; tell it to poll.
+Scoring caveat for prompts: that service scores server-side against
+**sr-icp-v5**, so once the canvas registry moves to v6 its results stay
+v5-scored until the service is re-exported.
+
+Seeding pattern, now versioned: `name` is UNIQUE and the insert is
+`OR IGNORE`, so adding a connector is "append to `SEED_SERVERS` + bump the
+`seed_mcp_vN` key" — the loop re-runs on a live workspace and only new rows
+land. The audit line reports rows actually inserted.
+
 **Cost levers** (no new code): `FAST_PROVIDER=gemini` moves the fast tier
 (Atlas/Forge/Gauge/Radar) to Gemini on Vertex — `providerForTier`
 (orchestrator/anthropic.js) + the tested Gemini adapter already support it.

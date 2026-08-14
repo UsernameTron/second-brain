@@ -70,18 +70,36 @@ test.after(() => Promise.all([
   new Promise((resolve) => mock.close(resolve)),
 ]));
 
-test('seed: both LinkedIn connectors present, tools EMPTY, idempotent', () => {
-  assert.ok(getSetting('seed_mcp_v1'));
+test('seed: LinkedIn + lead-finder connectors present, tools EMPTY, idempotent', () => {
+  assert.ok(getSetting('seed_mcp_v2'));
   const rows = db.prepare('SELECT * FROM mcp_servers ORDER BY name').all();
-  assert.deepEqual(rows.map((r) => r.name), ['linkedin-blitz', 'linkedin-fresh']);
+  assert.deepEqual(rows.map((r) => r.name), ['linkedin-blitz', 'linkedin-fresh', 'sr-icp-leadfinder']);
   for (const row of rows) {
     assert.equal(row.access, 'members');
     assert.deepEqual(JSON.parse(row.enabled_tools_json), [], 'inert until the owner enables tools');
     assert.deepEqual(JSON.parse(row.roles_json), ['research', 'targeting', 'commercial']);
-    const headers = JSON.parse(row.headers_json);
+  }
+  for (const name of ['linkedin-blitz', 'linkedin-fresh']) {
+    const headers = JSON.parse(rows.find((r) => r.name === name).headers_json);
     assert.equal(headers['x-api-key'], '${ENV:RAPIDAPI_KEY}', 'key stored as reference, not value');
   }
+  const finder = rows.find((r) => r.name === 'sr-icp-leadfinder');
+  assert.equal(finder.url, 'https://sr-icp-connector.fly.dev/mcp');
+  assert.deepEqual(JSON.parse(finder.headers_json), {}, 'the lead finder takes no credential');
   assert.equal(seedMcpServers().seeded, false, 'second call no-ops');
+});
+
+test('seed v2 on an already-seeded workspace adds only the new row', () => {
+  // Simulate the live workspace: v1-era rows present, v2 key absent. The
+  // UNIQUE name + INSERT OR IGNORE means the loop is safe to re-run, and the
+  // audit line must report what landed (1), not the constant's length (3).
+  const { setSetting } = require('../server/db');
+  db.prepare("DELETE FROM mcp_servers WHERE name = 'sr-icp-leadfinder'").run();
+  setSetting('seed_mcp_v2', '');
+  const out = seedMcpServers();
+  assert.equal(out.seeded, true);
+  assert.equal(out.servers, 1, 'only the genuinely new connector counts');
+  assert.equal(db.prepare('SELECT COUNT(*) c FROM mcp_servers').get().c, 3);
 });
 
 test('DB config reaches the client; masked listing never leaks a header value', () => {
