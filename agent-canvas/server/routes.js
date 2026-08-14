@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 const express = require('express');
 const { db, tx, nowIso } = require('./db');
 const roster = require('./roster');
-const { audit, queryAudit, verifyChain } = require('./audit');
+const { audit, queryAudit, verifyChain, verifyChainTail } = require('./audit');
 const memory = require('./memory');
 const bus = require('./bus');
 const auth = require('./auth');
@@ -202,7 +202,9 @@ router.get('/health/integrations', (req, res) => {
     };
   };
   let chainOk = true;
-  try { chainOk = verifyChain().ok !== false; } catch { chainOk = false; }
+  // Finding 10: the 60s poll verifies only the chain tail (O(K), anchored on
+  // the stored pre-tail hash); the full walk stays on the owner-only audit view.
+  try { chainOk = verifyChainTail().ok !== false; } catch { chainOk = false; }
   const replicated = Boolean(process.env.LITESTREAM_REPLICA_URL);
   const integrations = [
     {
@@ -221,7 +223,7 @@ router.get('/health/integrations', (req, res) => {
     {
       id: 'audit', label: 'AUDIT CHAIN',
       status: chainOk ? 'ready' : 'down',
-      detail: chainOk ? 'Hash chain verified end-to-end just now.' : 'AUDIT CHAIN BROKEN — records were altered or lost. Investigate before trusting any log.',
+      detail: chainOk ? 'Hash chain tail verified just now (full walk runs on the audit view).' : 'AUDIT CHAIN BROKEN — records were altered or lost. Investigate before trusting any log.',
     },
     {
       id: 'db', label: 'DATABASE',

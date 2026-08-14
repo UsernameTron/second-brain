@@ -131,3 +131,16 @@ test('audit log is hash-chained and tamper-evident', () => {
   assert.equal(check.ok, false);
   assert.ok(check.brokenAt > 0);
 });
+
+test('tail verification catches tampering in the tail at O(K) cost (finding 10)', () => {
+  const { verifyChainTail } = require('../server/audit');
+  for (let i = 0; i < 5; i++) audit('user', 'tester', 'tail.action', { i });
+  // the row tampered by the previous test sits outside a K=3 tail...
+  assert.equal(verifyChainTail(3).ok, true, 'a clean tail verifies even with older damage (anchor is trusted)');
+  assert.equal(verifyChainTail(3).tail, 3);
+  // ...but tampering inside the tail is caught
+  db.prepare("UPDATE audit_log SET detail = '{\"i\":999}' WHERE action = 'tail.action' AND detail = '{\"i\":4}'").run();
+  const broken = verifyChainTail(3);
+  assert.equal(broken.ok, false);
+  assert.equal(broken.reason, 'hash mismatch');
+});

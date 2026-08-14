@@ -48,6 +48,25 @@ function queryAudit({ action, actorId, since, until, limit = 200, offset = 0 } =
   return rows.map((r) => ({ ...r, detail: JSON.parse(r.detail) }));
 }
 
+// Tail verification for polling callers (finding 10): re-hash only the last
+// K rows, anchored on the stored hash of the row just before the tail. O(K)
+// instead of O(all rows ever), so the 60s health poll stops growing forever.
+// The anchor hash itself is trusted here — the full walk stays available on
+// the owner-only audit view, where paying for it is a choice.
+function verifyChainTail(k = 200) {
+  const tail = db.prepare('SELECT * FROM audit_log ORDER BY seq DESC LIMIT ?').all(k).reverse();
+  if (!tail.length) return { ok: true, entries: 0, tail: 0 };
+  const anchor = db.prepare('SELECT hash FROM audit_log WHERE seq < ? ORDER BY seq DESC LIMIT 1').get(tail[0].seq);
+  let prevHash = anchor ? anchor.hash : 'genesis';
+  for (const row of tail) {
+    if (row.prev_hash !== prevHash) return { ok: false, brokenAt: row.seq, reason: 'prev_hash mismatch' };
+    const expect = rowHash(prevHash, row.ts, row.actor_type, row.actor_id, row.action, row.detail);
+    if (row.hash !== expect) return { ok: false, brokenAt: row.seq, reason: 'hash mismatch' };
+    prevHash = row.hash;
+  }
+  return { ok: true, tail: tail.length };
+}
+
 function verifyChain() {
   const rows = db.prepare('SELECT * FROM audit_log ORDER BY seq ASC').all();
   let prevHash = 'genesis';
@@ -60,4 +79,4 @@ function verifyChain() {
   return { ok: true, entries: rows.length };
 }
 
-module.exports = { audit, queryAudit, verifyChain };
+module.exports = { audit, queryAudit, verifyChain, verifyChainTail };
