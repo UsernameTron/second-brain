@@ -32,14 +32,19 @@ when the agent can already run commands. Capability map:
 
 1. **Setup command** (environment → setup script):
    `npm install -g @hubspot/cli`
-2. **Environment variables:**
-   - `HUBSPOT_PERSONAL_ACCESS_KEY` — from app.hubspot.com → CLI personal
-     access key (treat like a password; environment settings only, never the
-     repo).
-   - `HUBSPOT_ACCOUNT_ID` — the target account id.
-   (These are the CLI's non-interactive/CI auth path; verify the exact
-   variable names against `hs --help` on first session — pinned CLI versions
-   occasionally rename them.)
+2. **Environment variables — THREE, not two** (names verified against the
+   installed CLI 8.13.0 source, 2026-08-14):
+   - `USE_ENVIRONMENT_HUBSPOT_CONFIG` = `true` — **required switch**: without
+     it the CLI ignores the other two and hunts for a hubspot.config.yml
+     (`@hubspot/local-dev-lib` config/utils.js gates env-based auth on it).
+   - `HUBSPOT_PERSONAL_ACCESS_KEY` — from app.hubspot.com/l/personal-access-key
+     for the chosen account (treat like a password; environment settings
+     only, never the repo). Sandbox 246460341 recommended — the Agent CLI
+     builds apps, real-CRM access buys nothing here.
+   - `HUBSPOT_ACCOUNT_ID` — that same account's id.
+   Set these in the environment for the **repo root**
+   (`UsernameTron/second-brain`) — environments are per-repo; agent-canvas
+   sessions inherit them.
 3. **Network policy**: Full network access (or allowlist `api.hubapi.com`,
    `app.hubspot.com`, `developers.hubspot.com`). Policy applies to NEW
    containers only.
