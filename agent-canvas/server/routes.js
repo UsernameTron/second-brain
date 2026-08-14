@@ -603,10 +603,13 @@ router.patch('/canvases/:canvasId/agents/:agentId', auth.requireCanvas, (req, re
   const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND canvas_id = ?').get(req.params.agentId, req.params.canvasId);
   if (!agent) return res.status(404).json({ error: 'agent not found' });
   const { x, y, system_prompt, model_tier, name, color } = req.body;
-  // Finding 11: a system-prompt rewrite changes what an agent IS — it gets an
-  // audit line naming who changed it. (Whether it should be owner-only is a
-  // pending decision for Pete; the accountability half need not wait.)
+  // Finding 11 (both halves): a system-prompt rewrite changes what an agent
+  // IS — owner-only (Pete's decision, 2026-08-14) and audited. Position,
+  // name, color, and tier stay member-editable.
   if (system_prompt != null && system_prompt !== agent.system_prompt) {
+    if (auth.workspaceRole(req.user.email) !== 'owner') {
+      return res.status(403).json({ error: 'only the owner can change an agent\'s system prompt' });
+    }
     audit('user', req.user.email, 'agent.prompt_update', {
       agentId: agent.id, canvasId: agent.canvas_id,
       fromLen: (agent.system_prompt || '').length, toLen: String(system_prompt).length,
