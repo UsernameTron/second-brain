@@ -1078,6 +1078,60 @@ router.get('/canvases/:canvasId/spend', auth.requireCanvas, (req, res) => {
   res.json({ perAgent, canvasTotal, daily: control.getDailyUsage(), monthly: control.getMonthlyUsage() });
 });
 
+// Wave 5: operational analytics — diagnosis, not a leaderboard. Everything is
+// computed from records that already exist (runs, escalations, run_feedback,
+// memory_retrievals); nothing is stored.
+router.get('/canvases/:canvasId/analytics', auth.requireCanvas, (req, res) => {
+  const perAgent = db.prepare(`
+    SELECT a.id AS agent_id, a.name, a.role,
+           COUNT(r.id) AS runs,
+           SUM(CASE WHEN r.status = 'completed' THEN 1 ELSE 0 END) AS completed,
+           SUM(CASE WHEN r.status IN ('failed','refused') THEN 1 ELSE 0 END) AS failed,
+           SUM(CASE WHEN r.status LIKE 'halted%' THEN 1 ELSE 0 END) AS halted,
+           COALESCE(SUM(r.cost_usd),0) AS cost_usd,
+           COALESCE(AVG(CASE WHEN r.started_at IS NOT NULL AND r.ended_at IS NOT NULL
+             THEN (julianday(r.ended_at) - julianday(r.started_at)) * 86400000 END), 0) AS avg_duration_ms,
+           SUM(CASE WHEN f.verdict = 'up' THEN 1 ELSE 0 END) AS feedback_up,
+           SUM(CASE WHEN f.verdict = 'down' THEN 1 ELSE 0 END) AS feedback_down
+    FROM agents a
+    LEFT JOIN runs r ON r.agent_id = a.id
+    LEFT JOIN run_feedback f ON f.run_id = r.id
+    WHERE a.canvas_id = ? GROUP BY a.id
+  `).all(req.params.canvasId);
+  const escalations = db.prepare(`
+    SELECT agent_id, COUNT(*) AS total,
+           SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) AS open
+    FROM escalations WHERE canvas_id = ? AND agent_id IS NOT NULL GROUP BY agent_id
+  `).all(req.params.canvasId);
+  const retrievals = db.prepare(`
+    SELECT r.agent_id, COUNT(DISTINCT mr.query || mr.ts) AS searches, COUNT(*) AS results
+    FROM memory_retrievals mr JOIN runs r ON r.id = mr.run_id
+    WHERE r.canvas_id = ? GROUP BY r.agent_id
+  `).all(req.params.canvasId);
+  res.json({ perAgent, escalations, retrievals });
+});
+
+// Wave 5: deterministic contradiction surfacing — two live entries with the
+// same subject, both claiming "verified", different content. Computed on
+// read, nothing stored, nothing auto-demoted; a human resolves via the
+// normal correction path. ponytail: semantic detection when typed data
+// accumulates enough to need it.
+router.get('/canvases/:canvasId/memory/conflicts', auth.requireCanvas, (req, res) => {
+  const pairs = db.prepare(`
+    SELECT a.id AS a_id, b.id AS b_id, a.subject
+    FROM memory_entries a JOIN memory_entries b
+      ON LOWER(a.subject) = LOWER(b.subject) AND a.id < b.id
+    WHERE a.canvas_id = ? AND b.canvas_id = ?
+      AND a.subject IS NOT NULL AND a.subject != ''
+      AND a.superseded_by IS NULL AND b.superseded_by IS NULL
+      AND a.epistemic = 'verified' AND b.epistemic = 'verified'
+      AND a.content != b.content
+  `).all(req.params.canvasId, req.params.canvasId);
+  res.json({
+    conflicts: pairs.map((p) => ({ subject: p.subject, entries: [memory.getEntry(p.a_id), memory.getEntry(p.b_id)] })),
+  });
+});
+
 // ---------- audit (owner only) ----------
 router.get('/audit', auth.requireOwner, (req, res) => {
   res.json({

@@ -32,6 +32,7 @@ export default function Workspace() {
   const [activity, setActivity] = useState([]);
   const [escalations, setEscalations] = useState([]);
   const [spend, setSpend] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
   const [budget, setBudget] = useState(null);
   const [pause, setPause] = useState({ paused: false, by: null });
   const [presence, setPresence] = useState([]);
@@ -120,6 +121,10 @@ export default function Workspace() {
     if (canvasIdRef.current !== cid) return;
     setSpend(d);
     if (d.daily) setBudget(d.daily);
+    // Analytics rides the same refresh cadence; failure never blocks spend.
+    api(`/api/canvases/${cid}/analytics`)
+      .then((a) => { if (canvasIdRef.current === cid) setAnalytics(a); })
+      .catch(() => {});
   }, []);
 
   const loadEscalations = useCallback(async () => {
@@ -686,6 +691,7 @@ export default function Workspace() {
       sidePanel = (
         <SpendPanel
           spend={spend}
+          analytics={analytics}
           budget={budget}
           isOwner={isOwner}
           onSetBudget={setBudgetUsd}
