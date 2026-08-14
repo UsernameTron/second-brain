@@ -18,10 +18,19 @@ Merged: **#121** Step-1 review · **#122** Wave 1 sr-icp connector row ·
 **#123** Wave 2 enrichment lane + SOI runbook · **#124** hardening + context
 registries. `npm test` 123/123 (was 95).
 
+**UPDATE — step 1 is DONE.** Deployed 2026-08-14 to revision
+`agent-canvas-00029-tr6`, carrying #122/#123/#124. Env survived the wholesale
+set. Two things were verified from outside an authenticated session and need
+no repeating: the seed audit line reads `{"candidates": 3, "servers": 1}`
+(the `seed_mcp_v1`→`v2` upgrade landed exactly the one new connector row on
+the live workspace, and reported it honestly), and `/api/config` returns
+**`devAuth: false`** in production. **Steps 2-5 still stand — they need a
+signed-in session, so they are yours.**
+
 **Do these in order.**
 
-1. **Redeploy** — the block under "Redeploy procedure" below, unchanged. This
-   single deploy carries #122, #123 and #124.
+1. ~~**Redeploy**~~ — DONE, revision `agent-canvas-00029-tr6`. Re-run the
+   block under "Redeploy procedure" below only if you change code or env.
 2. **Probe `sr-icp-leadfinder`** in Admin → Connectors. Expect **3 tools**
    (`ping`, `find_icp_leads`, `check_lead_search`) and a latency. Tick what you
    want agents to have — it ships with none. Tell whoever uses it that the two
