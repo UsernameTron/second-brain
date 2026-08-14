@@ -51,9 +51,11 @@ const SEED_SERVERS = [
     // find_icp_leads/check_lead_search are an async start/poll pair: the first
     // starts a search, the second collects it. Agents must be told to poll.
     //
-    // Scoring version: this service scores server-side against sr-icp-v5. When
-    // the canvas registry moves to v6 (Wave 3), its results stay v5-scored
-    // until the service is re-exported — see PORTFOLIO-FOLD-IN.md gap 3.
+    // Scoring version: this service scores server-side against the registry
+    // baked into its deployment — re-exported to sr-icp-v6 on 2026-08-14, so
+    // it now matches the canvas. Its `ping` tool reports the live version;
+    // check it rather than assuming, and re-deploy the fly.dev service
+    // whenever the canvas registry moves again.
     name: 'sr-icp-leadfinder',
     url: 'https://sr-icp-connector.fly.dev/mcp',
     headers: {},

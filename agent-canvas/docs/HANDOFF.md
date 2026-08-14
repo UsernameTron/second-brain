@@ -95,6 +95,11 @@ recorded so the P1 roadmap branch starts from facts, not a stale handoff:**
 - Residue dispositions, none blocking: second-brain `stash@{0}` is the
   PETE-REVIEW sentinel (his to pop); CTG-Workspace-Build has 2 modified
   rollout-board files + 1 untracked archive + 6 stashes (his, keep).
+- **`claude-review` CI is flaky, not broken** — it fails with
+  `curl: (22) … 403` × 3 from the claude-code-action installer
+  ("Failed to install Claude Code after 3 attempts"), producing no review and
+  no findings. Transient upstream: `gh run rerun <id> --failed` passed on the
+  first retry. Rerun before treating a red claude-review as a real finding.
 - P1 (Inquiry Home / evidence receipts) branches only after list items 1–3
   below pass in-app.
 
@@ -109,8 +114,18 @@ recorded so the P1 roadmap branch starts from facts, not a stale handoff:**
 4. ~~Commit the staged ontology fix in CTG-Workspace-Build~~ **DONE** —
    committed as `779cb2d`, merged as CTG-Workspace-Build PR #180 (see
    Gate 0 block above).
-5. B2 decision: fly.dev leadfinder v5→v6 re-export (recommended DO — the
-   skew broke a live run today).
+5. ~~B2: fly.dev leadfinder v5→v6 re-export~~ **DONE 2026-08-14** — the
+   `sr-icp-connector` fly.dev app now serves `sr-icp-v6` (`ping` verified
+   live; `icp.json` is the byte-identical `scripts/export_icp.py` artifact,
+   never hand-edited; tools/list still exactly ping + find_icp_leads +
+   check_lead_search; unknown job_id still fails closed with the restart
+   message). Radar's prompt drops the skew warning for a version CHECK
+   against `ping`, `RESEED_KEY` bumped to `seed_roster_prompts_v4` so live
+   agents follow. **Redeploy the canvas to propagate it.** Connector-side
+   commit is on branch `feat/icp-v6-registry` in
+   `CTG-Workspace-Build/projects/sr-icp-connector` (that path has no `origin`
+   remote — push it wherever that project lives when convenient; the fly.dev
+   deploy is already live regardless).
 6. ~~Dependabot #14~~ **DONE** — zero open alerts via the API (see Gate 0
    block above; the token does have the read scope).
 7. Stashes keep/drop (signal-radar, agent-canvas); /dream-apply review of

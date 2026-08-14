@@ -80,7 +80,9 @@ test('every roster prompt carries the guard; no excluded vendor is ever named; R
     }
   }
   const radar = rows.find((r) => r.name === 'Radar');
-  assert.match(radar.system_prompt, /sr-icp-v5/);
+  // version-agnostic (ICP-REG-01): stamped with whatever registry is loaded, not a pinned string
+  const icpVersion = require('../server/config/icp-sr-icp-v6.json').icp_version;
+  assert.ok(radar.system_prompt.includes(icpVersion), `Radar is stamped with the loaded registry version (${icpVersion})`);
   assert.match(radar.system_prompt, /industry_weight × title-tier multiplier/, 'arithmetic model stated');
   assert.match(radar.system_prompt, /SVP and every level below stay ×1\.0/, 'SVP carve-out explicit');
 
