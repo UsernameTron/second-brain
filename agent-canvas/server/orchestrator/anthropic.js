@@ -110,11 +110,14 @@ function modelForTier(tier) {
   return tier === 'fast' ? FAST_MODEL : STRONG_MODEL;
 }
 
+// Cache pricing (5-minute ephemeral): writes bill at 1.25x input, reads at 0.1x.
 function costOf(model, usage) {
   const price = PRICING[normalizeModelId(model)] || DEFAULT_PRICE;
-  const inputTokens = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
+  const weightedInput = (usage.input_tokens || 0)
+    + (usage.cache_creation_input_tokens || 0) * 1.25
+    + (usage.cache_read_input_tokens || 0) * 0.1;
   const searches = (usage.server_tool_use && usage.server_tool_use.web_search_requests) || 0;
-  return (inputTokens * price.in + (usage.output_tokens || 0) * price.out) / 1_000_000 + searches * WEB_SEARCH_COST_USD;
+  return (weightedInput * price.in + (usage.output_tokens || 0) * price.out) / 1_000_000 + searches * WEB_SEARCH_COST_USD;
 }
 
 // Server-side web search for research work. On Vertex only the basic variant
@@ -122,6 +125,32 @@ function costOf(model, usage) {
 function webSearchToolFor(model, provider = currentProvider()) {
   const type = (provider === 'vertex' || /haiku/.test(model)) ? 'web_search_20250305' : 'web_search_20260209';
   return { type, name: 'web_search', max_uses: 5 };
+}
+
+// Prompt caching (Claude providers only): a breakpoint on the system prompt
+// caches tools + system, and a moving breakpoint on the last message's last
+// markable block caches the growing conversation prefix — the poll-turn
+// re-send that made Radar expensive becomes a 0.1x cache read. Copies, never
+// mutates, the caller's arrays. cache_control is only legal on some block
+// types; anything else is left unmarked (the system breakpoint still applies).
+const CACHEABLE_BLOCK_TYPES = new Set(['text', 'tool_result', 'tool_use', 'image', 'document']);
+function withCacheMarkers({ system, messages }) {
+  const ephemeral = { cache_control: { type: 'ephemeral' } };
+  const sys = typeof system === 'string' && system
+    ? [{ type: 'text', text: system, ...ephemeral }]
+    : system;
+  if (!messages || !messages.length) return { system: sys, messages };
+  const last = messages[messages.length - 1];
+  let content = last.content;
+  if (typeof content === 'string') {
+    content = [{ type: 'text', text: content, ...ephemeral }];
+  } else if (Array.isArray(content) && content.length
+      && CACHEABLE_BLOCK_TYPES.has(content[content.length - 1].type)) {
+    content = [...content.slice(0, -1), { ...content[content.length - 1], ...ephemeral }];
+  } else {
+    return { system: sys, messages };
+  }
+  return { system: sys, messages: [...messages.slice(0, -1), { ...last, content }] };
 }
 
 // One model call. On a safety-classifier refusal (stop_reason "refusal"),
@@ -135,6 +164,7 @@ async function callModel({ provider = currentProvider(), model, system, messages
   const anthropic = getClient(provider);
   const onVertex = provider === 'vertex';
   const wireModel = onVertex ? vertexModelId(model) : model;
+  ({ system, messages } = withCacheMarkers({ system, messages }));
   const params = { model: wireModel, max_tokens: maxTokens, system, messages };
   if (tools && tools.length) params.tools = tools;
   let response = await anthropic.messages.create(params, { signal });
@@ -149,7 +179,7 @@ async function callModel({ provider = currentProvider(), model, system, messages
 }
 
 module.exports = {
-  getClient, callModel, costOf, modelForTier, webSearchToolFor,
+  getClient, callModel, costOf, modelForTier, webSearchToolFor, withCacheMarkers,
   currentProvider, providerForTier, tierConfig, vertexModelId, normalizeModelId,
   FAST_MODEL, STRONG_MODEL, REFUSAL_FALLBACK_MODEL, PRICING,
 };

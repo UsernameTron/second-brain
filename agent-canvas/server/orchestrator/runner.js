@@ -16,6 +16,21 @@ let callModelImpl = callModel;
 const { toolsForRole, executeTool, createEscalation } = require('./tools');
 const control = require('./control');
 
+// Tool results are re-sent to the model on every subsequent step of the run,
+// so one oversized payload multiplies across the whole message array. Prompt
+// caching makes the re-sends cheap (0.1x), but an unbounded result can still
+// blow the context window — cap what enters the history. The full result is
+// already recorded (truncated) in run_events; only the model-facing copy is cut.
+// ponytail: flat char cap, head+tail; per-tool budgets if a tool ever needs more.
+const TOOL_RESULT_CHAR_CAP = 40_000;
+function capToolResult(content) {
+  const s = String(content);
+  if (s.length <= TOOL_RESULT_CHAR_CAP) return content;
+  const head = s.slice(0, TOOL_RESULT_CHAR_CAP - 4_000);
+  const tail = s.slice(-3_000);
+  return `${head}\n\n[...truncated ${s.length - head.length - tail.length} chars — re-run the tool with a narrower query if you need the middle...]\n\n${tail}`;
+}
+
 function recordEvent(run, type, payload) {
   db.prepare('INSERT INTO run_events (run_id, canvas_id, agent_id, type, payload, ts) VALUES (?, ?, ?, ?, ?, ?)')
     .run(run.id, run.canvas_id, run.agent_id, type, JSON.stringify(payload), nowIso());
@@ -202,9 +217,12 @@ async function executeRun(runId) {
       // The run row and the workspace total must agree — billing the refused
       // pass to only one of them leaves two ledgers that disagree on exactly
       // the path this accounting exists for.
+      // With prompt caching on, usage.input_tokens is only the uncached
+      // remainder — the ledger counts tokens sent, so include cache tokens.
+      const sentTokens = (u) => u ? (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0) : 0;
       db.prepare('UPDATE runs SET steps_used = ?, input_tokens = input_tokens + ?, output_tokens = output_tokens + ?, cost_usd = cost_usd + ? WHERE id = ?')
         .run(steps,
-          ((response.usage && response.usage.input_tokens) || 0) + ((prior && prior.input_tokens) || 0),
+          sentTokens(response.usage) + sentTokens(prior),
           ((response.usage && response.usage.output_tokens) || 0) + ((prior && prior.output_tokens) || 0),
           cost, runId);
 
@@ -263,7 +281,7 @@ async function executeRun(runId) {
             result = { content: `Tool error: ${err.message}`, isError: true };
           }
           recordEvent(run, 'tool_result', { name: toolUse.name, isError: !!result.isError, preview: String(result.content).slice(0, 600) });
-          results.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result.content, is_error: !!result.isError });
+          results.push({ type: 'tool_result', tool_use_id: toolUse.id, content: capToolResult(result.content), is_error: !!result.isError });
           if (result.end && !end) end = result.end;
         }
         messages.push({ role: 'user', content: results });
@@ -302,6 +320,8 @@ module.exports = {
   recordEvent,
   _internal: {
     buildSystemPrompt,
+    capToolResult,
+    TOOL_RESULT_CHAR_CAP,
     // Returns a restore function so a test cannot leak a stub into the next.
     setCallModel(fn) { const prev = callModelImpl; callModelImpl = fn; return () => { callModelImpl = prev; }; },
   },
