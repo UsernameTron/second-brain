@@ -5,6 +5,41 @@ depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
 
+## MEMORY-OBSERVABILITY ROADMAP SHIPPED (2026-08-14, late session — PRs #152–#158)
+
+All 7 waves of the approved roadmap (plan file: memory visible at read time)
+are merged to master; tests **168/168**. **NOT yet deployed** — the live
+revision is still `00041-xk8`; the next deploy picks all of this up via the
+normal redeploy procedure (all migrations are additive and self-applying,
+`memory_fts` backfills on boot).
+
+- **0a hygiene+perf** (#152): memory_search description fixed (was claiming
+  AND semantics), dead runner import gone, batched citation reads, taint
+  walk short-circuits when nothing is superseded.
+- **2 escalation capture** (#153): the server — not the resumed agent —
+  writes the verified decision entry under the human's identity; resume
+  runs inherit lineage from `escalation.context.entry_ids`; blank answers
+  400 instead of silently no-opping; `tx()` is re-entrant now.
+- **1 Context Receipt** (#154): `memory_retrievals` + `run_feedback`
+  tables; `GET /runs/:id/receipt` (provided / searches / cited /
+  feedback); receipt + 👍👎 in the AgentPanel run detail.
+- **3 typed memory** (#155): kind/subject/applies_to/effective/review
+  columns (all optional, untyped rows unaffected); filters everywhere;
+  corrections inherit types.
+- **0b a11y floor** (#156): :focus-visible everywhere, dialog semantics,
+  ≤700px viewports fit — verified live in the browser at 375px.
+- **4 FTS5 retrieval** (#157): bm25 over an external-content index (insert
+  trigger only — store is append-only); scored-OR fallback if FTS5 absent
+  or `MEMORY_FTS=0`; retrieval-quality eval (12 cases) passes under both.
+- **5 analytics + conflicts** (#158): `GET /canvases/:id/analytics`
+  (diagnosis, not a leaderboard) + deterministic same-subject
+  verified-vs-verified conflict surfacing, computed on read.
+
+Deliberately NOT built (dispositions in the plan): episodic memory (wait
+for feedback data), embeddings (Vertex-only option; revisit if the eval
+suite shows lexical recall failing on real queries), agent builder,
+pipeline hygiene (lives in ctg-ops-automation).
+
 ## CURRENT STATE (2026-08-14 session close — start here; everything below is history)
 
 **Live:** `agent-canvas-00041-xk8`, tests **150/150** on master. Every open
