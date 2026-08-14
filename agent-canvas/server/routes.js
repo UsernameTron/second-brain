@@ -384,48 +384,54 @@ function mcpValidate({ name, url, access, enabledTools, model }) {
   // the layer that actually loads env/file/DB rows.
   if (url !== undefined && !mcp.safeMcpUrl(url)) return 'url must be https (or a loopback address for local development)';
   if (access !== undefined && !['owner', 'members'].includes(access)) return "access must be 'owner' or 'members'";
-  if (Array.isArray(enabledTools)) {
-    // Name the rejected tool rather than dropping it silently — an owner who
-    // ticks a write tool should learn why it did not take, not wonder.
-    const mutating = enabledTools.find((t) => mcp.isMutatingToolName(t));
-    if (mutating) return `"${String(mutating).slice(0, 64)}" looks like a write tool. Connectors are read lanes — CRM writes go through the ops-runner preview/apply lane (ADR-0041).`;
-  }
   return null;
+}
+
+// Write tools are STRIPPED from a save, never a reason to reject it.
+// Rejecting trapped the owner: the stored config already contained write tools,
+// so every save that tried to remove them was refused for containing them. The
+// enforced config is normalizeServer's, so making the stored config converge on
+// it — and reporting what was dropped — is both kinder and more correct.
+function splitMutating(enabledTools) {
+  const list = Array.isArray(enabledTools) ? enabledTools.map(String) : [];
+  return { kept: list.filter((t) => !mcp.isMutatingToolName(t)), refused: list.filter((t) => mcp.isMutatingToolName(t)) };
 }
 
 router.post('/mcp/servers', auth.requireOwner, (req, res) => {
   const { name, url, headers = {}, enabledTools = [], access = 'members', roles = [], enabled = true } = req.body || {};
-  const bad = mcpValidate({ name: name || '', url: url || '', access, enabledTools });
+  const bad = mcpValidate({ name: name || '', url: url || '', access });
   if (!name || !url || bad) return res.status(400).json({ error: bad || 'name and url required' });
+  const tools = splitMutating(enabledTools);
   if (db.prepare('SELECT id FROM mcp_servers WHERE name = ?').get(name)) return res.status(409).json({ error: 'a connector with that name exists' });
   const id = crypto.randomUUID();
   const ts = nowIso();
   db.prepare('INSERT INTO mcp_servers (id, name, url, headers_json, enabled_tools_json, access, roles_json, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(id, name, url, JSON.stringify(headers), JSON.stringify(enabledTools), access, JSON.stringify(roles), enabled ? 1 : 0, ts, ts);
-  audit('user', req.user.email, 'mcp.server_create', { serverId: id, name, access });
+    .run(id, name, url, JSON.stringify(headers), JSON.stringify(tools.kept), access, JSON.stringify(roles), enabled ? 1 : 0, ts, ts);
+  audit('user', req.user.email, 'mcp.server_create', { serverId: id, name, access, refusedTools: tools.refused });
   mcp.reload();
   mcp.refreshDefs();
-  res.json({ ok: true, id });
+  res.json({ ok: true, id, refusedTools: tools.refused });
 });
 
 router.patch('/mcp/servers/:id', auth.requireOwner, (req, res) => {
   const row = db.prepare('SELECT * FROM mcp_servers WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'connector not found' });
   const { name, url, headers, enabledTools, access, roles, enabled } = req.body || {};
-  const bad = mcpValidate({ name, url, access, enabledTools });
+  const bad = mcpValidate({ name, url, access });
   if (bad) return res.status(400).json({ error: bad });
+  const tools = enabledTools === undefined ? null : splitMutating(enabledTools);
   db.prepare('UPDATE mcp_servers SET name = ?, url = ?, headers_json = ?, enabled_tools_json = ?, access = ?, roles_json = ?, enabled = ?, updated_at = ? WHERE id = ?')
     .run(name ?? row.name, url ?? row.url,
       headers === undefined ? row.headers_json : JSON.stringify(headers),
-      enabledTools === undefined ? row.enabled_tools_json : JSON.stringify(enabledTools),
+      tools === null ? row.enabled_tools_json : JSON.stringify(tools.kept),
       access ?? row.access,
       roles === undefined ? row.roles_json : JSON.stringify(roles),
       enabled === undefined ? row.enabled : (enabled ? 1 : 0),
       nowIso(), row.id);
-  audit('user', req.user.email, 'mcp.server_update', { serverId: row.id, name: name ?? row.name });
+  audit('user', req.user.email, 'mcp.server_update', { serverId: row.id, name: name ?? row.name, refusedTools: tools ? tools.refused : [] });
   mcp.reload();
   mcp.refreshDefs();
-  res.json({ ok: true });
+  res.json({ ok: true, refusedTools: tools ? tools.refused : [] });
 });
 
 // Probe: fresh handshake + tools/list, returning the tool inventory so the
@@ -983,3 +989,5 @@ router.get('/export', auth.requireOwner, (req, res) => {
 });
 
 module.exports = router;
+// Exposed for the regression test that pins "strip, never reject".
+module.exports._internal = { splitMutating };
