@@ -18,6 +18,28 @@ Merged: **#121** Step-1 review · **#122** Wave 1 sr-icp connector row ·
 **#123** Wave 2 enrichment lane + SOI runbook · **#124** hardening + context
 registries. `npm test` 123/123 (was 95).
 
+**The connector rule caught seven live write tools — read this before
+re-ticking anything.** On the first authenticated load after the deploy, the
+`hubspot-crm` connector was found with **seven write tools enabled against the
+REAL portal 243103424**: `hubspot-batch-create-associations`,
+`hubspot-batch-create-objects`, `hubspot-batch-update-objects`,
+`hubspot-create-property`, `hubspot-update-property`,
+`hubspot-create-engagement`, `hubspot-update-engagement`. They were ticked
+during the Phase 3 "tick 21 tools" step. The bridge's token is read-only
+scoped, so HubSpot would have refused them — but nothing in the canvas said
+so, and a token swap or a widened scope would have made them live. They are
+refused in code now. **Do not re-enable them**: CRM writes go through the
+ops-runner preview/apply lane (ADR-0041), and the remaining read tools are
+unaffected.
+
+The first version of that refusal reported itself through `configError()`,
+which made the systems board replace every connector lamp with a red *"MCP
+configuration failed to parse … no connector is active until this is fixed."*
+That was false — the connectors loaded fine and kept every read tool. Fixed:
+refusals now ride their own channel, the affected connector's lamp goes
+**amber** and names the refused tools, and `configError` again means only
+"the config could not be loaded".
+
 **UPDATE — step 1 is DONE.** Deployed 2026-08-14 to revision
 `agent-canvas-00029-tr6`, carrying #122/#123/#124. Env survived the wholesale
 set. Two things were verified from outside an authenticated session and need

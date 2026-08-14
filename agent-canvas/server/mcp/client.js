@@ -175,13 +175,12 @@ function maskHeaderValue(value) {
   return v.length <= 4 ? '••••' : `••••${v.slice(-4)}`;
 }
 let servers = loadConfig();
-function configError() {
-  const refused = refusedToolReport();
-  if (!refused.length) return loadError;
-  const detail = refused.map((r) => `${r.server}: ${r.tools.join(', ')}`).join(' · ');
-  const msg = `refused as write tools (connectors are read lanes; CRM writes go through the ops-runner preview/apply lane) — ${detail}`;
-  return loadError ? `${loadError}; ${msg}` : msg;
-}
+// configError means ONE thing: the connector config could not be loaded, so
+// nothing is active. Refused write tools are NOT that — the connector loads
+// fine and keeps every read tool — and folding them in here made the systems
+// board replace all connector lamps with a red "no connector is active until
+// this is fixed", which was simply untrue. Refusals ride their own channel.
+function configError() { return loadError; }
 function listServers() {
   return servers.map((srv) => ({
     name: srv.name, url: srv.url, enabledTools: srv.enabledTools,

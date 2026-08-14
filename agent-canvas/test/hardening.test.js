@@ -114,7 +114,11 @@ test('a refused tool is reported, never silently dropped', () => {
   mcp.reload();
   const report = mcp.refusedToolReport().find((r) => r.server === 'noisy-drop');
   assert.deepEqual(report.tools, ['create_contact']);
-  assert.match(mcp.configError(), /create_contact/, 'the owner is told, not left guessing');
+  assert.ok(mcp.listServers().find((s) => s.name === 'noisy-drop'), 'the connector still loads');
+  // A refusal is NOT a config failure. Routing it through configError() made
+  // the systems board show one red lamp reading "no connector is active until
+  // this is fixed" — untrue, and alarming for what is a partial denial.
+  assert.equal(mcp.configError(), null, 'a refused tool must not read as a broken config');
 });
 
 test('connector URLs must be https, with loopback exempted for local work', () => {
