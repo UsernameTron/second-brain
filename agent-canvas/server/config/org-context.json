@@ -63,8 +63,8 @@
     {
       "id": "ent.icp_registry",
       "layer": "entities",
-      "name": "ICP registry (ICP-REG-01 / sr-icp-v1)",
-      "statement": "The single versioned niche-definition artifact every scoring or counting system must cite by icp_version. Lives at ctg-signal-radar/src/backend/icp_registry.py. Motivated by an incident where two production systems disagreed on the same count.",
+      "name": "ICP registry (ICP-REG-01)",
+      "statement": "The single versioned niche-definition artifact every scoring or counting system must cite by icp_version. Lives at ctg-signal-radar/src/backend/icp_registry.py. This entry deliberately names NO version: consumers report the icp_version their live source returns, and on disagreement the live-reported version wins over any frozen doc. Motivated by an incident where two production systems disagreed on the same count — and a second incident (2026-08-14) where this entry's own frozen 'sr-icp-v1' label conflicted with a live v5 service and a v6 canvas note.",
       "source": "decisions/adr/0046-moment-engine-doctrine.md § Decision 1 + Rationale"
     },
     {

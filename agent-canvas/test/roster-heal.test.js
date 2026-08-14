@@ -55,8 +55,11 @@ test('drifted seed prompts are healed to the current template', () => {
   assert.deepEqual([...new Set(healResult.detail.map((h) => h.name))].sort(), ['Atlas', 'Darren']);
 
   const darren = agentByName('Darren');
-  assert.match(darren.system_prompt, /sr-icp-v5/, 'Darren now states the current ICP');
-  assert.match(darren.system_prompt, /250–10,000 seats/, 'v5 seat band');
+  // The template interpolates the shipped registry's own version — assert
+  // against that artifact so this test never re-pins a drifting version string.
+  const ICP = require('../server/config/icp-sr-icp-v6.json');
+  assert.ok(darren.system_prompt.includes(`per ICP registry ${ICP.icp_version}`), 'Darren states the shipped registry version');
+  assert.match(darren.system_prompt, /250–10,000 seats/, 'current seat band');
   assert.ok(!darren.system_prompt.includes('500–10,000+ seats'), 'stale ICP line is gone');
   assert.match(darren.system_prompt, /Radar/, 'Radar delegation present');
 
