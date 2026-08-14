@@ -7,7 +7,14 @@ kept for the reasoning, not the status.**
 
 ## CURRENT STATE (2026-08-14 evening — start here, ignore the older START HEREs)
 
-**Live:** `agent-canvas-00038-mlc` (2026-08-14 night), tests **148/148**.
+**Live:** `agent-canvas-00040-xpw` (2026-08-14 night), tests **149/149**.
+Adds: system-prompt edits are OWNER-ONLY and audited (#147 — finding 11 fully
+closed by Pete's decision), and the **enrichment lane is LIT** (#148):
+`ED_DISPATCH_URL` verified on the revision, deploy.sh passes it through the
+wholesale env set, invoker grant verified in live IAM. Verify next sign-in:
+probe the enrichment lamp and run one enrichment tool end-to-end.
+`ctg-workspace-dev` CLI access now works (verified live), so the SOI runbook
+(WAVE2-SOI-RUNBOOK.md) is deployable from this Mac — the next real item.
 Carries everything above plus **Wave 3 / ICP v6, fully propagated**: the
 upstream harvest merged in ctg-signal-radar (peteconnorCTG PR #127 — panel
 title taxonomy, advisor-match vocab, 22 blocklist domains, registry bumped to
