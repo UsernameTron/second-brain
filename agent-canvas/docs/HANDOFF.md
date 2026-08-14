@@ -7,8 +7,22 @@ kept for the reasoning, not the status.**
 
 ## CURRENT STATE (2026-08-14 evening — start here, ignore the older START HEREs)
 
-**Live:** `agent-canvas-00033-hp6` (deployed 2026-08-14 ~15:44Z from master
-`2b31a4b`, PR #134 — prompt caching + tool-result cap), tests **130/130**.
+**Live:** `agent-canvas-00034-x4d` (deployed 2026-08-14 ~16:44Z from master
+`a37e9b2`, PR #136 — GTM named-query bridge), tests **143/143**.
+
+**GTM bridge (open item 1) BUILT AND DEPLOYED, one human step left:**
+`gtm-mcp-bridge` is live on Cloud Run (project `agent-canvas-ctg-0811`,
+IAM-gated, dedicated SA `gtm-bridge-run@` with `bigquery.jobUser` on the
+canvas project + dataset-scoped READER on `ctg-hs-exec-tool:ctg_gtm_marts`
+ONLY — grants verified against the live dataset ACL). The `gtm-marts`
+connector row seeded on 00034 (audit `workspace.seed_mcp servers:1`), tools
+unticked. **Pete: Admin → Connectors → Probe `gtm-marts` (expect 4 tools:
+gtm_account_lookup, gtm_tier_list, gtm_enrichment_spend, gtm_dq_snapshot) →
+tick → one smoke run** ("look up Medical Mutual in GTM, report tier and
+scored_at"). Ops note: IAM-gated Cloud Run in this org answers unauthorized
+callers with a **GFE 404, not 403** — hubspot-mcp-bridge does the same and
+works; a 404 from curl is the gate working, not a broken route (one service
+delete/recreate was burned learning this).
 The portfolio fold-in is deployed and verified end-to-end; the Radar
 polling-burn fix is deployed and smoke-tested.
 
@@ -46,10 +60,9 @@ production exposure, and F-01/F-02 are open during funding diligence. The
 invoker grant Pete made is inert while the URL is unset. Hold until F-01 closes.
 
 **Open, ranked (next session's menu — none blocking):**
-1. **Build the GTM named-query bridge** — now unblocked (pete@ has marts
-   access). Spec in PORTFOLIO-FOLD-IN.md; ~150-line Streamable-HTTP MCP over 4
-   named marts queries, `bigquery.jobUser` on the canvas project +
-   dataset-scoped `dataViewer` on `ctg_gtm_marts` ONLY (never raw).
+1. ~~**Build the GTM named-query bridge**~~ — DONE (PR #136, deployed,
+   seeded on 00034; see above). Remaining: Pete probes/ticks in Admin + one
+   smoke run.
 2. ~~**Make Radar cheap**~~ — DONE: PR #134 shipped prompt caching + the
    tool-result cap; verified live on 00033 ($0.47 vs $1.55 baseline, above).
 3. **Light the enrichment lane** — only after F-01 closes; one
