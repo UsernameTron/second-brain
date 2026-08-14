@@ -330,6 +330,64 @@ Seeding pattern, now versioned: `name` is UNIQUE and the insert is
 `seed_mcp_vN` key" — the loop re-runs on a live workspace and only new rows
 land. The audit line reports rows actually inserted.
 
+**Wave 2 — enrichment lane (2026-08-14).** `server/enrichment/dispatch.js` is
+a thin READ client of Pete's `ctg-enrichment-dispatch` Cloud Run service, same
+shape as `hubspot/opsrunner.js`: no credential of its own, keyless service
+identity, named operations only, every call audited. Four tools —
+`enrich_contact`, `enrich_company`, `verify_email`, `get_enriched_contact`
+(the last is free, zero credits; agents are told to try it first).
+
+Three properties worth not re-litigating:
+- **There is no commit tool and there must never be one.** Results return to
+  the agent as data; anything CRM-bound goes through
+  `hs_preview_change`/`hs_apply_change` (ADR-0041). A test asserts that every
+  commit-shaped operation name is rejected before any network call.
+- **Spend is clamped client-side to 3 credits per call**, whatever the model
+  asks for, including when it asks for nothing. Agents loop; humans don't.
+- **Disabled by default via absence.** `ED_DISPATCH_URL` unset → the tools are
+  not in the model's tool list at all, the same rule the Gmail scope already
+  follows ("a model should never see a tool the deployment cannot honor").
+  They are further scoped to research/targeting/commercial, re-checked at call
+  time, and refused outright in a run with no directing user.
+
+**To turn it on** (in this order — line 1 is the IAM grant, and it is the part
+this session could not do):
+1. Grant the canvas runtime SA invoker on the service, from an identity with
+   admin on `ctg-hs-exec-tool`:
+   `gcloud run services add-iam-policy-binding enrichment-dispatch --project ctg-hs-exec-tool --region us-central1 --member serviceAccount:agent-canvas-run@agent-canvas-ctg-0811.iam.gserviceaccount.com --role roles/run.invoker`
+2. Add `ED_DISPATCH_URL=https://enrichment-dispatch-874411154198.us-central1.run.app`
+   to the redeploy export block above (env vars are set WHOLESALE — it must be
+   exported on every subsequent deploy or it silently disappears).
+3. Redeploy, then confirm the tools appear for a research-role agent.
+
+**Do NOT set `ED_DAILY_BUDGET_CREDITS`.** The fold-in spec's instruction to
+set it to 150 was checked against the service's source and is wrong on two
+counts: the figure does not exist there (`scripts/deploy.sh:38` has no
+default; the documented value is **25**, already live), and an unset budget
+**fails closed** — `app/company.py:246-254` refuses paid enrichment rather
+than uncapping it. Leave it alone.
+
+**Wave 2 — SOI is BLOCKED, not skipped.** The service is live (IAP itself
+answers on the project-number hostname) but the deploy needs
+`ctg-workspace-dev`, where every `gcloud run`/`gcloud services` call is denied
+for both identities while `get-iam-policy` succeeds — the same
+CLI-denied/console-fine pattern as open item 8 below. The code change also
+lands in `peteconnorCTG/ctg-system-of-intelligence`, a different GitHub
+account. Everything needed is written out in
+[WAVE2-SOI-RUNBOOK.md](WAVE2-SOI-RUNBOOK.md): the ~45-line `/mcp` route, both
+deploy commands, the connector row (owner-access, **tools unticked** — ticking
+them is Pete's sign-off and nobody else's), and the dated GOVERNANCE.md grant
+block. No connector row was seeded: the URL does not exist yet, and seeding a
+dead URL is a red lamp.
+
+**One shared identity helper.** `server/gcp-identity.js` now holds the Cloud
+Run metadata-server token logic that `hubspot/opsrunner.js` and
+`mcp/client.js` each had their own copy of; the enrichment client would have
+been the third. Cached per audience — a single-slot cache would hand the wrong
+service the wrong token. Each caller keeps its own dev/test escape-hatch env
+var (`HS_OPS_RUNNER_ID_TOKEN`, `MCP_GCP_ID_TOKEN`, `ED_DISPATCH_ID_TOKEN`),
+passed in rather than hardcoded.
+
 **Cost levers** (no new code): `FAST_PROVIDER=gemini` moves the fast tier
 (Atlas/Forge/Gauge/Radar) to Gemini on Vertex — `providerForTier`
 (orchestrator/anthropic.js) + the tested Gemini adapter already support it.

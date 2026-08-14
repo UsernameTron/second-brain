@@ -356,6 +356,56 @@ const HUBSPOT_TOOLS = [
   },
 ];
 
+// Enrichment tools — thin READ clients of ctg-enrichment-dispatch. There is
+// deliberately no commit/write tool: results come back as data, and anything
+// CRM-bound goes through hs_preview_change/hs_apply_change (ADR-0041).
+// Offered only to the lead-gen roles, and only when the deployment is
+// configured — see ENRICHMENT_ROLES below.
+const ENRICHMENT_TOOLS = [
+  {
+    name: 'enrich_contact',
+    description: 'Enrich a person from whatever you know (email, LinkedIn URL, or company + name/title) — returns per-field values with confidence and provenance. COSTS CREDITS. Call get_enriched_contact first if you already have a record_key; it is free.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string' },
+        linkedin_url: { type: 'string' },
+        domain: { type: 'string', description: 'company domain — the authoritative anchor for name-only lookups' },
+        company_name: { type: 'string' },
+        first_name: { type: 'string' },
+        last_name: { type: 'string' },
+        title: { type: 'string' },
+        fields: { type: 'array', items: { type: 'string' }, description: 'restrict to these fields; omit for all' },
+        max_credits: { type: 'number', description: 'per-call spend ceiling; clamped to 3 whatever you ask for' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'enrich_company',
+    description: 'Firmographics for a company domain — industry, headcount, detected tech stack, and public thin contacts. COSTS CREDITS per uncached domain.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        domain: { type: 'string' },
+        titles: { type: 'array', items: { type: 'string' }, description: 'optional title filter for the returned contacts' },
+      },
+      required: ['domain'],
+    },
+  },
+  {
+    name: 'verify_email',
+    description: 'Check whether one email address is deliverable. Costs 1 credit, no fan-out.',
+    input_schema: { type: 'object', properties: { email: { type: 'string' } }, required: ['email'] },
+  },
+  {
+    name: 'get_enriched_contact',
+    description: 'Re-read an already-enriched record by its record_key (or a bare email) — FREE, zero credits, no enrichment. Always try this before enrich_contact.',
+    input_schema: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] },
+  },
+];
+const ENRICHMENT_ROLES = ['research', 'targeting', 'commercial'];
+
 function toolsForRole(role, { userRole = 'member' } = {}) {
   // MCP defs are filtered per directing user + agent role: owner-only
   // connectors never reach a member-directed run's tool list, and role-scoped
@@ -374,7 +424,13 @@ function toolsForRole(role, { userRole = 'member' } = {}) {
   const gmailOn = require('../google/workspace').gmailEnabled();
   const wsRead = gmailOn ? WORKSPACE_READ_TOOLS : WORKSPACE_READ_TOOLS.filter((t) => !t.name.startsWith('ws_gmail'));
   const wsWrite = gmailOn ? WORKSPACE_WRITE_TOOLS : WORKSPACE_WRITE_TOOLS.filter((t) => t.name !== 'ws_gmail_draft');
-  return [...COMMON_TOOLS, ...wsRead, ...wsWrite, ...HUBSPOT_TOOLS, ...mcpDefs, ...(ROLE_TOOLS[role] || [{
+  // Same rule as the Gmail scope above: an unconfigured deployment must not
+  // advertise enrichment at all. ED_DISPATCH_URL unset = tools absent, which
+  // is what "disabled by default" means for a native (non-connector) lane.
+  const enrichment = require('../enrichment/dispatch').configured() && ENRICHMENT_ROLES.includes(role)
+    ? ENRICHMENT_TOOLS
+    : [];
+  return [...COMMON_TOOLS, ...wsRead, ...wsWrite, ...HUBSPOT_TOOLS, ...enrichment, ...mcpDefs, ...(ROLE_TOOLS[role] || [{
     name: 'read_rows',
     description: 'Read rows of the conference-lead workbook on this canvas.',
     input_schema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer' } }, required: [] },
@@ -694,6 +750,30 @@ async function executeTool(name, input, ctx) {
           const argv = opsrunner.buildArgv(op, input);
           out = await opsrunner.runArgv({ argv, actorEmail: initiator });
         }
+        bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
+        return { content: out };
+      } catch (err) {
+        return { content: String(err.message || err), isError: true };
+      }
+    }
+
+        case 'enrich_contact': case 'enrich_company':
+    case 'verify_email': case 'get_enriched_contact': {
+      const dispatch = require('../enrichment/dispatch');
+      const initiator = run.initiated_by;
+      // Same rule as every other external surface: a system-triggered run has
+      // no human behind it, and enrichment spends real credits.
+      if (!initiator) {
+        return { content: 'This run has no directing user, so enrichment tools are unavailable (system-triggered runs cannot spend enrichment credits). Escalate if a human needs to authorize this.', isError: true };
+      }
+      if (!dispatch.configured()) {
+        return { content: 'Enrichment dispatch is not wired on this deployment (ED_DISPATCH_URL unset). Tell the owner.', isError: true };
+      }
+      if (!ENRICHMENT_ROLES.includes(agent.role)) {
+        return { content: `REFUSED: enrichment is scoped to ${ENRICHMENT_ROLES.join('/')} agents; ${agent.role} agents do not have it.`, isError: true };
+      }
+      try {
+        const out = await dispatch.run(name, { ...input, actorEmail: initiator });
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
         return { content: out };
       } catch (err) {
