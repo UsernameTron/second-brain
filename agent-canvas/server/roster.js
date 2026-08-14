@@ -357,7 +357,7 @@ function supersedeStaleIcpMemory(ownerEmail) {
 // change: run scripts/snapshot-roster-prompts.js BEFORE editing (captures the
 // about-to-be-previous text), edit the prompt, bump the key below.
 const LEGACY_ROSTER_PROMPTS = require('./config/legacy-roster-prompts.json').prompts;
-const RESEED_KEY = 'seed_roster_prompts_v2';
+const RESEED_KEY = 'seed_roster_prompts_v3'; // v3: ICP v6 digest + lead-finder skew note
 
 function reseedRosterPrompts() {
   if (getSetting(RESEED_KEY)) return { updated: 0 };
@@ -378,6 +378,19 @@ function reseedRosterPrompts() {
         db.prepare('UPDATE agents SET system_prompt = ? WHERE id = ?').run(entry.system_prompt, agent.id);
         updated.push({ name: entry.name, agentId: agent.id, canvasId: agent.canvas_id });
       }
+    }
+    // ICP note refresh (v3): Radar's new prompt reads the registry note by
+    // its v6 title, which pre-v6 canvases do not have. Add the v6 note next
+    // to the old one — the v5 note stays untouched as history (append-only),
+    // it was never pinned, and nothing references it by title anymore.
+    const spec = ROSTER_NOTES.icp_registry;
+    const holders = db.prepare("SELECT DISTINCT canvas_id FROM notes WHERE title = 'ICP registry — sr-icp-v5'").all();
+    for (const { canvas_id } of holders) {
+      if (db.prepare('SELECT id FROM notes WHERE canvas_id = ? AND title = ?').get(canvas_id, spec.title)) continue;
+      const noteCount = db.prepare('SELECT COUNT(*) AS n FROM notes WHERE canvas_id = ?').get(canvas_id).n;
+      db.prepare('INSERT INTO notes (id, canvas_id, title, content, pinned, x, y, updated_by, updated_at) VALUES (?, ?, ?, ?, 0, ?, 560, ?, ?)')
+        .run(crypto.randomUUID(), canvas_id, spec.title, spec.content, 150 + 340 * noteCount, 'roster', nowIso());
+      updated.push({ name: spec.title, canvasId: canvas_id, note: true });
     }
     setSetting(RESEED_KEY, nowIso());
   });

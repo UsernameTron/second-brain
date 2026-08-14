@@ -23,8 +23,9 @@ const NEW = roster.ROSTER_AGENTS.find((a) => a.name === 'Radar').system_prompt;
 test('the snapshot captured a genuinely earlier Radar prompt', () => {
   assert.ok(OLD && NEW, 'both texts exist');
   assert.notEqual(OLD, NEW, 'the prompt actually changed — otherwise re-seed has nothing to prove');
-  assert.ok(!OLD.includes('min_score: 0.75'), 'the OLD text predates the hot-floor rule');
-  assert.ok(NEW.includes('min_score: 0.75'), 'the NEW text carries it');
+  assert.ok(!OLD.includes('VERSION SKEW'), 'the OLD text predates the v6 skew note');
+  assert.ok(NEW.includes('VERSION SKEW'), 'the NEW text carries it');
+  assert.ok(NEW.includes('sr-icp-v6'), 'the NEW text is v6-stamped');
 });
 
 test('re-seed updates a pristine roster row and its pristine live agents, once', () => {
@@ -45,7 +46,7 @@ test('re-seed updates a pristine roster row and its pristine live agents, once',
 
   // The guard is set by boot in other suites sharing this module; clear it so
   // this test drives the migration itself.
-  setSetting('seed_roster_prompts_v2', '');
+  setSetting('seed_roster_prompts_v3', '');
   const res = roster.reseedRosterPrompts();
 
   assert.equal(res.updated, 1, 'exactly the one pristine live agent updated');
@@ -56,10 +57,28 @@ test('re-seed updates a pristine roster row and its pristine live agents, once',
   assert.equal(roster.reseedRosterPrompts().updated, 0, 'idempotent — the guard blocks a second run');
 });
 
+test('re-seed adds the v6 ICP note beside a v5 note and leaves the v5 note intact', () => {
+  const canvasId = 'c-note-refresh';
+  db.prepare("INSERT INTO canvases (id, name, created_at) VALUES (?, 'NoteRefresh', ?)").run(canvasId, nowIso());
+  db.prepare("INSERT INTO notes (id, canvas_id, title, content, pinned, x, y, updated_by, updated_at) VALUES (?, ?, 'ICP registry — sr-icp-v5', 'old v5 payload', 0, 0, 0, 'roster', ?)")
+    .run(crypto.randomUUID(), canvasId, nowIso());
+  setSetting('seed_roster_prompts_v3', '');
+  roster.reseedRosterPrompts();
+  const titles = db.prepare('SELECT title FROM notes WHERE canvas_id = ? ORDER BY title').all(canvasId).map((n) => n.title);
+  assert.deepEqual(titles, ['ICP registry — sr-icp-v5', 'ICP registry — sr-icp-v6'], 'v6 added, v5 preserved');
+  const v5 = db.prepare("SELECT content FROM notes WHERE canvas_id = ? AND title = 'ICP registry — sr-icp-v5'").get(canvasId);
+  assert.equal(v5.content, 'old v5 payload', 'the old note is untouched');
+  const v6 = db.prepare("SELECT content FROM notes WHERE canvas_id = ? AND title = 'ICP registry — sr-icp-v6'").get(canvasId);
+  assert.match(v6.content, /sr-icp-v6/);
+  setSetting('seed_roster_prompts_v3', '');
+  roster.reseedRosterPrompts();
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM notes WHERE canvas_id = ?').get(canvasId).n, 2, 'no duplicate v6 note on a re-run');
+});
+
 test('re-seed does NOT touch a hand-edited roster row', () => {
   const EDITED_ROW = 'You are Radar. Owner-edited roster entry.';
   db.prepare("UPDATE roster_agents SET system_prompt = ? WHERE name = 'Radar'").run(EDITED_ROW);
-  setSetting('seed_roster_prompts_v2', '');
+  setSetting('seed_roster_prompts_v3', '');
   roster.reseedRosterPrompts();
   assert.equal(db.prepare("SELECT system_prompt FROM roster_agents WHERE name = 'Radar'").get().system_prompt, EDITED_ROW,
     'a roster row that no longer matches the previous template is an owner edit — never overwritten');
