@@ -1,6 +1,6 @@
 # Agent Canvas — Improvement Findings
 
-> ## Status: 12 of 15 fixed on 2026-08-14 — see the disposition table
+> ## Status: 15 of 15 addressed as of 2026-08-14 evening (11 partially — see table)
 >
 > This is the survey as written, kept intact as the record of what was found and
 > why. What has since changed:
@@ -14,17 +14,18 @@
 > | 5 | `haltAndEscalate` can double-finish and swallow the escalation | **FIXED** — `finished` latch + try/catch that audits an escalation failure instead of unwinding. |
 > | 6 | Bookkeeping committed before a `dispatchRun` that legitimately throws | **FIXED** — both paths (handoff, escalation-resolve) dispatch first, write second. |
 > | 7 | `enabledTools` accepts any tool name | **FIXED** — mutating tool names refused in `normalizeServer` (so a stale DB row cannot resurrect one) and named back to the owner by the admin routes. MCP URLs are also https-only now. |
-> | 8 | Lamps go green on config presence, not probe evidence | **OPEN** — the largest item and the one that changes what operators see (green lamps become amber until probed). Deferred deliberately: it deserves its own PR and a release note, not a rider on a hardening batch. |
+> | 8 | Lamps go green on config presence, not probe evidence | **FIXED** (PR #138) — probe evidence (probestate.js, process-lifetime) decides ready/attention/down; both probe routes record it. Release note: lamps are amber after each deploy until probed. |
 > | 9 | Capabilities card claims production CRM is unreachable | **FIXED** — the string now says writes cannot reach production and reads through `hubspot-crm` do. |
-> | 10 | `verifyChain()` walks the whole audit log every 60s | **OPEN** — steady-state degradation, no correctness risk. Wants the tail-verify design in the finding. |
-> | 11 | Agent `system_prompt` rewrites are unaudited | **OPEN** — accountability gap in a 10-seat workspace; one `audit()` call, but the requireOwner question needs Pete. |
+> | 10 | `verifyChain()` walks the whole audit log every 60s | **FIXED** (PR #140) — health poll uses verifyChainTail(200) anchored on the stored pre-tail hash; the full walk stays on owner-only GET /audit. |
+> | 11 | Agent `system_prompt` rewrites are unaudited | **PARTIAL** (PR #139) — rewrites now audit as `agent.prompt_update` with actor + lengths. Whether the route should be owner-only remains Pete's decision. |
 > | 12 | The refused first pass is never metered | **FIXED** — `_priorUsage` is now billed against the original model. |
-> | 13 | `/intent` sits outside the budget gate and pause registry | **OPEN** — small spend, real contract gap. |
+> | 13 | `/intent` sits outside the budget gate and pause registry | **FIXED** (PR #139) — 429 past budget, 409 while paused, AbortController registered so pause kills it in flight. |
 > | 14 | `rateLimit()` discards its 2nd and 3rd arguments | **FIXED** — dead arguments deleted at all ten sites, and the demo route's written-down 10/min intent restored as a real `demo` bucket. |
 > | 15 | The run loop has zero tests | **FIXED** — `test/hardening.test.js` covers the wall-clock halt, the single-finish guarantee under a throwing escalation, and refusal-pass metering, via a `setCallModel` seam. |
 >
-> Suite: **113/113** (was 95 at survey start). The three open items are open on
-> purpose and each says why above.
+> Suite: **146/146** as of the close-out (was 95 at survey start). Findings 8/10/13
+> closed 2026-08-14 evening (PRs #138/#139/#140); 11's owner-only question is the
+> only remainder and it is Pete's call.
 
 ---
 
