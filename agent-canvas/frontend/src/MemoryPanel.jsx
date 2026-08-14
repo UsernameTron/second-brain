@@ -69,6 +69,24 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
               {correcting ? 'Cancel correction' : 'Correct…'}
             </button>
           ) : null}
+          {/* One-click reclassify: same content, new epistemic state, via the
+              normal append-only correction path — reversible by correcting again. */}
+          {!superseded && onCorrect ? ['verified', 'inference', 'assumption']
+            .filter((epi) => epi !== entry.epistemic)
+            .map((epi) => (
+              <button
+                key={epi}
+                className="link-btn reclass-btn"
+                title={`Reclassify as ${epi} (supersedes this entry, same content)`}
+                onClick={() => onCorrect(entry.id, {
+                  content: entry.content,
+                  epistemic: epi,
+                  reason: `reclassified ${entry.epistemic} → ${epi}`,
+                })}
+              >
+                → {epi}
+              </button>
+            )) : null}
         </div>
       ) : (
         <div className="mem-actions">

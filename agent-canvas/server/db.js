@@ -284,8 +284,13 @@ function setSetting(key, value) {
 }
 
 // node:sqlite has no .transaction() helper; use explicit BEGIN/COMMIT.
+// Re-entrant: a tx() inside a tx() joins the outer transaction (SQLite has no
+// nested BEGIN). node:sqlite is synchronous, so a plain depth counter is safe.
+let txDepth = 0;
 function tx(fn) {
+  if (txDepth > 0) { txDepth += 1; try { return fn(); } finally { txDepth -= 1; } }
   db.exec('BEGIN IMMEDIATE');
+  txDepth = 1;
   try {
     const result = fn();
     db.exec('COMMIT');
@@ -293,6 +298,8 @@ function tx(fn) {
   } catch (err) {
     db.exec('ROLLBACK');
     throw err;
+  } finally {
+    txDepth = 0;
   }
 }
 

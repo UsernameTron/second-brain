@@ -890,10 +890,15 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
   }
   const { action, answer = '', target_agent_id } = req.body; // 'accept' | 'redirect' | 'dismiss'
   if (!['accept', 'redirect', 'dismiss'].includes(action)) return res.status(400).json({ error: 'action must be accept|redirect|dismiss' });
+  // A blank answer used to mark the escalation resolved and dispatch nothing —
+  // the decision left the tray but never reached an agent. Refuse it up front.
+  if (action !== 'dismiss' && !answer.trim()) return res.status(400).json({ error: 'answer required: the decision text is what the resumed agent applies' });
 
   let agentId = escalation.agent_id;
   if (action === 'redirect') {
     if (!target_agent_id) return res.status(400).json({ error: 'target_agent_id required for redirect' });
+    const target = db.prepare('SELECT id FROM agents WHERE id = ? AND canvas_id = ?').get(target_agent_id, escalation.canvas_id);
+    if (!target) return res.status(400).json({ error: 'target agent is not on this escalation’s canvas' });
     agentId = target_agent_id;
   }
   const status = action === 'dismiss' ? 'dismissed' : action === 'redirect' ? 'redirected' : 'accepted';
@@ -913,14 +918,30 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
   // setImmediate, so both fit inside one transaction and a 429 rolls the whole
   // thing back.
   let run = null;
+  let decisionEntry = null;
   tx(() => {
     db.prepare('UPDATE escalations SET status = ?, resolution = ?, resolved_by = ?, resolved_at = ? WHERE id = ?')
       .run(status, answer, req.user.email, nowIso(), escalation.id);
-    if (action !== 'dismiss' && agentId && answer.trim()) {
+    if (action !== 'dismiss' && agentId) {
+      // The server records the human decision as verified memory under the
+      // human's own identity — the resumed agent no longer authors (and can no
+      // longer reword) the verified entry it was told to write.
+      decisionEntry = memory.writeEntry({
+        canvasId: escalation.canvas_id,
+        content: `Human decision on escalation "${String(escalation.question).slice(0, 200)}": ${answer}`,
+        epistemic: 'verified',
+        authorType: 'user', authorId: req.user.email, authorName: req.user.email,
+        source: `escalation ${escalation.id} resolution`,
+      });
+      // Lineage: the resumed run reads the decision entry plus whatever the
+      // escalating agent attached as context — previously dropped on resume.
+      const context = JSON.parse(escalation.context || '{}');
+      const contextIds = Array.isArray(context.entry_ids) ? context.entry_ids : [];
       run = dispatchRun({
         agentId, canvasId: escalation.canvas_id,
-        instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}\nHuman decision (${req.user.email}): ${answer}\nApply this decision now: record it in memory as a "verified" entry (source: "human decision ${req.user.email}"), and if it fixes workbook fields, apply them with apply_row_fix using escalation_id ${escalation.id}. Then complete. Your summary must state exactly what you changed — nothing more.`,
+        instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}\nHuman decision (${req.user.email}): ${answer}\nThe decision is already recorded as verified memory (entry ${decisionEntry.id}) — do not re-record it. Apply it now: if it fixes workbook fields, apply them with apply_row_fix using escalation_id ${escalation.id}. Then complete. Your summary must state exactly what you changed — nothing more.`,
         triggerKind: 'escalation_resume', actor: req.user.email, initiatedBy: req.user.email,
+        initialReads: [...new Set([decisionEntry.id, ...contextIds])],
       });
     }
   });
