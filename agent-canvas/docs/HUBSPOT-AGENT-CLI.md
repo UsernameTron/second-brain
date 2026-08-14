@@ -53,9 +53,22 @@ when the agent can already run commands. Capability map:
 
 ```bash
 hs --version
-hs account info          # proves auth without touching anything
-hs project list          # read-only inventory
+hs project list --use-env   # read-only inventory; proves env-based auth
 ```
+
+**`hs account info` does NOT work here** — verified 2026-08-14: it has no
+`--use-env` flag at all (`hs account info --help` confirms; passing it
+errors `Unknown arguments: use-env, useEnv`), and without it the command
+always falls back to a config-file default account, failing with `An
+account needs to be supplied either via "--account" or through setting a
+"defaultAccount"` even when all three env vars are set correctly. `hs
+account`'s subcommands are config-file-only by design. Use `hs project
+list --use-env` for verification instead — it, along with the other
+account-targeted commands (`project create/upload/deploy/logs`, `cms
+list`, `hubdb list`), does support `--use-env`. An empty result (`No
+projects found for account <id>`) is a **successful** verification, not a
+failure — it means auth worked and the account just has no projects
+uploaded yet.
 
 ## Ground rules for Claude on this surface
 
