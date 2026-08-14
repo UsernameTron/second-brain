@@ -92,13 +92,15 @@ Method §1 ("present to Pete before building") and Decision rights section:
   inert). Pass the directing user's email through for the audit line. Add
   the dated grant block to AI-google's GOVERNANCE.md in the same PR.
   Pete enabling tools IS the access sign-off — never tick them yourself.
-- **enrichment-dispatch:** before wiring, set `ED_DAILY_BUDGET_CREDITS=150`
-  on the service's next deploy and cap `max_credits` ≤ 3 in tool schemas.
-  The 150 figure is deploy.sh's documented example value in the external
-  `ctg-enrichment-dispatch` repo — verify it there before setting. If you
-  cannot redeploy the service (cross-project IAM), wire the client lane
-  with the tools disabled-by-default and mark the cap as the deploy
-  runbook's first line.
+- **enrichment-dispatch:** ~~before wiring, set `ED_DAILY_BUDGET_CREDITS=150`
+  on the service's next deploy~~ — **superseded 2026-08-14 by verification.**
+  The 150 figure is not in the external repo (`scripts/deploy.sh:38` has no
+  default; docs and the live revision say **25**, already set), and the guard
+  **fails closed** when unset, so an unconfigured budget refuses paid
+  enrichment rather than uncapping it. Standing default is now: **leave the
+  budget alone**, still cap `max_credits` ≤ 3 in tool schemas, and wire the
+  client lane with tools disabled-by-default (cross-project IAM blocks a
+  redeploy from here anyway). See PORTFOLIO-FOLD-IN.md Corrections 1-3.
 - **GTM bridge v1:** physical tables only; add views only via authorized
   views, never by widening dataset grants.
 - **Anything else requiring a new external service, new spend beyond a
@@ -161,4 +163,6 @@ post-merge `chmod +x` check so it is tracked, not assumed.
 
 | Date | Session | Wave | Status | Notes |
 |---|---|---|---|---|
-| 2026-08-14 | planning (this file authored) | — | Brief final: 4 exercises, waves defined | Decisions delegated; defaults recorded above |
+| 2026-08-14 | local exec | Step 1 | DONE | Review shipped in PORTFOLIO-FOLD-IN.md § "Step-1 adversarial review". 3 gating claims re-verified: SOI LIVE (IAP answered), ED LIVE (401-vs-404 discriminator), GTM **unverifiable**. 3 corrections + 4 cross-exercise gaps recorded there. Step 0 already satisfied — #119/#120 are on master. |
+| 2026-08-14 | local exec | Step 3 correction | DONE | **`ED_DAILY_BUDGET_CREDITS=150` is not a real figure** — `scripts/deploy.sh:38` has no default; docs and the live revision say **25**, already set. Action: change nothing. Also the guard **fails closed** when unset (`app/company.py:246-254`), so the ED lane cannot cause spend. See brief Corrections 1-2. |
+| 2026-08-14 | local exec | 1 (GTM half) | BLOCKED | Unverified claim: `ctg_gtm_marts` contents and the view→raw read-through. No BigQuery access from either identity — `bigquery.jobs.create` denied in `ctg-hs-exec-tool`, and the cross-project pattern (job billed to canvas) is denied on `ctg_gtm_marts.INFORMATION_SCHEMA.TABLES`. Clears when someone with admin on `ctg-hs-exec-tool` grants `dataViewer` on `ctg_gtm_marts` to pete@. |
