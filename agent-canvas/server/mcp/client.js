@@ -294,10 +294,20 @@ async function callTool({ server, tool, args, actorEmail }) {
     throw new Error(`tool ${tool} on ${server} is not enabled by the owner — enable it in the MCP config to use it`);
   }
   await ensureSession(srv);
+  // Attribution is server-controlled: when a tool's schema declares asked_by,
+  // the authenticated directing user OVERWRITES whatever the model supplied —
+  // otherwise the downstream service's audit line is model-authored fiction.
+  const finalArgs = { ...(args || {}) };
+  if (actorEmail) {
+    try {
+      const def = (await listTools(srv)).find((t) => t.name === tool);
+      if (def?.inputSchema?.properties?.asked_by) finalArgs.asked_by = actorEmail;
+    } catch { /* schema unavailable — send args as-is; the canvas audit line still holds */ }
+  }
   const t0 = Date.now();
   let result;
   try {
-    result = await rpc(srv, 'tools/call', { name: tool, arguments: args || {} });
+    result = await rpc(srv, 'tools/call', { name: tool, arguments: finalArgs });
   } catch (err) {
     audit('user', actorEmail || 'system', 'mcp.call', { server, tool, ok: false, ms: Date.now() - t0 });
     throw err;

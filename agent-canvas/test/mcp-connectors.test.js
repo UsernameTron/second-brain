@@ -31,10 +31,13 @@ before(async () => {
         return reply({ tools: [
           { name: 'search_signals', description: 'Search buying signals', inputSchema: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] } },
           { name: 'dangerous_tool', description: 'Not enabled by owner', inputSchema: { type: 'object', properties: {} } },
+          { name: 'org_search', description: 'Attributed corpus search', inputSchema: { type: 'object', properties: { question: { type: 'string' }, asked_by: { type: 'string' } }, required: ['question'] } },
         ] });
       }
       if (msg.method === 'tools/call') {
+        seen.lastArgs = msg.params.arguments;
         if (msg.params.name === 'search_signals') return reply({ content: [{ type: 'text', text: `results for ${msg.params.arguments.q}` }] });
+        if (msg.params.name === 'org_search') return reply({ content: [{ type: 'text', text: 'grounded answer' }] });
         return reply({ content: [{ type: 'text', text: 'should never run' }] });
       }
       reply({});
@@ -43,7 +46,7 @@ before(async () => {
   await new Promise((r) => server.listen(0, r));
   port = server.address().port;
   process.env.MCP_SERVERS = JSON.stringify([
-    { name: 'crm-intel', url: `http://127.0.0.1:${port}/mcp`, enabledTools: ['search_signals'] },
+    { name: 'crm-intel', url: `http://127.0.0.1:${port}/mcp`, enabledTools: ['search_signals', 'org_search'] },
   ]);
   require('../server/mcp/client').reload();
 });
@@ -53,10 +56,11 @@ const mcp = require('../server/mcp/client');
 
 test('handshake + tools/list work, and only owner-enabled tools become agent defs', async () => {
   const defs = await mcp.enabledToolDefs();
-  assert.equal(defs.length, 1, 'dangerous_tool must not be exposed');
-  assert.equal(defs[0].name, 'mcp_crm_intel_search_signals');
-  assert.match(defs[0].description, /\[MCP · crm-intel\]/);
-  assert.deepEqual(defs[0].input_schema.required, ['q']);
+  assert.equal(defs.length, 2, 'dangerous_tool must not be exposed');
+  assert.ok(!defs.some((d) => d.name.includes('dangerous')));
+  const search = defs.find((d) => d.name === 'mcp_crm_intel_search_signals');
+  assert.match(search.description, /\[MCP · crm-intel\]/);
+  assert.deepEqual(search.input_schema.required, ['q']);
   assert.ok(seen.calls.includes('initialize'), 'handshake performed');
 });
 
@@ -88,7 +92,7 @@ test('executeTool dispatches mcp_ names with the directing-user rule', async () 
 
 test('probe forces a fresh handshake and reports tool counts', async () => {
   const r = await mcp.probeServer('crm-intel');
-  assert.ok(r.ok && r.tools === 2 && r.enabled === 1);
+  assert.ok(r.ok && r.tools === 3 && r.enabled === 2, `tools=${r.tools} enabled=${r.enabled}`);
   assert.ok(typeof r.ms === 'number');
   await assert.rejects(() => mcp.probeServer('constructor'), /unknown MCP server/);
 });
@@ -101,4 +105,23 @@ test('bad MCP config degrades to a named error, not a crash', () => {
   process.env.MCP_SERVERS = JSON.stringify([{ name: 'crm-intel', url: `http://127.0.0.1:${port}/mcp`, enabledTools: ['search_signals'] }]);
   mcp.reload();
   assert.equal(mcp.configError(), null);
+});
+
+test('asked_by is server-controlled: the directing user overwrites any model-supplied value (R2)', async () => {
+  // The bad-config test above reloaded with only search_signals enabled — restore.
+  process.env.MCP_SERVERS = JSON.stringify([
+    { name: 'crm-intel', url: `http://127.0.0.1:${port}/mcp`, enabledTools: ['search_signals', 'org_search'] },
+  ]);
+  mcp.reload();
+  await mcp.callTool({
+    server: 'crm-intel', tool: 'org_search',
+    args: { question: 'what is the ARR target?', asked_by: 'spoofed@evil.example' },
+    actorEmail: 'pete@cloudtechgurus.com',
+  });
+  assert.equal(seen.lastArgs.asked_by, 'pete@cloudtechgurus.com', 'model-supplied asked_by must be overwritten');
+  assert.equal(seen.lastArgs.question, 'what is the ARR target?');
+
+  // A tool whose schema does NOT declare asked_by never gets the field injected.
+  await mcp.callTool({ server: 'crm-intel', tool: 'search_signals', args: { q: 'acme' }, actorEmail: 'pete@cloudtechgurus.com' });
+  assert.ok(!('asked_by' in seen.lastArgs), 'no schema field, no injection');
 });
