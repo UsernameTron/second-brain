@@ -1,29 +1,49 @@
-# Agent Canvas — Session Handoff (2026-08-13, end of day)
+# Agent Canvas — Session Handoff (2026-08-14, mid-day)
 
 Fresh-context orientation for the next session. Everything here was true at
 handoff time; verify anything load-bearing with a probe or a gcloud describe
 before depending on it.
 
-## START HERE — deploy the connectors, then two owner actions in the app
+## START HERE — one blocker (environment, not code), then two owner actions
 
-**Live:** revision `agent-canvas-00023-xhf`+heal (#106 merged — verify
-`workspace.roster_heal` appeared in the audit log if not yet confirmed).
-**Waiting:** the MCP Connectors platform (branch
-`claude/agent-canvas-workspace-1qquiu`, this session) — merge + redeploy.
+**PR #108 MERGED** — the MCP Connectors platform (roster+heal PR #106 was
+already merged prior) is on `master` as of commit `79ca6ad`. Code is done,
+tested (90/90), and not yet confirmed live.
 
-1. **Redeploy** with the block below — note the NEW optional export
-   `RAPIDAPI_KEY` (get it from rapidapi.com → your app; it feeds both
-   LinkedIn connectors as `${ENV:RAPIDAPI_KEY}`). Without it the connectors
-   probe fine but calls fail loudly.
-2. **Admin → Connectors** (new tab): Probe `linkedin-fresh` and
-   `linkedin-blitz`, then tick the lookup tools you want agents to have —
-   connectors are inert until tools are explicitly enabled (consent model).
-   Access/roles are editable there too (both seeded members-visible, scoped
-   to research/targeting/commercial agent roles).
+**Read this before doing anything else — it will save you a repeat of
+today's confusion:** the authoring session's network access (blocked from
+reaching `developers.hubspot.com`, `mcp.rapidapi.com`, the deployed
+`*.run.app` service, and GitHub's write API) did **not** clear when Pete
+changed the environment's network policy mid-session. Root cause, confirmed
+by testing: **network policy and GitHub-App write access are applied when a
+session's container STARTS.** Switching models (`/model`) or resuming a
+session (same conversation, new turn) reuses the existing container — it
+does **not** re-provision it. Only a genuinely **new session** (new
+conversation) picks up policy changes made after the old one started. If the
+next session still hits `curl: (56)` on external hosts or a GitHub-write
+403, that is the same stale-container issue, not a policy that reverted —
+start over with a brand-new session, don't debug the settings page again.
+(Also confirmed this session: no `gcloud` binary in this container — Cloud
+Run verification has always required Pete's Mac or a session that has it.)
+
+1. **Confirm the redeploy happened / run it.** From Pete's Mac, the block
+   under "Redeploy procedure" below — note the `RAPIDAPI_KEY` export added
+   this cycle. If already run, skip straight to the check command in that
+   section (`workspace.seed_mcp` in the audit log, `servers: 2`).
+2. **Admin → Connectors** (new tab, live once deployed): Probe
+   `linkedin-fresh` and `linkedin-blitz`, tick the lookup tools you want
+   agents to have — connectors are inert until tools are explicitly enabled
+   (consent model holds end to end). Access/roles editable there too (both
+   seeded members-visible, scoped to research/targeting/commercial).
 3. **Phase 2 (Claude-side HubSpot Agent CLI):** follow
    [HUBSPOT-AGENT-CLI.md](HUBSPOT-AGENT-CLI.md) — two environment settings
    (`npm install -g @hubspot/cli` setup command + `HUBSPOT_PERSONAL_ACCESS_KEY`),
-   then a fresh session verifies with `hs account info`.
+   then a **fresh** session verifies with `hs account info`.
+4. **Phase 3, once network access actually works in a session:** the first
+   move is verifying HubSpot's "MCP Auth Apps" remote endpoint (see the
+   Phase 3 intel block under "MCP Connectors" below) — it may collapse the
+   planned bridge service to a single connector row. Do this check before
+   writing any bridge code.
 
 ## What this is
 
@@ -197,7 +217,7 @@ The memory fix goes through the normal `correctEntry` path, so the old anchor
 survives, stamped `superseded_by`, and the correction cites it. Verified
 against a simulated pre-roster database in `test/roster-heal.test.js`.
 
-## MCP Connectors (this session — Phase 1+2 of the connector plan)
+## MCP Connectors (Phase 1+2 MERGED — PR #108, master `79ca6ad`)
 
 **What it is:** owner-managed external MCP servers, served to agents through
 the existing server-side Streamable-HTTP client — users install nothing,
