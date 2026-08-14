@@ -6,7 +6,6 @@
 const { db, nowIso } = require('../db');
 const { audit } = require('../audit');
 const bus = require('../bus');
-const memory = require('../memory');
 const { callModel, tierConfig, webSearchToolFor } = require('./anthropic');
 // Seam for tests only. The run loop is where the safety pieces actually
 // compose — budgets, deadlines, pause epochs, metering — and none of it was
