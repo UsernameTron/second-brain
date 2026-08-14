@@ -230,6 +230,43 @@ test('a configured lamp earns green only from probe evidence (finding 8)', async
   }
 });
 
+test('/intent sits behind the budget gate and the pause switch (finding 13)', async () => {
+  const control = require('../server/orchestrator/control');
+  const crypto = require('node:crypto');
+  const { nowIso } = require('../server/db');
+  const express = require('express');
+  const app = express();
+  app.use(express.json());
+  app.use('/api', require('../server/routes'));
+  db.prepare("INSERT OR IGNORE INTO allowlist (email, role, display_name, added_by, added_at) VALUES ('pete@cloudtechgurus.com', 'owner', 'Pete', 'test', '')").run();
+  const canvasId = crypto.randomUUID();
+  db.prepare("INSERT INTO canvases (id, name, access_mode, created_by, created_at) VALUES (?, 'i', 'workspace', 't', ?)").run(canvasId, nowIso());
+  const server = app.listen(0);
+  await new Promise((r) => server.once('listening', r));
+  const port = server.address().port;
+  const prevBudget = control.getDailyBudget();
+  try {
+    const auth = await fetch(`http://127.0.0.1:${port}/api/auth/dev`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'pete@cloudtechgurus.com' }),
+    });
+    const cookie = auth.headers.get('set-cookie').split(';')[0];
+    const intent = () => fetch(`http://127.0.0.1:${port}/api/canvases/${canvasId}/intent`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ text: 'ask scout to check the rows' }),
+    });
+    control.setDailyBudget(0, 'test');
+    assert.equal((await intent()).status, 429, 'exhausted budget must refuse the model call');
+    control.setDailyBudget(prevBudget, 'test');
+    control.setPaused(true, 'test');
+    assert.equal((await intent()).status, 409, 'a paused workspace must refuse the model call');
+  } finally {
+    control.setPaused(false, 'test');
+    control.setDailyBudget(prevBudget, 'test');
+    server.close();
+  }
+});
+
 test('probe surface lookup ignores inherited properties (no prototype dispatch)', async () => {
   for (const evil of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
     await assert.rejects(

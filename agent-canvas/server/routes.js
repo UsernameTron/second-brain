@@ -601,6 +601,15 @@ router.patch('/canvases/:canvasId/agents/:agentId', auth.requireCanvas, (req, re
   const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND canvas_id = ?').get(req.params.agentId, req.params.canvasId);
   if (!agent) return res.status(404).json({ error: 'agent not found' });
   const { x, y, system_prompt, model_tier, name, color } = req.body;
+  // Finding 11: a system-prompt rewrite changes what an agent IS — it gets an
+  // audit line naming who changed it. (Whether it should be owner-only is a
+  // pending decision for Pete; the accountability half need not wait.)
+  if (system_prompt != null && system_prompt !== agent.system_prompt) {
+    audit('user', req.user.email, 'agent.prompt_update', {
+      agentId: agent.id, canvasId: agent.canvas_id,
+      fromLen: (agent.system_prompt || '').length, toLen: String(system_prompt).length,
+    });
+  }
   db.prepare('UPDATE agents SET x = ?, y = ?, system_prompt = ?, model_tier = ?, name = ?, color = ? WHERE id = ?')
     .run(x ?? agent.x, y ?? agent.y, system_prompt ?? agent.system_prompt,
       ['fast', 'strong'].includes(model_tier) ? model_tier : agent.model_tier, name ?? agent.name, color ?? agent.color, agent.id);
@@ -909,15 +918,29 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
 router.post('/canvases/:canvasId/intent', rateLimit('model'), auth.requireCanvas, asyncRoute(async (req, res) => {
   const text = String(req.body.text || '').trim();
   if (!text) return res.status(400).json({ error: 'text required' });
+  // Finding 13: this was the one model call outside both the budget gate and
+  // the pause registry. Same contract as dispatch: no spend past the budget,
+  // and a global pause aborts it in flight.
+  if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused — resume before sending commands' });
+  if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted — raise it or wait for the reset' });
+  const abort = new AbortController();
+  const intentAbortId = `intent-${crypto.randomUUID()}`;
+  control.registerAbort(intentAbortId, abort);
   const agents = db.prepare('SELECT id, name, role FROM agents WHERE canvas_id = ?').all(req.params.canvasId);
   const fastTier = tierConfig('fast');
-  const response = await callModel({
+  let response;
+  try {
+    response = await callModel({
     provider: fastTier.provider,
     model: fastTier.model,
+    signal: abort.signal,
     system: `You parse spoken/typed commands for a multi-agent canvas. Available agents:\n${agents.map((a) => `- ${a.name} (${a.role}, id ${a.id})`).join('\n')}\nReturn ONLY a JSON object, no prose: {"action": "dispatch"|"pause"|"resume"|"unknown", "agent_id": "<id or null>", "agent_name": "<name or null>", "instruction": "<what the agent should do, cleaned up>", "echo": "<short confirmation of what will happen, e.g. 'Ask Scout (research) to re-check rows 3-5'>"}. If the command names no agent but implies a role, pick the matching agent. If genuinely unclear, action "unknown" with echo explaining why.`,
     messages: [{ role: 'user', content: text }],
     maxTokens: 300,
-  });
+    });
+  } finally {
+    control.unregisterAbort(intentAbortId);
+  }
   control.addUsage(response.model || fastTier.model, response.usage || {});
   const raw = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
   let parsed;
