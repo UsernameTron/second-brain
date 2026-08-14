@@ -67,12 +67,14 @@ function pickIdentity(input) {
 // traverse the path or smuggle a query string onto another route.
 function assertKey(key) {
   const s = String(key || '');
-  if (!/^[A-Za-z0-9._@+-]{1,200}$/.test(s)) throw new Error('invalid record key');
+  // '.' and '..' pass a character allowlist and then get normalized away by
+  // the URL parser, landing the request on a parent route.
+  if (!/^[A-Za-z0-9._@+-]{1,200}$/.test(s) || /^\.+$/.test(s)) throw new Error('invalid record key');
   return s;
 }
 function assertDomain(domain) {
   const s = String(domain || '').trim().toLowerCase();
-  if (!/^[a-z0-9.-]{1,253}$/.test(s) || !s.includes('.')) throw new Error(`invalid domain: ${s.slice(0, 40)}`);
+  if (!/^[a-z0-9.-]{1,253}$/.test(s) || !s.includes('.') || /^\.+$/.test(s)) throw new Error(`invalid domain: ${s.slice(0, 40)}`);
   return s;
 }
 
@@ -95,6 +97,8 @@ async function request({ method, path, body, actorEmail, op }) {
       'x-caller-email': actorEmail || 'agent-canvas',
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
+    // Vendor fan-out is the slow part; 60s is the ceiling, not the target.
+    signal: AbortSignal.timeout(60_000),
   });
   const data = await res.json().catch(() => ({}));
   audit('user', actorEmail || 'system', 'enrichment.call', {
@@ -122,17 +126,21 @@ const ops = {
     }
     return request({ method: 'POST', path: '/v1/enrich', body, actorEmail, op: 'enrich_contact' });
   },
-  enrich_company: ({ actorEmail, domain, titles }) => {
+  enrich_company: ({ actorEmail, domain, titles, max_credits: maxCredits }) => {
     const clean = assertDomain(domain);
-    const qs = Array.isArray(titles) && titles.length
-      ? `?${titles.slice(0, 10).map((t) => `titles=${encodeURIComponent(String(t).slice(0, 80))}`).join('&')}`
-      : '';
-    return request({ method: 'GET', path: `/v1/company/${encodeURIComponent(clean)}${qs}`, actorEmail, op: 'enrich_company' });
+    // Every paid op carries the ceiling, not just enrich_contact — this one
+    // fans out per title and an agent looping domains would otherwise be
+    // bounded only by the service's own daily cap, which is its guarantee and
+    // not ours.
+    const params = (Array.isArray(titles) ? titles.slice(0, 10) : [])
+      .map((t) => `titles=${encodeURIComponent(String(t).slice(0, 80))}`);
+    params.push(`max_credits=${clampCredits(maxCredits)}`);
+    return request({ method: 'GET', path: `/v1/company/${encodeURIComponent(clean)}?${params.join('&')}`, actorEmail, op: 'enrich_company' });
   },
-  verify_email: ({ actorEmail, email }) => {
+  verify_email: ({ actorEmail, email, max_credits: maxCredits }) => {
     const s = String(email || '').trim();
     if (!s.includes('@')) throw new Error('verify_email needs an email address');
-    return request({ method: 'POST', path: '/v1/verify', body: { email: s }, actorEmail, op: 'verify_email' });
+    return request({ method: 'POST', path: '/v1/verify', body: { email: s, max_credits: clampCredits(maxCredits) }, actorEmail, op: 'verify_email' });
   },
   get_enriched_contact: ({ actorEmail, key }) => request({
     method: 'GET', path: `/v1/contact/${encodeURIComponent(assertKey(key))}`, actorEmail, op: 'get_enriched_contact',

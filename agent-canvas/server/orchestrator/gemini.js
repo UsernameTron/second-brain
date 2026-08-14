@@ -105,6 +105,11 @@ async function callGemini({ model, system, messages, tools, maxTokens = 8192, si
     systemInstruction: system,
     maxOutputTokens: maxTokens,
     abortSignal: signal,
+    // The Anthropic clients carry a 120s per-request timeout; this path had
+    // none, so a hung Gemini request had no upper bound of its own. The
+    // runner's deadline signal now covers it too, but a transport-level
+    // ceiling means a stray caller without a signal cannot hang either.
+    httpOptions: { timeout: 120_000 },
   };
   if (functionDeclarations.length) config.tools = [{ functionDeclarations }];
   const response = await client.models.generateContent({ model, contents: toContents(messages), config });

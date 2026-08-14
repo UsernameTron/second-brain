@@ -162,6 +162,7 @@ async function exchangeCode({ code, redirectUri, email }) {
       code, client_id: CLIENT_ID, client_secret: CLIENT_SECRET,
       redirect_uri: redirectUri, grant_type: 'authorization_code',
     }),
+    signal: AbortSignal.timeout(15_000),
   });
   const data = await res.json();
   if (!res.ok || !data.refresh_token) {
@@ -200,6 +201,7 @@ async function accessTokenFor(email) {
       refresh_token: decrypt(row.refresh_token_enc),
       client_id: CLIENT_ID, client_secret: CLIENT_SECRET, grant_type: 'refresh_token',
     }),
+    signal: AbortSignal.timeout(15_000),
   });
   const data = await res.json();
   if (!res.ok || !data.access_token) {
@@ -219,6 +221,7 @@ async function gcall(email, url, { method = 'GET', body, headers = {} } = {}) {
     method,
     headers: { authorization: `Bearer ${token}`, ...(body ? { 'content-type': 'application/json' } : {}), ...headers },
     body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(30_000),
   });
   if (res.status === 204) return {};
   const data = await res.json().catch(() => ({}));
@@ -287,7 +290,7 @@ async function driveReadText({ email, fileId }) {
     throw new Error(`"${meta.name}" is an uploaded Office file (${meta.mimeType}), which this integration cannot extract text from yet. Workaround: ask the user to open it with Google Sheets/Docs (right-click in Drive → Open with) which creates a readable converted copy, or export it as CSV — then search Drive again for the converted file.`);
   }
   else throw new Error(`unsupported file type for text read: ${meta.mimeType}`);
-  const res = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
+  const res = await fetch(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000) });
   if (!res.ok) throw new Error(`Google API error: HTTP ${res.status}`);
   const text = (await res.text()).slice(0, TEXT_CAP);
   audit('user', email, 'workspace.drive_read', { fileId, name: meta.name });
@@ -306,6 +309,7 @@ async function docsCreate({ email, title, text }) {
     method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'content-type': `multipart/related; boundary=${boundary}` },
     body,
+    signal: AbortSignal.timeout(30_000),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Google API error: ${data.error?.message || res.status}`);

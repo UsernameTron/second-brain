@@ -36,7 +36,7 @@ function qstr(value, fallback = undefined) {
 }
 
 // Broad safety net for all API routes; tighter buckets on sensitive ones below.
-router.use(rateLimit('api', 300, 60_000));
+router.use(rateLimit('api'));
 
 // ---------- config + auth ----------
 router.get('/config', (req, res) => {
@@ -48,13 +48,13 @@ router.get('/config', (req, res) => {
   });
 });
 
-router.post('/auth/google', rateLimit('auth', 10, 60_000), asyncRoute(async (req, res) => {
+router.post('/auth/google', rateLimit('auth'), asyncRoute(async (req, res) => {
   const user = await auth.signInWithGoogle(req.body.credential);
   auth.issueSession(res, user);
   res.json({ user: publicUser(user) });
 }));
 
-router.post('/auth/dev', rateLimit('auth', 10, 60_000), asyncRoute(async (req, res) => {
+router.post('/auth/dev', rateLimit('auth'), asyncRoute(async (req, res) => {
   const user = auth.signInDev(req.body.email);
   auth.issueSession(res, user);
   res.json({ user: publicUser(user) });
@@ -87,7 +87,7 @@ const HUBSPOT_SURFACE = {
   ],
   cannot: [
     { label: 'Delete or merge anything', detail: 'Policy-denied at the Ops Runner and never exposed to agents here.' },
-    { label: 'Touch the real customer portal', detail: 'The Ops Runner is locked to sandbox portal 246460341 — the production CRM is unreachable by design.' },
+    { label: 'Change anything in the real customer portal', detail: 'Every write goes through the Ops Runner, which is locked to sandbox portal 246460341 — production is unwritable by design. Reads through the hubspot-crm connector DO reach production portal 243103424, under read-only scopes.' },
   ],
 };
 router.get('/capabilities', (req, res) => {
@@ -124,7 +124,7 @@ function externalBase(req) {
   return `${proto}://${req.get('host')}`;
 }
 
-router.post('/google/connect', rateLimit('auth', 10, 60_000), (req, res) => {
+router.post('/google/connect', rateLimit('auth'), (req, res) => {
   if (!workspace.oauthReady()) {
     return res.status(503).json({ error: 'Workspace OAuth is not configured on this deployment (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET unset).' });
   }
@@ -133,7 +133,7 @@ router.post('/google/connect', rateLimit('auth', 10, 60_000), (req, res) => {
   res.json({ url: workspace.buildAuthUrl({ state, redirectUri }) });
 });
 
-router.get('/google/oauth/callback', rateLimit('auth', 10, 60_000), asyncRoute(async (req, res) => {
+router.get('/google/oauth/callback', rateLimit('auth'), asyncRoute(async (req, res) => {
   const { code, state, error } = req.query;
   if (error) {
     // access_denied from an unverified External app in Testing means "this
@@ -250,7 +250,7 @@ router.get('/health/integrations', (req, res) => {
   res.json({ integrations, aggregate, queue: queueState(), provider });
 });
 
-router.post('/health/probe', rateLimit('auth', 10, 60_000), asyncRoute(async (req, res) => {
+router.post('/health/probe', rateLimit('auth'), asyncRoute(async (req, res) => {
   const surface = String(req.body.surface || '');
   if (surface === 'model') {
     // One tiny live call through the real model path. This is the difference
@@ -367,16 +367,26 @@ function mcpMaskedHeaders(headersJson) {
   }
   return masked;
 }
-function mcpValidate({ name, url, access, model }) {
+function mcpValidate({ name, url, access, enabledTools, model }) {
   if (name !== undefined && !MCP_NAME_RE.test(String(name))) return 'name must be 1-64 chars [a-zA-Z0-9_-]';
-  if (url !== undefined && !/^https?:\/\//.test(String(url))) return 'url must be http(s)';
+  // https, or loopback for local development. mcp/client.js mints a
+  // Google-signed identity token and sends it as a Bearer header over whatever
+  // scheme this URL carries; the same check runs in normalizeServer, which is
+  // the layer that actually loads env/file/DB rows.
+  if (url !== undefined && !mcp.safeMcpUrl(url)) return 'url must be https (or a loopback address for local development)';
   if (access !== undefined && !['owner', 'members'].includes(access)) return "access must be 'owner' or 'members'";
+  if (Array.isArray(enabledTools)) {
+    // Name the rejected tool rather than dropping it silently — an owner who
+    // ticks a write tool should learn why it did not take, not wonder.
+    const mutating = enabledTools.find((t) => mcp.isMutatingToolName(t));
+    if (mutating) return `"${String(mutating).slice(0, 64)}" looks like a write tool. Connectors are read lanes — CRM writes go through the ops-runner preview/apply lane (ADR-0041).`;
+  }
   return null;
 }
 
 router.post('/mcp/servers', auth.requireOwner, (req, res) => {
   const { name, url, headers = {}, enabledTools = [], access = 'members', roles = [], enabled = true } = req.body || {};
-  const bad = mcpValidate({ name: name || '', url: url || '', access });
+  const bad = mcpValidate({ name: name || '', url: url || '', access, enabledTools });
   if (!name || !url || bad) return res.status(400).json({ error: bad || 'name and url required' });
   if (db.prepare('SELECT id FROM mcp_servers WHERE name = ?').get(name)) return res.status(409).json({ error: 'a connector with that name exists' });
   const id = crypto.randomUUID();
@@ -393,7 +403,7 @@ router.patch('/mcp/servers/:id', auth.requireOwner, (req, res) => {
   const row = db.prepare('SELECT * FROM mcp_servers WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'connector not found' });
   const { name, url, headers, enabledTools, access, roles, enabled } = req.body || {};
-  const bad = mcpValidate({ name, url, access });
+  const bad = mcpValidate({ name, url, access, enabledTools });
   if (bad) return res.status(400).json({ error: bad });
   db.prepare('UPDATE mcp_servers SET name = ?, url = ?, headers_json = ?, enabled_tools_json = ?, access = ?, roles_json = ?, enabled = ?, updated_at = ? WHERE id = ?')
     .run(name ?? row.name, url ?? row.url,
@@ -574,7 +584,7 @@ router.post('/canvases/:canvasId/agents/:agentId/resync', auth.requireOwner, (re
 });
 
 // ---------- runs ----------
-router.post('/canvases/:canvasId/agents/:agentId/dispatch', rateLimit('model', 30, 60_000), auth.requireCanvas, (req, res) => {
+router.post('/canvases/:canvasId/agents/:agentId/dispatch', rateLimit('model'), auth.requireCanvas, (req, res) => {
   if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused — resume before dispatching' });
   const instruction = String(req.body.instruction || '').trim();
   if (!instruction) return res.status(400).json({ error: 'instruction required' });
@@ -825,24 +835,40 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
     agentId = target_agent_id;
   }
   const status = action === 'dismiss' ? 'dismissed' : action === 'redirect' ? 'redirected' : 'accepted';
-  db.prepare('UPDATE escalations SET status = ?, resolution = ?, resolved_by = ?, resolved_at = ? WHERE id = ?')
-    .run(status, answer, req.user.email, nowIso(), escalation.id);
-  audit('user', req.user.email, 'escalation.resolve', { escalationId: escalation.id, action });
 
+  // Both halves or neither. Ordering alone cannot fix this: `dispatchRun`
+  // throws 429 on a spent daily budget (a designed state), and each order
+  // fails a different way. Record-then-dispatch loses the human's decision —
+  // the escalation reads 'accepted', so it leaves the tray, and no run ever
+  // applies it. Dispatch-then-record is worse in KIND: a live run carrying
+  // trigger_kind='escalation_resume' — the only gate hs_apply_change checks —
+  // while the escalation still reads 'open' with no resolved_by and no
+  // escalation.resolve audit line. A sandbox CRM apply would execute with no
+  // record of the approval that authorized it, and the still-open row invites
+  // a second human to resolve it into a second run.
+  //
+  // node:sqlite is synchronous and dispatchRun's pump is deferred via
+  // setImmediate, so both fit inside one transaction and a 429 rolls the whole
+  // thing back.
   let run = null;
-  if (action !== 'dismiss' && agentId && answer.trim()) {
-    run = dispatchRun({
-      agentId, canvasId: escalation.canvas_id,
-      instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}\nHuman decision (${req.user.email}): ${answer}\nApply this decision now: record it in memory as a "verified" entry (source: "human decision ${req.user.email}"), and if it fixes workbook fields, apply them with apply_row_fix using escalation_id ${escalation.id}. Then complete. Your summary must state exactly what you changed — nothing more.`,
-      triggerKind: 'escalation_resume', actor: req.user.email, initiatedBy: req.user.email,
-    });
-  }
+  tx(() => {
+    db.prepare('UPDATE escalations SET status = ?, resolution = ?, resolved_by = ?, resolved_at = ? WHERE id = ?')
+      .run(status, answer, req.user.email, nowIso(), escalation.id);
+    if (action !== 'dismiss' && agentId && answer.trim()) {
+      run = dispatchRun({
+        agentId, canvasId: escalation.canvas_id,
+        instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}\nHuman decision (${req.user.email}): ${answer}\nApply this decision now: record it in memory as a "verified" entry (source: "human decision ${req.user.email}"), and if it fixes workbook fields, apply them with apply_row_fix using escalation_id ${escalation.id}. Then complete. Your summary must state exactly what you changed — nothing more.`,
+        triggerKind: 'escalation_resume', actor: req.user.email, initiatedBy: req.user.email,
+      });
+    }
+  });
+  audit('user', req.user.email, 'escalation.resolve', { escalationId: escalation.id, action });
   bus.emit('event', { type: 'escalation_resolved', canvasId: escalation.canvas_id, escalationId: escalation.id, status, by: req.user.email });
   res.json({ ok: true, run });
 }));
 
 // ---------- voice/text intent parsing (fast model; echo before dispatch) ----------
-router.post('/canvases/:canvasId/intent', rateLimit('model', 30, 60_000), auth.requireCanvas, asyncRoute(async (req, res) => {
+router.post('/canvases/:canvasId/intent', rateLimit('model'), auth.requireCanvas, asyncRoute(async (req, res) => {
   const text = String(req.body.text || '').trim();
   if (!text) return res.status(400).json({ error: 'text required' });
   const agents = db.prepare('SELECT id, name, role FROM agents WHERE canvas_id = ?').all(req.params.canvasId);

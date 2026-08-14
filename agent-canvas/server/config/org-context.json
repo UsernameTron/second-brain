@@ -1,0 +1,603 @@
+{
+  "registry": "org-context",
+  "source_of_truth": "ontology/ontology.json (CTG-Workspace-Build)",
+  "generated_by": "agent-canvas/scripts/build-registries.js",
+  "frozen_at": "2026-07-28",
+  "authority_note": "FROZEN at the date above while the Drive corpus keeps moving. Where one of these facts disagrees with a live source (a SOI corpus answer, a document read this week, a person), the live source wins on recency and this entry is the stale one. Each entry carries its node id and source path so the disagreement can be traced rather than argued.",
+  "excludes": "INFERENCE and UNKNOWN nodes, every node carrying an unresolved contradiction, and any name on the excluded-vendor list",
+  "counts": {
+    "facts": 84,
+    "dropped_excluded_vendor": 2,
+    "dropped_contradicted": 11
+  },
+  "facts": [
+    {
+      "id": "ent.connor_advisors",
+      "layer": "entities",
+      "name": "Connor Advisors LLC",
+      "statement": "Pete Connor's entity. Authors and owns the workspace, knowledge base, and specs. Pete is embedded at CTG as VP Technology / AI Lead on a monthly retainer plus an outcome-tied component.",
+      "source": "knowledge-base/INDEX.md § header; ~/Claude Cowork/ABOUT ME/my-company.md § Connor Advisors LLC"
+    },
+    {
+      "id": "ent.fred",
+      "layer": "entities",
+      "name": "Fred Stacey — CEO",
+      "statement": "Chief Executive. Owns brand, investor relations, strategic narrative, and M&A. Sole signer of the client ISA and the annual Appendix A certification.",
+      "source": "~/Claude Cowork/ctg/Darren-Starter-Pack/ABOUT ME/my-company.md § Leadership; projects/ctg-secintel/reports/PATH-TO-SIGNATURE-2026-07-27.md"
+    },
+    {
+      "id": "ent.darren",
+      "layer": "entities",
+      "name": "Darren Prine — CRO",
+      "statement": "Chief Revenue Officer. Owns pipeline, buyer relationships, the sub-agent network, commission economics, peer-TSD positioning, AI SDR motion, and pricing. Carries the commercial-finance lane directly — there is deliberately no CFO persona.",
+      "source": "~/Claude Cowork/ctg/Darren-Starter-Pack/ABOUT ME/my-company.md § What I Own; projects/ctg-advisor-v1.0.0/persona-core/synthesis-protocol.md § What this protocol is not"
+    },
+    {
+      "id": "ent.jessica",
+      "layer": "entities",
+      "name": "Jessica Voss — Co-Founder / Ops",
+      "statement": "Owns LOA compliance, vendor-neutrality enforcement, IT/back-office stack, identity and access, cybersecurity posture, people-ops, and governance. Net-receives delegation from both Fred and Darren; delegates out to no one.",
+      "source": "~/Claude Cowork/ctg/Darren-Starter-Pack/ABOUT ME/my-company.md § Leadership; projects/ctg-advisor-v1.0.0/persona-core/jessica-voss-ops.md § Delegation posture"
+    },
+    {
+      "id": "ent.pete",
+      "layer": "entities",
+      "name": "Pete Connor — operator",
+      "statement": "Holds three simultaneous roles: CTG Workspace Super Admin (acting), platform builder, and sole signer for all workspace and project decisions under ADR-0033.",
+      "source": "~/Claude Cowork/ctg/CTG-supplier-folder-policy-audit-verdict-2026-05-18.md § header; decisions/adr/0033-lift-stack-ban-and-collapse-signoff-to-sole-operator.md § Decision 2"
+    },
+    {
+      "id": "ent.wider_roster",
+      "layer": "entities",
+      "name": "Wider operating roster",
+      "statement": "Beyond the executive triad: Sharon (Ndanga), Tafara, and Amittai. All six plus Pete appear on the L10 attendee list and the org-wide 2FA enforcement notice.",
+      "source": "~/Claude Cowork/standups/standup-2026-07-21.md § Today; ~/Claude Cowork/ctg/commitments.md § Active — Org-wide 2FA"
+    },
+    {
+      "id": "ent.icp",
+      "layer": "entities",
+      "name": "Ideal Customer Profile",
+      "statement": "Title × industry × seat-band: enterprise CX and IT-infrastructure leadership at 500–10,000+ seat contact centers across six-to-seven priority industries. Pains: vendor sprawl, commission opacity, contract complexity, cost-take-out pressure.",
+      "source": "projects/CTG-Build-Architecture-Brief.md § 4.1; ~/Claude Cowork/ctg/Darren-Starter-Pack/ABOUT ME/my-company.md § Buyer Profile"
+    },
+    {
+      "id": "ent.icp_registry",
+      "layer": "entities",
+      "name": "ICP registry (ICP-REG-01 / sr-icp-v1)",
+      "statement": "The single versioned niche-definition artifact every scoring or counting system must cite by icp_version. Lives at ctg-signal-radar/src/backend/icp_registry.py. Motivated by an incident where two production systems disagreed on the same count.",
+      "source": "decisions/adr/0046-moment-engine-doctrine.md § Decision 1 + Rationale"
+    },
+    {
+      "id": "ent.moment",
+      "layer": "entities",
+      "name": "Buying moment",
+      "statement": "A time-boxed window rather than a segment: a newly-seated VP/SVP within their first 180–240 days. The moment expires at ~day 240, computed as a view over title_start_date.",
+      "source": "decisions/adr/0046-moment-engine-doctrine.md § Context + Implementation Notes"
+    },
+    {
+      "id": "ent.partner_taxonomy",
+      "layer": "entities",
+      "name": "Partner taxonomy",
+      "statement": "Four partner classes: guru (independent CX consultant), referral_partner (agency/reseller), TSD (peer distributor), CTG-direct (served directly).",
+      "source": "projects/ctg-ops-automation/_archive-bash-architecture-2026-05-13/prompts/triage.frame.md § Partner taxonomy"
+    },
+    {
+      "id": "ent.partner_is_llc",
+      "layer": "entities",
+      "name": "Partner record grain is the LLC",
+      "statement": "A partner record is an LLC, never an individual. Stated as a modeling invariant in the triage frame, the commission frame, and the C2 hygiene spec; enforced by the LLC heuristic in commission validation and required by the manual onboarding playbook.",
+      "source": "projects/ctg-ops-automation/_archive-bash-architecture-2026-05-13/prompts/template.md § Position 1; projects/_hubspot/ctg-prm-crm-reconciliation/knowledge-base/hubspot/70-playbooks/partner-onboarding-manual.md § Prerequisites"
+    },
+    {
+      "id": "ent.guru",
+      "layer": "entities",
+      "name": "Guru",
+      "statement": "A formal partner class, transacted as an LLC. Simultaneously: a Type value, a live HubSpot association label on Company↔Contact / Company↔Deal / Deal↔Partner, an enum of ~46–49 LLC names on Deal.guru (41% filled), and an access tier — gurus get View access to the full Partner Portal folder. The live association label contains a zero-width character that breaks exact-match filters.",
+      "source": "projects/_hubspot/ctg-prm-crm-reconciliation/data/exports/2026-06-01/custom-objects.md; projects/_hubspot/ctg-prm-crm-reconciliation/docs/hubspot-association-erd.mmd; ~/Claude Cowork/ctg/CTG-supplier-folder-policy-audit-verdict-2026-05-18.md § 1"
+    },
+    {
+      "id": "ent.referral_partner",
+      "layer": "entities",
+      "name": "Referral partner",
+      "statement": "A partner attribution class distinct from Guru. Deal.referral_partner enumerates 70+ individual (person) names rather than LLCs (28% filled) — a grain inconsistency with the LLC invariant. Also the Partner custom object's internal name. The Deal→Partner association label is misspelled 'Refferal Partner'.",
+      "source": "projects/_hubspot/ctg-prm-crm-reconciliation/docs/schema-probe-result.md § Partner attribution; projects/_hubspot/ctg-prm-crm-reconciliation/docs/hubspot-association-erd.mmd"
+    },
+    {
+      "id": "ent.supplier",
+      "layer": "entities",
+      "name": "Supplier",
+      "statement": "A technology vendor whose product CTG resells or advises on. Represented three ways at once: a Company with main_category set (~114), a Supplier custom-object record (217), and values in two Deal enums. 297 supplier folders exist in Drive across three owner accounts.",
+      "source": "projects/_hubspot/ctg-prm-crm-reconciliation/analysis/2026-05-12-supplier-migration-gap.md § The four populations; projects/_hubspot/ctg-prm-crm-reconciliation/data/exports/2026-06-01/custom-objects.md; projects/ctg-mail-automations/RUNBOOK.md"
+    },
+    {
+      "id": "ent.hubspot_objects",
+      "layer": "entities",
+      "name": "HubSpot object model",
+      "statement": "Standard objects Company (0-2), Contact (0-1), Deal (0-3), Ticket (0-5) plus exactly four custom objects: Partner (2-170551626, internal name referral_partner, 104 records), Supplier (2-172421985, internal name suppliers, 217), Reveer Commission (2-225009958, internal name reveer_commissions, 433), Partner Commission (2-170551628, internal name commission, 2 — abandoned). Two further object types PARTNER_CLIENT and PARTNER_SERVICE exist with 0 records and are unreadable under granted scopes.",
+      "source": "projects/_hubspot/ctg-prm-crm-reconciliation/data/exports/2026-06-01/custom-objects.md § The four custom objects + Scope gaps"
+    },
+    {
+      "id": "ent.partner_as_company",
+      "layer": "entities",
+      "name": "Partners modeled as Company-with-property",
+      "statement": "ADR-0016: partner LLCs are HubSpot Company records distinguished by a Type single-select whose ADR-decided values are {guru, referral_partner, TSD, supplier, customer} — never a Custom Object. Referral, Commission and Lead Registration ARE Custom Objects associated to that Company. Separately, the standard HubSpot Company `type` enum observed in the portal is PROSPECT/PARTNER/RESELLER/VENDOR/OTHER (docs/schema-probe-result.md § 1) — a different field from the ADR's decision.",
+      "source": "decisions/adr/0016-partner-records-as-company-with-property.md § Decision"
+    },
+    {
+      "id": "ent.double_entry",
+      "layer": "entities",
+      "name": "Double-entry / built-twice",
+      "statement": "Partner, supplier, and commission data are recorded simultaneously in flat Deal fields and in custom objects, with no working sync. Of 1,039 deals: partners 401 flat-only / 55 object-only / 115 both; suppliers 696 flat-only vs 1 object-only; commissions 681 flat-only vs 0 object-only.",
+      "source": "projects/_hubspot/ctg-prm-crm-reconciliation/findings/2026-06-01/EXECUTIVE-FINDINGS.md § The headline finding"
+    },
+    {
+      "id": "ent.broken_bridge",
+      "layer": "entities",
+      "name": "Broken bridge (0%-filled mirror fields)",
+      "statement": "The Deal mirror fields guru_partner_record_id/_name/_email, referral_partner_record_id/_email, and supplier_id are all ~0% filled: the object→Deal auto-copy never fired because its writer workflows are disabled.",
+      "source": "projects/_hubspot/ctg-prm-crm-reconciliation/data/exports/2026-06-01/source-of-truth-decision-brief.md § The recommendation"
+    },
+    {
+      "id": "ent.commission_object",
+      "layer": "entities",
+      "name": "Commission record",
+      "statement": "A HubSpot custom object built by Impulse Creative. Each closed-won deal should carry one or more summing to 100% (±0.01), associated to partners via the 'Commission Recipient' association label.",
+      "source": "projects/ctg-ops-automation/_archive-bash-architecture-2026-05-13/prompts/commission.frame.md § CTG context"
+    },
+    {
+      "id": "ent.protected_surfaces",
+      "layer": "entities",
+      "name": "Protected surfaces",
+      "statement": "Fields never touched by any sync or archive: `*__` double-underscore fields (CTG's commission-amount convention), `Koalify*` fields (owned by the dedup integration), and supplier_id (read by live workflow 2599541488).",
+      "source": "projects/_hubspot/ctg-prm-crm-reconciliation/docs/system-of-record.md § Protected surfaces"
+    },
+    {
+      "id": "ent.golden_record",
+      "layer": "entities",
+      "name": "GoldenRecord",
+      "statement": "The provenance-tagged output of enrichment fusion: one adjudicated authoritative value per field with confidence tiering. Produced by ctg-enrichment-dispatch, stored in Firestore in ctg-hs-exec-tool.",
+      "source": "decisions/adr/0039-supersede-ctg-jes-hubspot-consolidate-into-enrichment-dispatch.md § Rationale; STATE.md § 2026-07-26"
+    },
+    {
+      "id": "ent.air",
+      "layer": "entities",
+      "name": "AIR (account_intelligence_record)",
+      "statement": "One row per company_id per snapshot_date in BigQuery dataset ctg_account_intelligence. The fused feature record underneath the BQML model suite, drawing read-only from eight upstream sources.",
+      "source": "decisions/adr/0037-ctg-account-intelligence-layer.md § Decision 1; projects/ctg-account-intelligence/ARCHITECTURE-BRIEF.md § The binding"
+    },
+    {
+      "id": "ent.canonical_types",
+      "layer": "entities",
+      "name": "Seven canonical types",
+      "statement": "EmailMessage, CalendarEvent, Document, File, Spreadsheet/SpreadsheetRange, LLMResponse, AuditEvent. Every connector translates into these at the boundary; no raw Google JSON survives past the connector. AuditEvent is the only one written to a persistent store.",
+      "source": "knowledge-base/00-engagement-specs/CTG-Data-Alignment-Spec.md § Canonical Type Catalog"
+    },
+    {
+      "id": "ent.eos_objects",
+      "layer": "entities",
+      "name": "EOS domain objects",
+      "statement": "Rocks (quarterly), Scorecard measurables (weekly), Issues (worked via IDS), To-Dos, Accountability-chart entries, decisionProposals/decisions, testingProjects.",
+      "source": "projects/ctg-l10-eos/README.md § Structure"
+    },
+    {
+      "id": "ent.client_isa",
+      "layer": "entities",
+      "name": "Enterprise insurance client (ISA counterparty)",
+      "statement": "An enterprise insurance client issued a 23-requirement Information Security Addendum to its MPSA. CTG is the audited vendor; a second deal is gated on the same audit-readiness posture.",
+      "source": "projects/ctg-secintel/reports/FRED-SIGNATURE-CHECKLIST-2026-07-27.md § Baseline; projects/ctg-secintel-intake/PROJECT_OUTLINE.md § header"
+    },
+    {
+      "id": "ent.subprocessors",
+      "layer": "entities",
+      "name": "Named subprocessors",
+      "statement": "Google (platform), HubSpot (CRM), Anthropic (AI tooling). An external accountant holds tenant access with no DPA; a CRM vendor holds production admin on the CRM and was absent from any third-party register.",
+      "source": "projects/ctg-secintel/reports/CLIENT-SECURITY-REVIEW-PREP-2026-07-27.md § Q6; projects/ctg-secintel-intake/PROJECT_OUTLINE.md § Live findings"
+    },
+    {
+      "id": "ent.vendor_cast",
+      "layer": "entities",
+      "name": "Recurring external counterparties",
+      "statement": "Impulse Creative (PRM build), Flywheel (33-workflow HubSpot estate), Valley/joinvalley.co (CRM data sync), Impartner and Channeltivity (PRM alternatives evaluated), HubSpot CSM, Have Strategies (content).",
+      "source": "~/Claude Cowork/standups/standup-2026-07-21.md, -07-10.md, -07-08.md § Inbox Highlights; ~/Claude Cowork/ctg/commitments.md § Active"
+    },
+    {
+      "id": "ent.peer_tsds",
+      "layer": "entities",
+      "name": "Peer TSDs",
+      "statement": "Telarus, Avant, Intelisys. Treated as benchmark peers rather than enemies; never named or shaded in buyer-facing material. A former advisor-ranking model over them was deprecated by the 2026-07-23 supplier pivot.",
+      "source": "~/Claude Cowork/ctg/Darren-Starter-Pack/ABOUT ME/my-company.md § Peer TSDs; projects/advisor-match/README.md"
+    },
+    {
+      "id": "ent.supplier_footprint",
+      "layer": "entities",
+      "name": "Supplier catalog footprint",
+      "statement": "421 supplier listings across 62 categories in the advisor-match catalog; 250+ technology suppliers, 40+ BPO providers, and 500+ additional vendors via strategic distribution in the constants registry.",
+      "source": "projects/advisor-match/README.md § intro; projects/ctg-advisor-v1.0.0/methodology/constants-registry.md § Supplier and partner footprint"
+    },
+    {
+      "id": "ent.crm_volumes",
+      "layer": "entities",
+      "name": "CRM volumes",
+      "statement": "Counts move materially across the audit window. 2026-06-01: 43,977 contacts / 21,608 companies / 1,039 deals. 2026-06-04: 43,946 / 24,854 (a real Jun-3 import of ~+3,246). 2026-06-16/17: 43,799 / 24,959 / 1,058.",
+      "source": "projects/_hubspot/ctg-prm-crm-reconciliation/DATA-INVENTORY.md § 2; projects/_hubspot/ctg-prm-crm-reconciliation/findings/2026-06-03/SCORECARD-VALIDATION.md; README.md § Status"
+    },
+    {
+      "id": "ent.voice_profile",
+      "layer": "entities",
+      "name": "Voice profile",
+      "statement": "A ctg-voice-profile-l1-v1 record carrying tone, sentence lengths, openers/signoffs, framings, banned-vocabulary additions, and do/don't lists. Role-layer profiles live in code; individual profiles in Firestore.",
+      "source": "projects/ctg-voice-service/DECISIONS.md § D-03, D-08"
+    },
+    {
+      "id": "ent.content_assets",
+      "layer": "entities",
+      "name": "Content-asset types",
+      "statement": "Blog (CIO/VP CX, top of funnel), Case Study (buyer's peer, mid), White Paper (technical evaluator + procurement, mid-late), Channel Piece (peer-to-peer for sub-agents and peer TSDs).",
+      "source": "knowledge-base/00-engagement-specs/CTG-voice-brand.md § AUDIENCE BY CONTENT TYPE"
+    },
+    {
+      "id": "gov.kill_switches",
+      "layer": "governance",
+      "name": "Kill switches",
+      "statement": "Every integration has a named kill switch (email_agents, icp_scoring, data_cleanup, hubspot_classifier, churn_prediction). Disabled means 503 or short-circuit. A CTG admin must be able to flip one within 60 seconds.",
+      "source": "knowledge-base/00-engagement-specs/CTG-API-Integration-Guide.md § 11.2"
+    },
+    {
+      "id": "gov.dlp_attestation",
+      "layer": "governance",
+      "name": "DLP attestation (fail-closed)",
+      "statement": "Every LLM-bound payload passes Cloud DLP content:deidentify first. The LLM call site requires an X-Redacted: cloud-dlp:v1:<rule-set-hash> header and fails closed if it is absent. A regex fallback fires only above a monthly DLP cost ceiling, and alerts when it does.",
+      "source": "decisions/adr/0015-pii-redaction-cloud-dlp.md § Decision 4–5"
+    },
+    {
+      "id": "gov.email_12",
+      "layer": "governance",
+      "name": "EMAIL-12 — hash-only LLM logging",
+      "statement": "Every LLM interaction logs SHA-256 hashes of prompt and response. Raw content is never persisted. AuditEvent is the only canonical type written to a persistent store.",
+      "source": "knowledge-base/00-engagement-specs/CTG-Data-Alignment-Spec.md § 7"
+    },
+    {
+      "id": "gov.pii_out_of_logs",
+      "layer": "governance",
+      "name": "PII never in audit logs",
+      "statement": "Logs carry HubSpot IDs only — never names, emails, or phones. Banking details, SSNs, and commission amounts never appear anywhere outside HubSpot itself.",
+      "source": "decisions/adr/0020-triple-layer-audit-trail.md § Decision 5; projects/ctg-ops-automation/_archive-bash-architecture-2026-05-13/prompts/template.md § Position 1"
+    },
+    {
+      "id": "gov.two_track_pii",
+      "layer": "governance",
+      "name": "Track A / Track B PII boundary",
+      "statement": "Track A is IDs, schema, and counts only, and commits to git. Track B is record-level PII, gated on explicit per-run go-ahead, with output to a gitignored data/exports/<date>/backup/ that is never committed. Enforced in code by bin/metrics_lib.py: page_ids/search_count/batch_assoc are Track A; batch_read/batch_assoc_to are Track B.",
+      "source": "projects/_hubspot/ctg-prm-crm-reconciliation/CLAUDE.md § The two-track discipline"
+    },
+    {
+      "id": "gov.run_modes",
+      "layer": "governance",
+      "name": "Three run modes",
+      "statement": "HUMAN (Pete only; agents pre-stage and verify), GATED (propose → approve → execute verbatim → verify), UNATTENDED (read-only by construction). An agent hitting a HUMAN step returns BLOCKED and never improvises.",
+      "source": "projects/ctg-secintel/docs/05-RUN-MODES-AND-GATES.md § 1"
+    },
+    {
+      "id": "gov.non_delegable",
+      "layer": "governance",
+      "name": "Non-delegable list",
+      "statement": "Permanently human-only: interactive auth, break-glass, lockout-radius enforcement flips, destructive or irreversible operations, all credential handling, Drive sharing and corpus-allowlist signing, incident-response judgment calls, billing, BYOD consent. Agents never run deletes even after approval.",
+      "source": "projects/ctg-secintel/docs/05-RUN-MODES-AND-GATES.md § 2; projects/ctg-secintel/reports/DECISION-QUEUE.md § 6"
+    },
+    {
+      "id": "gov.approval_token",
+      "layer": "governance",
+      "name": "Approval token",
+      "statement": "The literal string `APPROVED <TASK-ID>` from the operator is the only thing that converts a proposal into an execution. Questions, edits, and silence are not approval. A denied proposal is a constraint, not a retry target. An agent asking for approval is not an agent granting it.",
+      "source": "projects/ctg-secintel/.claude/CLAUDE.md § Anti-delegation; projects/ctg-secintel/docs/05-RUN-MODES-AND-GATES.md § 3"
+    },
+    {
+      "id": "gov.evidence_gate",
+      "layer": "governance",
+      "name": "Evidence-gate doctrine",
+      "statement": "'A control without a dated artifact is OPEN.' Status vocabulary is fixed: MET / PROPOSAL READY / NOT MET / BLOCKED / OPEN. 'Nothing is ever basically done.' Raw output lives in evidence/, never inline.",
+      "source": "projects/ctg-secintel/docs/05-RUN-MODES-AND-GATES.md § 5"
+    },
+    {
+      "id": "gov.policy_vs_practice",
+      "layer": "governance",
+      "name": "Policy-vs-practice rule",
+      "statement": "'Policy documents state what CTG requires; they are never evidence of what CTG does.' Present-tense control claims must match verified tenant state or move to STMT-01 with an owner and a date. The client's audit right under §2 covers exactly that difference.",
+      "source": "projects/ctg-secintel/shipped/2026-07-27/SHIPPED.md"
+    },
+    {
+      "id": "gov.evidence_standard",
+      "layer": "governance",
+      "name": "Evidence standard",
+      "statement": "Every control claim must trace to platform telemetry or a dated artifact; confidence is measured against outcomes, never self-reported. The ISA rule: state what CTG does, never what it requires. In the portfolio audits, every readiness number must trace to a file an auditor read; ungrounded cells are marked unverified; journal.jsonl beats rendered docs on disagreement.",
+      "source": "decisions/adr/0046-moment-engine-doctrine.md § Decision 3; _audit/2026-07-27-systemic-health/SCORECARD.md § Method"
+    },
+    {
+      "id": "gov.two_lanes",
+      "layer": "governance",
+      "name": "Two lanes",
+      "statement": "The Pete lane covers everything configurable and evidenceable in-tenant, with no budget. The Fred lane covers spend, personnel behavior, contracts, insurance, and CEO-only decisions. Confusing them is named 'the primary failure mode'.",
+      "source": "projects/ctg-secintel-intake/PROJECT_OUTLINE.md § The two lanes"
+    },
+    {
+      "id": "gov.material_breach_traps",
+      "layer": "governance",
+      "name": "Material-breach traps",
+      "statement": "Two contract clauses carry explicit material-breach penalties: undisclosed AI under §1, and a missed §3(c) remediation deadline. Governance rule: never sign the AI attestation until the disclosure is actually delivered; never sign early to hit a date.",
+      "source": "projects/ctg-secintel/reports/PATH-TO-SIGNATURE-2026-07-27.md § Traps"
+    },
+    {
+      "id": "gov.evidence_integrity",
+      "layer": "governance",
+      "name": "Forensic evidence integrity",
+      "statement": "Evidence carries SHA-256 manifests, read-only method statements ('no tenant state modified'), MUTATION-LOGs for any change, and preserved-unaltered disposition trails. A canonical committed copy is designated when working copies exist.",
+      "source": "projects/ctg-incident/LESSONS.md § Evidence manifest; projects/ctg-incident/CANONICAL-EVIDENCE.md"
+    },
+    {
+      "id": "gov.confidentiality_rule",
+      "layer": "governance",
+      "name": "Confidentiality rule",
+      "statement": "Exact prior-year ARR, valuation multiple, member-LLC and cap-table names, and the ownership restructuring must never be quoted in shipped content. Skills cite 'per CTG brief §<section>' instead.",
+      "source": "projects/ctg-advisor-v1.0.0/methodology/constants-registry.md § Confidentiality rule"
+    },
+    {
+      "id": "gov.content_review",
+      "layer": "governance",
+      "name": "Content review gate",
+      "statement": "Required blog elements (title ≤60, meta ≤155, CTA, 2 internal links, schema.org); legal review on defined triggers (supplier quotes, comparisons, commission figures, compliance claims); a human reviewer for the first 60 days then spot-check; buyer written sign-off for any case study. The engine refuses when a required spec input is missing.",
+      "source": "knowledge-base/00-engagement-specs/CTG-voice-brand.md § REVIEW POSTURE + LEGAL REVIEW"
+    },
+    {
+      "id": "gov.pre_send_gate",
+      "layer": "governance",
+      "name": "Revenue pre-send gate",
+      "statement": "No proposal or battlecard reaches an external channel without a ctg-brand-keeper neutrality/voice PASS followed by explicit human approval. Every Gmail touch is create_draft, never send. Phone and cold-call are refused outright on TCPA/FCC grounds.",
+      "source": "projects/ctg-revenue-squad/CLAUDE.md § Mandatory pre-send gate"
+    },
+    {
+      "id": "gov.linkedin_tos",
+      "layer": "governance",
+      "name": "LinkedIn ToS posture",
+      "statement": "Programmatic LinkedIn sending, third-party LinkedIn automation, scraping, and commingling LinkedIn member data are permanently prohibited. A CI grep gate enforces zero LinkedIn API surface. The accepted-risk decision was Fred's and was DECLINED 2026-06-30, converting the program to an email-only launch.",
+      "source": "projects/ctg-hubspot-SDR/PROJECT.md § Out of scope; projects/Jess-SDR/PROJECT.md § Constraints"
+    },
+    {
+      "id": "gov.deliverability_caps",
+      "layer": "governance",
+      "name": "Deliverability caps",
+      "statement": "Encoded, not advisory: email starts ≤20/day/inbox ramping to ~50 over 3 weeks, scaling via more inboxes; the SDR engine caps at ≤150 emails/inbox/day with bounce <2%. Sends run under a designated rep mailbox with a kill switch, per-inbox daily cap, and a deliverability gate (SPF/DKIM/DMARC plus warm-up).",
+      "source": "projects/Jess-SDR/PROJECT.md § Constraints; projects/ctg-hubspot-SDR/PROJECT.md § Success criteria; decisions/adr/0003a-gmail-send-dwd-scope.md § Decision 3"
+    },
+    {
+      "id": "gov.never_drafts",
+      "layer": "governance",
+      "name": "Passive reads never write",
+      "statement": "The sentiment add-on emits guidance text only; passive reads never write to the mailbox. A rule dated from the 2026-07-01 incident.",
+      "source": "projects/sentiment-analysis/README.md § What it does"
+    },
+    {
+      "id": "gov.deny_by_default",
+      "layer": "governance",
+      "name": "Deny-by-default command allowlist",
+      "statement": "A longest-prefix command policy where anything unlisted is refused: 73 commands (31 read, 24 write, 18 destructive).",
+      "source": "projects/ctg-hs-ops-runner/README.md § Safety model"
+    },
+    {
+      "id": "gov.one_writeback_property",
+      "layer": "governance",
+      "name": "One writeback property",
+      "statement": "Account Intelligence may write exactly one new HubSpot property (ctg_account_intelligence_score, optionally ctg_recommended_action) and never overwrites source projects' ctg_* properties. Each ctg_* property is owned exclusively by its emitting project; ownership never crosses projects.",
+      "source": "decisions/adr/0037-ctg-account-intelligence-layer.md § Decision 5; decisions/adr/0014-hubspot-developer-app-pattern.md § Decision 5"
+    },
+    {
+      "id": "gov.petes_corner_doctrine",
+      "layer": "governance",
+      "name": "Pete's Corner doctrine (enforced)",
+      "statement": "The editor hard-blocks saves that violate doctrine: GA without all four gate conditions, 'crosses perimeter' without a named mitigation, or 'ongoing'/'TBD' milestones.",
+      "source": "projects/ctg-l10-eos/README.md § Pete's Corner"
+    },
+    {
+      "id": "gov.legal_layer",
+      "layer": "governance",
+      "name": "Legal layer is non-overridable",
+      "statement": "In the voice compiler, layers compile general → specific and later layers may restyle earlier ones, but layer 2 (legal/compliance) is non-overridable and banned vocabulary only accumulates, never subtracts. Validation failures flag rather than block — except layer-2 legal violations, which withhold the body.",
+      "source": "projects/ctg-voice-service/DECISIONS.md § D-02, D-06"
+    },
+    {
+      "id": "gov.vault_boundary",
+      "layer": "governance",
+      "name": "LEFT/RIGHT vault boundary",
+      "statement": "The vault enforces a LEFT (identity, voice, reference — read-only to agents) versus RIGHT (agent-writable) permission boundary in code via a centralized vault gateway, not by convention.",
+      "source": "~/Claude Cowork/projects/second-brain-vision-vs-shipped.md § Left/Right Voice Protection"
+    },
+    {
+      "id": "gov.kb_read_only",
+      "layer": "governance",
+      "name": "Knowledge base is read-only",
+      "statement": "The knowledge-base folder is read-only by default — no edits to INDEX, references, ADRs, or cloned repos without explicit request. Consumption routes via INDEX.md; never crawl. The KB knowledge product's phase-01 integrity gate was a git status check proving zero diffs to knowledge-base/ and decisions/.",
+      "source": "knowledge-base/CLAUDE.md § Posture rules; projects/ctg-kb-knowledge-product/PROJECT.md § Scope OUT"
+    },
+    {
+      "id": "gov.cleanup_discipline",
+      "layer": "governance",
+      "name": "Cleanup discipline",
+      "statement": "Files are never deleted; superseded content is quarantined by move to _archive/<topic>-<date>/ with a provenance README and restore command. Separate-remote inner repos get an in-place SUPERSEDED marker instead. archive/ holds preserved history and is not modified. Deletion is the operator's call.",
+      "source": "projects/CLAUDE.md § Cleanup discipline; projects/ctg-subagents/SUPERSEDED.md"
+    },
+    {
+      "id": "gov.doc_mcp_first",
+      "layer": "governance",
+      "name": "Docs-MCP-first (HARD RULE)",
+      "statement": "Any planning touching Google Workspace APIs must query the workspace-developer MCP first; anything touching HubSpot must query the HubSpot Developer MCP first. Never training-data knowledge — HubSpot ships changes weekly. The two sitemaps are navigation indexes, not sources of truth.",
+      "source": "CLAUDE.md § Google Workspace Documentation / § HubSpot Developer Documentation"
+    },
+    {
+      "id": "gov.verify_hook_assists",
+      "layer": "governance",
+      "name": "Verify hook assists, never blocks",
+      "statement": "The estate PostToolUse verify hook feeds check failures back as additionalContext so the model self-corrects. The hook never blocks.",
+      "source": "projects/estate-slim/artifacts/VERIFY-CONFIG.md § header"
+    },
+    {
+      "id": "gov.over_report",
+      "layer": "governance",
+      "name": "Over-report for the first month",
+      "statement": "Trust ramps by over-reporting: post everything to #crm-ops-review for the first month even when auto-executing. An automation type drops to summary-only after a month with zero corrections.",
+      "source": "projects/ctg-ops-automation/_archive-bash-architecture-2026-05-13/CTG_Ops_Automation_System_Design.md § Three specific things I'd note"
+    },
+    {
+      "id": "gov.gsd_root_exclusion",
+      "layer": "governance",
+      "name": "GSD root exclusion",
+      "statement": "The workspace root has no GSD phase structure. /gsd:finalize and milestone/dependency/UAT audits must not be run at the root.",
+      "source": "STATE.md § 2026-07-13 Update, Note for tooling"
+    },
+    {
+      "id": "gov.policy_adoption_gates",
+      "layer": "governance",
+      "name": "Policy adoption gates",
+      "statement": "Policy drafts cannot leave v0.1 until 8 named governance decisions (framework anchor, inventory, device posture, insurance, incident roles, contractor scope, contract commitments, counsel) are answered, plus legal review and CEO signature. Counsel review is a hard gate before external distribution.",
+      "source": "projects/ctg-security-policies/POLICY-DELIVERY-PLAN.md § 5–6"
+    },
+    {
+      "id": "gov.document_governance",
+      "layer": "governance",
+      "name": "Document register governance",
+      "statement": "EXT-00 defines per-document owner, approver, version, effective date, and next review. Material changes increment the version and require CEO re-approval; annual review applies. Self-certification statement items must match the claim ledger or be removed/restated with a committed date.",
+      "source": "projects/ctg-secintel/external-pack/EXT-00-Document-Control-and-Certification.md § 2–4"
+    },
+    {
+      "id": "gov.sentinel_anti_delegation",
+      "layer": "governance",
+      "name": "Estate Sentinel anti-delegation",
+      "statement": "Operator-only: merging PRs, editing ADRs or known-issues memory, handling the Slack webhook URL, and declaring a KNOWN-DOWN service recovered. Outward actions (Slack posts, PR opens) only in explicitly invoked runs. Known-issues are synthesis-stage annotations only — a known-down service appears in every report as DOWN-KNOWN; detection is never skipped and rows are never dropped.",
+      "source": "projects/estate-sentinel/CLAUDE.md § Anti-delegation + Constants"
+    },
+    {
+      "id": "gov.self_audit",
+      "layer": "governance",
+      "name": "Self-audit discipline",
+      "statement": "The positioning document was itself claim-ledgered before circulation. Conclusion: internal evidence-gated claims held (0 unsupported), while freshly-authored market prose failed (2 unsupported, 6 overstated). 'The discipline does not transfer by osmosis; it transfers by running it.'",
+      "source": "projects/ctg-secintel/reports/CAPABILITY-POSITION-CLAIM-LEDGER-2026-07-27.md § 5"
+    },
+    {
+      "id": "dr.sharon_owned",
+      "layer": "decision_rights",
+      "name": "Sharon — data-input policy and supplier handoff",
+      "statement": "Owns the data-input policy going forward — what fields are required, what format, what validation runs on input. Also owns the supplier-facing URL handoff (routed through Darren's account) and is the human gate on the Telarus registration draft.",
+      "source": "~/Claude Cowork/ctg/CTG-systems-and-actions-map-2026-05-18.md § 4 + § 1 step 8; projects/ctg-mail-automations/RUNBOOK.md"
+    },
+    {
+      "id": "dr.no_cfo",
+      "layer": "decision_rights",
+      "name": "No CFO voice by design",
+      "statement": "There is deliberately no CFO persona and no CFO-gap flag. Darren carries the commercial-finance voice, and the three-voice surface is canonical rather than a reduced four-voice form.",
+      "source": "projects/ctg-advisor-v1.0.0/persona-core/synthesis-protocol.md § header"
+    },
+    {
+      "id": "dr.delegation_map",
+      "layer": "decision_rights",
+      "name": "Fred's delegation map",
+      "statement": "Fred delegates scheduling to Sharon, vendor payments/W-9s/invoicing to Jessica, and pipeline follow-up plus relationship nurturing to Darren. A plan that forces Fred into the weeds is treated as a broken plan. Jessica is net-receiving delegation from both and delegates out to no one.",
+      "source": "projects/ctg-advisor-v1.0.0/persona-core/fred-stacey-ceo.md § Delegation posture; projects/ctg-advisor-v1.0.0/persona-core/jessica-voss-ops.md § Delegation posture"
+    },
+    {
+      "id": "dr.commitment_direction",
+      "layer": "decision_rights",
+      "name": "Commitment direction model",
+      "statement": "The ledger encodes decision direction explicitly: `Pete→X` means Pete owes X; `X→Pete` means Pete is waiting on X; `Pete→—` means Pete's own call to make.",
+      "source": "~/Claude Cowork/ctg/commitments.md § How this file works"
+    },
+    {
+      "id": "dr.operator_gates_exec",
+      "layer": "decision_rights",
+      "name": "The operator gates executives too",
+      "statement": "Release gates run upward as well as downward. Jessica requested a training walkthrough on modules Pete had marked built; Pete gated it on A/B testing plus a GA tag first, and Jessica agreed. Separately, Pete advised against Jessica's requested HubSpot write-bot on scope, guardrails, and cost grounds; it was parked by mutual agreement rather than executed.",
+      "source": "~/Claude Cowork/ctg/commitments.md § Active + Parked"
+    },
+    {
+      "id": "dr.client_held_rights",
+      "layer": "decision_rights",
+      "name": "Client-held rights",
+      "statement": "The enterprise client holds audit rights (§2), sole discretion over §3(b) substitution, approval over affected-party incident communications (§17), and issuance of the periodic TPRM assessment.",
+      "source": "projects/ctg-secintel-intake/PROJECT_OUTLINE.md § clause map; CLIENT-SECURITY-REVIEW-PREP § Q7"
+    },
+    {
+      "id": "dr.ic_coordination",
+      "layer": "decision_rights",
+      "name": "Impulse Creative coordination required",
+      "statement": "IC's commission automation HubSpot workflows must not be modified. Any commission-touching automation is coordinated with IC, and the C5 automation gates on IC's build being live.",
+      "source": "projects/ctg-ops-automation/CLAUDE.md § Do-not-touch; README.md § What's NOT here yet"
+    },
+    {
+      "id": "dr.decision_register",
+      "layer": "decision_rights",
+      "name": "The unsigned CRM decision register",
+      "statement": "All 13 decisions (D-01..D-13) in the CRM ratification pack carry blank dispositions and the signature block is unfilled. Phase 2+ execution is gated on every row carrying a disposition.",
+      "source": "projects/_hubspot/ctg-prm-crm-reconciliation/docs/stakeholder-review-record.md § How to use this record"
+    },
+    {
+      "id": "dr.fred_decision_register",
+      "layer": "decision_rights",
+      "name": "Fred decision register D1–D5",
+      "statement": "The GTM program keeps a named Fred decision register: credit cap, grounding spend envelope, program sequencing, first Everyone-facing rollout, verify-before-build gates. D1–D4 were answered 2026-07-10.",
+      "source": "projects/ctg-gtm-automation/PROJECT.md § Fred decision register"
+    },
+    {
+      "id": "dr.reserved_to_pete",
+      "layer": "decision_rights",
+      "name": "Decisions reserved to Pete alone (M05/M06)",
+      "statement": "Four: ratify the credit ratio, set contact-resolve trigger policy, resolve M06 milestone numbering, and name the SDR sequencing tool.",
+      "source": "~/Claude Cowork/ctg/2026-07-27-m05-m06-revised-plan.md § Decisions (yours only)"
+    },
+    {
+      "id": "dr.grant_owners",
+      "layer": "decision_rights",
+      "name": "Activation grant owner pairs",
+      "statement": "gmail.send scope = Fred + Jessica; labeled email sample = Pete + Fred; provider data keys = Pete procures, Fred approves; Shared Drive creation = Pete builds, Fred grants; external advisory-plugin ship = Jessica/counsel final nod before first client.",
+      "source": "~/Claude Cowork/ctg/CTG-AI-Platform-Fred-Brief-2026-07-02.md § What I need from you"
+    },
+    {
+      "id": "dr.decision_gate_flip",
+      "layer": "decision_rights",
+      "name": "Decisions carry an explicit flip condition",
+      "statement": "'If the consolidation can't hold a named owner and a staged sequence — if it turns into a big-bang rebuild — the recommendation flips to harden in place and consolidate one pair at a time.'",
+      "source": "~/Claude Cowork/ctg/CTG-AI-Platform-Clustered-Target-State-2026-07-02.md § Decision gate"
+    },
+    {
+      "id": "dr.first_live_run_gated",
+      "layer": "decision_rights",
+      "name": "First live infrastructure run is operator-gated",
+      "statement": "99-new-project.sh is a deliberate reviewed Pete action, never invoked by CI, hooks, or another script, and must never run without --project= before a manual spot-check.",
+      "source": "projects/ctg-infrastructure/README.md § How to use"
+    },
+    {
+      "id": "dr.decision_ratification_human",
+      "layer": "decision_rights",
+      "name": "Decision ratification is server-enforced human",
+      "statement": "In the L10 tool, proposals are extracted automatically but only a human ratify/discard click creates a decision of record — enforced by Firestore rules making the collections server-write-only.",
+      "source": "projects/ctg-l10-eos/README.md § Decision capture"
+    },
+    {
+      "id": "ent.document_set",
+      "layer": "entities",
+      "name": "The client security document set",
+      "statement": "The deliverable the whole governance layer exists to produce: a 10-file package — EXT-00 register plus EXT-01..EXT-07 (Information Security, Data Classification & Handling, Incident Response, Remote Work, Acceptable Use, Vendor & Third-Party Risk, Business Continuity) plus STMT-01 Security Status & Control Summary and STMT-02 Penetration Testing Status. The register enumerates 9 documents; the tenth file is the register. The EXT/STMT ID scheme is used inside the shipped documents, not only in the internal repo.",
+      "source": "~/CTG-ISA-REVIEW/package/ § 00 Document Register; STMT-01 § 1-2"
+    },
+    {
+      "id": "gov.audience_tiering",
+      "layer": "governance",
+      "name": "Five-way audience tiering",
+      "statement": "The delivery vault is tiered into six folders carrying an explicit 'who it is for' column across five audiences: Everyone; Clients + prospects + leadership; Leadership; CEO-only; Leadership-only (raw data and internal). Documents are placed by audience, not by topic.",
+      "source": "~/CTG-ISA-REVIEW/vault/00 - Start Here (Index & What Everything Is)"
+    },
+    {
+      "id": "gov.status_vocabulary_translation",
+      "layer": "governance",
+      "name": "Status vocabulary is translated at the client boundary",
+      "statement": "The fixed internal vocabulary (MET / PROPOSAL READY / NOT MET / BLOCKED / OPEN) does not cross the client boundary. External documents use 'In progress / Scheduled / Prepared'. The doctrine survives the translation — every in-progress item still carries an owner and a dated target — but the words change.",
+      "source": "~/CTG-ISA-REVIEW/package/08 STMT-01 § 3-5"
+    }
+  ]
+}

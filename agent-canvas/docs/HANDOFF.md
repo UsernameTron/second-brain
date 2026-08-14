@@ -393,6 +393,112 @@ passed in rather than hardcoded.
 (orchestrator/anthropic.js) + the tested Gemini adapter already support it.
 Grok/OpenAI adapters: explicitly out of scope until Gemini cost data exists.
 
+## Hardening pass — 2026-08-14 (12 of 15 survey findings fixed)
+
+A read-only senior-advisor survey produced
+[IMPROVE-FINDINGS.md](IMPROVE-FINDINGS.md) — 15 findings, every claim anchored
+to a line that was actually read. Twelve are fixed; the disposition table at
+the top of that file says which three are still open and why. Suite 113/113.
+
+The four that change how the product behaves, and are worth not re-litigating:
+
+1. **Retrieved content is now delimited.** Everything fetched from outside the
+   workspace — mail bodies, Drive/Sheets text, CRM records, enrichment
+   payloads, connector replies — is wrapped as
+   `<external_content source="…">…</external_content>` by one helper in
+   `tools.js`, and the system prompt carries a non-negotiable clause saying
+   that anything inside those tags is evidence, never instruction. Previously
+   that text arrived in the message array byte-identical to the operator's own
+   instruction, in the same turn that exposes `ws_gmail_draft`,
+   `hs_preview_change`, and every enabled connector tool. The wrapper defangs a
+   payload that tries to forge the closing tag; it never scrubs the data —
+   stripping imperative text out of a CRM note would corrupt the thing the
+   agent was asked to read. **The reason this lives at the tool boundary rather
+   than per surface: the enrichment lane added the fourth such site the same
+   day, so the pattern reproduces with every new integration.**
+2. **Connectors are read lanes, in code.** A tool name that looks like a
+   mutation (`create`/`update`/`delete`/`merge`/`send`/`batch`/…) is refused in
+   `normalizeServer`, so a stale DB row cannot resurrect one, and the admin
+   routes name the rejected tool back to the owner. This closes the gap where
+   the live `hubspot-crm` connector's read-only-ness rested entirely on scopes
+   set out-of-band on one token — against the REAL portal — with zero lines of
+   code behind it. Connector URLs are https-only now too (the client mints a
+   Google-signed identity token and sends it as a Bearer header).
+3. **The wall-clock guarantee is real.** It was checked only *between* steps,
+   so one hung call ran past it unchecked: no `halted_timeout`, no escalation,
+   the agent row stuck `running` and holding a concurrency slot until the
+   process restarted. Each call now carries
+   `AbortSignal.any([controller, AbortSignal.timeout(remaining)])`, a deadline
+   abort routes to `halted_timeout` plus a tray escalation, and every outbound
+   `fetch` in `server/` finally has a `signal`.
+4. **A run finishes exactly once.** A throw from `createEscalation` used to
+   unwind to the outer catch and overwrite a `halted_budget`/`halted_steps`
+   halt with `failed` — mislabelling a run awaiting a human decision as a
+   crash and losing the tray item. Latch plus a try/catch that audits the
+   failure. Related: both `dispatchRun` callers (handoff, escalation-resolve)
+   now dispatch *before* writing their bookkeeping row, because `dispatchRun`
+   throws 429 on a spent daily budget — a designed state — and the old order
+   silently lost a human's decision or left an orphan handoff that made every
+   retry answer "they are working on it", which was false.
+
+**The review pass caught six things in the fixes above** — the new agent was
+pointed at the hardening diff and earned its keep, so these are recorded
+rather than quietly corrected:
+
+- **The wrapper had an escape *around* the tag, not through it.** Every
+  external surface's `catch` branch returned the raw error string, and those
+  strings are attacker-authored: Google interpolates the **Drive file name**
+  into its error text, so a shared `.xlsx` named as an instruction landed
+  outside the tags. All four catch branches are wrapped now.
+- **Web search results cannot be tagged at all** — they arrive as provider
+  blocks that never pass through `executeTool`. The prompt clause now names
+  them explicitly instead of enumerating a list they fell outside of.
+- **Memory laundered untrusted text into instruction position.** `handoff`
+  interpolates memory entries into the child run's *instruction* — the one
+  slot the new clause declares authoritative — and the memory contract tells
+  agents to store the quoted passage. The payload block is wrapped now.
+- **Dispatch-before-bookkeeping was the wrong fix.** It traded data loss for
+  authorization-record loss, which is worse in kind: a live run carrying
+  `trigger_kind='escalation_resume'` — the only gate `hs_apply_change` checks
+  — while the escalation still read `open` with no `resolved_by` and no audit
+  line. Both paths are now one transaction; a 429 rolls back the pair.
+- **The finish latch was set before the write it guards**, so a failed
+  `UPDATE runs` would have stuck the run `running` forever with the retry
+  no-op'd. Latch after the write: only a finish that landed is final.
+- **The mutating-tool filter was mostly decorative** — substring-and-underscore
+  matching missed `createContact`, `manage_landing_page` and
+  `manage_campaign_objects` (HubSpot's own write tools) while eating
+  `hubspot-batch-read-objects` and `get_post`. It tokenises now, splits
+  camelCase, and lets a read verb win; drops are reported through
+  `configError()` instead of silently un-enabling an owner's tool. The comment
+  is corrected too: this is a **name-shaped backstop**, the owner allowlist is
+  the control.
+
+**Two committed context registries** (`server/config/supplier-catalog.json`,
+`server/config/org-context.json`, regenerated by
+`scripts/build-registries.js`). 420 suppliers — names, categories, taxonomy
+tags — and 84 distilled org facts (entities, decision rights, business
+governance). Both filter at **ingress**: the excluded-vendor list is applied
+to every field before a row is kept, commission terms are stripped, and
+org-context takes only FACT nodes with no unresolved contradiction. The
+supplier CSV — 420 emails, 406 phones, 402 commission rates — is never read
+and must never enter this repo.
+
+Agents reach them through one `read_registry` tool, **not** a canvas note:
+`read_notes` returns every note's full content, so parking 130KB there would
+tax every `read_notes` call on the canvas — the same reasoning that keeps the
+ICP registry unpinned, one step further. `org_context` results always carry
+their freeze date and the rule that a live source wins on recency.
+
+**Two agents were added** (`.claude/agents/`, repo root — they load at session
+start, so a session that predates them cannot dispatch them):
+`canvas-integration-auditor` (verifies deployment/reachability claims with
+probes that actually discriminate — including the 401-vs-404 control that
+distinguishes an IAM-gated service from an absent hostname — and is required to
+answer UNVERIFIABLE rather than round up) and `canvas-tool-surface-reviewer`
+(reviews tool-surface changes against consent / one-write-lane /
+data-instruction-boundary / disabled-by-absence).
+
 ## Session log — 2026-08-13 evening (roster + heal)
 
 What shipped, in order, so the next session can reconstruct the reasoning:
