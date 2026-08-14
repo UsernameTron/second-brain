@@ -7,10 +7,22 @@ kept for the reasoning, not the status.**
 
 ## CURRENT STATE (2026-08-14 evening — start here, ignore the older START HEREs)
 
-**Live:** `agent-canvas-00034-x4d` (deployed 2026-08-14 ~16:44Z from master
-`a37e9b2`, PR #136 — GTM named-query bridge), tests **143/143**.
+**Live:** `agent-canvas-00035-tx7` (deployed 2026-08-14 evening; carries PRs
+#136 GTM bridge + #138 lamps-from-probe-evidence + #139 /intent gates +
+#140 audit tail-verify), tests **146/146**. `ED_DISPATCH_URL` still absent
+(hold preserved). **Release note: all probeable lamps are AMBER after every
+deploy until probed once — that is finding 8 working, not a regression.**
 
-**GTM bridge (open item 1) BUILT AND DEPLOYED, one human step left:**
+**GTM bridge VERIFIED END-TO-END 2026-08-14:** Pete probed and ticked the 4
+tools; a live agent run read Medical Mutual (tier B, score 85, scored_at
+carried, routing caveat honored) and the query job ran + billed in the canvas
+project. Open item 1 fully closed.
+
+**IMPROVE-FINDINGS closed out:** 8/10/13 FIXED (PRs #138/#139/#140), 11
+partial — prompt rewrites now audit as `agent.prompt_update`; whether that
+route goes owner-only is Pete's decision. See the disposition table.
+
+**GTM bridge deploy details (verification above — nothing pending):**
 `gtm-mcp-bridge` is live on Cloud Run (project `agent-canvas-ctg-0811`,
 IAM-gated, dedicated SA `gtm-bridge-run@` with `bigquery.jobUser` on the
 canvas project + dataset-scoped READER on `ctg-hs-exec-tool:ctg_gtm_marts`
