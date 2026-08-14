@@ -849,8 +849,10 @@ superseded text to that file rather than loosening the match.
    data for the expo) — the human-in-the-loop demo is closed end-to-end. The
    two chat-exposed Anthropic keys were deleted at console.anthropic.com;
    the live key is the sole survivor.
-4. **MCP.** Layer built+tested (Streamable HTTP, per-tool enablement); no
-   connector configured. `MCP_SERVERS` env or `config/mcp.json`.
+4. **MCP.** ~~no connector configured~~ **CLOSED (stale by 2026-08-14):**
+   four connectors live — `hubspot-crm`, `sr-icp-leadfinder`,
+   `gtm-mcp-bridge`, `enrichment-dispatch`. Only the SOI row remains
+   (WAVE2-SOI-RUNBOOK.md).
 5. **xlsx parsing.** Darren found the real HubSpot CRM export in Drive and
    could not read it (Office file). Error now explains the convert-to-Sheet
    workaround; native parsing is the queued feature.

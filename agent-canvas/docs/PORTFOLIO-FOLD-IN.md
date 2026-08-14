@@ -448,6 +448,23 @@ Do not re-audit.
   questions conversationally against the real portal. Retire the URL after
   a parity check (each locked button's question answered correctly in a
   canvas run).
+
+  **Parity checklist (prepared 2026-08-14 from `app/commands.py` — needs one
+  signed-in canvas session; dispatch each to an exec persona or Scout, tick
+  when the answer matches the /exec page's):**
+  1. [ ] *Workflows* — "How many HubSpot automations are active, what do
+     they do, and as of when?"
+  2. [ ] *Data trustworthiness* — "Assess completeness, gaps, and
+     inconsistencies across contacts, companies, and deals."
+  3. [ ] *Ownership & gaps* — "Show owner distribution and concentration —
+     who holds the book, who is idle."
+  4. [ ] *Open deals by category* — "Open-deal counts and concentration by
+     product category."
+  5. [ ] *Account relationships* — "Top-accounts relationship rollup — how
+     the book is structured and connected."
+
+  All five ticked → retire the URL (and the ctg-l10-eos embed) and mark this
+  audit line DONE with the run links.
 - **ctg-hs-ops-runner Exec UAT front** (`AKfycbzOgUPWl…`, most-referenced)
   — UAT/provisioning harness for the CRM write lane. Canvas is the
   production exec surface for that lane (preview-first writes, tray

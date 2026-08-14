@@ -10,13 +10,13 @@ could **not** land it. Status in the ledger: **BLOCKED**, not skipped.
   JWT audience.` — IAP answering proves both that `soi-query` exists and that
   it sits behind IAP, which is exactly why a second, IAP-free `soi-mcp`
   service is required rather than optional.
-- **The deploy cannot run from here.** `gcloud run services list --project
-  ctg-workspace-dev` and `gcloud services list --project ctg-workspace-dev`
-  are both denied for **both** identities (pete@cloudtechgurus.com and
-  cpeteconnor@gmail.com), while `gcloud projects get-iam-policy` on the same
-  project succeeds. That is the same CLI-denied-but-console-fine pattern
-  recorded as HANDOFF open item 8 for `ctg-hs-exec-tool` — an org policy or
-  context-aware-access rule, not a missing role.
+- ~~**The deploy cannot run from here.**~~ **CORRECTED 2026-08-14 (late):**
+  the denial was the known gmail-token artifact, not a perimeter. With a
+  token verified as pete@cloudtechgurus.com via `tokeninfo`,
+  `gcloud run services list --project ctg-workspace-dev` succeeds and lists
+  `soi-query`, `ctg-triage-broker`, `ctg-voice-service`. **The deploy CAN run
+  from this Mac** — verify the token identity with `tokeninfo` first, never
+  `gcloud auth list`.
 - **The code change lands in another GitHub account.** The SOI service lives
   in `peteconnorCTG/ctg-system-of-intelligence`, not `UsernameTron/second-brain`.
   `gh auth switch` is machine-wide and needs Pete's approval, so this session
