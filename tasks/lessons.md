@@ -174,3 +174,4 @@ Triggered by: 2026-07-26 enrichment-dispatch git-state sweep.
   Triggered by: 2026-08-14 — PR #130 wrongly diagnosed a "VPC-SC perimeter" from
   gmail-identity 403s; the same trap earlier produced a wrong "bq denies pete@"
   read. Both were the two-identity trap HANDOFF.md already warns about.
+- **[Autonomy]**: Actionable items found during a task get executed in the same session, not queued as chips/notes/reminders for the operator — he will only come back and say "do it." Only genuine owner sign-offs (e.g. ticking connector tools) get left for him. Triggered by: Gate 0 close-out deferred the ICP v6 fly.dev re-export and the claude-review CI fix to a chip + a note instead of doing them.

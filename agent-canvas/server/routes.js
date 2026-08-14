@@ -247,7 +247,7 @@ router.get('/health/integrations', (req, res) => {
       id: 'enrichment', label: 'ENRICHMENT · DISPATCH', probe: require('./enrichment/dispatch').configured(),
       status: require('./enrichment/dispatch').configured() ? provenStatus('enrichment').status : 'planned',
       detail: require('./enrichment/dispatch').configured()
-        ? `Wired to enrichment-dispatch (IAM client, keyless). Reads free (get_enriched_record); paid enrichment spends real credits, research/targeting/commercial agents only, never on system-triggered runs.${provenStatus('enrichment').note}`
+        ? `Wired to enrichment-dispatch (IAM client, keyless). Reads free (get_enriched_contact); paid enrichment spends real credits, research/targeting/commercial agents only, never on system-triggered runs.${provenStatus('enrichment').note}`
         : 'Not wired — ED_DISPATCH_URL unset (held dark until the owner lights it; see HANDOFF).',
     },
     ...(mcp.configError() ? [{
