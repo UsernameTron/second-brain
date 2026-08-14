@@ -16,6 +16,11 @@
 // HubSpot connectors are NOT seeded here — they arrive with the
 // hubspot-mcp-bridge service (Phase 3): stdio-only servers need that bridge,
 // and seeding a dead URL would just be a red lamp.
+//
+// The seed key is versioned (seed_mcp_v2) because `name` is UNIQUE and the
+// insert is OR IGNORE: bumping the key re-runs the loop on an already-seeded
+// workspace, where existing rows are ignored and only new ones land. Adding a
+// connector is therefore "append to SEED_SERVERS + bump the key", nothing else.
 
 const crypto = require('node:crypto');
 const { db, nowIso, getSetting, setSetting } = require('./../db');
@@ -36,18 +41,42 @@ const SEED_SERVERS = [
     access: 'members',
     roles: ['research', 'targeting', 'commercial'],
   },
+  {
+    // ctg-signal-radar's deployed remote MCP ("CTG Lead Finder" v1.29.0):
+    // LinkedIn people search scored against the same sr-icp registry the Radar
+    // roster agent reads. Probed live 2026-08-14 — Streamable-HTTP with SSE
+    // framing, three tools (ping, find_icp_leads, check_lead_search), and NO
+    // auth header of any kind, which is why there is no ${ENV:...} here.
+    //
+    // find_icp_leads/check_lead_search are an async start/poll pair: the first
+    // starts a search, the second collects it. Agents must be told to poll.
+    //
+    // Scoring version: this service scores server-side against sr-icp-v5. When
+    // the canvas registry moves to v6 (Wave 3), its results stay v5-scored
+    // until the service is re-exported — see PORTFOLIO-FOLD-IN.md gap 3.
+    name: 'sr-icp-leadfinder',
+    url: 'https://sr-icp-connector.fly.dev/mcp',
+    headers: {},
+    access: 'members',
+    roles: ['research', 'targeting', 'commercial'],
+  },
 ];
 
 function seedMcpServers() {
-  if (getSetting('seed_mcp_v1')) return { seeded: false };
+  if (getSetting('seed_mcp_v2')) return { seeded: false };
   const ts = nowIso();
+  let inserted = 0;
   for (const srv of SEED_SERVERS) {
-    db.prepare('INSERT OR IGNORE INTO mcp_servers (id, name, url, headers_json, enabled_tools_json, access, roles_json, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)')
+    const res = db.prepare('INSERT OR IGNORE INTO mcp_servers (id, name, url, headers_json, enabled_tools_json, access, roles_json, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)')
       .run(crypto.randomUUID(), srv.name, srv.url, JSON.stringify(srv.headers), '[]', srv.access, JSON.stringify(srv.roles), ts, ts);
+    inserted += res.changes;
   }
-  setSetting('seed_mcp_v1', ts);
-  audit('system', 'seed', 'workspace.seed_mcp', { servers: SEED_SERVERS.length });
-  return { seeded: true, servers: SEED_SERVERS.length };
+  setSetting('seed_mcp_v2', ts);
+  // Report what actually landed, not the constant's length — on an
+  // already-seeded workspace most of these are no-ops and an audit line
+  // claiming otherwise is a lamp faking green.
+  audit('system', 'seed', 'workspace.seed_mcp', { servers: inserted, candidates: SEED_SERVERS.length });
+  return { seeded: true, servers: inserted };
 }
 
 module.exports = { seedMcpServers, SEED_SERVERS };
