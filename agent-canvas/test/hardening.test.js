@@ -121,6 +121,17 @@ test('a refused tool is reported, never silently dropped', () => {
   assert.equal(mcp.configError(), null, 'a refused tool must not read as a broken config');
 });
 
+test('saving a connector strips write tools instead of refusing the save', () => {
+  // The first version returned 400 when enabledTools contained a write tool.
+  // That trapped the owner: the stored config already had seven of them, so
+  // the very save that removed them was refused for containing them.
+  const { _internal } = require('../server/routes');
+  const out = _internal.splitMutating(['hubspot-get-user-details', 'hubspot-batch-create-objects', 'hubspot-list-objects']);
+  assert.deepEqual(out.kept, ['hubspot-get-user-details', 'hubspot-list-objects']);
+  assert.deepEqual(out.refused, ['hubspot-batch-create-objects']);
+  assert.deepEqual(_internal.splitMutating(undefined), { kept: [], refused: [] });
+});
+
 test('connector URLs must be https, with loopback exempted for local work', () => {
   assert.equal(mcp.safeMcpUrl('https://x.example/mcp'), true);
   assert.equal(mcp.safeMcpUrl('http://127.0.0.1:8080/mcp'), true, 'a token sent to loopback never leaves the machine');
