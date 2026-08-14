@@ -279,9 +279,14 @@ signal-radar's `icp_registry.py`, re-export as v6, new commit here.
 
 ### advisor-match — DO NOT FOLD the system. Harvest 2 files. Effort S-M.
 Reality check: it's a deal→single-supplier scorer (no requirements→ranked
-list exists anywhere), it never served a real deal (webhook never
-registered), and its GCP project `carbon-minutia-494714-i1` is not visible
-from either of Pete's accounts — the "deployed" claim is dead. **Harvest
+list exists anywhere) and it never served a real deal (webhook never
+registered). CORRECTION (2026-08-14, from Pete's `gcloud projects list`):
+`carbon-minutia-494714-i1` DOES exist, plus dedicated
+`ctg-advisor-match-dev`/`-prod` projects — the earlier "project is gone"
+claim was a sandboxed-CLI artifact. The verdict does not change: the
+system is deal-shaped (needs a hydrated deal + its own Postgres deal
+history), not query-shaped, so there is still nothing for canvas agents to
+call. **Harvest
 (a):** the tolerant-regex ICP classifiers in `worker/services/icp.py`
 (survive raw HubSpot enums, "Hospitality"≠hospital, `(?<!new )mexico`) +
 22 extra blocklist domains — merge UPSTREAM into signal-radar's
