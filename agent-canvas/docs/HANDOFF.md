@@ -71,7 +71,7 @@ enrichment lane.
 - **Enrichment lane LIT** (Pete released the F-01 hold in-session) —
   `ED_DISPATCH_URL` on the revision, ENRICHMENT · DISPATCH lamp on the
   board, invoker grant verified in live IAM. Reads free
-  (`get_enriched_record`); paid enrichment is research/targeting/commercial
+  (`get_enriched_contact`); paid enrichment is research/targeting/commercial
   only, never system-triggered.
 - **Probe rate bucket** — probing the board no longer burns the sign-in
   limit (they shared a 10/min bucket; probes now 60/min).
@@ -79,7 +79,7 @@ enrichment lane.
 **Open for the next session (Pete said further improvements are coming):**
 1. **SOI** — now CLI-deployable (`ctg-workspace-dev` access verified live
    this session). Runbook: [WAVE2-SOI-RUNBOOK.md](WAVE2-SOI-RUNBOOK.md).
-2. Enrichment lamp: Pete to probe once + one free `get_enriched_record`
+2. Enrichment lamp: Pete to probe once + one free `get_enriched_contact`
    agent run for the end-to-end proof.
 3. Parked per PORTFOLIO-FOLD-IN: qualification-engine lift, signal-radar
    full integration, ctg-ai-platform's other surfaces.
