@@ -187,6 +187,49 @@ test('health endpoint reports real statuses and never fakes green', async () => 
   } finally { server.close(); }
 });
 
+test('a configured lamp earns green only from probe evidence (finding 8)', async () => {
+  const probestate = require('../server/probestate');
+  const prev = process.env.HS_OPS_RUNNER_URL;
+  process.env.HS_OPS_RUNNER_URL = 'https://ops-runner.test.example';
+  const express = require('express');
+  const app = express();
+  app.use(express.json());
+  app.use('/api', require('../server/routes'));
+  db.prepare("INSERT OR IGNORE INTO allowlist (email, role, display_name, added_by, added_at) VALUES ('pete@cloudtechgurus.com', 'owner', 'Pete', 'test', '')").run();
+  const server = app.listen(0);
+  await new Promise((r) => server.once('listening', r));
+  const port = server.address().port;
+  try {
+    const auth = await fetch(`http://127.0.0.1:${port}/api/auth/dev`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'pete@cloudtechgurus.com' }),
+    });
+    const cookie = auth.headers.get('set-cookie').split(';')[0];
+    const lamp = async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/api/health/integrations`, { headers: { cookie } });
+      return (await res.json()).integrations.find((i) => i.id === 'hubspot');
+    };
+    // config present, never probed -> amber, not green
+    let hs = await lamp();
+    assert.equal(hs.status, 'attention', 'config presence alone must not be green');
+    assert.match(hs.detail, /unprobed/i);
+    // successful probe evidence -> green, with the measurement in the detail
+    probestate.record('hubspot', { ok: true, ms: 42 });
+    hs = await lamp();
+    assert.equal(hs.status, 'ready');
+    assert.match(hs.detail, /Probe OK \(42ms\)/);
+    // failed probe evidence -> red with the named error
+    probestate.record('hubspot', { ok: false, error: 'IAM says no' });
+    hs = await lamp();
+    assert.equal(hs.status, 'down');
+    assert.match(hs.detail, /IAM says no/);
+  } finally {
+    server.close();
+    probestate._state.delete('hubspot');
+    if (prev === undefined) delete process.env.HS_OPS_RUNNER_URL; else process.env.HS_OPS_RUNNER_URL = prev;
+  }
+});
+
 test('probe surface lookup ignores inherited properties (no prototype dispatch)', async () => {
   for (const evil of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
     await assert.rejects(
