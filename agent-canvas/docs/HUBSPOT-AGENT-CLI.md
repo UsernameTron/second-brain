@@ -39,12 +39,20 @@ when the agent can already run commands. Capability map:
      (`@hubspot/local-dev-lib` config/utils.js gates env-based auth on it).
    - `HUBSPOT_PERSONAL_ACCESS_KEY` — from app.hubspot.com/l/personal-access-key
      for the chosen account (treat like a password; environment settings
-     only, never the repo). Sandbox 246460341 recommended — the Agent CLI
-     builds apps, real-CRM access buys nothing here.
-   - `HUBSPOT_ACCOUNT_ID` — that same account's id.
+     only, never the repo).
+   - `HUBSPOT_ACCOUNT_ID` — that same account's id. **The PAK encodes the
+     portal it was minted from**; a mismatched id fails with HTTP 400
+     VALIDATION_ERROR ("account ID provided isn't valid") — a 400, not a
+     401, is the mismatch signature.
+   **Account decision (Pete, 2026-08-14): PRODUCTION portal 243103424, not
+   the sandbox** — the org tests in production, a sandbox qualifier would
+   confuse the team. Acceptable because the PAK carries only Pete's own user
+   permissions, this surface is app-dev (it does not browse the CRM), and
+   CRM writes remain solely ops-runner (ADR-0041).
    Set these in the environment for the **repo root**
    (`UsernameTron/second-brain`) — environments are per-repo; agent-canvas
-   sessions inherit them.
+   sessions inherit them. The env-vars box is plaintext (visible to anyone
+   using the environment) — today that is Pete alone.
 3. **Network policy**: Full network access (or allowlist `api.hubapi.com`,
    `app.hubspot.com`, `developers.hubspot.com`). Policy applies to NEW
    containers only.
@@ -53,9 +61,19 @@ when the agent can already run commands. Capability map:
 
 ```bash
 hs --version
-hs account info          # proves auth without touching anything
-hs project list          # read-only inventory
+hs project list --use-env   # read-only inventory; clean exit proves auth
 ```
+
+**`--use-env` is mandatory and per-command** (verified in CLI 8.13.0 source,
+2026-08-14): `injectAccountIdMiddleware` reads `HUBSPOT_ACCOUNT_ID` only when
+the *flag* is set (`lib/middleware/configMiddleware.js`), and the flag only
+exists on commands registered with `useEnvironmentOptions: true`. Supported:
+`project list/info/upload/deploy/logs`, `secret *`, `custom-object *`, `hs api`.
+NOT supported (need a hubspot.config.yml, so effectively out of scope in
+cloud sessions): `hs account info`, `project add/lint/release/migrate`.
+`USE_ENVIRONMENT_HUBSPOT_CONFIG=true` alone only skips the config-file check —
+without `--use-env` the command still dies on "An account needs to be
+supplied"; that contradictory error pair is the fingerprint of this gap.
 
 ## Ground rules for Claude on this surface
 
