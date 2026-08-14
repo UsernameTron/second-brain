@@ -8,10 +8,11 @@ kept for the reasoning, not the status.**
 ## MEMORY-OBSERVABILITY ROADMAP SHIPPED (2026-08-14, late session — PRs #152–#158)
 
 All 7 waves of the approved roadmap (plan file: memory visible at read time)
-are merged to master; tests **168/168**. **NOT yet deployed** — the live
-revision is still `00041-xk8`; the next deploy picks all of this up via the
-normal redeploy procedure (all migrations are additive and self-applying,
-`memory_fts` backfills on boot).
+are merged to master; tests **168/168**. **DEPLOYED 2026-08-14 late session:
+revision `agent-canvas-00042-m82`** — clean boot, zero error logs, env
+verified intact (`ED_DISPATCH_URL` + `HS_OPS_RUNNER_URL` on the revision),
+`/api/config` 200. Migrations self-applied; `memory_fts` backfilled on boot.
+Lamps are AMBER until probed, by design — Pete probes in-app.
 
 - **0a hygiene+perf** (#152): memory_search description fixed (was claiming
   AND semantics), dead runner import gone, batched citation reads, taint
