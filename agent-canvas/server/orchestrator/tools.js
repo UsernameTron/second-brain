@@ -145,6 +145,20 @@ const COMMON_TOOLS = [
   },
 ];
 
+const REGISTRY_TOOL = {
+  name: 'read_registry',
+  description: 'Look up CTG reference data the workspace owns. "suppliers" = the CTG supplier catalogue (name, category, taxonomy tags — no contact details, no commission terms). "org_context" = distilled facts about who owns which lane and which rules gate what, FROZEN at the date the result reports: where it disagrees with something you read live, the live source wins and you should say so. Always pass a query — an unfiltered read returns the first page of hundreds.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      registry: { type: 'string', enum: ['suppliers', 'org_context'] },
+      query: { type: 'string', description: 'space-separated terms; every term must appear in the row' },
+      limit: { type: 'integer', description: 'max rows, capped at 25' },
+    },
+    required: ['registry'],
+  },
+};
+
 const ROLE_TOOLS = {
   research: [
     {
@@ -433,6 +447,55 @@ const ENRICHMENT_TOOLS = [
 ];
 const ENRICHMENT_ROLES = ['research', 'targeting', 'commercial'];
 
+// Committed context registries — CTG's supplier catalogue and the distilled
+// org-context facts. Same contract as the sr-icp registry: generated upstream
+// (scripts/build-registries.js), committed, refreshed by a new commit rather
+// than a live sync, and never hand-edited.
+//
+// Deliberately a TOOL rather than a canvas note. The ICP note is unpinned
+// because pinned notes ride in every system prompt of every run; these two are
+// several times its size, and `read_notes` returns every note's full content,
+// so parking them there would tax every read_notes call on the canvas instead.
+// A filtered lookup returns the handful of rows an agent actually asked for.
+const REGISTRIES = {
+  suppliers: {
+    load: () => require('../config/supplier-catalog.json'),
+    rows: (data) => data.suppliers,
+    text: (row) => `${row.name} ${row.category} ${row.tags.join(' ')}`,
+  },
+  org_context: {
+    load: () => require('../config/org-context.json'),
+    rows: (data) => data.facts,
+    text: (row) => `${row.name} ${row.statement} ${row.layer}`,
+  },
+};
+const REGISTRY_LIMIT = 25;
+
+function readRegistry({ registry, query, limit }) {
+  const spec = Object.hasOwn(REGISTRIES, String(registry)) ? REGISTRIES[registry] : null;
+  if (!spec) throw new Error(`unknown registry ${String(registry).slice(0, 40)} — use one of: ${Object.keys(REGISTRIES).join(', ')}`);
+  const data = spec.load();
+  const terms = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const all = spec.rows(data);
+  // Every term must appear somewhere in the row — a narrow AND beats a broad
+  // OR when the caller pays for the result in context.
+  const hits = terms.length
+    ? all.filter((row) => { const hay = spec.text(row).toLowerCase(); return terms.every((t) => hay.includes(t)); })
+    : all;
+  const capped = Math.min(Math.max(Number(limit) || REGISTRY_LIMIT, 1), REGISTRY_LIMIT);
+  return {
+    registry: data.registry,
+    source_of_truth: data.source_of_truth,
+    ...(data.frozen_at ? { frozen_at: data.frozen_at, authority_note: data.authority_note } : {}),
+    excludes: data.excludes,
+    total: all.length,
+    matched: hits.length,
+    // Truncation must be visible: a silent cap reads as "that is all there is".
+    ...(hits.length > capped ? { truncated: `showing the first ${capped} of ${hits.length} — narrow the query` } : {}),
+    results: hits.slice(0, capped),
+  };
+}
+
 function toolsForRole(role, { userRole = 'member' } = {}) {
   // MCP defs are filtered per directing user + agent role: owner-only
   // connectors never reach a member-directed run's tool list, and role-scoped
@@ -457,7 +520,7 @@ function toolsForRole(role, { userRole = 'member' } = {}) {
   const enrichment = require('../enrichment/dispatch').configured() && ENRICHMENT_ROLES.includes(role)
     ? ENRICHMENT_TOOLS
     : [];
-  return [...COMMON_TOOLS, ...wsRead, ...wsWrite, ...HUBSPOT_TOOLS, ...enrichment, ...mcpDefs, ...(ROLE_TOOLS[role] || [{
+  return [...COMMON_TOOLS, REGISTRY_TOOL, ...wsRead, ...wsWrite, ...HUBSPOT_TOOLS, ...enrichment, ...mcpDefs, ...(ROLE_TOOLS[role] || [{
     name: 'read_rows',
     description: 'Read rows of the conference-lead workbook on this canvas.',
     input_schema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer' } }, required: [] },
@@ -508,7 +571,10 @@ async function executeTool(name, input, ctx) {
       bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
       return { content: externalContent(`mcp:${target.server}`, out) };
     } catch (err) {
-      return { content: String(err.message || err), isError: true };
+      // The message is attacker-authored too — mcp/client.js interpolates the
+      // server's own error text. Wrapping only the happy path leaves an escape
+      // AROUND the tag rather than through it.
+      return { content: externalContent(`mcp:${target.server}`, String(err.message || err)), isError: true };
     }
   }
 
@@ -607,27 +673,38 @@ async function executeTool(name, input, ctx) {
       const entryIds = [...new Set(input.entry_ids || [])];
       const handoffId = crypto.randomUUID();
       const payloadEntries = entryIds.map((id) => memory.getEntry(id)).filter(Boolean);
+      // Memory content is interpolated into the CHILD RUN'S INSTRUCTION — the
+      // one slot the system prompt declares authoritative. An agent that stored
+      // a verbatim email body (the memory contract tells it to keep the quoted
+      // passage) would otherwise launder that text into instruction position
+      // one handoff later. Entries are evidence, whatever their origin.
       const payloadText = payloadEntries.length
-        ? `\n\nMemory entries passed with this handoff (already recorded as your context):\n${payloadEntries.map((e) => `- [${e.epistemic}] (id ${e.id}) ${e.content} — ${e.author.name}, source: ${e.source}`).join('\n')}`
+        ? `\n\n${externalContent('memory-payload', payloadEntries.map((e) => `- [${e.epistemic}] (id ${e.id}) ${e.content} — ${e.author.name}, source: ${e.source}`).join('\n'))}`
         : '';
-      // Dispatch BEFORE writing the handoffs row. dispatchRun throws 429 when
-      // the daily budget is spent — designed behaviour, not an exception — and
-      // in the old order that throw left an orphan row: every retry then hit
-      // the duplicate guard above and got back "they are working on it", which
-      // was false and which the agent believes. The orphan also counted toward
-      // the crossings tally, pushing the pair toward a phantom livelock.
+      // Both halves or neither. dispatchRun throws 429 on a spent daily budget
+      // (designed behaviour, not an exception), and each order fails its own
+      // way: row-then-dispatch leaves an orphan that makes every retry hit the
+      // duplicate guard above and hear "they are working on it" — false, and
+      // believed — while also counting toward the crossings tally and a
+      // phantom livelock; dispatch-then-row leaves a live child run with no
+      // handoff record and no audit line. One transaction, so a refusal leaves
+      // the canvas exactly as it was.
+      const { tx } = require('../db');
       const { dispatchRun } = require('./queue');
-      const child = dispatchRun({
-        agentId: target.id,
-        canvasId: canvas.id,
-        instruction: `Handoff from ${agent.name} (item: ${itemKey}): ${input.message}${payloadText}`,
-        triggerKind: 'handoff',
-        parentRunId: run.id,
-        initialReads: entryIds,
+      const child = tx(() => {
+        const c = dispatchRun({
+          agentId: target.id,
+          canvasId: canvas.id,
+          instruction: `Handoff from ${agent.name} (item: ${itemKey}): ${input.message}${payloadText}`,
+          triggerKind: 'handoff',
+          parentRunId: run.id,
+          initialReads: entryIds,
+        });
+        db.prepare(
+          'INSERT INTO handoffs (id, canvas_id, run_id, from_agent_id, to_agent_id, item_key, message, payload_entry_ids, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        ).run(handoffId, canvas.id, run.id, agent.id, target.id, itemKey, input.message, JSON.stringify(entryIds), ts);
+        return c;
       });
-      db.prepare(
-        'INSERT INTO handoffs (id, canvas_id, run_id, from_agent_id, to_agent_id, item_key, message, payload_entry_ids, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(handoffId, canvas.id, run.id, agent.id, target.id, itemKey, input.message, JSON.stringify(entryIds), ts);
       audit('agent', agent.id, 'run.handoff', { runId: run.id, to: target.name, itemKey, entryIds });
       bus.emit('event', {
         type: 'handoff', canvasId: canvas.id,
@@ -749,7 +826,9 @@ async function executeTool(name, input, ctx) {
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
         return { content: externalContent(`workspace:${name.replace(/^ws_/, '')}`, out) };
       } catch (err) {
-        return { content: String(err.message || err), isError: true };
+        // Google errors interpolate attacker-controllable strings — a Drive file
+        // NAME, for one, and anyone who can share a file chooses that.
+        return { content: externalContent(`workspace:${name.replace(/^ws_/, '')}`, String(err.message || err)), isError: true };
       }
     }
 
@@ -785,11 +864,23 @@ async function executeTool(name, input, ctx) {
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
         return { content: externalContent('hubspot', out) };
       } catch (err) {
+        return { content: externalContent('hubspot', String(err.message || err)), isError: true };
+      }
+    }
+
+        case 'read_registry': {
+      try {
+        // Committed, in-process data — no network, no spend, no external
+        // party. It is NOT wrapped as external_content for exactly that
+        // reason: this is workspace-owned reference data, and mislabelling it
+        // would teach agents to distrust their own registries.
+        return { content: JSON.stringify(readRegistry(input || {})) };
+      } catch (err) {
         return { content: String(err.message || err), isError: true };
       }
     }
 
-        case 'enrich_contact': case 'enrich_company':
+    case 'enrich_contact': case 'enrich_company':
     case 'verify_email': case 'get_enriched_contact': {
       const dispatch = require('../enrichment/dispatch');
       const initiator = run.initiated_by;
@@ -809,7 +900,7 @@ async function executeTool(name, input, ctx) {
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
         return { content: externalContent('enrichment', out) };
       } catch (err) {
-        return { content: String(err.message || err), isError: true };
+        return { content: externalContent('enrichment', String(err.message || err)), isError: true };
       }
     }
 
@@ -877,4 +968,4 @@ function createEscalation({ canvasId, runId, agentId, kind, question, context })
   return escalation;
 }
 
-module.exports = { toolsForRole, executeTool, createEscalation, externalContent, LIVELOCK_MAX_CROSSINGS };
+module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS };

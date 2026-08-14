@@ -32,23 +32,69 @@ const OUTPUT_CAP = 30_000;
 // Connectors are read lanes. The live hubspot-crm connector reaches the REAL
 // portal 243103424, and its read-only-ness rested entirely on the scopes set
 // out-of-band on one private-app token — zero lines of code. A token swap or a
-// scope widened in the HubSpot UI would silently create a production CRM write
-// path that bypasses dry-run, human approval, and the sandbox guard, because
+// scope widened in the HubSpot UI would create a production CRM write path
+// around dry-run, human approval, and the sandbox guard, because
 // @hubspot/mcp-server ships object-mutating tools next to its read tools.
 //
 // Every CRM write in this product goes through the ops-runner preview/apply
-// lane (ADR-0041), which is enforced in code and tested. So a mutating tool
-// name is refused here, server-side, where a stale DB row cannot resurrect it.
-// Read tools are unaffected. If a connector ever legitimately needs a write
-// tool, that is a deliberate design change with its own approval lane — not a
-// checkbox in an admin tab.
-const MUTATING_TOOL_RE = /(^|[_-])(create|update|upsert|delete|remove|archive|merge|write|send|post|patch|put|batch)([_-]|$)/i;
-function isMutatingToolName(name) { return MUTATING_TOOL_RE.test(String(name)); }
+// lane (ADR-0041), which is enforced in code and tested.
+//
+// What this is, precisely: a NAME-SHAPED BACKSTOP, not the control. The
+// control is that `enabledTools` is an owner-authored allowlist. A tool whose
+// name looks mutating is refused here — server-side, where a stale DB row
+// cannot resurrect it — and any drop is surfaced rather than silent, because
+// silently un-enabling a tool an owner already ticked is its own kind of lamp
+// faking green. Names are a heuristic and will never be complete; do not read
+// this as "writes are impossible".
+//
+// Tokenised rather than substring-matched, in both directions:
+//   * camelCase is split, so `createContact` is caught (real servers use it);
+//   * a read verb anywhere WINS, so `hubspot-batch-read-objects` and
+//     `get_post` survive — `batch` and `post` are nouns there.
+const WRITE_VERBS = new Set([
+  'create', 'update', 'upsert', 'delete', 'remove', 'archive', 'merge', 'write',
+  'send', 'patch', 'put', 'batch', 'set', 'add', 'edit', 'modify', 'manage',
+  'move', 'copy', 'share', 'reply', 'forward', 'push', 'import', 'publish',
+  'apply', 'assign', 'enroll', 'trash', 'spam', 'label', 'unlabel', 'post',
+]);
+const READ_VERBS = new Set([
+  'get', 'read', 'list', 'search', 'find', 'fetch', 'describe', 'show',
+  'check', 'lookup', 'discover', 'download', 'view', 'ping', 'count',
+]);
+function toolNameTokens(name) {
+  return String(name)
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((t) => t.toLowerCase());
+}
+function isMutatingToolName(name) {
+  const tokens = toolNameTokens(name);
+  if (tokens.some((t) => READ_VERBS.has(t))) return false;
+  return tokens.some((t) => WRITE_VERBS.has(t));
+}
 
 let loadError = null;
 
+// Tools this layer refused, per server, so a drop is never silent. An owner
+// who ticked something that got filtered must be told, not left with a
+// connector that quietly lost a tool on the next reload.
+const refusedTools = new Map(); // server name -> [tool names]
+function refusedToolReport() {
+  return [...refusedTools.entries()].map(([server, tools]) => ({ server, tools }));
+}
+
+// https, or loopback. Enforced HERE rather than only in the admin route,
+// because this function is what actually loads MCP_SERVERS, config/mcp.json
+// and pre-existing DB rows — and rpc() sends a Google-signed identity token as
+// a Bearer header over whatever scheme the URL carries. Loopback is exempt for
+// the obvious reason: a token sent to 127.0.0.1 never leaves the machine, and
+// the test suite and local development both speak plain http there.
+const SAFE_URL_RE = /^(https:\/\/|http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(\/|$))/i;
+function safeMcpUrl(url) { return SAFE_URL_RE.test(String(url || '')); }
+
 function normalizeServer(srv) {
-  if (!srv || !NAME_RE.test(String(srv.name || '')) || !/^https?:\/\//.test(String(srv.url || ''))) return null;
+  if (!srv || !NAME_RE.test(String(srv.name || '')) || !safeMcpUrl(srv.url)) return null;
   const headers = {};
   if (srv.headers && typeof srv.headers === 'object') {
     for (const [k, v] of Object.entries(srv.headers)) {
@@ -56,11 +102,18 @@ function normalizeServer(srv) {
     }
   }
   if (srv.authHeader && !headers.authorization) headers.authorization = String(srv.authHeader); // legacy shape
+  const asked = (Array.isArray(srv.enabledTools) ? srv.enabledTools : []).filter((t) => NAME_RE.test(String(t)));
+  const kept = asked.filter((t) => !isMutatingToolName(t));
+  if (kept.length !== asked.length) {
+    refusedTools.set(srv.name, asked.filter((t) => isMutatingToolName(t)));
+  } else {
+    refusedTools.delete(srv.name);
+  }
   return {
     name: srv.name,
     url: srv.url,
     headers,
-    enabledTools: (Array.isArray(srv.enabledTools) ? srv.enabledTools : []).filter((t) => NAME_RE.test(String(t)) && !isMutatingToolName(t)),
+    enabledTools: kept,
     access: srv.access === 'owner' ? 'owner' : 'members',
     roles: (Array.isArray(srv.roles) ? srv.roles : []).map(String).filter(Boolean),
   };
@@ -122,7 +175,13 @@ function maskHeaderValue(value) {
   return v.length <= 4 ? '••••' : `••••${v.slice(-4)}`;
 }
 let servers = loadConfig();
-function configError() { return loadError; }
+function configError() {
+  const refused = refusedToolReport();
+  if (!refused.length) return loadError;
+  const detail = refused.map((r) => `${r.server}: ${r.tools.join(', ')}`).join(' · ');
+  const msg = `refused as write tools (connectors are read lanes; CRM writes go through the ops-runner preview/apply lane) — ${detail}`;
+  return loadError ? `${loadError}; ${msg}` : msg;
+}
 function listServers() {
   return servers.map((srv) => ({
     name: srv.name, url: srv.url, enabledTools: srv.enabledTools,
@@ -294,6 +353,6 @@ if (servers.some((srv) => srv.enabledTools.length)) {
 
 module.exports = {
   listServers, configError, reload, enabledToolDefs, callTool, probeServer, discoverTools,
-  getCachedDefs, refreshDefs, resolveToolName, isMutatingToolName,
+  getCachedDefs, refreshDefs, resolveToolName, isMutatingToolName, refusedToolReport, safeMcpUrl,
   _internal: { loadConfig, parseBody },
 };

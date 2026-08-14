@@ -1,0 +1,3785 @@
+{
+  "registry": "supplier-catalog",
+  "source_of_truth": "projects/advisor-match/docs/suppliers/catalog.md (CTG-Workspace-Build)",
+  "generated_by": "agent-canvas/scripts/build-registries.js",
+  "contains": "supplier name, category, and taxonomy tags only",
+  "excludes": "supplier contact details, commission rates, and any name on the excluded-vendor list",
+  "counts": {
+    "suppliers": 420,
+    "dropped_excluded_vendor": 1,
+    "rows_with_tags_scrubbed": 3
+  },
+  "suppliers": [
+    {
+      "name": "360Learning",
+      "category": "ELearning/LMS/Training",
+      "tags": [
+        "ELearning/LMS/Training"
+      ]
+    },
+    {
+      "name": "448 Connect",
+      "category": "Caller ID Protection/Reputation/Branding/Stir Shaken",
+      "tags": [
+        "Caller ID Protection/Reputation/Branding/Stir Shaken"
+      ]
+    },
+    {
+      "name": "448 Connect",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "Caller ID Protection/Reputation/Branding/Stir Shaken"
+      ]
+    },
+    {
+      "name": "8x8",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "UCaaS + CCaaS"
+      ]
+    },
+    {
+      "name": "Abby Connect",
+      "category": "BPO",
+      "tags": [
+        "BPO — Domestic Virtual Assistants"
+      ]
+    },
+    {
+      "name": "ABC Marketing",
+      "category": "BPO",
+      "tags": [
+        "BPO — Nearshore BPO with sites in Mexico",
+        "Belize",
+        "Brazil and El Salvador"
+      ]
+    },
+    {
+      "name": "Abstrakt",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "QM/QA",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "ADA",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "Digital Channel BOTS",
+        "Conversational Voice IVA"
+      ]
+    },
+    {
+      "name": "ADA",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Digital Channel BOTS",
+        "Conversational Voice IVA — Voice and digital bots"
+      ]
+    },
+    {
+      "name": "ADA",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Digital Channel BOTS",
+        "Conversational Voice IVA — Voice and digital bots"
+      ]
+    },
+    {
+      "name": "Adonis Partners",
+      "category": "Consulting",
+      "tags": [
+        "Consulting"
+      ]
+    },
+    {
+      "name": "Adonis Partners",
+      "category": "Development",
+      "tags": [
+        "Premise to cloud or cloud to cloud CCaaS migrations",
+        "project management of customer experience technology implementations",
+        "managed services and support"
+      ]
+    },
+    {
+      "name": "Adonis Partners",
+      "category": "Implementation / Integration",
+      "tags": [
+        "Premise to cloud or cloud to cloud CCaaS migrations",
+        "project management of customer experience technology implementations",
+        "managed services and support"
+      ]
+    },
+    {
+      "name": "Advance 2000",
+      "category": "VDI/DaaS/SD-Wan",
+      "tags": [
+        "Managed IT",
+        "VDI/DaaS",
+        "Virtual Office"
+      ]
+    },
+    {
+      "name": "Agent Assist",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "AI Agent Assist"
+      ]
+    },
+    {
+      "name": "Agent Assist",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "AI Agent Assist"
+      ]
+    },
+    {
+      "name": "Airmeez",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Post Call Surveys",
+        "Dialer Only",
+        "Voice of the Customer (VOC)",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Airmeez",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Post Call Surveys",
+        "Dialer Only",
+        "Voice of the Customer (VOC)",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Airmeez",
+      "category": "IVR Only",
+      "tags": [
+        "Post Call Surveys",
+        "Dialer Only",
+        "Voice of the Customer (VOC)",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Aktify",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "Sales Lead Gen"
+      ]
+    },
+    {
+      "name": "Alvaria",
+      "category": "Dialer Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Dialer Only",
+        "WFM/WEM",
+        "Digital Channel BOTS",
+        "Conversational Voice IVA",
+        "IVR Only"
+      ]
+    },
+    {
+      "name": "Alvaria",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Dialer Only",
+        "WFM/WEM",
+        "Digital Channel BOTS",
+        "Conversational Voice IVA",
+        "IVR Only"
+      ]
+    },
+    {
+      "name": "Alvaria CX",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Dialer Only",
+        "WFM/WEM",
+        "Digital Channel BOTS",
+        "Conversational Voice IVA",
+        "IVR Only"
+      ]
+    },
+    {
+      "name": "AmplifAI",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "QA/QM",
+        "Analytics Voice & text",
+        "performance management",
+        "gamification"
+      ]
+    },
+    {
+      "name": "AmplifAI",
+      "category": "Performance Management",
+      "tags": [
+        "QA/QM",
+        "Analytics Voice & text",
+        "performance management",
+        "gamification"
+      ]
+    },
+    {
+      "name": "AmplifAI",
+      "category": "WFM/WEM",
+      "tags": [
+        "QA/QM",
+        "Analytics Voice & text",
+        "performance management",
+        "gamification"
+      ]
+    },
+    {
+      "name": "Anywhere365",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Arise Virtual Solutions",
+      "category": "GigCX",
+      "tags": [
+        "BPO/GigCX"
+      ]
+    },
+    {
+      "name": "Assembled",
+      "category": "WFM/WEM",
+      "tags": [
+        "WFM/WEM"
+      ]
+    },
+    {
+      "name": "Atain (formerly IGT Solutions)",
+      "category": "BPO",
+      "tags": [
+        "BPO — Global BPO with South African presence"
+      ]
+    },
+    {
+      "name": "Atello Solutions",
+      "category": "CRM/Ticketing",
+      "tags": [
+        "CRM/Ticketing"
+      ]
+    },
+    {
+      "name": "Authenticx",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "AI Agent Assist/ Guide",
+        "Compliance",
+        "Analytics Voice/Text",
+        "Quality Management/Quality Insurance",
+        "Performace Management"
+      ]
+    },
+    {
+      "name": "Authenticx",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "AI Agent Assist/ Guide",
+        "Compliance",
+        "Analytics Voice/Text",
+        "Quality Management/Quality Insurance",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "Authenticx",
+      "category": "QM/QA",
+      "tags": [
+        "AI Agent Assist/ Guide",
+        "Compliance",
+        "Analytics Voice/Text",
+        "Quality Management/Quality Insurance",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "Automated Revenue",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "Sales Lead Gen"
+      ]
+    },
+    {
+      "name": "Automation Anywhere",
+      "category": "RPA/AI Orchestration",
+      "tags": [
+        "RPA"
+      ]
+    },
+    {
+      "name": "Automation Edge",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "RPA",
+        "OCR",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "Automation Edge",
+      "category": "OCR",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "RPA",
+        "OCR",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "Automation Edge",
+      "category": "RPA/AI Orchestration",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "RPA",
+        "OCR",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "Autopilot Reviews",
+      "category": "CX Analysis/Testing/Surveys",
+      "tags": [
+        "Cx Analysis/Testing/Surveys"
+      ]
+    },
+    {
+      "name": "Avaya",
+      "category": "UCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Avaya",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Axxess Networks",
+      "category": "UCaaS",
+      "tags": [
+        "PBX/UCaaS"
+      ]
+    },
+    {
+      "name": "Balto.ai",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "Analytics Voice/Text",
+        "QM/QA",
+        "Scripting/Decision Tree"
+      ]
+    },
+    {
+      "name": "Balto.ai",
+      "category": "QM/QA",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "Analytics Voice/Text",
+        "QM/QA",
+        "Scripting/Decision Tree"
+      ]
+    },
+    {
+      "name": "Balto.ai",
+      "category": "Scripting/Decision Tree",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "Analytics Voice/Text",
+        "QM/QA",
+        "Scripting/Decision Tree"
+      ]
+    },
+    {
+      "name": "Batch Service",
+      "category": "Data Hygiene/ Data Enhancement",
+      "tags": [
+        "Data Hygeine",
+        "Outbound Dialer"
+      ]
+    },
+    {
+      "name": "Batch Service",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "Data Hygeine",
+        "Outbound Dialer"
+      ]
+    },
+    {
+      "name": "Benchmark Portal",
+      "category": "Contact Center Benchmarking",
+      "tags": [
+        "Contact Center Benchmarking"
+      ]
+    },
+    {
+      "name": "Better Call Center",
+      "category": "Consulting",
+      "tags": [
+        "Consulting"
+      ]
+    },
+    {
+      "name": "Blitzz",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Video Chat/AR"
+      ]
+    },
+    {
+      "name": "Blitzz",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Video Chat/AR"
+      ]
+    },
+    {
+      "name": "Blitzz",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "Video Chat/AR"
+      ]
+    },
+    {
+      "name": "Blue Glass Solutions",
+      "category": "CRM/Ticketing",
+      "tags": [
+        "CRM/Ticketing"
+      ]
+    },
+    {
+      "name": "Boost.ai",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "BOTS AI/IVA Digital Channels — Minimum of 100 employees"
+      ]
+    },
+    {
+      "name": "Boost.ai",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "BOTS AI/IVA Digital Channels — Minimum 100 employees"
+      ]
+    },
+    {
+      "name": "Boost.ai",
+      "category": "IVR Only",
+      "tags": [
+        "Bots AI/IVA Digital channels"
+      ]
+    },
+    {
+      "name": "Botco",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Botco",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Botco",
+      "category": "Chat Only",
+      "tags": [
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Bright Pattern",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Bright Pattern",
+      "category": "Chat Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Bright Pattern",
+      "category": "Dialer Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Bright Pattern",
+      "category": "IVR Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Bright Pattern",
+      "category": "PCI Payment Solutions",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Bright Pattern",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Broadvoice - Go Contact",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "UCaaS + CCaaS",
+        "CCaaS/CPaaS/Omnichannel",
+        "UCaas"
+      ]
+    },
+    {
+      "name": "Broadvoice - Go Contact",
+      "category": "UCaaS",
+      "tags": [
+        "UCaaS + CCaaS",
+        "UCaas",
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Broadvoice - Go Contact",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "UCaaS + CCaaS",
+        "CCaaS/CPaaS/Omnichannel",
+        "UCaas"
+      ]
+    },
+    {
+      "name": "BrooksIM/IMDataCenter",
+      "category": "Data Hygiene/ Data Enhancement",
+      "tags": [
+        "Leads"
+      ]
+    },
+    {
+      "name": "Buwelo",
+      "category": "BPO",
+      "tags": [
+        "BPO — Philippines",
+        "LATAM",
+        "Africa and Europe",
+        "Buwelo can deliver comprehensive offshore/nearshore solutions and support 20+ different languages."
+      ]
+    },
+    {
+      "name": "Call Adapt",
+      "category": "Soundboard Tech",
+      "tags": [
+        "Soundboard Tech"
+      ]
+    },
+    {
+      "name": "Call Center Studio",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS"
+      ]
+    },
+    {
+      "name": "Call Center Studio",
+      "category": "Chat Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS"
+      ]
+    },
+    {
+      "name": "Call Center Studio",
+      "category": "Dialer Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS"
+      ]
+    },
+    {
+      "name": "Call Center Studio",
+      "category": "IVR Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS"
+      ]
+    },
+    {
+      "name": "Call Center Studio",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS"
+      ]
+    },
+    {
+      "name": "Call Criteria",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "QM/QA",
+        "Analytics Voice/Text",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "Call Criteria",
+      "category": "Performance Management",
+      "tags": [
+        "QM/QA",
+        "Analytics Voice/Text",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "Call Criteria",
+      "category": "QM/QA",
+      "tags": [
+        "QM/QA",
+        "Analytics Voice/Text",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "Call Journey",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Analytics Voice/Text"
+      ]
+    },
+    {
+      "name": "Caller ID Reputation",
+      "category": "Caller ID Protection/Reputation/Branding/Stir Shaken",
+      "tags": [
+        "Caller ID Protection/Reputation/Branding/Stir Shaken — US Numbers only (No Canadian carriers)"
+      ]
+    },
+    {
+      "name": "CallForce Outsourcing",
+      "category": "BPO",
+      "tags": [
+        "BPO — South African BPO providing services globally"
+      ]
+    },
+    {
+      "name": "CallMiner",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Analytics Voice/Text",
+        "QM/QA",
+        "Call Recording",
+        "Screen Recording"
+      ]
+    },
+    {
+      "name": "CallShaper",
+      "category": "Dialer Only",
+      "tags": [
+        "Dialer Only"
+      ]
+    },
+    {
+      "name": "Callzilla",
+      "category": "BPO",
+      "tags": [
+        "BPO — Nearshore",
+        "Columbia based BPO"
+      ]
+    },
+    {
+      "name": "CATO Networks",
+      "category": "VDI/DaaS/SD-Wan",
+      "tags": [
+        "VDI/Daas",
+        "Networking / SD-WAN — Specifically works with Contact Centers"
+      ]
+    },
+    {
+      "name": "CCI Network Services",
+      "category": "SIP Telecom Carriers",
+      "tags": [
+        "SIP Telecom Carriers",
+        "UCaas"
+      ]
+    },
+    {
+      "name": "CCI Network Services",
+      "category": "UCaaS",
+      "tags": [
+        "SIP Telecom Carriers",
+        "UCaas"
+      ]
+    },
+    {
+      "name": "CH Consutling Group",
+      "category": "Consulting",
+      "tags": [
+        "Consulting — Consulting firm that is also a part of the CTG AI Readiness Delivery"
+      ]
+    },
+    {
+      "name": "Cisne",
+      "category": "WFM/WEM",
+      "tags": [
+        "WFM/WEM"
+      ]
+    },
+    {
+      "name": "Clootrack",
+      "category": "Business Intelligence",
+      "tags": [
+        "Analytics Voice/Text",
+        "Voice of the Customer"
+      ]
+    },
+    {
+      "name": "Clootrack",
+      "category": "Voice of the Customer",
+      "tags": [
+        "Analytics Voice/Text",
+        "Voice of the Customer"
+      ]
+    },
+    {
+      "name": "Cloudhesive",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Agent Workspace Monitoring",
+        "CCaaS + UCaaS",
+        "Cybersecurity",
+        "VDI/DaaS"
+      ]
+    },
+    {
+      "name": "Cloudhesive",
+      "category": "VDI/DaaS/SD-Wan",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Agent Workspace Monitoring",
+        "CCaaS + UCaaS",
+        "Cybersecurity",
+        "VDI/DaaS"
+      ]
+    },
+    {
+      "name": "Cloudwave",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "IVR Only",
+        "Dialer Only",
+        "UCaaS + CCaaS"
+      ]
+    },
+    {
+      "name": "CM.com",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "Chat Only — Halo is a new offering focused on Campus Student bots for auomating their experience"
+      ]
+    },
+    {
+      "name": "CollaborationRoom.AI",
+      "category": "Compliance",
+      "tags": [
+        "Workspace Monitoring",
+        "Compliance",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "CollaborationRoom.AI",
+      "category": "Performance Management",
+      "tags": [
+        "Workspace Monitoring",
+        "Compliance",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "CollaborationRoom.AI",
+      "category": "Remote/Agent Supervision",
+      "tags": [
+        "Workspace Monitoring",
+        "Compliance",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "CommunityWFM",
+      "category": "WFM/WEM",
+      "tags": [
+        "WFM/WEM — Acquired by RingCentral however from the CEO",
+        "they are oppoerating with current GTM and will not be changing their approach"
+      ]
+    },
+    {
+      "name": "Conceal",
+      "category": "Cyber Security",
+      "tags": [
+        "Cyber Security"
+      ]
+    },
+    {
+      "name": "Confedy",
+      "category": "Visual IVR & Mobile Customer Care",
+      "tags": [
+        "Caller Verification & Fraud Prevention"
+      ]
+    },
+    {
+      "name": "Confedy",
+      "category": "Voice Biometrics",
+      "tags": [
+        "Caller Verification & Fraud Prevention"
+      ]
+    },
+    {
+      "name": "ConnexAI",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "ConnexAI",
+      "category": "Chat Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "ConnexAI",
+      "category": "Dialer Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "ConnexAI",
+      "category": "IVR Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "ConnexAI",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Contact Center Compliance",
+      "category": "Caller ID Protection/Reputation/Branding/Stir Shaken",
+      "tags": [
+        "Compliance",
+        "Caller ID Protection/Reputation/Branding/Stir Shaken",
+        "Data Hygiene"
+      ]
+    },
+    {
+      "name": "Contact Center Compliance",
+      "category": "Compliance",
+      "tags": [
+        "Compliance",
+        "Caller ID Protection/Reputation/Branding/Stir Shaken",
+        "Data Hygiene"
+      ]
+    },
+    {
+      "name": "Contact Center Compliance",
+      "category": "Data Hygiene/ Data Enhancement",
+      "tags": [
+        "Compliance",
+        "Caller ID Protection/Reputation/Branding/Stir Shaken",
+        "Data Hygiene"
+      ]
+    },
+    {
+      "name": "Convey/Message Broadcast",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "CCaaS/CPaaS Omnichannel"
+      ]
+    },
+    {
+      "name": "Convin",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "Voice Analytics",
+        "QM/QA",
+        "AI Agent Assist/Guide",
+        "Dialer Only"
+      ]
+    },
+    {
+      "name": "Convin",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Voice Analytics",
+        "QM/QA",
+        "AI Agent Assist/Guide",
+        "Dialer Only"
+      ]
+    },
+    {
+      "name": "Convin",
+      "category": "Dialer Only",
+      "tags": [
+        "Voice Analytics",
+        "QM/QA",
+        "AI Agent Assist/Guide",
+        "Dialer Only"
+      ]
+    },
+    {
+      "name": "Convin",
+      "category": "QM/QA",
+      "tags": [
+        "Voice Analytics",
+        "QM/QA",
+        "AI Agent Assist/Guide",
+        "Dialer Only"
+      ]
+    },
+    {
+      "name": "Convoso",
+      "category": "Dialer Only",
+      "tags": [
+        "Dialer"
+      ]
+    },
+    {
+      "name": "CSS Impact",
+      "category": "Dialer Only",
+      "tags": [
+        "FinTech Platform"
+      ]
+    },
+    {
+      "name": "CSS Impact",
+      "category": "Fintech Platform",
+      "tags": [
+        "FinTech Platform"
+      ]
+    },
+    {
+      "name": "Curve",
+      "category": "Performance Management",
+      "tags": [
+        "Compliance",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "CXSnapshotz",
+      "category": "CX Analysis/Testing/Surveys",
+      "tags": [
+        "Compliance",
+        "Contact Center Benchmarking",
+        "Cx Analysis/Testing/Surveys"
+      ]
+    },
+    {
+      "name": "CXSnapshotz",
+      "category": "Compliance",
+      "tags": [
+        "Compliance",
+        "Contact Center Benchmarking",
+        "Cx Analysis/Testing/Surveys"
+      ]
+    },
+    {
+      "name": "CXSnapshotz",
+      "category": "Contact Center Benchmarking",
+      "tags": [
+        "Compliance",
+        "Contact Center Benchmarking",
+        "Cx Analysis/Testing/Surveys"
+      ]
+    },
+    {
+      "name": "CXSnapshotz",
+      "category": "Voice of the Customer",
+      "tags": [
+        "Compliance",
+        "Contact Center Benchmarking",
+        "Cx Analysis/Testing/Surveys"
+      ]
+    },
+    {
+      "name": "Datascore",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "Data Hygiene",
+        "Dialer Only"
+      ]
+    },
+    {
+      "name": "Dekano",
+      "category": "Development",
+      "tags": [
+        "System integration",
+        "software dev",
+        "SIP network integrations",
+        "AI",
+        "Machine Learning",
+        "Automation. SFDC & Zoho Implementations"
+      ]
+    },
+    {
+      "name": "Dialpad",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Dialpad",
+      "category": "UCaaS",
+      "tags": [
+        "CCaaS/UCaaS"
+      ]
+    },
+    {
+      "name": "Dialpad",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "CCaaS/UCaaS"
+      ]
+    },
+    {
+      "name": "Dimension Funding",
+      "category": "Financing - SaaS Financing",
+      "tags": [
+        "SaaS Financing"
+      ]
+    },
+    {
+      "name": "E3 Performance Solutions",
+      "category": "Performance Management",
+      "tags": [
+        "Staffing",
+        "Performance Management",
+        "Sales/Lead Gen",
+        "Contact Center Benchmarking"
+      ]
+    },
+    {
+      "name": "Echo AI",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Analytics",
+        "Conversational Intelligence",
+        "Transcription",
+        "QA"
+      ]
+    },
+    {
+      "name": "Echo AI",
+      "category": "Gamification",
+      "tags": [
+        "QM/QA",
+        "Performance Management",
+        "Voice of the Customer"
+      ]
+    },
+    {
+      "name": "Echo AI",
+      "category": "Performance Management",
+      "tags": [
+        "QM/QA",
+        "Performance Management",
+        "Voice of the Customer"
+      ]
+    },
+    {
+      "name": "Echo AI",
+      "category": "QM/QA",
+      "tags": [
+        "Analytics",
+        "Conversational Intelligence",
+        "Transcription",
+        "QA"
+      ]
+    },
+    {
+      "name": "Eckoh",
+      "category": "PCI Payment Solutions",
+      "tags": [
+        "PCI Payment Solutions"
+      ]
+    },
+    {
+      "name": "EGS",
+      "category": "BPO",
+      "tags": [
+        "BPO — Nearshore BPO with agents throughout Mexico"
+      ]
+    },
+    {
+      "name": "Eleveo",
+      "category": "WFM/WEM",
+      "tags": [
+        "WFM/WEM",
+        "QM/QA",
+        "Call Recording",
+        "Screen Recording"
+      ]
+    },
+    {
+      "name": "Elvee (formerly CurveTech)",
+      "category": "Hiring Analytics - Churn Prevention - HRIS",
+      "tags": [
+        "Performance Management",
+        "HR"
+      ]
+    },
+    {
+      "name": "EMS CRM",
+      "category": "BPO",
+      "tags": [
+        "BPO — Domestic BPO - competitive rates - high quality service"
+      ]
+    },
+    {
+      "name": "Emvia CX",
+      "category": "BPO",
+      "tags": [
+        "BPO"
+      ]
+    },
+    {
+      "name": "Emvia CX",
+      "category": "GigCX",
+      "tags": [
+        "BPO"
+      ]
+    },
+    {
+      "name": "Enlivened Tech",
+      "category": "Computers & Hardware",
+      "tags": [
+        "Computers & Hardware"
+      ]
+    },
+    {
+      "name": "ETS Labs",
+      "category": "QM/QA",
+      "tags": [
+        "Analytics Voice/Text - QM/QA"
+      ]
+    },
+    {
+      "name": "ETS Labs (An Etech Global Sevrices company)",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Analytics Voice/Text - QM/QA"
+      ]
+    },
+    {
+      "name": "EuroCom CX",
+      "category": "BPO",
+      "tags": [
+        "BPO — Offshore BPO located in Albania"
+      ]
+    },
+    {
+      "name": "Five Star Call Centers now Five Star Solutions",
+      "category": "BPO",
+      "tags": [
+        "BPO — Domestic BPO - Providing high-end",
+        "white glove BPO services to North America"
+      ]
+    },
+    {
+      "name": "Five9",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Five9",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel — Sandler portal registration"
+      ]
+    },
+    {
+      "name": "Five9",
+      "category": "Dialer Only",
+      "tags": [
+        "Dialer"
+      ]
+    },
+    {
+      "name": "Forethought",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "Digital Channel BOTS",
+        "Knowledge Management",
+        "RPA",
+        "Scripting/Decision Tree"
+      ]
+    },
+    {
+      "name": "Forethought",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "Digital Channel BOTS",
+        "Knowledge Management",
+        "RPA",
+        "Scripting/Decision Tree"
+      ]
+    },
+    {
+      "name": "Forethought",
+      "category": "Knowledge Management",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "Digital Channel BOTS",
+        "Knowledge Management",
+        "RPA",
+        "Scripting/Decision Tree"
+      ]
+    },
+    {
+      "name": "Front",
+      "category": "CRM/Ticketing",
+      "tags": [
+        "CRM/Ticketing",
+        "AI Agent Assist/Guide"
+      ]
+    },
+    {
+      "name": "FYDI Global",
+      "category": "BPO",
+      "tags": [
+        "BPO"
+      ]
+    },
+    {
+      "name": "GCOM/Nuwave",
+      "category": "SIP Telecom Carriers",
+      "tags": [
+        "Telecom/Carrier/SIP/VOIP"
+      ]
+    },
+    {
+      "name": "Geomant",
+      "category": "Performance Management",
+      "tags": [
+        "Wallboards",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "CCaaS/CPaaS/Omnichannel",
+        "IVR Only"
+      ]
+    },
+    {
+      "name": "GGA Solutions",
+      "category": "BPO",
+      "tags": [
+        "BPO — Nearshore BPO with agents in Mexico and soon in Belize"
+      ]
+    },
+    {
+      "name": "Global BPO Services",
+      "category": "BPO Managed Services",
+      "tags": [
+        "BPO Managed Services"
+      ]
+    },
+    {
+      "name": "Globo",
+      "category": "Language Translation/Grading/Interpretation",
+      "tags": [
+        "Language Translation/Grading/Interpretation"
+      ]
+    },
+    {
+      "name": "GoTo",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "GoTo",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Graia AI",
+      "category": "Chat Only",
+      "tags": [
+        "Wallboards",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "CCaaS/CPaaS/Omnichannel",
+        "IVR Only"
+      ]
+    },
+    {
+      "name": "Graia AI (formerly Geomant)",
+      "category": "Wallboards",
+      "tags": [
+        "Wallboards",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "CCaaS/CPaaS/Omnichannel",
+        "IVR Only"
+      ]
+    },
+    {
+      "name": "GSI (Global Systems Integration)",
+      "category": "CRM/Ticketing",
+      "tags": [
+        "CRM/Ticketing"
+      ]
+    },
+    {
+      "name": "Headset Advisor",
+      "category": "Headsets",
+      "tags": [
+        "Headsets — tagged to client - in perpetuity"
+      ]
+    },
+    {
+      "name": "HEADSUP",
+      "category": "Hiring Analytics - Churn Prevention - HRIS",
+      "tags": [
+        "Voice of the Customer",
+        "Survey"
+      ]
+    },
+    {
+      "name": "HEADSUP",
+      "category": "Performance Management",
+      "tags": [
+        "Voice of the Customer",
+        "Survey"
+      ]
+    },
+    {
+      "name": "HEADSUP",
+      "category": "Voice of the Customer",
+      "tags": [
+        "Voice of the Customer",
+        "Survey"
+      ]
+    },
+    {
+      "name": "Hiya",
+      "category": "Caller ID Protection/Reputation/Branding/Stir Shaken",
+      "tags": [
+        "Caller ID Protection/Reputation/Branding/Stir Shaken"
+      ]
+    },
+    {
+      "name": "Hootsuite/Heyday",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "BOTS AI/IVA Digital Channels"
+      ]
+    },
+    {
+      "name": "Humach",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "BPO — Great BPO with AI Agents built into their model to add on or sell seperatly"
+      ]
+    },
+    {
+      "name": "Humach",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "BPO — Great BPO with AI Agents built into their model to add on or sell seperatly"
+      ]
+    },
+    {
+      "name": "Humach",
+      "category": "BPO",
+      "tags": [
+        "BPO — Great BPO with AI Agents built into their model to add on or sell seperatly"
+      ]
+    },
+    {
+      "name": "iContact",
+      "category": "BPO",
+      "tags": [
+        "BPO — South African BPO providing services globally"
+      ]
+    },
+    {
+      "name": "Ignition CX",
+      "category": "BPO",
+      "tags": [
+        "BPO — South African BPO providing services globally"
+      ]
+    },
+    {
+      "name": "Inbenta",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "BOTS AI IVA Digital Channels",
+        "Knowledge Management"
+      ]
+    },
+    {
+      "name": "Inbenta",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "BOTS AI IVA Digital Channels",
+        "Knowledge Management"
+      ]
+    },
+    {
+      "name": "Inbenta",
+      "category": "Knowledge Management",
+      "tags": [
+        "BOTS AI IVA Digital Channels",
+        "Knowledge Management"
+      ]
+    },
+    {
+      "name": "Infinite Green",
+      "category": "Development",
+      "tags": [
+        "Operational Consulting",
+        "System migrations",
+        "project management",
+        "managed services and support"
+      ]
+    },
+    {
+      "name": "Infinite Green",
+      "category": "Implementation / Integration",
+      "tags": [
+        "Operational Consulting",
+        "System migrations",
+        "project management",
+        "managed services and support"
+      ]
+    },
+    {
+      "name": "Infobip",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Chat Only",
+        "BOTS IVA Digital Channels"
+      ]
+    },
+    {
+      "name": "Infobip",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Chat Only",
+        "BOTS IVA Digital Channels"
+      ]
+    },
+    {
+      "name": "Infobip",
+      "category": "SIP Telecom Carriers",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Chat Only",
+        "BOTS IVA Digital Channels"
+      ]
+    },
+    {
+      "name": "Infobip",
+      "category": "UCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Chat Only",
+        "BOTS IVA Digital Channels"
+      ]
+    },
+    {
+      "name": "Journeyfront",
+      "category": "Hiring Analytics - Churn Prevention - HRIS",
+      "tags": [
+        "AI Hiring Tool"
+      ]
+    },
+    {
+      "name": "Knowbl",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Digital Channel BOTS",
+        "Conversational Voice IVA",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "Knowbl",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Digital Channel BOTS",
+        "Conversational Voice IVA",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "KnowledgeRhino",
+      "category": "WFMaaS",
+      "tags": [
+        "WFM as a Service — Fully managed services for WFM for a client including the technology"
+      ]
+    },
+    {
+      "name": "Kombea",
+      "category": "Compliance",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "PCI Payment Solution",
+        "Scripting/Decision Tree"
+      ]
+    },
+    {
+      "name": "Kombea",
+      "category": "PCI Payment Solutions",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "PCI Payment Solution",
+        "Scripting/Decision Tree"
+      ]
+    },
+    {
+      "name": "Kombea",
+      "category": "Scripting/Decision Tree",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "PCI Payment Solution",
+        "Scripting/Decision Tree"
+      ]
+    },
+    {
+      "name": "Kombea",
+      "category": "Soundboard Tech",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "PCI Payment Solution",
+        "Scripting/Decision Tree",
+        "Sound boarding"
+      ]
+    },
+    {
+      "name": "Kore",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "A.I. Automation",
+        "Conversational Voice IVA",
+        "BOTS AI IVA Digital Channels",
+        "AI Agent Assist"
+      ]
+    },
+    {
+      "name": "KORE",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "A.I. Automation",
+        "Conversational Voice IVA",
+        "BOTS AI IVA Digital Channels",
+        "AI Agent Assist"
+      ]
+    },
+    {
+      "name": "KORE",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "A.I. Automation",
+        "Conversational Voice IVA",
+        "BOTS AI IVA Digital Channels",
+        "AI Agent Assist"
+      ]
+    },
+    {
+      "name": "Krisp",
+      "category": "Accent Neutralization/Transformation",
+      "tags": [
+        "Voice Enhancement",
+        "Noise Cancellation",
+        "Accent Translation"
+      ]
+    },
+    {
+      "name": "Krisp",
+      "category": "Language Translation/Grading/Interpretation",
+      "tags": [
+        "Voice Enhancement",
+        "Noise Cancellation",
+        "Accent Translation"
+      ]
+    },
+    {
+      "name": "Krisp",
+      "category": "Noise Cancellation",
+      "tags": [
+        "Voice Enhancement",
+        "Noise Cancellation",
+        "Accent Translation"
+      ]
+    },
+    {
+      "name": "Krista",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "Orchestration & RPA",
+        "Conversational bots"
+      ]
+    },
+    {
+      "name": "Krista",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "RPA"
+      ]
+    },
+    {
+      "name": "Krista",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "RPA",
+        "Conversational Bots Voice and Digital"
+      ]
+    },
+    {
+      "name": "Krista",
+      "category": "Chat Only",
+      "tags": [
+        "RPA"
+      ]
+    },
+    {
+      "name": "Krista",
+      "category": "Knowledge Management",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "Digital Channel BOTS",
+        "RPA"
+      ]
+    },
+    {
+      "name": "Krista",
+      "category": "RPA/AI Orchestration",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "Digital Channel BOTS",
+        "RPA"
+      ]
+    },
+    {
+      "name": "Kumospace",
+      "category": "Virtual Office",
+      "tags": [
+        "Virtual Office"
+      ]
+    },
+    {
+      "name": "Kustomer",
+      "category": "CRM/Ticketing",
+      "tags": [
+        "CRM/Ticketing"
+      ]
+    },
+    {
+      "name": "Laivly",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "RPA"
+      ]
+    },
+    {
+      "name": "Laivly",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "RPA"
+      ]
+    },
+    {
+      "name": "Laivly",
+      "category": "QM/QA",
+      "tags": [
+        "AI Agent Assist/Guide",
+        "RPA"
+      ]
+    },
+    {
+      "name": "LetzChat",
+      "category": "Language Translation/Grading/Interpretation",
+      "tags": [
+        "Language Translation for digital chat and NEW voice translation services using AI"
+      ]
+    },
+    {
+      "name": "LevelAI",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "AI Assist/Guide",
+        "Analytics Voice/Text",
+        "QM/QA",
+        "Workspace Monitoring"
+      ]
+    },
+    {
+      "name": "LevelAI",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "AI Assist/Guide",
+        "Analytics Voice/Text",
+        "QM/QA",
+        "Workspace Monitoring"
+      ]
+    },
+    {
+      "name": "LevelAI",
+      "category": "Compliance",
+      "tags": [
+        "AI Assist/Guide",
+        "Analytics Voice/Text",
+        "QM/QA",
+        "Workspace Monitoring"
+      ]
+    },
+    {
+      "name": "LevelAI",
+      "category": "QM/QA",
+      "tags": [
+        "AI Assist/Guide",
+        "Analytics Voice/Text",
+        "QM/QA",
+        "Workspace Monitoring"
+      ]
+    },
+    {
+      "name": "LevelAI",
+      "category": "Scripting/Decision Tree",
+      "tags": [
+        "AI Assist/Guide",
+        "Analytics Voice/Text",
+        "QM/QA",
+        "Workspace Monitoring"
+      ]
+    },
+    {
+      "name": "Liminal",
+      "category": "AI LLM Governance & Security",
+      "tags": [
+        "Security — Telarus Portal"
+      ]
+    },
+    {
+      "name": "Link Development",
+      "category": "Development",
+      "tags": [
+        "Cloud & Infrastructure",
+        "Digital Experience",
+        "Operational Efficiency Tech",
+        "Data Analytics",
+        "Software Dev Outsourcing",
+        "Dynamics 365 & Business Apps",
+        "Prebuilt Out of the box Tech Solutions for Events",
+        "Meetings",
+        "Projects",
+        "Appointments",
+        "Inspections",
+        "Government",
+        "Strategy",
+        "KMS",
+        "Healthcare",
+        "Retail",
+        "Surveys & More!"
+      ]
+    },
+    {
+      "name": "Linklive",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "AI Agent Assistant/Guide",
+        "BOTS AI IVA Voice & Digital Channels",
+        "Analytics Voice/Text",
+        "WFM/WEM"
+      ]
+    },
+    {
+      "name": "Linklive",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "AI Agent Assistant/Guide",
+        "BOTS AI IVA Voice & Digital Channels",
+        "Analytics Voice/TextWFM/WEM"
+      ]
+    },
+    {
+      "name": "Linklive",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "AI Agent Assistant/Guide",
+        "BOTS AI IVA Voice & Digital Channels",
+        "Analytics Voice/Text WFM/WEM"
+      ]
+    },
+    {
+      "name": "Linklive",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "AI Agent Assistant/Guide",
+        "BOTS AI IVA Voice & Digital Channels",
+        "Analytics Voice/Text WFM/WEM"
+      ]
+    },
+    {
+      "name": "Linklive",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "AI Agent Assistant/Guide",
+        "BOTS AI IVA Voice & Digital Channels",
+        "Analytics Voice/Text WFM/WEM"
+      ]
+    },
+    {
+      "name": "LiveOps",
+      "category": "BPO",
+      "tags": [
+        "BPO/GigCX"
+      ]
+    },
+    {
+      "name": "LiveOps",
+      "category": "GigCX",
+      "tags": [
+        "BPO/GigCX"
+      ]
+    },
+    {
+      "name": "Livepro",
+      "category": "Knowledge Management",
+      "tags": [
+        "Knowledge Management"
+      ]
+    },
+    {
+      "name": "Logicdialog.ai",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Conversational AI",
+        "AI Orchestration"
+      ]
+    },
+    {
+      "name": "Logicdialog.ai",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Conversational AI",
+        "AI Orchestration"
+      ]
+    },
+    {
+      "name": "Logicdialog.ai",
+      "category": "RPA/AI Orchestration",
+      "tags": [
+        "Conversational AI",
+        "AI Orchestration"
+      ]
+    },
+    {
+      "name": "Luware",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "MediaVault",
+      "category": "Business Intelligence",
+      "tags": [
+        "Business Intelligence",
+        "Data Hygiene/Data Enhancement",
+        "Compliance",
+        "Recording Solution"
+      ]
+    },
+    {
+      "name": "MediaVault",
+      "category": "Compliance",
+      "tags": [
+        "Business Intelligence",
+        "Data Hygiene/Data Enhancement",
+        "Compliance",
+        "Recording Solution"
+      ]
+    },
+    {
+      "name": "MediaVault",
+      "category": "Data Hygiene/ Data Enhancement",
+      "tags": [
+        "Business Intelligence",
+        "Data Hygiene/Data Enhancement",
+        "Compliance",
+        "Recording Solution"
+      ]
+    },
+    {
+      "name": "MediaVault",
+      "category": "Recording Solution - Stand alone",
+      "tags": [
+        "Business Intelligence",
+        "Data Hygiene/Data Enhancement",
+        "Compliance",
+        "Recording Solution"
+      ]
+    },
+    {
+      "name": "Modern Outbound",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "Sales Lead Gen"
+      ]
+    },
+    {
+      "name": "Mosaic Voice",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "AI Agent Assist/Guide"
+      ]
+    },
+    {
+      "name": "Mosaic Voice",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "AI Agent Assist/Guide"
+      ]
+    },
+    {
+      "name": "Mosaic Voice",
+      "category": "Compliance",
+      "tags": [
+        "AI Agent Assist/Guide"
+      ]
+    },
+    {
+      "name": "Mosaic Voice",
+      "category": "Scripting/Decision Tree",
+      "tags": [
+        "AI Agent Assist/Guide"
+      ]
+    },
+    {
+      "name": "Movate",
+      "category": "BPO",
+      "tags": [
+        "BPO/GigCX — Global BPO/GigCX company that also provides digital technology and customer experience services. 20 offices with 12",
+        "000 gig workers. They do very well in areas like technology",
+        "media",
+        "entertainment",
+        "telecom",
+        "retail/CPG",
+        "automotive",
+        "fintech and gaming"
+      ]
+    },
+    {
+      "name": "Movate",
+      "category": "GigCX",
+      "tags": [
+        "BPO/GigCX — Global BPO/GigCX company that also provides digital technology and customer experience services. 20 offices with 12",
+        "000 gig workers. They do very well in areas like technology",
+        "media",
+        "entertainment",
+        "telecom",
+        "retail/CPG",
+        "automotive",
+        "fintech and gaming"
+      ]
+    },
+    {
+      "name": "Movylo",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "Marketing"
+      ]
+    },
+    {
+      "name": "MVision",
+      "category": "BPO",
+      "tags": [
+        "BPO"
+      ]
+    },
+    {
+      "name": "Net2Phone",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "UCaaS/CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Net2Phone",
+      "category": "UCaaS",
+      "tags": [
+        "UCaaS/CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "NexGen Agency",
+      "category": "BPO",
+      "tags": [
+        "BPO"
+      ]
+    },
+    {
+      "name": "Nextalk",
+      "category": "TTY",
+      "tags": [
+        "TTY",
+        "Language Translation/Grading/Interpretation"
+      ]
+    },
+    {
+      "name": "Nextiva Contact Center",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "UCaaS + CCaaS",
+        "PCI Payment Solution"
+      ]
+    },
+    {
+      "name": "Nextiva Contact Center",
+      "category": "Chat Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "UCaaS + CCaaS",
+        "PCI Payment Solution"
+      ]
+    },
+    {
+      "name": "Nextiva Contact Center",
+      "category": "Dialer Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "UCaaS + CCaaS",
+        "PCI Payment Solution"
+      ]
+    },
+    {
+      "name": "Nextiva Contact Center",
+      "category": "PCI Payment Solutions",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "UCaaS + CCaaS",
+        "PCI Payment Solution"
+      ]
+    },
+    {
+      "name": "Nextiva Contact Center",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "UCaaS + CCaaS",
+        "PCI Payment Solution"
+      ]
+    },
+    {
+      "name": "NICE",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Dialer",
+        "Only",
+        "Analytics Voice/Text",
+        "UCaaS + CCaaS",
+        "Conversational Voice IVA",
+        "Chat Onl",
+        "IVR Only",
+        "QM/QA",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "NICE",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Dialer",
+        "Only",
+        "Analytics Voice/Text",
+        "UCaaS + CCaaS",
+        "Conversational Voice IVA",
+        "Chat Onl",
+        "IVR Only",
+        "QM/QA",
+        "Digital Channel BOTS — Sandler portal registration"
+      ]
+    },
+    {
+      "name": "NICE",
+      "category": "Chat Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Dialer",
+        "Only",
+        "Analytics Voice/Text",
+        "UCaaS + CCaaS",
+        "Conversational Voice IVA",
+        "Chat Onl",
+        "IVR Only",
+        "QM/QA",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "NICE",
+      "category": "Dialer Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Dialer",
+        "Only",
+        "Analytics Voice/Text",
+        "UCaaS + CCaaS",
+        "Conversational Voice IVA",
+        "Chat Onl",
+        "IVR Only",
+        "QM/QA",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "NICE",
+      "category": "IVR Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Dialer",
+        "Only",
+        "Analytics Voice/Text",
+        "UCaaS + CCaaS",
+        "Conversational Voice IVA",
+        "Chat Onl",
+        "IVR Only",
+        "QM/QA",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "NICE",
+      "category": "QM/QA",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Dialer",
+        "Only",
+        "Analytics Voice/Text",
+        "UCaaS + CCaaS",
+        "Conversational Voice IVA",
+        "Chat Onl",
+        "IVR Only",
+        "QM/QA",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "NICE",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Dialer",
+        "Only",
+        "Analytics Voice/Text",
+        "UCaaS + CCaaS",
+        "Conversational Voice IVA",
+        "Chat Onl",
+        "IVR Only",
+        "QM/QA",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "NICE",
+      "category": "WFM/WEM",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Dialer",
+        "Only",
+        "Analytics Voice/Text",
+        "UCaaS + CCaaS",
+        "Conversational Voice IVA",
+        "Chat Onl",
+        "IVR Only",
+        "QM/QA",
+        "Digital Channel BOTS — Sandler portal registration"
+      ]
+    },
+    {
+      "name": "NovelVox",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Wallboards",
+        "Chat Only",
+        "AI Agent Assistant",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "RPA",
+        "Knowledgebase Mgmt",
+        "Scripting/Decision Tree",
+        "Video Chat/AR",
+        "CRM/Ticketing",
+        "RPA"
+      ]
+    },
+    {
+      "name": "NovelVox",
+      "category": "Gamification",
+      "tags": [
+        "Wallboards",
+        "Chat Only",
+        "AI Agent Assistant",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "RPA",
+        "Knowledgebase Mgmt",
+        "Scripting/Decision Tree",
+        "Video Chat/AR",
+        "CRM/Ticketing",
+        "RPA"
+      ]
+    },
+    {
+      "name": "NovelVox",
+      "category": "Performance Management",
+      "tags": [
+        "Wallboards",
+        "Chat Only",
+        "AI Agent Assistant",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "RPA",
+        "Knowledgebase Mgmt",
+        "Scripting/Decision Tree",
+        "Video Chat/AR",
+        "CRM/Ticketing",
+        "RPA"
+      ]
+    },
+    {
+      "name": "NovelVox",
+      "category": "RPA/AI Orchestration",
+      "tags": [
+        "Wallboards",
+        "Chat Only",
+        "AI Agent Assistant",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "RPA",
+        "Knowledgebase Mgmt",
+        "Scripting/Decision Tree",
+        "Video Chat/AR",
+        "CRM/Ticketing",
+        "RPA"
+      ]
+    },
+    {
+      "name": "NovelVox",
+      "category": "Scripting/Decision Tree",
+      "tags": [
+        "Wallboards",
+        "Chat Only",
+        "AI Agent Assistant",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "RPA",
+        "Knowledgebase Mgmt",
+        "Scripting/Decision Tree",
+        "Video Chat/AR",
+        "CRM/Ticketing",
+        "RPA"
+      ]
+    },
+    {
+      "name": "NovelVox",
+      "category": "Wallboards",
+      "tags": [
+        "Wallboards",
+        "Chat Only",
+        "AI Agent Assistant",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "RPA",
+        "Knowledgebase Mgmt",
+        "Scripting/Decision Tree",
+        "Video Chat/AR",
+        "CRM/Ticketing",
+        "RPA"
+      ]
+    },
+    {
+      "name": "Numeracle",
+      "category": "Caller ID Protection/Reputation/Branding/Stir Shaken",
+      "tags": []
+    },
+    {
+      "name": "Oak Innovation(Subphonic)",
+      "category": "Recording Solution - Stand alone",
+      "tags": [
+        "Recording"
+      ]
+    },
+    {
+      "name": "Observe AI",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "AI Agent Assist/Guide"
+      ]
+    },
+    {
+      "name": "Observe AI",
+      "category": "QM/QA",
+      "tags": [
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "Ocean Breeze Communications",
+      "category": "Professional Voice Talent & Hold Music",
+      "tags": [
+        "Professional Voice Talent & Hold Music"
+      ]
+    },
+    {
+      "name": "Omelink",
+      "category": "BPO",
+      "tags": [
+        "BPO — Offshore - agents in Kosovo"
+      ]
+    },
+    {
+      "name": "Omilia",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Conversational Voice IVA"
+      ]
+    },
+    {
+      "name": "Omni Interactions",
+      "category": "BPO",
+      "tags": [
+        "BPO/GigCX — GigCX BPO with 75k brand ambassadors in various geographies",
+        "with a variety of skills",
+        "languages and specializations"
+      ]
+    },
+    {
+      "name": "Omni Interactions",
+      "category": "GigCX",
+      "tags": [
+        "BPO/GigCX — GigCX BPO with 75k brand ambassadors in various geographies",
+        "with a variety of skills",
+        "languages and specializations"
+      ]
+    },
+    {
+      "name": "Onvisource",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "AI Agent Assist/Guide"
+      ]
+    },
+    {
+      "name": "Onvisource",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "AI Agent Assist/Guide"
+      ]
+    },
+    {
+      "name": "Onvisource",
+      "category": "QM/QA",
+      "tags": [
+        "AI Agent Assist/Guide"
+      ]
+    },
+    {
+      "name": "Onvisource",
+      "category": "RPA/AI Orchestration",
+      "tags": [
+        "AI Agent Assist/Guide"
+      ]
+    },
+    {
+      "name": "Ooma",
+      "category": "UCaaS",
+      "tags": [
+        "UCaaS/Pots replacements/"
+      ]
+    },
+    {
+      "name": "Origon (Samespace)",
+      "category": "RPA/AI Orchestration",
+      "tags": [
+        "BOTS AI IVA Digital Channels",
+        "CCaaS/CPaaS/Omnichannel",
+        "AI Agent Assistant/Guide",
+        "BOTS AI IVA Voice .CCaaS/CPaaS/Omnichannel",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "OutboundIQ / OutboundANI old",
+      "category": "Caller ID Protection/Reputation/Branding/Stir Shaken",
+      "tags": [
+        "Call Verification/Call Routing/Callbacks"
+      ]
+    },
+    {
+      "name": "PCIPal",
+      "category": "PCI Payment Solutions",
+      "tags": [
+        "PCI Payment Solutions"
+      ]
+    },
+    {
+      "name": "Peak Support",
+      "category": "BPO",
+      "tags": [
+        "BPO — Global BPO with 2",
+        "300 employees across 4 regions including US",
+        "Philippines",
+        "Columbia",
+        "back-office",
+        "sales",
+        "tech support",
+        "and tech solutions."
+      ]
+    },
+    {
+      "name": "Pentafon",
+      "category": "BPO",
+      "tags": [
+        "BPO"
+      ]
+    },
+    {
+      "name": "People Risk Consulting",
+      "category": "Consulting",
+      "tags": [
+        "Consulting — Consulting firm focused on research and adoption"
+      ]
+    },
+    {
+      "name": "Peregrine Labs",
+      "category": "Peregrine Labs",
+      "tags": [
+        "Implementation / Integration",
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Pinpoint Research",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Voice of the Customer",
+        "Professional Services. Cx Analysis/Testing/Surveys",
+        "Voice Analytics"
+      ]
+    },
+    {
+      "name": "Pinpoint Research",
+      "category": "CX Analysis/Testing/Surveys",
+      "tags": [
+        "Voice of the Customer",
+        "Professional Services. Cx Analysis/Testing/Surveys",
+        "Voice Analytics"
+      ]
+    },
+    {
+      "name": "Pinpoint Research",
+      "category": "Voice of the Customer",
+      "tags": [
+        "Voice of the Customer",
+        "Professional Services. Cx Analysis/Testing/Surveys",
+        "Voice Analytics"
+      ]
+    },
+    {
+      "name": "Pitchit.ai",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "BOTS AI IVA Voice",
+        "Sales Lead Gen"
+      ]
+    },
+    {
+      "name": "Pitchit.ai",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "BOTS AI IVA Voice",
+        "Sales Lead Gen"
+      ]
+    },
+    {
+      "name": "Playvox",
+      "category": "ELearning/LMS/Training",
+      "tags": [
+        "WFM/WEM",
+        "Elearning/Training/LMS",
+        "Gamification",
+        "Performance Management",
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "Playvox",
+      "category": "Gamification",
+      "tags": [
+        "WFM/WEM",
+        "Elearning/Training/LMS",
+        "Gamification",
+        "Performance Management",
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "Playvox",
+      "category": "Performance Management",
+      "tags": [
+        "WFM/WEM",
+        "Elearning/Training/LMS",
+        "Gamification",
+        "Performance Management",
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "Playvox",
+      "category": "QM/QA",
+      "tags": [
+        "WFM/WEM",
+        "Elearning/Training/LMS",
+        "Gamification",
+        "Performance Management",
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "Playvox",
+      "category": "WFM/WEM",
+      "tags": [
+        "WFM/WEM",
+        "Elearning/Training/LMS",
+        "Gamification",
+        "Performance Management",
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "Powernet",
+      "category": "SIP Telecom Carriers",
+      "tags": [
+        "Telecom/Carrier/SIP/VOIP"
+      ]
+    },
+    {
+      "name": "Premier NX",
+      "category": "BPO",
+      "tags": [
+        "BPO — BPO for customer care",
+        "back office",
+        "IT outsourcing",
+        "marketing and more with locations in the US",
+        "Philippines",
+        "China and Pakistan"
+      ]
+    },
+    {
+      "name": "Protel",
+      "category": "BPO",
+      "tags": [
+        "BPO — Nearshore - agents in Belize. Great value. Solid English"
+      ]
+    },
+    {
+      "name": "Puzzel",
+      "category": "WFM/WEM",
+      "tags": [
+        "WFM/WEM"
+      ]
+    },
+    {
+      "name": "Quality Voice & Data",
+      "category": "Caller ID Protection/Reputation/Branding/Stir Shaken",
+      "tags": [
+        "Caller ID Protection/Reputation/Branding/Stir Shaken"
+      ]
+    },
+    {
+      "name": "Quiq",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Digital Channel BOTS",
+        "Chat Only",
+        "Visual IVR & Mobile Customer Care",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "Quiq",
+      "category": "Chat Only",
+      "tags": [
+        "Digital Channel BOTS",
+        "Chat Only",
+        "Visual IVR & Mobile Customer Care",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "RDI",
+      "category": "BPO",
+      "tags": [
+        "BPO — Domestic and Nearshore BPO"
+      ]
+    },
+    {
+      "name": "Regal Voice",
+      "category": "Caller ID Protection/Reputation/Branding/Stir Shaken",
+      "tags": [
+        "Dialer Only",
+        "Sales Lead Gen",
+        "Caller ID Protection/Reputation/Branding/Stir Shaken"
+      ]
+    },
+    {
+      "name": "Regal Voice",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "Dialer Only",
+        "Sales Lead Gen",
+        "Caller ID Protection/Reputation/ Branding/Stir Shaken"
+      ]
+    },
+    {
+      "name": "Replicant AI",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Conversational Voice IVA — Voice only"
+      ]
+    },
+    {
+      "name": "Replicant AI",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Conversational Voice IVA — Voice only"
+      ]
+    },
+    {
+      "name": "Ringer Interactive",
+      "category": "Caller ID Protection/Reputation/Branding/Stir Shaken",
+      "tags": [
+        "Caller ID Protection/Reputation/Branding/Stir Shaken"
+      ]
+    },
+    {
+      "name": "ROI CX Solutions",
+      "category": "BPO",
+      "tags": [
+        "BPO"
+      ]
+    },
+    {
+      "name": "Sanas",
+      "category": "Accent Neutralization/Transformation",
+      "tags": []
+    },
+    {
+      "name": "Scalefusion",
+      "category": "Cyber Security",
+      "tags": [
+        "Endpoint Management",
+        "Secure Remote Worker"
+      ]
+    },
+    {
+      "name": "ScreenSteps",
+      "category": "Knowledge Management",
+      "tags": [
+        "Knowledge Management"
+      ]
+    },
+    {
+      "name": "Sellnet",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "Sales Lead Gen"
+      ]
+    },
+    {
+      "name": "Servicemob",
+      "category": "Business Intelligence",
+      "tags": [
+        "Business Intelligence"
+      ]
+    },
+    {
+      "name": "Servicemob",
+      "category": "Performance Management",
+      "tags": [
+        "Business Intelligence"
+      ]
+    },
+    {
+      "name": "Sestek",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "Analytics Voice/Text",
+        "Conversational Voice IVA",
+        "Voice Biometrics",
+        "Digital Channel BOTS",
+        "WFM"
+      ]
+    },
+    {
+      "name": "Sestek",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Analytics Voice/Text",
+        "Conversational Voice IVA",
+        "Voice Biometrics",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Sestek",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Analytics Voice/Text",
+        "Conversational Voice IVA",
+        "Voice Biometrics",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Sestek",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Analytics Voice/Text",
+        "Conversational Voice IVA",
+        "Voice Biometrics",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Sestek",
+      "category": "Compliance",
+      "tags": [
+        "Analytics Voice/Text",
+        "Conversational Voice IVA",
+        "Voice Biometrics",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Sestek",
+      "category": "IVR Only",
+      "tags": [
+        "Analytics Voice/Text",
+        "Conversational Voice IVA",
+        "Voice Biometrics",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Sestek",
+      "category": "QM/QA",
+      "tags": [
+        "Analytics Voice/Text",
+        "Conversational Voice IVA",
+        "Voice Biometrics",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Sestek",
+      "category": "RPA/AI Orchestration",
+      "tags": [
+        "Analytics Voice/Text",
+        "Conversational Voice IVA",
+        "Voice Biometrics",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Sestek",
+      "category": "Voice Biometrics",
+      "tags": [
+        "Analytics Voice/Text",
+        "Conversational Voice IVA",
+        "Voice Biometrics",
+        "Digital Channel BOTS"
+      ]
+    },
+    {
+      "name": "Shyftoff",
+      "category": "BPO",
+      "tags": [
+        "BPO/GigCX — GigCX and BPO - Domestic"
+      ]
+    },
+    {
+      "name": "Shyftoff",
+      "category": "GigCX",
+      "tags": [
+        "BPO/GigCX — GigCX and BPO - Domestic"
+      ]
+    },
+    {
+      "name": "Snowfly",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Gamification",
+        "Analytics Voice/Text",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "Snowfly",
+      "category": "Gamification",
+      "tags": [
+        "Gamification",
+        "Analytics Voice/Text",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "Snowfly",
+      "category": "Voice Biometrics",
+      "tags": [
+        "Gamification",
+        "Analytics Voice/Text",
+        "Performance Management"
+      ]
+    },
+    {
+      "name": "Solgari",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "SOS Sales Help",
+      "category": "BPO",
+      "tags": [
+        "BPO — BPO for outbound/inbound Sales - B2b",
+        "B2C",
+        "1-3 agent pilots Iowa based virtual team"
+      ]
+    },
+    {
+      "name": "SoundHound",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Conversational Voice IVA",
+        "BOTS AI IVA Digital Channels",
+        "Voice of the Customer — Voice only"
+      ]
+    },
+    {
+      "name": "Sprinklr",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "Chat Only",
+        "CRM/Ticketing",
+        "CX Analysis",
+        "Dialer Only",
+        "IVR Only",
+        "Language Translation/Grading",
+        "OCR",
+        "Sales Lead Gen",
+        "Video Chat/AR",
+        "Wallboards",
+        "Analytics Voice/Text",
+        "Call Recording",
+        "Knowledge Management",
+        "Performance Management",
+        "QM/QA",
+        "BOTS AI/IVA Digital Channels"
+      ]
+    },
+    {
+      "name": "SuccessKPI",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Contact Center Benchmarking",
+        "Cx Analysis",
+        "Data Hygiene",
+        "Wallboards",
+        "Voice of the Customer (VOC)",
+        "AI Agent Assist/Guide",
+        "Analytics Voice/Text",
+        "Gamification",
+        "Performance Management",
+        "QM/QA",
+        "WFM/WEM"
+      ]
+    },
+    {
+      "name": "SuccessKPI",
+      "category": "Business Intelligence",
+      "tags": [
+        "Contact Center Benchmarking",
+        "Cx Analysis",
+        "Data Hygiene",
+        "Wallboards",
+        "Voice of the Customer (VOC)",
+        "AI Agent Assist/Guide",
+        "Analytics Voice/Text",
+        "Gamification",
+        "Performance Management",
+        "QM/QA",
+        "WFM/WEM"
+      ]
+    },
+    {
+      "name": "SuccessKPI",
+      "category": "QM/QA",
+      "tags": [
+        "Contact Center Benchmarking",
+        "Cx Analysis",
+        "Data Hygiene",
+        "Wallboards",
+        "Voice of the Customer (VOC)",
+        "AI Agent Assist/Guide",
+        "Analytics Voice/Text",
+        "Gamification",
+        "Performance Management",
+        "QM/QA",
+        "WFM/WEM"
+      ]
+    },
+    {
+      "name": "SuccessKPI",
+      "category": "Voice Biometrics",
+      "tags": [
+        "Contact Center Benchmarking",
+        "Cx Analysis",
+        "Data Hygiene",
+        "Wallboards",
+        "Voice of the Customer (VOC)",
+        "AI Agent Assist/Guide",
+        "Analytics Voice/Text",
+        "Gamification",
+        "Performance Management",
+        "QM/QA",
+        "WFM/WEM"
+      ]
+    },
+    {
+      "name": "SuccessKPI",
+      "category": "WFM/WEM",
+      "tags": [
+        "Contact Center Benchmarking",
+        "Cx Analysis",
+        "Data Hygiene",
+        "Wallboards",
+        "Voice of the Customer (VOC)",
+        "AI Agent Assist/Guide",
+        "Analytics Voice/Text",
+        "Gamification",
+        "Performance Management",
+        "QM/QA",
+        "WFM/WEM"
+      ]
+    },
+    {
+      "name": "SugarCRM",
+      "category": "CRM/Ticketing",
+      "tags": [
+        "CRM/Ticketing"
+      ]
+    },
+    {
+      "name": "Symtrain",
+      "category": "ELearning/LMS/Training",
+      "tags": [
+        "E-Learning/Training/LMS"
+      ]
+    },
+    {
+      "name": "Talent World Group",
+      "category": "BPO",
+      "tags": [
+        "BPO — Global BPO with all remote agents around the world"
+      ]
+    },
+    {
+      "name": "TalentLMS/Epignosis",
+      "category": "ELearning/LMS/Training",
+      "tags": [
+        "E-Learning/Training/LMS"
+      ]
+    },
+    {
+      "name": "Talkdesk",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel — Portal: https://partners.talkdesk.com/English/"
+      ]
+    },
+    {
+      "name": "TCN",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "Dialer Only"
+      ]
+    },
+    {
+      "name": "TCN",
+      "category": "Dialer Only",
+      "tags": [
+        "Dialer Only"
+      ]
+    },
+    {
+      "name": "Televergence",
+      "category": "SIP Telecom Carriers",
+      "tags": [
+        "Telecom/Carrier/SIP/VOIP"
+      ]
+    },
+    {
+      "name": "Telvista",
+      "category": "BPO",
+      "tags": [
+        "BPO — Telvista@Home: 2 Centers in the USA",
+        "5 in LATAM",
+        "and 2 in APAC"
+      ]
+    },
+    {
+      "name": "Tenacity",
+      "category": "TTY",
+      "tags": [
+        "TTY"
+      ]
+    },
+    {
+      "name": "Ternio",
+      "category": "Mobile Agent Platform",
+      "tags": [
+        "Mobile Agent Platform"
+      ]
+    },
+    {
+      "name": "The Call Gurus",
+      "category": "BPO",
+      "tags": [
+        "BPO"
+      ]
+    },
+    {
+      "name": "The Office Gurus",
+      "category": "BPO",
+      "tags": [
+        "BPO — New Phillipines location"
+      ]
+    },
+    {
+      "name": "The Staff Pad",
+      "category": "Staffing",
+      "tags": [
+        "Staffing"
+      ]
+    },
+    {
+      "name": "ThinkDirect Marketing Group",
+      "category": "BPO",
+      "tags": [
+        "BPO — Specialize in sales",
+        "leadgen",
+        "D2C sales",
+        "help desk",
+        "answering services and more"
+      ]
+    },
+    {
+      "name": "ThinkOwl",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "RPA",
+        "OCR",
+        "Chat Only",
+        "AI Agent Assist",
+        "BOTS AI IVA Digital Channels",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "ThinkOwl",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "RPA",
+        "OCR",
+        "Chat Only",
+        "AI Agent Assist",
+        "BOTS AI IVA Digital Channels",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "ThinkOwl",
+      "category": "Chat Only",
+      "tags": [
+        "RPA",
+        "OCR",
+        "Chat Only",
+        "AI Agent Assist",
+        "BOTS AI IVA Digital Channels",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "ThinkOwl",
+      "category": "OCR",
+      "tags": [
+        "RPA",
+        "OCR",
+        "Chat Only",
+        "AI Agent Assist",
+        "BOTS AI IVA Digital Channels.Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "ThinkOwl",
+      "category": "RPA/AI Orchestration",
+      "tags": [
+        "RPA",
+        "OCR",
+        "Chat Only",
+        "AI Agent Assist",
+        "BOTS AI IVA Digital Channels",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "TouchPoint One",
+      "category": "Gamification",
+      "tags": [
+        "Gamification",
+        "Performance Management",
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "TouchPoint One",
+      "category": "Performance Management",
+      "tags": [
+        "Gamification",
+        "Performance Management",
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "TouchPoint One",
+      "category": "QM/QA",
+      "tags": [
+        "Gamification",
+        "Performance Management",
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "Trainual",
+      "category": "ELearning/LMS/Training",
+      "tags": [
+        "E-Learning/Training/LMS"
+      ]
+    },
+    {
+      "name": "Transunion",
+      "category": "Caller ID Protection/Reputation/Branding/Stir Shaken",
+      "tags": [
+        "Caller ID Protection/Reputation/Branding/Stir Shaken"
+      ]
+    },
+    {
+      "name": "Trendzact",
+      "category": "Compliance",
+      "tags": [
+        "Workspace Monitoring",
+        "Compliance",
+        "Facial Biometrics/ Recognition",
+        "Cyber Security"
+      ]
+    },
+    {
+      "name": "Trendzact",
+      "category": "Cyber Security",
+      "tags": [
+        "Workspace Monitoring",
+        "Compliance",
+        "Facial Biometrics/ Recognition",
+        "Cyber Security"
+      ]
+    },
+    {
+      "name": "Trendzact",
+      "category": "Facial Recognition",
+      "tags": [
+        "Workspace Monitoring",
+        "Compliance",
+        "Facial Biometrics/ Recognition",
+        "Cyber Security"
+      ]
+    },
+    {
+      "name": "Trendzact",
+      "category": "Identity & Password Management",
+      "tags": [
+        "Workspace Monitoring",
+        "Compliance",
+        "Facial Biometrics/ Recognition",
+        "Cyber Security"
+      ]
+    },
+    {
+      "name": "Trendzact",
+      "category": "Remote/Agent Supervision",
+      "tags": [
+        "Workspace Monitoring",
+        "Compliance",
+        "Facial Biometrics/ Recognition",
+        "Cyber Security"
+      ]
+    },
+    {
+      "name": "UJET",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "AI Agent Asisstant",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "Dialer Only",
+        "Gamification",
+        "Visual IVR & Mobile Customer Care"
+      ]
+    },
+    {
+      "name": "UJET",
+      "category": "Chat Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "AI Agent Asisstant",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "Dialer Only",
+        "Gamification",
+        "Visual IVR & Mobile Customer Care"
+      ]
+    },
+    {
+      "name": "UJET",
+      "category": "IVR Only",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel",
+        "AI Agent Asisstant",
+        "Conversational Voice IVA",
+        "Digital Channel BOTS",
+        "Chat Only",
+        "Dialer Only",
+        "Gamification",
+        "Visual IVR & Mobile Customer Care"
+      ]
+    },
+    {
+      "name": "United Nearshore Operations (UNO)",
+      "category": "BPO",
+      "tags": [
+        "BPO — Nearshore - center is located in Dominican Republic."
+      ]
+    },
+    {
+      "name": "Upland Software",
+      "category": "Knowledge Management",
+      "tags": [
+        "AI Agent Assist/Guide/Knowledge management"
+      ]
+    },
+    {
+      "name": "USU",
+      "category": "Knowledge Management",
+      "tags": [
+        "Knowledge Management"
+      ]
+    },
+    {
+      "name": "Valence AI",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Analytics Voice/Text",
+        "BOTS AI IVA Voice",
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "Valence AI",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Analytics Voice/Text",
+        "BOTS AI IVA Voice",
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "Valence AI",
+      "category": "QM/QA",
+      "tags": [
+        "Analytics Voice/Text",
+        "BOTS AI IVA Voice",
+        "QM/QA"
+      ]
+    },
+    {
+      "name": "Value-Ad",
+      "category": "Sales/ Lead Gen/ Marketing",
+      "tags": [
+        "Sales Lead Gen"
+      ]
+    },
+    {
+      "name": "VCC Live",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/CpaaS/Omnichannel",
+        "Dialer Only — Good for europe"
+      ]
+    },
+    {
+      "name": "VCC Live",
+      "category": "Dialer Only",
+      "tags": [
+        "CCaaS/CpaaS/Omnichannel",
+        "Dialer Only"
+      ]
+    },
+    {
+      "name": "Venn",
+      "category": "Compliance",
+      "tags": [
+        "Remote Endpoint Management",
+        "Workspace Monitoring"
+      ]
+    },
+    {
+      "name": "Venn",
+      "category": "Cyber Security",
+      "tags": [
+        "Remote Endpoint Management",
+        "Workspace Monitoring"
+      ]
+    },
+    {
+      "name": "Venn",
+      "category": "VDI/DaaS/SD-Wan",
+      "tags": [
+        "Remote Endpoint Management",
+        "Workspace Monitoring"
+      ]
+    },
+    {
+      "name": "VerifiNow",
+      "category": "Identity & Password Management",
+      "tags": [
+        "Voice Biometrics",
+        "Identity & Password Management"
+      ]
+    },
+    {
+      "name": "VerifiNow",
+      "category": "Voice Biometrics",
+      "tags": [
+        "Voice Biometrics",
+        "Identity & Password Management"
+      ]
+    },
+    {
+      "name": "Vertex3 (Formerly HMC3)",
+      "category": "Implementation / Integration",
+      "tags": [
+        "Premise to cloud or cloud to cloud CCaaS migrations",
+        "project management of customer experience technology implementations",
+        "managed services and support",
+        "Cutsom Product development in SaaS or mobile app development",
+        "Salesforce implmenetations and integrations",
+        "Zendesk implementations and integrations",
+        "Security consulting includign security product selection and monetization"
+      ]
+    },
+    {
+      "name": "VertexC3 (Formerly HMC3)",
+      "category": "Development",
+      "tags": [
+        "Premise to cloud or cloud to cloud CCaaS migrations",
+        "project management of customer experience technology implementations",
+        "managed services and support",
+        "Cutsom Product development in SaaS or mobile app development",
+        "Salesforce implmenetations and integrations",
+        "Zendesk implementations and integrations",
+        "Security consulting includign security product selection and monetization"
+      ]
+    },
+    {
+      "name": "Vonage",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "CCaaS/UCaaS/ AI Virtual Assistant/ Carrier services",
+        "BOTS AI IVA Digital Channels"
+      ]
+    },
+    {
+      "name": "Vonage",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "CCaaS/UCaaS/ AI Virtual Assistant/ Carrier services"
+      ]
+    },
+    {
+      "name": "Vonage",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/UCaaS/ AI Virtual Assistant Voice",
+        "chat and SMS / WFM not stand alone / conversational analytics not standalone / — Strong Salesforce and ServiceNow integrations (Telarus Portal)"
+      ]
+    },
+    {
+      "name": "Vonage",
+      "category": "UCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Vonage",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "CCaaS/CPaaS/Omnichannel"
+      ]
+    },
+    {
+      "name": "Webio",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Digital Channel BOTS",
+        "AI Agent Assist",
+        "Chat Only"
+      ]
+    },
+    {
+      "name": "Webio",
+      "category": "Chat Only",
+      "tags": [
+        "Digital Channel BOTS",
+        "AI Agent Assist",
+        "Chat Only"
+      ]
+    },
+    {
+      "name": "Working Solutions",
+      "category": "BPO",
+      "tags": [
+        "BPO/GigCX — Domestic BPO & GigCX Provider"
+      ]
+    },
+    {
+      "name": "Working Solutions",
+      "category": "GigCX",
+      "tags": [
+        "BPO/GigCX — Domestic BPO & GigCX Provider"
+      ]
+    },
+    {
+      "name": "Xebo.ai",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "Voice of the Customer",
+        "AI Agent Assistant/Guide",
+        "Analytics Voice/Text"
+      ]
+    },
+    {
+      "name": "Xebo.ai",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Voice of the Customer",
+        "AI Agent Assistant/Guide",
+        "Analytics Voice/Text"
+      ]
+    },
+    {
+      "name": "Xebo.ai",
+      "category": "Voice of the Customer",
+      "tags": [
+        "Voice of the Customer",
+        "AI Agent Assistant/Guide",
+        "Analytics Voice/Text"
+      ]
+    },
+    {
+      "name": "XTIUM (formerly EvolveIP)",
+      "category": "VDI/DaaS/SD-Wan",
+      "tags": [
+        "VDI/DaaS"
+      ]
+    },
+    {
+      "name": "Yellow.ai",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "AI Agent Assistant/Guide",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "Yellow.ai",
+      "category": "Analytics Voice/Text",
+      "tags": [
+        "Conversational Bots Voice & Digital",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "Yellow.ai",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "Conversational Bots Voice & Digital",
+        "Analytics Voice/Text",
+        "BOTS AI IVA Digital Channels",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "Yellow.ai",
+      "category": "BOTS AI IVA Voice",
+      "tags": [
+        "Conversational Bots Voice & Digital",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "YMeadows",
+      "category": "RPA/AI Orchestration",
+      "tags": [
+        "AI Agent Assist",
+        "RPA"
+      ]
+    },
+    {
+      "name": "Zappix",
+      "category": "PCI Payment Solutions",
+      "tags": [
+        "AI Agent Assistant/Guide",
+        "Visual IVR & Mobile Engagement"
+      ]
+    },
+    {
+      "name": "Zappix",
+      "category": "Visual IVR & Mobile Customer Care",
+      "tags": [
+        "AI Agent Assistant/Guide",
+        "Visual IVR & Mobile Engagement"
+      ]
+    },
+    {
+      "name": "Zenarate",
+      "category": "ELearning/LMS/Training",
+      "tags": [
+        "E-Learning/Training/LMS"
+      ]
+    },
+    {
+      "name": "ZingTree",
+      "category": "Scripting/Decision Tree",
+      "tags": [
+        "Scripting/Decision Tree",
+        "Knowledge Management",
+        "AI Agent Assistant"
+      ]
+    },
+    {
+      "name": "Zizo",
+      "category": "Gamification",
+      "tags": [
+        "Gamification"
+      ]
+    },
+    {
+      "name": "Zoom",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "UCaas/CCaaS"
+      ]
+    },
+    {
+      "name": "Zoom",
+      "category": "UCaaS",
+      "tags": [
+        "UCaas"
+      ]
+    },
+    {
+      "name": "Zowie.ai",
+      "category": "AI Agent Assistant/Guide",
+      "tags": [
+        "BOTS AI/IVA Digital Channels",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "Zowie.ai",
+      "category": "BOTS AI IVA Digital Channels",
+      "tags": [
+        "BOTS AI/IVA Digital Channels",
+        "Email (BOT) As a Standalone"
+      ]
+    },
+    {
+      "name": "Zultys",
+      "category": "CCaaS/CPaaS/Omnichannel",
+      "tags": [
+        "CCaaS/UCaaS"
+      ]
+    },
+    {
+      "name": "Zultys",
+      "category": "UCaaS",
+      "tags": [
+        "CCaaS/UCaaS"
+      ]
+    },
+    {
+      "name": "Zultys",
+      "category": "UCaaS + CCaaS",
+      "tags": [
+        "CCaaS/UCaaS"
+      ]
+    }
+  ]
+}

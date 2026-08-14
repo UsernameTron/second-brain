@@ -23,7 +23,7 @@ const limiters = new Map();
 
 function rateLimit(bucket) {
   if (!limiters.has(bucket)) {
-    const config = BUCKETS[bucket] || BUCKETS.api;
+    const config = Object.hasOwn(BUCKETS, bucket) ? BUCKETS[bucket] : BUCKETS.api; // no inherited-key dispatch
     limiters.set(bucket, expressRateLimit({
       windowMs: config.windowMs,
       limit: config.limit,

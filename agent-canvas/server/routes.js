@@ -369,9 +369,11 @@ function mcpMaskedHeaders(headersJson) {
 }
 function mcpValidate({ name, url, access, enabledTools, model }) {
   if (name !== undefined && !MCP_NAME_RE.test(String(name))) return 'name must be 1-64 chars [a-zA-Z0-9_-]';
-  // https only: mcp/client.js mints a Google-signed identity token and sends it
-  // as a Bearer header over whatever scheme this URL carries.
-  if (url !== undefined && !/^https:\/\//.test(String(url))) return 'url must be https';
+  // https, or loopback for local development. mcp/client.js mints a
+  // Google-signed identity token and sends it as a Bearer header over whatever
+  // scheme this URL carries; the same check runs in normalizeServer, which is
+  // the layer that actually loads env/file/DB rows.
+  if (url !== undefined && !mcp.safeMcpUrl(url)) return 'url must be https (or a loopback address for local development)';
   if (access !== undefined && !['owner', 'members'].includes(access)) return "access must be 'owner' or 'members'";
   if (Array.isArray(enabledTools)) {
     // Name the rejected tool rather than dropping it silently — an owner who
@@ -834,22 +836,32 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
   }
   const status = action === 'dismiss' ? 'dismissed' : action === 'redirect' ? 'redirected' : 'accepted';
 
-  // Dispatch BEFORE recording the resolution. dispatchRun throws 429 when the
-  // daily budget is spent — a designed state, not an exceptional one — and in
-  // the old order that throw left the human's decision written, the escalation
-  // still 'open' (so it vanished from the tray, which filters on open), and no
-  // run to ever apply it. Silent loss of a human decision. Dispatching first
-  // means a refusal leaves the escalation exactly as it was, still actionable.
+  // Both halves or neither. Ordering alone cannot fix this: `dispatchRun`
+  // throws 429 on a spent daily budget (a designed state), and each order
+  // fails a different way. Record-then-dispatch loses the human's decision —
+  // the escalation reads 'accepted', so it leaves the tray, and no run ever
+  // applies it. Dispatch-then-record is worse in KIND: a live run carrying
+  // trigger_kind='escalation_resume' — the only gate hs_apply_change checks —
+  // while the escalation still reads 'open' with no resolved_by and no
+  // escalation.resolve audit line. A sandbox CRM apply would execute with no
+  // record of the approval that authorized it, and the still-open row invites
+  // a second human to resolve it into a second run.
+  //
+  // node:sqlite is synchronous and dispatchRun's pump is deferred via
+  // setImmediate, so both fit inside one transaction and a 429 rolls the whole
+  // thing back.
   let run = null;
-  if (action !== 'dismiss' && agentId && answer.trim()) {
-    run = dispatchRun({
-      agentId, canvasId: escalation.canvas_id,
-      instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}\nHuman decision (${req.user.email}): ${answer}\nApply this decision now: record it in memory as a "verified" entry (source: "human decision ${req.user.email}"), and if it fixes workbook fields, apply them with apply_row_fix using escalation_id ${escalation.id}. Then complete. Your summary must state exactly what you changed — nothing more.`,
-      triggerKind: 'escalation_resume', actor: req.user.email, initiatedBy: req.user.email,
-    });
-  }
-  db.prepare('UPDATE escalations SET status = ?, resolution = ?, resolved_by = ?, resolved_at = ? WHERE id = ?')
-    .run(status, answer, req.user.email, nowIso(), escalation.id);
+  tx(() => {
+    db.prepare('UPDATE escalations SET status = ?, resolution = ?, resolved_by = ?, resolved_at = ? WHERE id = ?')
+      .run(status, answer, req.user.email, nowIso(), escalation.id);
+    if (action !== 'dismiss' && agentId && answer.trim()) {
+      run = dispatchRun({
+        agentId, canvasId: escalation.canvas_id,
+        instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}\nHuman decision (${req.user.email}): ${answer}\nApply this decision now: record it in memory as a "verified" entry (source: "human decision ${req.user.email}"), and if it fixes workbook fields, apply them with apply_row_fix using escalation_id ${escalation.id}. Then complete. Your summary must state exactly what you changed — nothing more.`,
+        triggerKind: 'escalation_resume', actor: req.user.email, initiatedBy: req.user.email,
+      });
+    }
+  });
   audit('user', req.user.email, 'escalation.resolve', { escalationId: escalation.id, action });
   bus.emit('event', { type: 'escalation_resolved', canvasId: escalation.canvas_id, escalationId: escalation.id, status, by: req.user.email });
   res.json({ ok: true, run });
