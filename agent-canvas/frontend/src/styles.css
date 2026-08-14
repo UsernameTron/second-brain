@@ -1301,3 +1301,9 @@ a:hover { text-decoration: underline; }
 .receipt-query { font-size: 12px; }
 .run-feedback { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
 .run-feedback input { flex: 1; min-width: 0; }
+
+/* ===== Typed memory (wave 3) ===== */
+.mem-filter-row { display: flex; gap: 6px; }
+.mem-filter-row .mem-filter { flex: 1; min-width: 0; }
+.kind-chip { text-transform: uppercase; letter-spacing: 0.04em; }
+.subject-chip { font-style: italic; }

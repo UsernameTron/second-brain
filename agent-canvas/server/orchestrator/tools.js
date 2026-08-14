@@ -48,6 +48,8 @@ const COMMON_TOOLS = [
       properties: {
         query: { type: 'string', description: 'Keywords to search for (scored match — entries matching more of your terms rank higher; at least half must hit). Empty returns most recent entries.' },
         epistemic: { type: 'string', enum: ['verified', 'inference', 'assumption'], description: 'Optional filter by epistemic state' },
+        kind: { type: 'string', enum: ['fact', 'decision', 'preference', 'constraint', 'outcome', 'feedback'], description: 'Optional filter by entry kind' },
+        subject: { type: 'string', description: 'Optional filter by exact subject (case-insensitive), e.g. "acme corp"' },
         limit: { type: 'integer', description: 'Max entries to return (default 20)' },
       },
       required: [],
@@ -63,6 +65,8 @@ const COMMON_TOOLS = [
         epistemic: { type: 'string', enum: ['verified', 'inference', 'assumption'] },
         source: { type: 'string', description: 'Where this came from, e.g. "workbook row 4", "intake rules note"' },
         cites: { type: 'array', items: { type: 'string' }, description: 'IDs of memory entries that fed this one' },
+        kind: { type: 'string', enum: ['fact', 'decision', 'preference', 'constraint', 'outcome', 'feedback'], description: 'What kind of entry this is. Use "decision" for choices made, "constraint" for hard limits, "outcome" for results observed.' },
+        subject: { type: 'string', description: 'Short canonical subject this entry is about, e.g. "acme corp", "icp scoring"' },
       },
       required: ['content', 'epistemic', 'source'],
     },
@@ -595,13 +599,15 @@ async function executeTool(name, input, ctx) {
       const entries = memory.listEntries({
         canvasId: canvas.id,
         epistemic: input.epistemic,
+        kind: input.kind,
+        subject: input.subject,
         query: input.query,
         limit: Math.min(input.limit || 20, 50),
       });
       memory.recordRunReads(run.id, entries.map((e) => e.id));
       memory.recordRetrievals(run.id, input.query, entries);
       return { content: JSON.stringify(entries.map((e) => ({
-        id: e.id, content: e.content, epistemic: e.epistemic,
+        id: e.id, content: e.content, epistemic: e.epistemic, kind: e.kind, subject: e.subject,
         author: e.author.name || e.author.id, source: e.source, created_at: e.createdAt, tainted: e.tainted,
       }))) };
     }
@@ -617,6 +623,8 @@ async function executeTool(name, input, ctx) {
         source: input.source || '',
         runId: run.id,
         cites: input.cites || [],
+        kind: input.kind || null,
+        subject: input.subject || null,
       });
       bus.emit('event', { type: 'memory_write', canvasId: canvas.id, entry });
       return { content: JSON.stringify({ ok: true, entry_id: entry.id }) };

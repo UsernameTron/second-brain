@@ -15,10 +15,22 @@ const { db, tx, nowIso } = require('./db');
 const { audit } = require('./audit');
 
 const EPISTEMIC = ['verified', 'inference', 'assumption'];
+// Wave 3 typed memory. All optional — entries written before (or without)
+// types are plain untyped facts and stay fully readable/retrievable.
+const KINDS = ['fact', 'decision', 'preference', 'constraint', 'outcome', 'feedback'];
+const APPLIES_TO = ['global', 'canvas', 'agent', 'user'];
 
-function writeEntry({ canvasId, content, epistemic, authorType, authorId, authorName = '', source = '', runId = null, cites = [] }) {
+function validateTyped({ kind, appliesToType, appliesToId }) {
+  if (kind != null && !KINDS.includes(kind)) throw new Error(`kind must be one of ${KINDS.join(', ')}`);
+  if (appliesToType != null && !APPLIES_TO.includes(appliesToType)) throw new Error(`applies_to_type must be one of ${APPLIES_TO.join(', ')}`);
+  if (appliesToId != null && appliesToType == null) throw new Error('applies_to_id requires applies_to_type');
+}
+
+function writeEntry({ canvasId, content, epistemic, authorType, authorId, authorName = '', source = '', runId = null, cites = [],
+  kind = null, subject = null, appliesToType = null, appliesToId = null, effectiveAt = null, reviewAt = null }) {
   if (!content || typeof content !== 'string') throw new Error('memory content required');
   if (!EPISTEMIC.includes(epistemic)) throw new Error(`epistemic must be one of ${EPISTEMIC.join(', ')}`);
+  validateTyped({ kind, appliesToType, appliesToId });
   const id = crypto.randomUUID();
   const ts = nowIso();
   const uniqueCites = [...new Set(cites)].filter(Boolean);
@@ -41,9 +53,11 @@ function writeEntry({ canvasId, content, epistemic, authorType, authorId, author
       );
     }
     db.prepare(
-      `INSERT INTO memory_entries (id, canvas_id, content, epistemic, author_type, author_id, author_name, source, run_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, canvasId, content, epistemic, authorType, authorId, authorName, source, runId, ts);
+      `INSERT INTO memory_entries (id, canvas_id, content, epistemic, author_type, author_id, author_name, source, run_id, created_at,
+                                   kind, subject, applies_to_type, applies_to_id, effective_at, review_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, canvasId, content, epistemic, authorType, authorId, authorName, source, runId, ts,
+      kind, subject, appliesToType, appliesToId, effectiveAt, reviewAt);
     for (const citeId of uniqueCites) {
       db.prepare('INSERT OR IGNORE INTO citations (entry_id, cites_entry_id) VALUES (?, ?)').run(id, citeId);
     }
@@ -57,8 +71,10 @@ function writeEntry({ canvasId, content, epistemic, authorType, authorId, author
 //   concurrent-correction conflict — the caller must escalate, not overwrite);
 //   { entry, affected } otherwise, where `affected` is every entry downstream
 //   of the corrected one via citations (transitively) — the set to flag/ripple.
-function correctEntry({ entryId, content, epistemic, reason = '', authorType, authorId, authorName = '', source = '', runId = null, cites = [] }) {
+function correctEntry({ entryId, content, epistemic, reason = '', authorType, authorId, authorName = '', source = '', runId = null, cites = [],
+  kind, subject, appliesToType, appliesToId, effectiveAt, reviewAt }) {
   if (!EPISTEMIC.includes(epistemic)) throw new Error(`epistemic must be one of ${EPISTEMIC.join(', ')}`);
+  if (kind !== undefined || appliesToType !== undefined) validateTyped({ kind: kind ?? null, appliesToType: appliesToType ?? null, appliesToId: appliesToId ?? null });
   const newId = crypto.randomUUID();
   const ts = nowIso();
   let conflictResult = null;
@@ -81,9 +97,14 @@ function correctEntry({ entryId, content, epistemic, reason = '', authorType, au
       return;
     }
     db.prepare(
-      `INSERT INTO memory_entries (id, canvas_id, content, epistemic, author_type, author_id, author_name, source, run_id, created_at, supersedes, supersede_reason)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(newId, old.canvas_id, content, epistemic, authorType, authorId, authorName, source, runId, ts, entryId, reason);
+      `INSERT INTO memory_entries (id, canvas_id, content, epistemic, author_type, author_id, author_name, source, run_id, created_at, supersedes, supersede_reason,
+                                   kind, subject, applies_to_type, applies_to_id, effective_at, review_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(newId, old.canvas_id, content, epistemic, authorType, authorId, authorName, source, runId, ts, entryId, reason,
+      // A correction inherits the corrected entry's type fields unless the caller overrides them.
+      kind !== undefined ? kind : old.kind, subject !== undefined ? subject : old.subject,
+      appliesToType !== undefined ? appliesToType : old.applies_to_type, appliesToId !== undefined ? appliesToId : old.applies_to_id,
+      effectiveAt !== undefined ? effectiveAt : old.effective_at, reviewAt !== undefined ? reviewAt : old.review_at);
     db.prepare('UPDATE memory_entries SET superseded_by = ? WHERE id = ? AND superseded_by IS NULL').run(newId, entryId);
     // The correction inherits the corrected entry as a citation, plus any explicit cites.
     const allCites = [...new Set([entryId, ...cites])].filter(Boolean);
@@ -182,6 +203,12 @@ function rowToEntry(row, maps = null) {
     supersedes: row.supersedes,
     supersededBy: row.superseded_by,
     supersedeReason: row.supersede_reason,
+    kind: row.kind ?? null,
+    subject: row.subject ?? null,
+    appliesToType: row.applies_to_type ?? null,
+    appliesToId: row.applies_to_id ?? null,
+    effectiveAt: row.effective_at ?? null,
+    reviewAt: row.review_at ?? null,
     cites,
     citedBy,
   };
@@ -192,13 +219,21 @@ function getEntryTx(id) {
 }
 function getEntry(id) { return getEntryTx(id); }
 
-function listEntries({ canvasId, includeSuperseded = false, epistemic, since, query, limit = 200 }) {
+function listEntries({ canvasId, includeSuperseded = false, epistemic, since, query, limit = 200, kind, subject, appliesToType, appliesToId }) {
   const clauses = [];
   const params = [];
   if (canvasId) { clauses.push('(canvas_id = ? OR canvas_id IS NULL)'); params.push(canvasId); }
   if (!includeSuperseded) clauses.push('superseded_by IS NULL');
   if (epistemic) { clauses.push('epistemic = ?'); params.push(epistemic); }
   if (since) { clauses.push('created_at >= ?'); params.push(since); }
+  if (kind) { clauses.push('kind = ?'); params.push(kind); }
+  if (subject) { clauses.push('LOWER(subject) = ?'); params.push(String(subject).toLowerCase()); }
+  // Applicability filter: untyped/global entries always qualify; scoped
+  // entries qualify when the scope matches. Applicability, not access control.
+  if (appliesToType) {
+    clauses.push("(applies_to_type IS NULL OR applies_to_type = 'global' OR (applies_to_type = ? AND (applies_to_id IS NULL OR applies_to_id = ?)))");
+    params.push(appliesToType, appliesToId || '');
+  }
   // Multi-word queries score by matched tokens (at least half must hit) and
   // rank best-first, instead of requiring every token. Field evidence: an
   // agent searched "7-person team capacity constraint" against an entry
@@ -283,4 +318,4 @@ function lineage(entryId) {
   };
 }
 
-module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, recordRetrievals, EPISTEMIC };
+module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, recordRetrievals, EPISTEMIC, KINDS, APPLIES_TO };
