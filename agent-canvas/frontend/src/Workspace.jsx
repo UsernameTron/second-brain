@@ -574,6 +574,18 @@ export default function Workspace() {
     []
   );
 
+  const fetchRunReceipt = useCallback(
+    (runId) => api(`/api/canvases/${canvasIdRef.current}/runs/${runId}/receipt`),
+    []
+  );
+
+  const sendRunFeedback = useCallback(
+    (runId, verdict, note) => api(`/api/canvases/${canvasIdRef.current}/runs/${runId}/feedback`, {
+      method: 'POST', body: { verdict, note },
+    }),
+    []
+  );
+
   const openRun = useCallback((runId) => {
     const run = (state?.runs || []).find((r) => r.id === runId);
     if (run) setPanel({ type: 'agent', id: run.agent_id, runId });
@@ -633,6 +645,11 @@ export default function Workspace() {
             catch (e) { toast(e.message); }
           }}
           fetchRunEvents={fetchRunEvents}
+          fetchRunReceipt={fetchRunReceipt}
+          onFeedback={async (runId, verdict, note) => {
+            try { return await sendRunFeedback(runId, verdict, note); }
+            catch (e) { toast(e.message); return null; }
+          }}
           onClose={() => setPanel(null)}
         />
       );

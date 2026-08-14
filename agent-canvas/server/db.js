@@ -136,6 +136,29 @@ CREATE TABLE IF NOT EXISTS run_reads (
   PRIMARY KEY (run_id, entry_id)
 );
 
+-- retrieval quality log: what a run's memory_search actually asked and got
+-- back, with rank and score. Append-only; run_reads stays the delivery record
+-- (its composite PK can't carry per-query rows).
+CREATE TABLE IF NOT EXISTS memory_retrievals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id TEXT NOT NULL,
+  entry_id TEXT NOT NULL REFERENCES memory_entries(id),
+  query TEXT NOT NULL DEFAULT '',
+  rank INTEGER NOT NULL,
+  score REAL,
+  ts TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_retrievals_run ON memory_retrievals(run_id, id);
+
+-- human verdict on a completed run: evidence about performance, never truth
+CREATE TABLE IF NOT EXISTS run_feedback (
+  run_id TEXT PRIMARY KEY REFERENCES runs(id),
+  verdict TEXT NOT NULL CHECK (verdict IN ('up','down')),
+  note TEXT NOT NULL DEFAULT '',
+  by TEXT NOT NULL,
+  ts TEXT NOT NULL
+);
+
 -- ===== Agent runs =====
 CREATE TABLE IF NOT EXISTS runs (
   id TEXT PRIMARY KEY,

@@ -226,7 +226,15 @@ function listEntries({ canvasId, includeSuperseded = false, epistemic, since, qu
   }
   const tainted = taintedSet(canvasId);
   const maps = citeMapsFor(rows.map((r) => r.id));
-  return rows.map((row) => ({ ...rowToEntry(row, maps), tainted: tainted.has(row.id) }));
+  return rows.map((row) => ({ ...rowToEntry(row, maps), tainted: tainted.has(row.id), score: row.mscore ?? null }));
+}
+
+// Retrieval-quality log: which query returned which entries at what rank and
+// score. run_reads stays the delivery record; this is the observability record.
+function recordRetrievals(runId, query, entries) {
+  const ts = nowIso();
+  const stmt = db.prepare('INSERT INTO memory_retrievals (run_id, entry_id, query, rank, score, ts) VALUES (?, ?, ?, ?, ?, ?)');
+  entries.forEach((e, i) => stmt.run(runId, e.id, String(query || ''), i + 1, e.score ?? null, ts));
 }
 
 function recordRunReads(runId, entryIds) {
@@ -275,4 +283,4 @@ function lineage(entryId) {
   };
 }
 
-module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, EPISTEMIC };
+module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, recordRetrievals, EPISTEMIC };

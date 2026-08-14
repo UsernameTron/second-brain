@@ -1290,3 +1290,14 @@ a:hover { text-decoration: underline; }
 .connector-tools .dim { font-size: 12px; }
 .roles-input { width: 150px; }
 .roster-edit label.dim { display: block; margin: 8px 0 4px; font-size: 12px; }
+
+/* ===== Context receipt (wave 1) ===== */
+.context-receipt { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px; }
+.context-receipt h3 { margin: 0; }
+.context-receipt h4 { margin: 6px 0 2px; font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+.receipt-entry { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; padding: 3px 0; }
+.receipt-content { color: var(--text-dim); }
+.receipt-search { border-left: 2px solid var(--line); padding-left: 8px; margin: 4px 0; }
+.receipt-query { font-size: 12px; }
+.run-feedback { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.run-feedback input { flex: 1; min-width: 0; }
