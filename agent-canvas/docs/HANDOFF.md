@@ -231,6 +231,28 @@ execution-time auth probe (claude.ai-configured, possibly OAuth-only) — wire
 member-visible if static auth works and tools return shareable map URLs,
 else drop. RapidAPI key: Pete's call, no rotation, one shared key.
 
+**Phase 3 intel from Pete's HubSpot portal (2026-08-13 screenshots) — read
+before building the bridge:**
+- **"MCP Auth Apps" exists in his developer portal** ("client ID and secret,
+  preconfigured scopes, and a redirect URL flow so your users can bring
+  HubSpot data and actions into your product"). This is HubSpot's OAuth front
+  door for hosted/remote MCP — strong evidence the remote endpoint is real.
+  FIRST verification step of Phase 3: if the remote MCP accepts a
+  bearer PAT, the /crm half of the bridge collapses to a single connector
+  row; if it is OAuth-only, either add OAuth support to mcp/client.js or
+  keep the bridge. Do not build the /crm bridge before checking this.
+- **Service key "CTG Ops Automation" already exists** with exactly the
+  read-only CRM scopes the plan specced (contacts/companies/deals/quotes/
+  line_items/owners/lists + schemas, all .read). That key IS the designated
+  /crm credential (HUBSPOT_MCP_TOKEN -> Secret Manager) — do not mint a new
+  one. Pete holds it; it enters Secret Manager only when Phase 3 deploys.
+- **Developer API Key (na2-…) is deliberately UNUSED** — it manages app
+  configurations and webhooks account-wide (admin-plane power, not CRM data).
+  Least-privilege rule: nothing in this system needs it.
+- **HubSpot "Projects" page is empty and that is expected** — it is the
+  landing surface for Phase 2's `hs project create` work, not a missed
+  integration.
+
 **Cost levers** (no new code): `FAST_PROVIDER=gemini` moves the fast tier
 (Atlas/Forge/Gauge/Radar) to Gemini on Vertex — `providerForTier`
 (orchestrator/anthropic.js) + the tested Gemini adapter already support it.
