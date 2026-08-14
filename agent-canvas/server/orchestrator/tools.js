@@ -136,11 +136,23 @@ const COMMON_TOOLS = [
   },
   {
     name: 'complete',
-    description: 'Finish this run. Summarize what you did, what you handed off, and what you escalated.',
+    description: 'Finish this run. Summarize what you did, what you handed off, and what you escalated. Set outcome honestly: "done" only if you achieved the instruction; "incomplete" if you could not (a job still running, a dependency you could not resolve). "incomplete" is not a failure to hide — it records the truth and sends the run to the human tray so the work can be picked up.',
     input_schema: {
       type: 'object',
-      properties: { summary: { type: 'string' } },
+      properties: {
+        summary: { type: 'string' },
+        outcome: { type: 'string', enum: ['done', 'incomplete'], description: 'default "done"; use "incomplete" when the instruction was not achieved' },
+      },
       required: ['summary'],
+    },
+  },
+  {
+    name: 'wait',
+    description: 'Pause this run for a few seconds before your next action — use it between polls of an async job (e.g. after check_lead_search returns "running"), so you check a small number of times instead of hammering. Costs wall-clock time against your run budget, so keep waits short and few; if a job is still running after two waits, stop and hand back the job id rather than waiting again.',
+    input_schema: {
+      type: 'object',
+      properties: { seconds: { type: 'integer', description: 'how long to pause, 1–30 (clamped)' } },
+      required: ['seconds'],
     },
   },
 ];
@@ -731,7 +743,40 @@ async function executeTool(name, input, ctx) {
     }
 
     case 'complete': {
-      return { content: JSON.stringify({ ok: true }), end: { status: 'completed', summary: input.summary || '' } };
+      const summary = input.summary || '';
+      // Honest terminal state. "incomplete" was the missing channel: complete
+      // used to hard-code 'completed', so a run that gave up filed itself as a
+      // success and the truth lived only in free-text nobody inspects.
+      // 'incomplete' maps onto the existing 'failed' status (runs.status has a
+      // CHECK constraint and migrations are additive-only — no new enum) and
+      // raises an escalation so the parked work reaches the human tray.
+      if (input.outcome === 'incomplete') {
+        try {
+          createEscalation({
+            canvasId: canvas.id, runId: run.id, agentId: agent.id, kind: 'question',
+            question: `${agent.name} could not finish: "${run.instruction.slice(0, 160)}". It reported: ${summary.slice(0, 400)}`,
+            context: { stepsUsed: run.steps_used, incomplete: true },
+          });
+        } catch { /* the run still ends incomplete even if the tray write fails */ }
+        return { content: JSON.stringify({ ok: true, outcome: 'incomplete' }), end: { status: 'failed', summary } };
+      }
+      return { content: JSON.stringify({ ok: true, outcome: 'done' }), end: { status: 'completed', summary } };
+    }
+
+    case 'wait': {
+      // The only delay primitive in the server. Bounded (≤30s) so two waits
+      // stay well inside the default 240s run wall budget, and abortable via
+      // ctx.signal so a global pause interrupts a sleeping run — without the
+      // signal a naive sleep would ignore pause until the next epoch check.
+      const seconds = Math.min(Math.max(Math.floor(Number(input.seconds) || 0), 1), 30);
+      const signal = ctx.signal;
+      if (signal && signal.aborted) return { content: 'Workspace paused — did not wait.', isError: true };
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, seconds * 1000);
+        if (signal) signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+      });
+      if (signal && signal.aborted) return { content: `Waited, then the workspace paused — stopping.`, isError: true };
+      return { content: `Waited ${seconds}s.` };
     }
 
     case 'apply_row_fix': {
