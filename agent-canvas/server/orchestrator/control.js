@@ -77,6 +77,17 @@ function setDailyBudget(usd, actor) {
   bus.emit('event', { type: 'budget', canvasId: null, usage: getDailyUsage() });
 }
 
+// Workspace-wide month rollups from usage_daily (kept forever, so this is
+// just a GROUP BY — no separate metering). Newest first, last 12 months.
+function getMonthlyUsage() {
+  return db.prepare(`
+    SELECT substr(date, 1, 7) AS month,
+           SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens,
+           SUM(cost_usd) AS cost_usd, COUNT(*) AS days
+    FROM usage_daily GROUP BY month ORDER BY month DESC LIMIT 12
+  `).all();
+}
+
 function budgetExceeded() {
   const usage = getDailyUsage();
   return usage.cost_usd >= usage.budget_usd;
@@ -84,5 +95,5 @@ function budgetExceeded() {
 
 module.exports = {
   isPaused, setPaused, currentEpoch, epochStale, registerAbort, unregisterAbort,
-  addUsage, getDailyUsage, getDailyBudget, setDailyBudget, budgetExceeded, nowIso,
+  addUsage, getDailyUsage, getMonthlyUsage, getDailyBudget, setDailyBudget, budgetExceeded, nowIso,
 };
