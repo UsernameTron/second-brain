@@ -226,6 +226,7 @@ function RosterTab({ toast }) {
 function ConnectorsTab({ toast }) {
   const [list, setList] = useState(null);
   const [configError, setConfigError] = useState(null);
+  const [refused, setRefused] = useState([]);
   const [open, setOpen] = useState(null);      // server id with expanded row
   const [probes, setProbes] = useState({});    // server id -> { ok, ms, tools } | { error }
   const [busy, setBusy] = useState(false);
@@ -234,7 +235,7 @@ function ConnectorsTab({ toast }) {
 
   const load = useCallback(() => {
     api('/api/mcp/servers')
-      .then((d) => { setList(d.servers || []); setConfigError(d.configError || null); })
+      .then((d) => { setList(d.servers || []); setConfigError(d.configError || null); setRefused(d.refusedTools || []); })
       .catch((e) => { toast(e.message); setList([]); });
   }, [toast]);
   useEffect(() => { load(); }, [load]);
@@ -286,6 +287,13 @@ function ConnectorsTab({ toast }) {
         <button className="btn ghost small" onClick={() => { setAdding((v) => !v); setDraft({ access: 'members' }); }}>{adding ? 'Cancel' : 'Add connector'}</button>
       </div>
       {configError ? <p className="empty-hint">Config error: {configError}</p> : null}
+      {refused.length ? (
+        <p className="empty-hint">
+          {refused.map((r) => `${r.server}: ${r.tools.join(', ')}`).join(' · ')} — refused as write tools.
+          Connectors are read lanes; CRM writes go through the ops-runner preview/apply lane. Every other
+          tool on these connectors is unaffected.
+        </p>
+      ) : null}
       {adding ? (
         <form className="roster-edit" onSubmit={add}>
           <div className="add-agent-row">

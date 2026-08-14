@@ -233,13 +233,22 @@ router.get('/health/integrations', (req, res) => {
       id: 'mcp', label: 'MCP CONFIG',
       status: 'down',
       detail: `MCP configuration failed to parse: ${mcp.configError()} — no connector is active until this is fixed.`,
-    }] : (mcp.listServers().length ? mcp.listServers().map((srv) => ({
-      id: `mcp:${srv.name}`, label: `MCP · ${srv.name.toUpperCase()}`, probe: true,
-      status: srv.enabledTools.length ? 'ready' : 'attention',
-      detail: srv.enabledTools.length
-        ? `${srv.enabledTools.length} tool(s) enabled by the owner: ${srv.enabledTools.join(', ')}. Third-party tools do what their server says they do — every call is audited. Probe verifies the handshake.`
-        : 'Server configured but no tools enabled — nothing is exposed to agents until the owner names tools in enabledTools.',
-    })) : [{
+    }] : (mcp.listServers().length ? mcp.listServers().map((srv) => {
+      const refused = (mcp.refusedToolReport().find((r) => r.server === srv.name) || {}).tools || [];
+      // Amber, not red: the connector works and every read tool it was given
+      // is live. Amber says "your intent was partly denied, come look" —
+      // the honest colour for a partial refusal.
+      const refusalNote = refused.length
+        ? ` ${refused.length} tool(s) refused as writes (${refused.join(', ')}) — connectors are read lanes; CRM writes go through the ops-runner preview/apply lane.`
+        : '';
+      return {
+        id: `mcp:${srv.name}`, label: `MCP · ${srv.name.toUpperCase()}`, probe: true,
+        status: refused.length ? 'attention' : (srv.enabledTools.length ? 'ready' : 'attention'),
+        detail: (srv.enabledTools.length
+          ? `${srv.enabledTools.length} tool(s) enabled by the owner: ${srv.enabledTools.join(', ')}. Third-party tools do what their server says they do — every call is audited. Probe verifies the handshake.`
+          : 'Server configured but no tools enabled — nothing is exposed to agents until the owner names tools in enabledTools.') + refusalNote,
+      };
+    }) : [{
       id: 'mcp', label: 'MCP CONNECTORS',
       status: 'planned',
       detail: 'No connectors configured. Set MCP_SERVERS (or config/mcp.json) with per-tool enablement — see docs/DEPLOY.md.',
@@ -353,7 +362,7 @@ router.get('/mcp/servers', auth.requireOwner, (req, res) => {
     headers: mcpMaskedHeaders(r.headers_json),
     created_at: r.created_at, updated_at: r.updated_at,
   }));
-  res.json({ servers: rows, configError: mcp.configError() });
+  res.json({ servers: rows, configError: mcp.configError(), refusedTools: mcp.refusedToolReport() });
 });
 
 const MCP_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
