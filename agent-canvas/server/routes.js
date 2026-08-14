@@ -19,6 +19,7 @@ const { rateLimit } = require('./ratelimit');
 const workspace = require('./google/workspace');
 const opsrunner = require('./hubspot/opsrunner');
 const mcp = require('./mcp/client');
+const probestate = require('./probestate');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
@@ -173,6 +174,16 @@ router.get('/health/integrations', (req, res) => {
   const connected = workspace.isConnected(req.user.email);
   const oauth = workspace.oauthReady();
   const standardMode = workspace.scopeMode() === 'standard';
+  // Finding 8: a configured lamp earns green from probe EVIDENCE, not config
+  // presence. No probe this process → attention; failed probe → down with the
+  // named error; successful probe → ready. Evidence lives in probestate
+  // (process lifetime — a restart honestly forgets).
+  const provenStatus = (id) => {
+    const p = probestate.get(id);
+    if (!p) return { status: 'attention', note: ' Configured but unprobed this process — Probe to earn green.' };
+    if (!p.ok) return { status: 'down', note: ` Last probe FAILED: ${p.error}` };
+    return { status: 'ready', note: ` Probe OK (${p.ms}ms).` };
+  };
   const wsSurface = (id, label, probe) => {
     if (id === 'gmail' && standardMode) {
       return {
@@ -180,12 +191,13 @@ router.get('/health/integrations', (req, res) => {
         detail: 'Disabled: GOOGLE_WORKSPACE_SCOPES=standard drops the restricted Gmail scopes so Connect works without Google\'s tester list. Flip to full after verification or the org move.',
       };
     }
+    const proven = connected ? provenStatus(id) : null;
     return {
       id, label, probe: probe && oauth && connected,
-      status: !oauth ? 'planned' : (connected ? 'ready' : 'attention'),
+      status: !oauth ? 'planned' : (connected ? proven.status : 'attention'),
       detail: !oauth
         ? 'OAuth client not configured on this deployment — see docs/DEPLOY.md.'
-        : (connected ? `Connected as you. Agents you direct act with your permissions.${id === 'drive' && standardMode ? ' Standard scopes: Drive is limited to files the app creates.' : ''}`
+        : (connected ? `Connected as you. Agents you direct act with your permissions.${id === 'drive' && standardMode ? ' Standard scopes: Drive is limited to files the app creates.' : ''}${proven.note}`
                      : 'Your Google account is not connected — Capabilities → Connect.'),
     };
   };
@@ -224,9 +236,9 @@ router.get('/health/integrations', (req, res) => {
     },
     {
       id: 'hubspot', label: 'HUBSPOT · OPS RUNNER', probe: opsrunner.configured(),
-      status: opsrunner.configured() ? 'ready' : 'planned',
+      status: opsrunner.configured() ? provenStatus('hubspot').status : 'planned',
       detail: opsrunner.configured()
-        ? 'Wired to ctg-hs-ops-runner (sandbox portal 246460341 — real CRM unreachable by design). Reads free; changes preview-first, applied only after human approval. Probe verifies reach + IAM.'
+        ? `Wired to ctg-hs-ops-runner (sandbox portal 246460341 — real CRM unreachable by design). Reads free; changes preview-first, applied only after human approval.${provenStatus('hubspot').note}`
         : 'Not wired — set HS_OPS_RUNNER_URL and grant run.invoker to the canvas service account (see docs/DEPLOY.md).',
     },
     ...(mcp.configError() ? [{
@@ -241,11 +253,12 @@ router.get('/health/integrations', (req, res) => {
       const refusalNote = refused.length
         ? ` ${refused.length} tool(s) refused as writes (${refused.join(', ')}) — connectors are read lanes; CRM writes go through the ops-runner preview/apply lane.`
         : '';
+      const proven = provenStatus(`mcp:${srv.name}`);
       return {
         id: `mcp:${srv.name}`, label: `MCP · ${srv.name.toUpperCase()}`, probe: true,
-        status: refused.length ? 'attention' : (srv.enabledTools.length ? 'ready' : 'attention'),
+        status: refused.length ? 'attention' : (srv.enabledTools.length ? proven.status : 'attention'),
         detail: (srv.enabledTools.length
-          ? `${srv.enabledTools.length} tool(s) enabled by the owner: ${srv.enabledTools.join(', ')}. Third-party tools do what their server says they do — every call is audited. Probe verifies the handshake.`
+          ? `${srv.enabledTools.length} tool(s) enabled by the owner: ${srv.enabledTools.join(', ')}. Third-party tools do what their server says they do — every call is audited.${proven.note}`
           : 'Server configured but no tools enabled — nothing is exposed to agents until the owner names tools in enabledTools.') + refusalNote,
       };
     }) : [{
@@ -261,29 +274,37 @@ router.get('/health/integrations', (req, res) => {
 
 router.post('/health/probe', rateLimit('auth'), asyncRoute(async (req, res) => {
   const surface = String(req.body.surface || '');
+  // Every outcome — success or failure — is recorded as probe evidence:
+  // the lamps read this record, so a probe is how a lamp earns its colour.
+  const recorded = async (fn) => {
+    try {
+      const result = await fn();
+      probestate.record(surface, result);
+      return result;
+    } catch (err) {
+      probestate.record(surface, { ok: false, error: err.message || err });
+      throw err;
+    }
+  };
   if (surface === 'model') {
     // One tiny live call through the real model path. This is the difference
     // between "credential present" and "Model Garden actually enabled" — a 403
     // here is the enablement detector, surfaced with the upstream message.
-    const t0 = Date.now();
     const { model } = tierConfig('fast');
-    await callModel({ model, system: 'Reply with the single word: ok', messages: [{ role: 'user', content: 'ping' }], maxTokens: 8 });
-    audit('user', req.user.email, 'health.model_probe', { model, ms: Date.now() - t0 });
-    return res.json({ ok: true, ms: Date.now() - t0, model });
+    return res.json(await recorded(async () => {
+      const t0 = Date.now();
+      await callModel({ model, system: 'Reply with the single word: ok', messages: [{ role: 'user', content: 'ping' }], maxTokens: 8 });
+      audit('user', req.user.email, 'health.model_probe', { model, ms: Date.now() - t0 });
+      return { ok: true, ms: Date.now() - t0, model };
+    }));
   }
   if (surface === 'hubspot') {
-    const opsrunner = require('./hubspot/opsrunner');
-const mcp = require('./mcp/client');
-    const result = await opsrunner.probe(req.user.email);
-    return res.json(result);
+    return res.json(await recorded(() => opsrunner.probe(req.user.email)));
   }
   if (surface.startsWith('mcp:')) {
-    const mcp = require('./mcp/client');
-    const result = await mcp.probeServer(surface.slice(4));
-    return res.json(result);
+    return res.json(await recorded(() => mcp.probeServer(surface.slice(4))));
   }
-  const result = await workspace.probeSurface(req.user.email, surface);
-  res.json(result);
+  res.json(await recorded(() => workspace.probeSurface(req.user.email, surface)));
 }));
 
 router.post('/google/disconnect', (req, res) => {
@@ -443,8 +464,10 @@ router.post('/mcp/servers/:id/probe', auth.requireOwner, asyncRoute(async (req, 
   try {
     const result = await mcp.probeServer(row.name);
     const tools = await mcp.discoverTools(row.name);
+    probestate.record(`mcp:${row.name}`, result); // admin probes are lamp evidence too
     res.json({ ok: true, ms: result.ms, tools });
   } catch (err) {
+    probestate.record(`mcp:${row.name}`, { ok: false, error: err.message || err });
     res.status(502).json({ error: String(err.message || err) });
   }
 }));
