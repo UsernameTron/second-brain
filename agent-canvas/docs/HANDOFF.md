@@ -1,10 +1,66 @@
-# Agent Canvas — Session Handoff (2026-08-14, mid-day)
+# Agent Canvas — Session Handoff (2026-08-14, evening)
 
-Fresh-context orientation for the next session. Everything here was true at
-handoff time; verify anything load-bearing with a probe or a gcloud describe
-before depending on it.
+Fresh-context orientation. Verify anything load-bearing with a probe before
+depending on it. **The single current-state block is directly below; every
+`## START HERE`/`## Superseded` block further down is prior-session history,
+kept for the reasoning, not the status.**
 
-## START HERE (2026-08-14, final) — live and verified on `agent-canvas-00031-mpk`
+## CURRENT STATE (2026-08-14 evening — start here, ignore the older START HEREs)
+
+**Live:** `agent-canvas-00032-ss4`, tests **130/130** on master
+(`d1b9ba0`). The portfolio fold-in is deployed and verified end-to-end; the
+Radar polling-burn fix is deployed and smoke-tested.
+
+**Done and verified this session (nine PRs, #121–#132):**
+- Waves 1–3 folded in: `sr-icp-leadfinder` connector (probed 3 tools),
+  enrichment client lane (built, **not lit** — see Held), context registries
+  (`read_registry`: suppliers + org-context), all hardening + review fixes.
+- Radar now returns **hot leads only (≥0.75) with per-lead `why`**, polls
+  bounded (1 check + ≤2 `wait`s then park), and `complete` can say
+  `incomplete`. Smoke run returned 100 hot leads, no spin. **Caveat:** that run
+  cost ~$1.56/~280k tokens — the empty-spin is gone but Radar isn't *cheap*;
+  making it cheap needs prompt caching + message-array trimming (open, below).
+- `hubspot-crm` connector: 14 read tools live; 7 write tools were refused and
+  the config converged (green). Writes stay on the ops-runner lane (ADR-0041).
+
+**Resolved:** GTM was **never blocked** — the "#130 perimeter" was a crossed
+local gcloud credential (pete@ label holding gmail's refresh token; only
+`tokeninfo` reveals it). pete@ has Data Owner on `ctg_gtm_marts`; `bq show`
+succeeds. See `tasks/lessons.md` (GCP-identity).
+
+**HELD by decision (do not light without Pete):** the enrichment lane.
+`ED_DISPATCH_URL` is unset on purpose — Pete's GCP findings register (F-01/F-07)
+flags the agent-canvas→`enrichment-dispatch`→`ctg-hs-exec-tool` chain as a
+production exposure, and F-01/F-02 are open during funding diligence. The
+invoker grant Pete made is inert while the URL is unset. Hold until F-01 closes.
+
+**Open, ranked (next session's menu — none blocking):**
+1. **Build the GTM named-query bridge** — now unblocked (pete@ has marts
+   access). Spec in PORTFOLIO-FOLD-IN.md; ~150-line Streamable-HTTP MCP over 4
+   named marts queries, `bigquery.jobUser` on the canvas project +
+   dataset-scoped `dataViewer` on `ctg_gtm_marts` ONLY (never raw).
+2. **Make Radar cheap** — prompt caching + cap/trim the message array
+   (IMPROVE-FINDINGS finding 8 + the survey's token-amplifier notes). Biggest
+   cost lever on the whole product, not just Radar.
+3. **Light the enrichment lane** — only after F-01 closes; one
+   `ED_DISPATCH_URL=https://enrichment-dispatch-874411154198.us-central1.run.app`
+   + redeploy. If dark after: check audience claim + runtime SA, not IAM.
+4. **SOI** ([WAVE2-SOI-RUNBOOK.md](WAVE2-SOI-RUNBOOK.md)) and **Wave 3 upstream
+   ICP v6** (needs a push to `peteconnorCTG`) remain as previously scoped.
+5. **IMPROVE-FINDINGS.md** still lists findings 8/10/13 open (lamps-from-config,
+   verifyChain per-poll cost, `/intent` budget gate) with their reasoning.
+
+**Not mine to touch:** the GCP findings register (F-01/02/03/09) is IAM +
+org-policy remediation owned by Connor/Jessica; F-06 says security work needs a
+signed RoE first. One agent-canvas-adjacent note for whoever closes F-03: the
+`hubspot-mcp-bridge` runs as the default compute SA — same finding, same fix.
+
+**Deploy = the "Redeploy procedure" block below**, unchanged, from a local Mac
+with `gcloud` as a token-verified pete@ (`tokeninfo`, not `auth list`).
+
+---
+
+## START HERE (2026-08-14, earlier) — live and verified on `agent-canvas-00031-mpk`
 
 The fold-in is **live**. Full verification bar passed on Wave 1's connector
 row, the hardening pass, and the two context registries: 124/124, deployed,
