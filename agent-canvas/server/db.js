@@ -331,6 +331,15 @@ try { db.exec('ALTER TABLE runs ADD COLUMN initiated_by TEXT'); } catch { /* alr
 try { db.exec("ALTER TABLE users ADD COLUMN theme TEXT NOT NULL DEFAULT 'light'"); } catch { /* already present */ }
 try { db.exec('ALTER TABLE canvases ADD COLUMN archived INTEGER NOT NULL DEFAULT 0'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE agents ADD COLUMN roster_id TEXT'); } catch { /* already present */ }
+// Wave 3: typed/scoped/temporal memory. Enum validation lives in memory.js
+// (SQLite can't retro-add CHECK constraints); canvas_id stays the security
+// boundary — applies_to_* is retrieval applicability only, never access control.
+try { db.exec('ALTER TABLE memory_entries ADD COLUMN kind TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE memory_entries ADD COLUMN subject TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE memory_entries ADD COLUMN applies_to_type TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE memory_entries ADD COLUMN applies_to_id TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE memory_entries ADD COLUMN effective_at TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE memory_entries ADD COLUMN review_at TEXT'); } catch { /* already present */ }
 
 // ===== Agent roster: workspace-level template library (owner-managed) =====
 // Canvas agents instantiated from a roster entry carry roster_id for

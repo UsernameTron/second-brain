@@ -175,3 +175,77 @@ test('taint short-circuit: taint flags identical before and after the no-correct
   const lc = listed.find((e) => e.id === c.id);
   assert.equal(lc.tainted, true, 'downstream of a correction is still flagged tainted');
 });
+
+test('typed memory: kind/applies_to enums validated, old untyped rows fully readable (wave 3)', () => {
+  assert.throws(() => write('bad kind', 'inference').id && memory.writeEntry({
+    canvasId: CANVAS, content: 'x', epistemic: 'inference', authorType: 'agent', authorId: 'agent-1', kind: 'vibe',
+  }), /kind must be one of/);
+  assert.throws(() => memory.writeEntry({
+    canvasId: CANVAS, content: 'x', epistemic: 'inference', authorType: 'agent', authorId: 'agent-1', appliesToType: 'planet',
+  }), /applies_to_type/);
+  assert.throws(() => memory.writeEntry({
+    canvasId: CANVAS, content: 'x', epistemic: 'inference', authorType: 'agent', authorId: 'agent-1', appliesToId: 'a1',
+  }), /applies_to_id requires/);
+
+  // Untyped write (the pre-wave-3 shape) round-trips with null typed fields.
+  const untyped = write('legacy untyped entry epsilon-token', 'inference');
+  assert.equal(untyped.kind, null);
+  assert.equal(untyped.subject, null);
+  const listed = memory.listEntries({ canvasId: CANVAS, query: 'epsilon-token' });
+  assert.ok(listed.some((e) => e.id === untyped.id), 'untyped entries remain retrievable');
+
+  // Typed write round-trips.
+  const typed = memory.writeEntry({
+    canvasId: CANVAS, content: 'acme is mid-market zeta-token', epistemic: 'inference',
+    authorType: 'agent', authorId: 'agent-1', source: 'test',
+    kind: 'decision', subject: 'Acme Corp', appliesToType: 'canvas', appliesToId: CANVAS, reviewAt: '2026-09-01T00:00:00Z',
+  });
+  assert.equal(typed.kind, 'decision');
+  assert.equal(typed.reviewAt, '2026-09-01T00:00:00Z');
+
+  // kind + case-insensitive subject filters
+  const byKind = memory.listEntries({ canvasId: CANVAS, kind: 'decision' });
+  assert.ok(byKind.some((e) => e.id === typed.id) && !byKind.some((e) => e.id === untyped.id));
+  const bySubject = memory.listEntries({ canvasId: CANVAS, subject: 'acme corp' });
+  assert.ok(bySubject.some((e) => e.id === typed.id));
+});
+
+test('applicability filter: untyped and global entries always qualify; scoped entries only in scope (wave 3)', () => {
+  const untyped = write('untyped applicability eta-token', 'inference');
+  const global = memory.writeEntry({
+    canvasId: CANVAS, content: 'global rule theta-token', epistemic: 'verified',
+    authorType: 'user', authorId: 'pete', appliesToType: 'global',
+  });
+  const agentScoped = memory.writeEntry({
+    canvasId: CANVAS, content: 'agent-only note iota-token', epistemic: 'inference',
+    authorType: 'agent', authorId: 'agent-1', appliesToType: 'agent', appliesToId: 'agent-1',
+  });
+  const inScope = memory.listEntries({ canvasId: CANVAS, appliesToType: 'agent', appliesToId: 'agent-1' });
+  assert.ok([untyped.id, global.id, agentScoped.id].every((id) => inScope.some((e) => e.id === id)));
+  const outOfScope = memory.listEntries({ canvasId: CANVAS, appliesToType: 'agent', appliesToId: 'agent-2' });
+  assert.ok(!outOfScope.some((e) => e.id === agentScoped.id), 'other agents do not retrieve agent-1-scoped entries');
+  assert.ok(outOfScope.some((e) => e.id === global.id), 'global entries qualify everywhere');
+});
+
+test('a correction inherits the corrected entry\'s typed fields unless overridden (wave 3)', () => {
+  const typed = memory.writeEntry({
+    canvasId: CANVAS, content: 'typed base kappa-token', epistemic: 'inference',
+    authorType: 'agent', authorId: 'agent-1', kind: 'constraint', subject: 'budget',
+  });
+  const { entry: corrected } = memory.correctEntry({
+    entryId: typed.id, content: 'typed base kappa-token (corrected)', epistemic: 'inference',
+    reason: 'test', authorType: 'user', authorId: 'pete',
+  });
+  assert.equal(corrected.kind, 'constraint');
+  assert.equal(corrected.subject, 'budget');
+});
+
+test('migrations are idempotent: a second boot on the same database succeeds (wave 3)', () => {
+  const { execFileSync } = require('node:child_process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-boot-'));
+  const boot = () => execFileSync(process.execPath, ['-e', "require('./server/db'); console.log('booted')"], {
+    cwd: path.join(__dirname, '..'), env: { ...process.env, DATA_DIR: dir }, encoding: 'utf8',
+  });
+  assert.match(boot(), /booted/);
+  assert.match(boot(), /booted/, 'second boot over an already-migrated database');
+});

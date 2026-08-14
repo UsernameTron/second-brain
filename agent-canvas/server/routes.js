@@ -730,6 +730,8 @@ router.get('/canvases/:canvasId/memory', auth.requireCanvas, (req, res) => {
     canvasId: req.params.canvasId,
     includeSuperseded: qstr(req.query.include_superseded) === '1',
     epistemic: qstr(req.query.epistemic),
+    kind: qstr(req.query.kind),
+    subject: qstr(req.query.subject),
     since: qstr(req.query.since),
     query: qstr(req.query.q),
     limit: qstr(req.query.limit),
@@ -738,12 +740,13 @@ router.get('/canvases/:canvasId/memory', auth.requireCanvas, (req, res) => {
 });
 
 router.post('/canvases/:canvasId/memory', auth.requireCanvas, (req, res) => {
-  const { content, epistemic, source = '', cites = [] } = req.body;
+  const { content, epistemic, source = '', cites = [], kind = null, subject = null, applies_to_type = null, applies_to_id = null, effective_at = null, review_at = null } = req.body;
   try {
     const entry = memory.writeEntry({
       canvasId: req.params.canvasId, content, epistemic,
       authorType: 'user', authorId: req.user.email, authorName: req.user.name || req.user.email,
       source, cites,
+      kind, subject, appliesToType: applies_to_type, appliesToId: applies_to_id, effectiveAt: effective_at, reviewAt: review_at,
     });
     bus.emit('event', { type: 'memory_write', canvasId: req.params.canvasId, entry });
     res.json({ entry });

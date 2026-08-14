@@ -54,6 +54,9 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
         <EpiDot epistemic={entry.epistemic} />
         <span className="epi-label">{entry.epistemic}</span>
         {typeof depth === 'number' ? <span className="chip depth-chip mono">depth {depth}</span> : null}
+        {entry.kind ? <span className="chip kind-chip">{entry.kind}</span> : null}
+        {entry.subject ? <span className="chip subject-chip">{entry.subject}</span> : null}
+        {entry.reviewAt ? <span className="chip review-chip mono" title="scheduled re-verification">review {entry.reviewAt.slice(0, 10)}</span> : null}
         {entry.tainted ? <span className="tainted-flag">⚠ built on corrected info</span> : null}
         {superseded ? <span className="chip superseded-chip">superseded</span> : null}
         {entry.supersedes ? <span className="chip correction-chip">correction</span> : null}
@@ -123,6 +126,7 @@ export default function MemoryPanel({
 }) {
   const [lineage, setLineage] = useState(null); // {entryId, data|null}
   const [filter, setFilter] = useState('');
+  const [kindFilter, setKindFilter] = useState('');
 
   const trace = (entryId) => {
     setLineage({ entryId, data: null });
@@ -185,9 +189,10 @@ export default function MemoryPanel({
     );
   }
 
-  const visible = filter
-    ? entries.filter((e) => (e.content || '').toLowerCase().includes(filter.toLowerCase()))
-    : entries;
+  const visible = entries
+    .filter((e) => !filter || (e.content || '').toLowerCase().includes(filter.toLowerCase())
+      || (e.subject || '').toLowerCase().includes(filter.toLowerCase()))
+    .filter((e) => !kindFilter || e.kind === kindFilter);
 
   return (
     <Panel
@@ -201,12 +206,20 @@ export default function MemoryPanel({
       }
     >
       <Legend />
-      <input
-        className="mem-filter"
-        placeholder="filter entries…"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-      />
+      <div className="mem-filter-row">
+        <input
+          className="mem-filter"
+          placeholder="filter entries…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+        <select className="mem-kind-filter" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} title="Filter by kind">
+          <option value="">all kinds</option>
+          {['fact', 'decision', 'preference', 'constraint', 'outcome', 'feedback'].map((k) => (
+            <option key={k} value={k}>{k}</option>
+          ))}
+        </select>
+      </div>
       {visible.length === 0 ? (
         <div className="empty-hint">
           {entries.length === 0 ? 'No memory yet — agents write here as they work.' : 'Nothing matches that filter.'}
