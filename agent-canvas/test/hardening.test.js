@@ -102,6 +102,7 @@ test('mutating connector tools are refused, and read tools are untouched', () =>
     'find_icp_leads', 'check_lead_search', 'org_knowledge_search', 'ping',
     'get_created_deals', 'read_updates_feed', 'hubspot-batch-read-objects',
     'obsidian_batch_get_file_contents', 'get_post', 'search_post', 'get_archive',
+    'gtm_account_lookup', 'gtm_tier_list', 'gtm_enrichment_spend', 'gtm_dq_snapshot',
   ]) {
     assert.equal(mcp.isMutatingToolName(name), false, `${name} is a read tool and must survive`);
   }

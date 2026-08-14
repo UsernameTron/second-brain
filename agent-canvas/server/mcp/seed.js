@@ -17,7 +17,7 @@
 // hubspot-mcp-bridge service (Phase 3): stdio-only servers need that bridge,
 // and seeding a dead URL would just be a red lamp.
 //
-// The seed key is versioned (seed_mcp_v2) because `name` is UNIQUE and the
+// The seed key is versioned (seed_mcp_v3) because `name` is UNIQUE and the
 // insert is OR IGNORE: bumping the key re-runs the loop on an already-seeded
 // workspace, where existing rows are ignored and only new ones land. Adding a
 // connector is therefore "append to SEED_SERVERS + bump the key", nothing else.
@@ -60,10 +60,22 @@ const SEED_SERVERS = [
     access: 'members',
     roles: ['research', 'targeting', 'commercial'],
   },
+  {
+    // gtm-mcp-bridge (in-repo sibling dir): 4 named BigQuery queries over
+    // ctg-hs-exec-tool:ctg_gtm_marts — account lookup/tier list, enrichment
+    // spend, DQ snapshot. IAM-gated Cloud Run, canvas SA sole invoker, hence
+    // ${GCP_IDTOKEN}. Marts are aggregate company-level data (no PII), so
+    // members + the lead-gen lanes, matching sr-icp-leadfinder.
+    name: 'gtm-marts',
+    url: 'https://gtm-mcp-bridge-1072020835166.us-central1.run.app/gtm',
+    headers: { authorization: '${GCP_IDTOKEN}' },
+    access: 'members',
+    roles: ['research', 'targeting', 'commercial'],
+  },
 ];
 
 function seedMcpServers() {
-  if (getSetting('seed_mcp_v2')) return { seeded: false };
+  if (getSetting('seed_mcp_v3')) return { seeded: false };
   const ts = nowIso();
   let inserted = 0;
   for (const srv of SEED_SERVERS) {
@@ -71,7 +83,7 @@ function seedMcpServers() {
       .run(crypto.randomUUID(), srv.name, srv.url, JSON.stringify(srv.headers), '[]', srv.access, JSON.stringify(srv.roles), ts, ts);
     inserted += res.changes;
   }
-  setSetting('seed_mcp_v2', ts);
+  setSetting('seed_mcp_v3', ts);
   // Report what actually landed, not the constant's length — on an
   // already-seeded workspace most of these are no-ops and an audit line
   // claiming otherwise is a lamp faking green.
