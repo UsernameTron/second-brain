@@ -1,16 +1,20 @@
 # START HERE — next session pickup
-_Vault/memory-pipeline sections written 2026-07-31. Agent Canvas section added 2026-08-13._
+_Vault/memory-pipeline sections written 2026-07-31. Agent Canvas section updated 2026-08-14._
 
 > ## Two workstreams live in this repo — pick the right one
 >
-> **1. Agent Canvas (ACTIVE as of 2026-08-13)** — `agent-canvas/`, a deployed
-> Cloud Run product for cloudtechgurus.com, independent of the vault and the
-> memory pipeline. **Its handoff is the authority:
-> [agent-canvas/docs/HANDOFF.md](agent-canvas/docs/HANDOFF.md) — start there,
-> not here.** One-line state: the Agent Roster is live on revision
-> `00023-xhf`; branch `claude/agent-canvas-roster-heal` is pushed and green
-> but its PR still needs opening (this environment's proxy blocks GitHub API
-> writes), then a redeploy to heal pre-roster content in the live database.
+> **1. Agent Canvas (ACTIVE)** — `agent-canvas/`, a deployed Cloud Run
+> product for cloudtechgurus.com, independent of the vault and the memory
+> pipeline. **Its handoff is the authority:
+> [agent-canvas/docs/HANDOFF.md](agent-canvas/docs/HANDOFF.md) — start
+> there, not here; do not trust the one-liner below to stay current.**
+> One-line state (2026-08-14): Agent Roster heal (PR #106) and the MCP
+> Connectors platform (PR #108) are both MERGED to master. Live-deploy
+> status is unconfirmed as of this writing — the handoff's START HERE says
+> exactly what to check first. Also documented there: a **known
+> environment gotcha** where network/GitHub-write policy changes only take
+> effect in a genuinely new session, not a resumed one — read it before
+> concluding a policy setting didn't take.
 >
 > **2. Second Brain vault + memory pipeline** — everything below this block.
 > Last touched 2026-07-31; the P1-P8 task list is still accurate and still
