@@ -83,6 +83,17 @@ test('every roster prompt carries the guard; no excluded vendor is ever named; R
   assert.match(radar.system_prompt, /sr-icp-v5/);
   assert.match(radar.system_prompt, /industry_weight × title-tier multiplier/, 'arithmetic model stated');
   assert.match(radar.system_prompt, /SVP and every level below stay ×1\.0/, 'SVP carve-out explicit');
+
+  // Hot-leads-only behavior (operator directive 2026-08-14).
+  const hot = roster.HOT_MIN_SCORE;
+  assert.equal(hot, 0.75, 'hot cutoff is the agreed 0.75');
+  assert.ok(radar.system_prompt.includes(`min_score: ${hot}`), 'Radar is told to pass the hot cutoff to the search');
+  assert.ok(radar.system_prompt.includes(`at or above ${hot}`), 'and to drop everything below it when reporting');
+  assert.match(radar.system_prompt, /"why"[\s\S]*not optional/, 'every reported lead must carry its score breakdown');
+  // Bounded polling, not a spin loop, and an honest incomplete when the async
+  // job outlives the run — the two defects behind the $0.92 burn.
+  assert.match(radar.system_prompt, /After TWO waits, STOP/i, 'polling is bounded');
+  assert.match(radar.system_prompt, /outcome "incomplete"/, 'an unfinished search is filed incomplete, never as done');
 });
 
 test('the seeded ICP companion note round-trips to the committed registry file', () => {

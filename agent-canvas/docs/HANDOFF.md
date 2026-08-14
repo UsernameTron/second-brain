@@ -742,65 +742,58 @@ superseded text to that file rather than loosening the match.
    console.anthropic.com. Still open: billing-swap verification (item 1), the
    2.1 MB mascot could be downsized to ~512px for a lighter sign-in page, and
    Dependabot alert #14 (1 high) on master.
-8. **ctg-hs-exec-tool / ctg-workspace-dev CLI denial — DIAGNOSED 2026-08-14. It is a
-   perimeter, not a role gap, and no grant fixes it.** This item carried a
-   guess for days; here is the evidence that settles it.
+8. **ctg-hs-exec-tool / ctg-workspace-dev CLI denial — the "perimeter"
+   diagnosis (PR #130) was WRONG. Corrected 2026-08-14 evening. Root cause is
+   identity, and pete@'s access is UNTESTED from this Mac, not denied.**
 
-   `gcloud projects get-iam-policy` confirms pete@cloudtechgurus.com holds
-   **`roles/owner` AND `roles/run.admin`** on `ctg-hs-exec-tool`, and
-   **`roles/owner`** on `ctg-workspace-dev`. With those roles, IAM cannot deny
-   `run.services.list`. Yet from this Mac, on `ctg-hs-exec-tool`, pete@ is
-   denied **every service API tried**: Cloud Run
-   (`run.services.list`, `run.services.getIamPolicy`), Service Usage
-   (`services.list`), Secret Manager (`secrets.list`), Logging
-   (`logging.logs.list`), IAM (`service-accounts.list`), Storage
-   (`storage.buckets.list`) and BigQuery (`datasets.get`, `jobs.create`) —
-   while **Resource Manager works**: `projects get-iam-policy` returns, and
-   `projects add-iam-policy-binding` successfully wrote (and then removed) a
-   binding.
+   PR #130 claimed a VPC-SC perimeter blocking every service API for pete@. It
+   is withdrawn. `tokeninfo` on the token from `gcloud auth print-access-token
+   --account pete@cloudtechgurus.com` — the *active* account — resolves to
+   **`cpeteconnor@gmail.com`**, and so does the gmail account's. **Both
+   accounts mint a gmail-identity token; this Mac's gcloud cannot produce a
+   pete@ token at all** (gmail was the bootstrap identity and holds the only
+   usable stored credential here).
 
-   Resource Manager allowed + every data-plane API denied + owner held is the
-   signature of a **VPC Service Controls perimeter** (or an org-level deny
-   policy) around those projects, exempting the IAM control plane. Ruled out
-   previously and still ruled out: stale quota project, billing, ownership.
+   So every "as pete@" CLI probe behind #130 — the `run.services.list` 403s,
+   the `datasets.get` 403, the "zero datasets" — actually **ran as gmail**.
+   Gmail holds `roles/owner` on `agent-canvas-ctg-0811` but need hold *nothing*
+   on these two org projects, so "403 on every service API" is the mundane
+   "gmail isn't authorized here" — **not** a perimeter, **not** an anomaly.
+   pete@ — who does hold owner — was never actually tested from the CLI.
 
-   **Consequences, which are the useful part:**
-   - Nothing that needs Cloud Run, BigQuery, Secret Manager or Service Usage
-     on those two projects can be done from a local CLI — by anyone, with any
-     role. Stop trying to fix it with grants.
-   - The **Cloud Console is the working surface** and always has been; that is
-     how the ops-runner invoker grant was made (item 2 above).
-   - **Cloud Shell** is the decisive confirmation if anyone wants it: it runs
-     inside Google's trusted context, so if `gcloud run services list
-     --project ctg-hs-exec-tool` works there and not here, the perimeter
-     conclusion is proven rather than inferred.
-   - This is the single root cause behind **three** separate blocked items —
-     the enrichment lane's invoker grant, the GTM `dataViewer` grant, and the
-     SOI deploy. One console session clears all three.
+   **What is true:**
+   - This Mac's gcloud/bq cannot act as pete@. Do not cite any local CLI 403 as
+     evidence about pete@'s access; it is gmail's.
+   - The **console and Cloud Shell, signed in as pete@**, are the only surfaces
+     that test pete@'s real access — and the console is how the ops-runner
+     invoker grant was already made (item 2).
+   - The enrichment invoker grant, the GTM dataViewer question, and the SOI
+     deploy are all still owner-actions to do in the console as pete@. They
+     were never proven blocked *by a perimeter* — that framing was an artifact
+     of the identity bug.
 
    **A correction worth recording, because the rule it broke is a named hard
    rule.** While attempting the GTM grant this session, a **project-level**
-   `roles/bigquery.dataViewer` binding was added to `ctg-hs-exec-tool` for
-   pete@. That is precisely the shortcut-grant the fold-in spec forbids — it
-   reads every dataset including `ctg_gtm_raw`, which holds 44k people's
-   emails and phones — and the spec's wording is "per-dataset `dataViewer` on
-   `ctg_gtm_marts` ONLY … never shortcut-grant raw". It was removed within the
-   same minute and its absence verified (`get-iam-policy` filtered on that
-   role returns nothing). The dataset-scoped grant that *should* have been
-   used was then attempted and is itself denied by the perimeter above, which
-   is why GTM remains blocked. No data was read at any point: the only
-   BigQuery calls made were `datasets.get` and `INFORMATION_SCHEMA` probes,
-   all of which returned Access Denied.
+   `roles/bigquery.dataViewer` binding was briefly added to `ctg-hs-exec-tool`
+   for pete@ — precisely the shortcut-grant the fold-in spec forbids (it reads
+   `ctg_gtm_raw`, 44k people's emails and phones; the spec says per-dataset on
+   `ctg_gtm_marts` ONLY, never shortcut-grant raw). Removed within the minute,
+   absence verified. **No data was read at any point** — every BigQuery call
+   this session returned Access Denied (and, per the above, as gmail).
 
-9. **ctg-hs-exec-tool CLI mystery — superseded by item 8's diagnosis.**
-   Every `gcloud run` / `gcloud services` call against that project is denied
-   from Pete's Mac for BOTH identities even though pete@ is roles/owner and
-   billing is healthy; the console works fine (that is how the Invoker grant
-   was made). Ruled out: quota-project (unset, no change), billing, ownership.
-   Remaining suspect: an org policy or context-aware access rule that treats
-   external CLI clients differently. Cheapest probe: run the same command in
-   **Cloud Shell** (console → `>_`), which runs inside Google's trusted
-   context. If it works there, it is a perimeter rule, not a project defect.
+   **GTM is UNTESTED, not blocked.** Pete's own diagnosis is unrefuted: a
+   dataset-level `dataOwner` grants `datasets.get` but not project-scoped
+   `datasets.list`, so the console (dataset ACL) and a `list` call answer
+   different questions. The one call that settles it must run **as pete@**:
+   `bq show ctg-hs-exec-tool:ctg_gtm_marts` in Cloud Shell. Succeeds → GTM is
+   not blocked and the bridge can be built. 403s → the console shows a binding
+   not in effect; screenshot it.
+
+9. **This bit twice — see `tasks/lessons.md`.** The same two-identity trap
+   produced both a wrong "bq denies pete@" reading (bq/ADC → gmail) and the
+   wrong #130 perimeter diagnosis. Rule now recorded: never cite a gcloud/bq
+   403 as evidence about pete@ without `tokeninfo`-confirming the token's
+   `email` first — `--account` does not guarantee the minted identity here.
 9. **Parked idea — let Claude close/merge PRs directly.** The GitHub MCP tools
    were unavailable for stretches of 2026-08-13, so PR housekeeping fell to
    manual clicks. A `Bash(curl https://api.github.com/*)` allow-rule in

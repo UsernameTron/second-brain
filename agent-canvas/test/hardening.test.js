@@ -248,3 +248,70 @@ test('the refused first pass is metered, not billed silently', async () => {
     assert.equal(after - before, 1000, 'both passes counted — the refused one was billed too');
   } finally { restore(); }
 });
+
+// ---------- wait tool + honest complete (the polling-burn fixes) ----------
+
+const { executeTool } = require('../server/orchestrator/tools');
+
+function toolCtx(overrides = {}) {
+  return {
+    run: { id: 'r-tool', initiated_by: 'pete@cloudtechgurus.com', steps_used: 1, instruction: 'do it' },
+    agent: { id: 'a-run', role: 'targeting', name: 'Radar' },
+    canvas: { id: CANVAS },
+    ...overrides,
+  };
+}
+
+test('wait pauses briefly, clamps its bound, and is interruptible by pause', async () => {
+  // Clamp: 999 -> 30, 0 -> 1.
+  const t0 = Date.now();
+  const short = await executeTool('wait', { seconds: 1 }, toolCtx());
+  assert.match(short.content, /Waited 1s/);
+  assert.ok(Date.now() - t0 >= 950, 'actually waited');
+
+  // A pre-aborted signal returns immediately without sleeping — a paused
+  // workspace must not be held for the full duration.
+  const ac = new AbortController(); ac.abort();
+  const t1 = Date.now();
+  const paused = await executeTool('wait', { seconds: 30 }, toolCtx({ signal: ac.signal }));
+  assert.ok(paused.isError, 'a paused workspace refuses the wait');
+  assert.ok(Date.now() - t1 < 500, 'did not sleep 30s while paused');
+
+  // A signal that aborts mid-wait ends the sleep early.
+  const ac2 = new AbortController();
+  const t2 = Date.now();
+  setTimeout(() => ac2.abort(), 200);
+  await executeTool('wait', { seconds: 30 }, toolCtx({ signal: ac2.signal }));
+  assert.ok(Date.now() - t2 < 2000, 'pause mid-wait cut the sleep short');
+});
+
+test('complete outcome:incomplete ends failed and reaches the tray, not a false success', async () => {
+  db.prepare("INSERT INTO canvases (id, name, created_at) VALUES ('c-inc', 'Inc', ?)").run(nowIso());
+  db.prepare("INSERT INTO agents (id, canvas_id, name, role, created_at) VALUES ('a-inc', 'c-inc', 'Radar', 'targeting', ?)").run(nowIso());
+  const ctx = { run: { id: 'r-inc', initiated_by: 'pete@cloudtechgurus.com', steps_used: 2, instruction: 'find leads' }, agent: { id: 'a-inc', role: 'targeting', name: 'Radar' }, canvas: { id: 'c-inc' } };
+
+  const done = await executeTool('complete', { summary: 'found 5', outcome: 'done' }, ctx);
+  assert.equal(done.end.status, 'completed');
+
+  const inc = await executeTool('complete', { summary: 'search still running, job 56dc', outcome: 'incomplete' }, ctx);
+  assert.equal(inc.end.status, 'failed', 'incomplete maps onto the existing failed status, no new enum');
+  const esc = db.prepare("SELECT * FROM escalations WHERE run_id = 'r-inc'").get();
+  assert.ok(esc, 'an incomplete run parks itself in the human tray');
+  assert.match(esc.question, /could not finish/);
+
+  // Default outcome is done — an agent that omits it is not silently failed.
+  assert.equal((await executeTool('complete', { summary: 'x' }, ctx)).end.status, 'completed');
+});
+
+test('a run that produces no output at all ends failed, not a silent completed', async () => {
+  const runner = require('../server/orchestrator/runner');
+  // A model that returns end_turn with no text and does nothing — the silent stall.
+  const restore = runner._internal.setCallModel(async () => ({
+    content: [], stop_reason: 'end_turn', usage: { input_tokens: 5, output_tokens: 0 }, model: 'test',
+  }));
+  try {
+    const runId = queueRun();
+    await runner.executeRun(runId);
+    assert.equal(runRow(runId).status, 'failed', 'no text, no memory write, no output — not a success');
+  } finally { restore(); }
+});

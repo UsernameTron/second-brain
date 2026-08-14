@@ -73,8 +73,10 @@ const execSeed = seedExecCanvas(OWNER_EMAIL);
 recolorLegacyAgents();
 const roster = require('./roster');
 roster.seedRoster();
-// Heal first (refreshes pristine pre-roster prompts to the current template),
-// then link (stamps provenance on anything matching a template byte-for-byte).
+// Re-seed propagates a changed roster prompt to already-seeded workspaces
+// (seedRoster is one-shot); heal refreshes pristine pre-roster exec prompts;
+// link stamps provenance on anything matching a template byte-for-byte.
+roster.reseedRosterPrompts();
 roster.healExecAgents();
 roster.linkExecAgents();
 roster.supersedeStaleIcpMemory(OWNER_EMAIL);

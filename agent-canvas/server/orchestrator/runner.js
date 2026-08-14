@@ -96,7 +96,11 @@ async function executeRun(runId) {
     tools.push(webSearchToolFor(model, provider));
   }
   const messages = [{ role: 'user', content: run.instruction }];
-  const ctx = { run, agent, canvas, runEpoch };
+  // startedAt and the run's abort signal reach tools via ctx: the `wait` tool
+  // needs the signal to be interruptible by a global pause, and startedAt is
+  // otherwise unavailable to a tool (run.started_at is null on the row this
+  // loop SELECTed before writing it).
+  const ctx = { run, agent, canvas, runEpoch, signal: controller.signal, startedAt };
   let lastText = '';
   let lastWrite = '';
 
@@ -279,8 +283,13 @@ async function executeRun(runId) {
       // final act was writing its synthesis to memory used to show.
       const summary = turnText
         || (lastWrite ? `Wrote to memory: ${lastWrite.slice(0, 280)}` : '')
-        || lastText
-        || '(completed without a closing summary)';
+        || lastText;
+      // A run that produced text or wrote to memory and simply skipped
+      // complete() is a real completion missing its summary. A run that
+      // produced NOTHING — no text this turn, no text all run, no memory
+      // write — is a silent stall, and filing that as 'completed' is the same
+      // false-success the complete() outcome fix closes. Mark it honestly.
+      if (!summary) return finish('failed', { error: 'ended without producing any output', summary: '(no output — run stalled)' });
       return finish('completed', { summary });
     }
   } catch (err) {

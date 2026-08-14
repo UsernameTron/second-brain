@@ -160,3 +160,17 @@ before trusting any "N commits unmerged" report (same rule as
 LESSON-SQUASH-CONTENT-CHECK-01, which this re-confirms for rebase flows).
 
 Triggered by: 2026-07-26 enrichment-dispatch git-state sweep.
+
+- **[GCP-identity]**: Never cite a gcloud/bq 403 as evidence about one identity
+  without `tokeninfo`-confirming the token's actual `email` first. On this Mac,
+  `gcloud auth print-access-token --account pete@cloudtechgurus.com` mints a
+  token that resolves to `cpeteconnor@gmail.com` — the `--account` flag does NOT
+  guarantee the minted identity, because only the gmail bootstrap account has a
+  usable stored credential. `bq` via ADC does the same. Confirm with
+  `curl .../oauth2/v3/tokeninfo?access_token=$T` → `email`.
+  How to apply: any "pete@ is denied X" conclusion drawn from a local CLI 403 is
+  invalid unless tokeninfo showed pete@; otherwise it is gmail's denial, and
+  gmail holds nothing on the org projects (ctg-hs-exec-tool, ctg-workspace-dev).
+  Triggered by: 2026-08-14 — PR #130 wrongly diagnosed a "VPC-SC perimeter" from
+  gmail-identity 403s; the same trap earlier produced a wrong "bq denies pete@"
+  read. Both were the two-identity trap HANDOFF.md already warns about.

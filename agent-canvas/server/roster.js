@@ -49,6 +49,13 @@ const UNLESS_SENIOR = ICP.title_exclusions_unless_senior.join('/');
 
 const ICP_NOTE_TITLE = `ICP registry — ${ICP.icp_version}`;
 
+// "Hot" cutoff on the lead finder's own 0–1 score. A CTG decision, not a
+// registry export — the registry defines no band — so it lives here as a
+// named constant rather than being read from the ICP JSON, and interpolates
+// into the prompt the same way every other number does. 0.75 sits above the
+// tier-1-industry × cx_buyer midpoint; raise it for stricter, lower for wider.
+const HOT_MIN_SCORE = 0.75;
+
 // ---------- companion notes ----------
 const ROSTER_NOTES = {
   synthesis_protocol: { title: 'Synthesis protocol', content: PROTOCOL_NOTE, pinned: true },
@@ -162,7 +169,18 @@ PRIORITIES (ranked — every action must advance one):
 1. Correct scores — same inputs, same score, every time.
 2. Shown arithmetic — every scoring output displays the multiplication.
 3. Exact-list fidelity — titles, industries, and domains matched against the registry note, never from memory.
-4. Ranked, cited, version-stamped lists into memory.
+4. Hot leads only — surface the strong fits and drop the rest, every one carrying its "why".
+5. Ranked, cited, version-stamped lists into memory.
+
+HOT LEADS ONLY (what you return):
+- "Hot" means a fit score at or above ${HOT_MIN_SCORE}. When you call find_icp_leads, pass min_score: ${HOT_MIN_SCORE}. When you report, drop everything below it — do not lower the bar to fill a list. Zero hot leads is a real, correct answer: say so and say what you searched.
+- Report each hot lead with its name, title, company, LinkedIn, score, AND the "why" the search returns (the score breakdown). The "why" is not optional — a bare number cannot be acted on, and the same score can mean a perfect fit or a size mismatch depending on the breakdown.
+- The lead finder scores server-side against ${ICP.icp_version} on a 0–1 scale, so ${HOT_MIN_SCORE} is on that scale — state "scored against ${ICP.icp_version} (0–1)" so no one confuses it with your own arithmetic below, which can exceed 1.
+
+USING THE LEAD FINDER (find_icp_leads / check_lead_search — an async pair):
+- find_icp_leads starts a search and returns a job_id; it does NOT return leads. check_lead_search collects them, and answers "still running" until the search finishes (a few minutes).
+- Poll deliberately, never in a tight loop: call check_lead_search ONCE right after starting (a recent identical search returns instantly). Still running → call wait for ~20 seconds, then check again. After TWO waits, STOP.
+- If it is still running after two waits, do not spin and do not pretend you have leads. Write the job_id to memory, and call complete with outcome "incomplete" — say the deliverable is job <id>, collectable with one more check. A later run can collect it cheaply. Reporting a search as done when the results are not in is the one failure that is never acceptable here.
 
 SCORING MODEL (digest of ${ICP.icp_version} — the exact lists live in the canvas note "${ICP_NOTE_TITLE}"; read it with read_notes before scoring):
 - Score = industry_weight × title-tier multiplier × revenue-role factor × seat-band factor. Show the multiplication in every scoring output.
@@ -325,7 +343,51 @@ function supersedeStaleIcpMemory(ownerEmail) {
   return { superseded: corrected.length };
 }
 
+// ---------------------------------------------------------------------------
+// Roster-prompt re-seed. seedRoster() is one-shot (guarded, no upsert), so a
+// changed prompt in this file never reaches an already-seeded workspace — not
+// the roster_agents row, and not the live canvas agents. This closes that gap
+// the way the exec heal does, one layer up: it propagates a prompt change ONLY
+// where the stored text is byte-for-byte the previous template
+// (server/config/legacy-roster-prompts.json), which proves no human edited it.
+// An owner's hand-edited prompt is left exactly as-is.
+//
+// Versioned by settings key so each prompt change is a new bump
+// (seed_roster_prompts_vN), the same pattern as seed_mcp_vN. To ship a prompt
+// change: run scripts/snapshot-roster-prompts.js BEFORE editing (captures the
+// about-to-be-previous text), edit the prompt, bump the key below.
+const LEGACY_ROSTER_PROMPTS = require('./config/legacy-roster-prompts.json').prompts;
+const RESEED_KEY = 'seed_roster_prompts_v2';
+
+function reseedRosterPrompts() {
+  if (getSetting(RESEED_KEY)) return { updated: 0 };
+  const updated = [];
+  tx(() => {
+    for (const entry of ROSTER_AGENTS) {
+      const prev = LEGACY_ROSTER_PROMPTS[entry.name];
+      if (!prev || prev === entry.system_prompt) continue; // prompt unchanged for this agent
+      // Roster row: adopt the new text only if it still holds the old template
+      // (a PATCH via Admin → Roster would have changed it — leave that alone).
+      const row = db.prepare('SELECT id, system_prompt FROM roster_agents WHERE name = ?').get(entry.name);
+      if (row && row.system_prompt === prev) {
+        db.prepare('UPDATE roster_agents SET system_prompt = ?, updated_at = ? WHERE id = ?').run(entry.system_prompt, nowIso(), row.id);
+      }
+      // Live canvas agents: same byte-for-byte rule.
+      const stale = db.prepare('SELECT id, canvas_id FROM agents WHERE name = ? AND system_prompt = ?').all(entry.name, prev);
+      for (const agent of stale) {
+        db.prepare('UPDATE agents SET system_prompt = ? WHERE id = ?').run(entry.system_prompt, agent.id);
+        updated.push({ name: entry.name, agentId: agent.id, canvasId: agent.canvas_id });
+      }
+    }
+    setSetting(RESEED_KEY, nowIso());
+  });
+  if (updated.length) {
+    audit('system', 'seed', 'workspace.roster_reseed', { agents: updated.length, names: [...new Set(updated.map((u) => u.name))] });
+  }
+  return { updated: updated.length, detail: updated };
+}
+
 module.exports = {
-  ROSTER_AGENTS, ROSTER_NOTES, ICP, LEGACY_EXEC_PROMPTS, STALE_ICP_MEMORY,
-  seedRoster, linkExecAgents, healExecAgents, supersedeStaleIcpMemory, instantiateOnCanvas,
+  ROSTER_AGENTS, ROSTER_NOTES, ICP, LEGACY_EXEC_PROMPTS, LEGACY_ROSTER_PROMPTS, STALE_ICP_MEMORY, HOT_MIN_SCORE,
+  seedRoster, linkExecAgents, healExecAgents, reseedRosterPrompts, supersedeStaleIcpMemory, instantiateOnCanvas,
 };
