@@ -269,7 +269,7 @@ export function NotePanel({ note, task, onSave, onClose }) {
   );
 }
 
-export function SpendPanel({ spend, budget, isOwner, onSetBudget, onClose }) {
+export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onClose }) {
   const [budgetInput, setBudgetInput] = useState('');
   const pct = budget && budget.budget_usd > 0 ? Math.min(1, (budget.cost_usd || 0) / budget.budget_usd) : 0;
 
@@ -343,6 +343,28 @@ export function SpendPanel({ spend, budget, isOwner, onSetBudget, onClose }) {
           ))}
           {(spend?.perAgent || []).length === 0 ? (
             <tr><td colSpan="4" className="empty-hint">no agents</td></tr>
+          ) : null}
+        </tbody>
+      </table>
+
+      <h3>Agent analytics</h3>
+      <table className="spend-table">
+        <thead><tr><th>agent</th><th>done/fail/halt</th><th>avg run</th><th>esc</th><th>👍/👎</th></tr></thead>
+        <tbody>
+          {(analytics?.perAgent || []).map((row) => {
+            const esc = (analytics.escalations || []).find((e) => e.agent_id === row.agent_id);
+            return (
+              <tr key={row.agent_id}>
+                <td>{row.name}</td>
+                <td className="mono">{row.completed}/{row.failed}/{row.halted}</td>
+                <td className="mono">{row.avg_duration_ms ? `${Math.round(row.avg_duration_ms / 1000)}s` : '—'}</td>
+                <td className="mono">{esc ? `${esc.open}/${esc.total}` : '0/0'}</td>
+                <td className="mono">{row.feedback_up || 0}/{row.feedback_down || 0}</td>
+              </tr>
+            );
+          })}
+          {(analytics?.perAgent || []).length === 0 ? (
+            <tr><td colSpan="5" className="empty-hint">no analytics yet</td></tr>
           ) : null}
         </tbody>
       </table>
