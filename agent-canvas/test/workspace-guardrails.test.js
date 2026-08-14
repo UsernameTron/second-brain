@@ -375,3 +375,41 @@ test('agent system-prompt edits are owner-only and audited (finding 11)', async 
     assert.ok(audits.n >= 1, 'the owner edit is audited');
   } finally { server.close(); }
 });
+
+test('the enrichment lamp exists: planned when unwired, probe-evidence when wired', async () => {
+  const probestate = require('../server/probestate');
+  const prev = process.env.ED_DISPATCH_URL;
+  const express = require('express');
+  const app = express();
+  app.use(express.json());
+  app.use('/api', require('../server/routes'));
+  db.prepare("INSERT OR IGNORE INTO allowlist (email, role, display_name, added_by, added_at) VALUES ('pete@cloudtechgurus.com', 'owner', 'Pete', 'test', '')").run();
+  const server = app.listen(0);
+  await new Promise((r) => server.once('listening', r));
+  const port = server.address().port;
+  try {
+    const auth = await fetch(`http://127.0.0.1:${port}/api/auth/dev`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'pete@cloudtechgurus.com' }),
+    });
+    const cookie = auth.headers.get('set-cookie').split(';')[0];
+    const lamp = async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/api/health/integrations`, { headers: { cookie } });
+      return (await res.json()).integrations.find((i) => i.id === 'enrichment');
+    };
+    delete process.env.ED_DISPATCH_URL;
+    let e = await lamp();
+    assert.equal(e.status, 'planned', 'unwired lane is dark, never green');
+    process.env.ED_DISPATCH_URL = 'https://enrichment-dispatch.test.example';
+    e = await lamp();
+    assert.equal(e.status, 'attention', 'wired but unprobed is amber');
+    probestate.record('enrichment', { ok: true, ms: 33 });
+    e = await lamp();
+    assert.equal(e.status, 'ready');
+    assert.match(e.detail, /Probe OK \(33ms\)/);
+  } finally {
+    server.close();
+    probestate._state.delete('enrichment');
+    if (prev === undefined) delete process.env.ED_DISPATCH_URL; else process.env.ED_DISPATCH_URL = prev;
+  }
+});

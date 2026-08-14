@@ -243,6 +243,13 @@ router.get('/health/integrations', (req, res) => {
         ? `Wired to ctg-hs-ops-runner (sandbox portal 246460341 — real CRM unreachable by design). Reads free; changes preview-first, applied only after human approval.${provenStatus('hubspot').note}`
         : 'Not wired — set HS_OPS_RUNNER_URL and grant run.invoker to the canvas service account (see docs/DEPLOY.md).',
     },
+    {
+      id: 'enrichment', label: 'ENRICHMENT · DISPATCH', probe: require('./enrichment/dispatch').configured(),
+      status: require('./enrichment/dispatch').configured() ? provenStatus('enrichment').status : 'planned',
+      detail: require('./enrichment/dispatch').configured()
+        ? `Wired to enrichment-dispatch (IAM client, keyless). Reads free (get_enriched_record); paid enrichment spends real credits, research/targeting/commercial agents only, never on system-triggered runs.${provenStatus('enrichment').note}`
+        : 'Not wired — ED_DISPATCH_URL unset (held dark until the owner lights it; see HANDOFF).',
+    },
     ...(mcp.configError() ? [{
       id: 'mcp', label: 'MCP CONFIG',
       status: 'down',
@@ -302,6 +309,9 @@ router.post('/health/probe', rateLimit('probe'), asyncRoute(async (req, res) => 
   }
   if (surface === 'hubspot') {
     return res.json(await recorded(() => opsrunner.probe(req.user.email)));
+  }
+  if (surface === 'enrichment') {
+    return res.json(await recorded(() => require('./enrichment/dispatch').probe(req.user.email)));
   }
   if (surface.startsWith('mcp:')) {
     return res.json(await recorded(() => mcp.probeServer(surface.slice(4))));
