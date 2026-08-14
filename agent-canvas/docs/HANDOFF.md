@@ -148,8 +148,9 @@ recorded so the P1 roadmap branch starts from facts, not a stale handoff:**
   (peteconnorCTG/CTG_Signal_Detection_App#127, 2535 tests), canvas carries
   `config/icp-sr-icp-v6.json`, reseed v3 propagated prompts + the v6
   registry note to live canvases (audit `workspace.roster_reseed`, 13
-  updates; v5 note preserved). **Skew:** the fly.dev lead finder scores
-  sr-icp-v5 until re-exported; Radar's prompt says so.
+  updates; v5 note preserved). **Skew CLOSED 2026-08-14:** the fly.dev lead
+  finder was re-exported and now serves sr-icp-v6 (ping-verified); Radar's
+  prompt checks the live version rather than naming one.
 - **Enrichment lane LIT** (Pete released the F-01 hold in-session) —
   `ED_DISPATCH_URL` on the revision, ENRICHMENT · DISPATCH lamp on the
   board, invoker grant verified in live IAM. Reads free
@@ -538,11 +539,12 @@ instantiated copies carrying `roster_id` for provenance and resync.
 `EXEC_AGENTS` consts — exactly one copy of each prompt exists, so editing the
 seed edits the roster); Scout (research), Forge (build), Sentinel (review);
 **Gauge** (HubSpot ops, ships `enabled=0` — turn it on in Admin → Roster when
-you want CRM legwork); **Radar** (ICP scoring against sr-icp-v5).
+you want CRM legwork); **Radar** (ICP scoring against the committed
+registry — sr-icp-v6 since 2026-08-14).
 
 **Where things live.**
 - `server/roster.js` — the library, seeding, healing, instantiation.
-- `server/config/icp-sr-icp-v5.json` — the ctg-signal-radar ICP export
+- `server/config/icp-sr-icp-v6.json` — the ctg-signal-radar ICP export
   (source of truth `src/backend/icp_registry.py`). Radar's scoring digest is
   **interpolated from this file**, so the prompt cannot drift from the data.
   A fresh export is a new commit, not a live sync.
@@ -661,9 +663,12 @@ three tools (`ping`, `find_icp_leads`, `check_lead_search`), **no auth header
 of any kind**, so the row carries no `${ENV:…}` reference and needed no
 secret. `find_icp_leads`/`check_lead_search` are an async start/poll pair —
 an agent that calls the first and stops gets nothing; tell it to poll.
-Scoring caveat for prompts: that service scores server-side against
-**sr-icp-v5**, so once the canvas registry moves to v6 its results stay
-v5-scored until the service is re-exported.
+Scoring caveat for prompts: that service scores server-side against the
+registry baked into ITS deployment — **re-exported to sr-icp-v6 on
+2026-08-14**, so it currently matches the canvas. It can drift again the
+next time the canvas registry moves: re-deploy the fly.dev service, and
+note that Radar can only report the live version if the owner has ticked
+`ping` alongside the two search tools.
 
 Seeding pattern, now versioned: `name` is UNIQUE and the insert is
 `OR IGNORE`, so adding a connector is "append to `SEED_SERVERS` + bump the

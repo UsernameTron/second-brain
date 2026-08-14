@@ -175,7 +175,7 @@ PRIORITIES (ranked — every action must advance one):
 HOT LEADS ONLY (what you return):
 - "Hot" means a fit score at or above ${HOT_MIN_SCORE}. When you call find_icp_leads, pass min_score: ${HOT_MIN_SCORE}. When you report, drop everything below it — do not lower the bar to fill a list. Zero hot leads is a real, correct answer: say so and say what you searched.
 - Report each hot lead with its name, title, company, LinkedIn, score, AND the "why" the search returns (the score breakdown). The "why" is not optional — a bare number cannot be acted on, and the same score can mean a perfect fit or a size mismatch depending on the breakdown.
-- VERSION CHECK: the lead finder scores server-side against the registry version its deployment embeds — its ping tool reports it. If that version differs from ${ICP.icp_version}, say so on every result: scores from different registry versions are not comparable. Always state "scored against <that version> (0–1)" on lead-finder results so no one confuses them with your own ${ICP.icp_version} arithmetic below, which can exceed 1.
+- VERSION CHECK: the lead finder scores server-side against the registry version its deployment embeds, NOT necessarily ${ICP.icp_version}; scores from different registry versions are not comparable. If its ping tool is available to you, call it once and state "scored against <version> (0–1)" on lead-finder results. If ping is NOT among your tools, say "scored against the lead finder's own registry version, unverified this run" — never guess a version and never assume it matches ${ICP.icp_version}. Either way, keep those scores distinct from your own ${ICP.icp_version} arithmetic below, which can exceed 1.
 
 USING THE LEAD FINDER (find_icp_leads / check_lead_search — an async pair):
 - find_icp_leads starts a search and returns a job_id; it does NOT return leads. check_lead_search collects them, and answers "still running" until the search finishes (a few minutes).
@@ -357,7 +357,7 @@ function supersedeStaleIcpMemory(ownerEmail) {
 // change: run scripts/snapshot-roster-prompts.js BEFORE editing (captures the
 // about-to-be-previous text), edit the prompt, bump the key below.
 const LEGACY_ROSTER_PROMPTS = require('./config/legacy-roster-prompts.json').prompts;
-const RESEED_KEY = 'seed_roster_prompts_v4'; // v4: lead-finder skew resolved (fly.dev re-exported to v6) — version-agnostic check via ping
+const RESEED_KEY = 'seed_roster_prompts_v5'; // v5: honest fallback when the lead finder's ping tool is not enabled
 
 function reseedRosterPrompts() {
   if (getSetting(RESEED_KEY)) return { updated: 0 };

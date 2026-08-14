@@ -10,6 +10,12 @@
 //   2. edit the prompt in server/roster.js
 //   3. bump RESEED_KEY (seed_roster_prompts_vN) in server/roster.js
 //
+// Only ONE predecessor is kept, so the chain assumes every release actually
+// boots: a workspace that skips a release never matches the newer snapshot,
+// gets no update, and has the key marked done. Fine for a single Cloud Run
+// service deployed in order; if this ever ships to workspaces that can skip
+// versions, keep an ordered list of snapshots instead.
+//
 // Requiring roster.js only DEFINES the roster; it does not seed (that is
 // index.js), so this is safe to run against the working tree.
 
