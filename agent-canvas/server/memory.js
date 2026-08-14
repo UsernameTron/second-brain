@@ -121,6 +121,11 @@ function downstreamOf(entryId) {
 // All entries whose citation ancestry (transitively) includes a superseded
 // entry — i.e. entries built on information that has since been corrected.
 function taintedSet(canvasId) {
+  // No superseded entries → nothing can be tainted. Skips the recursive
+  // citation-graph walk in the common no-corrections case (IMPROVE finding:
+  // the walk ran on every listEntries call regardless).
+  const anySuperseded = db.prepare('SELECT 1 FROM memory_entries WHERE superseded_by IS NOT NULL LIMIT 1').get();
+  if (!anySuperseded) return new Set();
   const rows = db.prepare(`
     WITH RECURSIVE down(id) AS (
       SELECT c.entry_id FROM citations c
@@ -139,10 +144,32 @@ function taintedSet(canvasId) {
   return new Set(rows.map((r) => r.id));
 }
 
-function rowToEntry(row) {
+// Batch-fetch citation edges for a set of entry ids in two queries, instead
+// of two queries per row (IMPROVE finding: rowToEntry made listEntries O(2n)).
+function citeMapsFor(ids) {
+  const cites = new Map();
+  const citedBy = new Map();
+  if (!ids.length) return { cites, citedBy };
+  const marks = ids.map(() => '?').join(', ');
+  for (const r of db.prepare(`SELECT entry_id, cites_entry_id FROM citations WHERE entry_id IN (${marks})`).all(...ids)) {
+    if (!cites.has(r.entry_id)) cites.set(r.entry_id, []);
+    cites.get(r.entry_id).push(r.cites_entry_id);
+  }
+  for (const r of db.prepare(`SELECT entry_id, cites_entry_id FROM citations WHERE cites_entry_id IN (${marks})`).all(...ids)) {
+    if (!citedBy.has(r.cites_entry_id)) citedBy.set(r.cites_entry_id, []);
+    citedBy.get(r.cites_entry_id).push(r.entry_id);
+  }
+  return { cites, citedBy };
+}
+
+function rowToEntry(row, maps = null) {
   if (!row) return null;
-  const cites = db.prepare('SELECT cites_entry_id FROM citations WHERE entry_id = ?').all(row.id).map((r) => r.cites_entry_id);
-  const citedBy = db.prepare('SELECT entry_id FROM citations WHERE cites_entry_id = ?').all(row.id).map((r) => r.entry_id);
+  const cites = maps
+    ? (maps.cites.get(row.id) || [])
+    : db.prepare('SELECT cites_entry_id FROM citations WHERE entry_id = ?').all(row.id).map((r) => r.cites_entry_id);
+  const citedBy = maps
+    ? (maps.citedBy.get(row.id) || [])
+    : db.prepare('SELECT entry_id FROM citations WHERE cites_entry_id = ?').all(row.id).map((r) => r.entry_id);
   return {
     id: row.id,
     canvasId: row.canvas_id,
@@ -198,7 +225,8 @@ function listEntries({ canvasId, includeSuperseded = false, epistemic, since, qu
     ).all(...params, lim);
   }
   const tainted = taintedSet(canvasId);
-  return rows.map((row) => ({ ...rowToEntry(row), tainted: tainted.has(row.id) }));
+  const maps = citeMapsFor(rows.map((r) => r.id));
+  return rows.map((row) => ({ ...rowToEntry(row, maps), tainted: tainted.has(row.id) }));
 }
 
 function recordRunReads(runId, entryIds) {

@@ -144,3 +144,34 @@ test('tail verification catches tampering in the tail at O(K) cost (finding 10)'
   assert.equal(broken.ok, false);
   assert.equal(broken.reason, 'hash mismatch');
 });
+
+test('batched citation maps: listEntries returns the same cites/citedBy/taint as per-row reads (wave 0a perf)', () => {
+  const a = write('perf base fact alpha-unique-token', 'verified');
+  const b = write('perf derived fact beta-unique-token', 'inference', [a.id]);
+  // Batched path (listEntries) must match the per-row path (getEntry) exactly.
+  const listed = memory.listEntries({ canvasId: CANVAS, query: 'unique-token', limit: 50 });
+  const la = listed.find((e) => e.id === a.id);
+  const lb = listed.find((e) => e.id === b.id);
+  assert.ok(la && lb, 'both entries found via scored search');
+  assert.deepEqual(la.cites, memory.getEntry(a.id).cites);
+  assert.deepEqual(la.citedBy, memory.getEntry(a.id).citedBy);
+  assert.deepEqual(lb.cites, memory.getEntry(b.id).cites);
+  assert.deepEqual(lb.citedBy, memory.getEntry(b.id).citedBy);
+  assert.deepEqual(lb.cites, [a.id]);
+  assert.deepEqual(la.citedBy.includes(b.id), true);
+});
+
+test('taint short-circuit: taint flags identical before and after the no-corrections fast path (wave 0a perf)', () => {
+  // Correct the base entry so its downstream is genuinely tainted — the fast
+  // path must not swallow real taint, only skip the walk when nothing is superseded.
+  const a = write('taint base gamma-unique-token', 'inference');
+  const c = write('taint child delta-unique-token', 'inference', [a.id]);
+  const { entry: corrected } = memory.correctEntry({
+    entryId: a.id, content: 'taint base corrected', epistemic: 'inference', reason: 'test',
+    authorType: 'user', authorId: 'pete', authorName: 'Pete',
+  });
+  assert.ok(corrected);
+  const listed = memory.listEntries({ canvasId: CANVAS, query: 'delta-unique-token', limit: 50 });
+  const lc = listed.find((e) => e.id === c.id);
+  assert.equal(lc.tainted, true, 'downstream of a correction is still flagged tainted');
+});

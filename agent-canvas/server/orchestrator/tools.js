@@ -46,7 +46,7 @@ const COMMON_TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Keywords to search for (AND semantics). Empty returns most recent entries.' },
+        query: { type: 'string', description: 'Keywords to search for (scored match — entries matching more of your terms rank higher; at least half must hit). Empty returns most recent entries.' },
         epistemic: { type: 'string', enum: ['verified', 'inference', 'assumption'], description: 'Optional filter by epistemic state' },
         limit: { type: 'integer', description: 'Max entries to return (default 20)' },
       },
