@@ -75,11 +75,10 @@ local gcloud credential (pete@ label holding gmail's refresh token; only
 `tokeninfo` reveals it). pete@ has Data Owner on `ctg_gtm_marts`; `bq show`
 succeeds. See `tasks/lessons.md` (GCP-identity).
 
-**HELD by decision (do not light without Pete):** the enrichment lane.
-`ED_DISPATCH_URL` is unset on purpose — Pete's GCP findings register (F-01/F-07)
-flags the agent-canvas→`enrichment-dispatch`→`ctg-hs-exec-tool` chain as a
-production exposure, and F-01/F-02 are open during funding diligence. The
-invoker grant Pete made is inert while the URL is unset. Hold until F-01 closes.
+**Enrichment lane LIT (Pete's direction, 2026-08-14 night):** `ED_DISPATCH_URL`
+is now exported in the runbook below and passed through by deploy.sh. The
+former hold (F-01) was released by Pete in-session; the invoker grant was
+already in place and verified against the live IAM policy.
 
 **Open, ranked (next session's menu — none blocking):**
 1. ~~**Build the GTM named-query bridge**~~ — DONE (PR #136, deployed,
@@ -382,6 +381,7 @@ export ANTHROPIC_API_KEY="$(gcloud secrets versions access latest --secret anthr
 export GOOGLE_CLIENT_SECRET="$(gcloud secrets versions access latest --secret google-oauth-secret --project agent-canvas-ctg-0811)"
 export RAPIDAPI_KEY="$(gcloud secrets versions access latest --secret rapidapi-key --project agent-canvas-ctg-0811 2>/dev/null || true)"  # first deploy: export the literal key instead
 export HS_OPS_RUNNER_URL="$(gcloud run services describe agent-canvas --region us-central1 --project agent-canvas-ctg-0811 --format=json | python3 -c 'import json,sys;print(next(e["value"] for e in json.load(sys.stdin)["spec"]["template"]["spec"]["containers"][0]["env"] if e["name"]=="HS_OPS_RUNNER_URL"))')"
+export ED_DISPATCH_URL="https://enrichment-dispatch-874411154198.us-central1.run.app"  # enrichment lane — lit by Pete 2026-08-14; omitting this export darkens it
 ./agent-canvas/deploy/deploy.sh
 ```
 
