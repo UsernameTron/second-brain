@@ -322,4 +322,25 @@ CREATE TABLE IF NOT EXISTS roster_agents (
 );
 `);
 
+// ===== MCP connectors: owner-managed external tool servers =====
+// The managed source for the MCP client (server/mcp/client.js). Header values
+// may be literal or ${ENV:NAME} references resolved at request time — GET
+// responses mask them either way. access gates WHO may trigger the tools
+// (owner vs any member); roles_json gates WHICH agent roles are offered them
+// ([] = all). Per-tool explicit enablement lives in enabled_tools_json.
+db.exec(`
+CREATE TABLE IF NOT EXISTS mcp_servers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  url TEXT NOT NULL,
+  headers_json TEXT NOT NULL DEFAULT '{}',
+  enabled_tools_json TEXT NOT NULL DEFAULT '[]',
+  access TEXT NOT NULL DEFAULT 'members' CHECK (access IN ('owner','members')),
+  roles_json TEXT NOT NULL DEFAULT '[]',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`);
+
 module.exports = { db, tx, nowIso, getSetting, setSetting, DB_PATH };

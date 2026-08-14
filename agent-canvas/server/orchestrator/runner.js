@@ -76,7 +76,8 @@ async function executeRun(runId) {
   const runEpoch = control.currentEpoch();
 
   const system = buildSystemPrompt(agent, canvas, run);
-  const tools = toolsForRole(agent.role);
+  const { workspaceRole } = require('../auth');
+  const tools = toolsForRole(agent.role, { userRole: workspaceRole(run.initiated_by) });
   // Web search rides the Claude providers only in v1 (Google grounding has a
   // different result shape); Gemini research agents work from row data + memory.
   if (agent.role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0' && provider !== 'gemini') {

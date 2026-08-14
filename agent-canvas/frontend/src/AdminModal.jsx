@@ -12,12 +12,14 @@ export default function AdminModal({ onClose, toast, selfEmail }) {
           <nav className="modal-tabs">
             <button className={tab === 'allowlist' ? 'active' : ''} onClick={() => setTab('allowlist')}>Allowlist</button>
             <button className={tab === 'roster' ? 'active' : ''} onClick={() => setTab('roster')}>Roster</button>
+            <button className={tab === 'connectors' ? 'active' : ''} onClick={() => setTab('connectors')}>Connectors</button>
             <button className={tab === 'audit' ? 'active' : ''} onClick={() => setTab('audit')}>Audit log</button>
           </nav>
           <button className="icon-btn" onClick={onClose} title="Close">✕</button>
         </header>
         {tab === 'allowlist' ? <AllowlistTab toast={toast} selfEmail={selfEmail} /> : null}
         {tab === 'roster' ? <RosterTab toast={toast} /> : null}
+        {tab === 'connectors' ? <ConnectorsTab toast={toast} /> : null}
         {tab === 'audit' ? <AuditTab toast={toast} /> : null}
       </div>
     </div>
@@ -208,6 +210,155 @@ function RosterTab({ toast }) {
                       </div>
                       <textarea rows="10" value={draft.system_prompt} onChange={(e) => setDraft({ ...draft, system_prompt: e.target.value })} />
                       <button className="btn primary small" onClick={saveEdit}>Save</button>
+                    </div>
+                  </td></tr>
+                ) : null}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+
+function ConnectorsTab({ toast }) {
+  const [list, setList] = useState(null);
+  const [configError, setConfigError] = useState(null);
+  const [open, setOpen] = useState(null);      // server id with expanded row
+  const [probes, setProbes] = useState({});    // server id -> { ok, ms, tools } | { error }
+  const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({});
+
+  const load = useCallback(() => {
+    api('/api/mcp/servers')
+      .then((d) => { setList(d.servers || []); setConfigError(d.configError || null); })
+      .catch((e) => { toast(e.message); setList([]); });
+  }, [toast]);
+  useEffect(() => { load(); }, [load]);
+
+  const patch = async (id, body, okMsg) => {
+    try {
+      await api(`/api/mcp/servers/${id}`, { method: 'PATCH', body });
+      if (okMsg) toast(okMsg, 'ok');
+      load();
+    } catch (e) { toast(e.message); }
+  };
+
+  const probe = async (srv) => {
+    setBusy(true);
+    try {
+      const d = await api(`/api/mcp/servers/${srv.id}/probe`, { method: 'POST' });
+      setProbes((p) => ({ ...p, [srv.id]: d }));
+      setOpen(srv.id);
+      toast(`${srv.name}: ${d.tools.length} tools in ${d.ms}ms`, 'ok');
+    } catch (e) {
+      setProbes((p) => ({ ...p, [srv.id]: { error: e.message } }));
+      toast(e.message);
+    } finally { setBusy(false); }
+  };
+
+  const toggleTool = (srv, toolName) => {
+    const next = srv.enabledTools.includes(toolName)
+      ? srv.enabledTools.filter((t) => t !== toolName)
+      : [...srv.enabledTools, toolName];
+    patch(srv.id, { enabledTools: next });
+  };
+
+  const add = async (e) => {
+    e.preventDefault();
+    try {
+      let headers = {};
+      try { headers = draft.headers ? JSON.parse(draft.headers) : {}; } catch { toast('headers must be JSON, e.g. {"x-api-key":"${ENV:MY_KEY}"}'); return; }
+      await api('/api/mcp/servers', { method: 'POST', body: { name: draft.name, url: draft.url, access: draft.access || 'members', headers } });
+      toast('Connector added — probe it to discover tools', 'ok');
+      setAdding(false); setDraft({});
+      load();
+    } catch (e2) { toast(e2.message); }
+  };
+
+  return (
+    <div className="modal-body">
+      <div className="roster-admin-head">
+        <span className="dim">External MCP tool servers. A connector is inert until you probe it and enable tools. "owner" access hides it from members' runs entirely; roles limit which agents are offered its tools (blank = all). Header values may be {'${ENV:NAME}'} references.</span>
+        <button className="btn ghost small" onClick={() => { setAdding((v) => !v); setDraft({ access: 'members' }); }}>{adding ? 'Cancel' : 'Add connector'}</button>
+      </div>
+      {configError ? <p className="empty-hint">Config error: {configError}</p> : null}
+      {adding ? (
+        <form className="roster-edit" onSubmit={add}>
+          <div className="add-agent-row">
+            <input required placeholder="name (a-z0-9_-)" value={draft.name || ''} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+            <input required placeholder="https://…/mcp" value={draft.url || ''} onChange={(e) => setDraft({ ...draft, url: e.target.value })} />
+            <select value={draft.access} onChange={(e) => setDraft({ ...draft, access: e.target.value })}>
+              <option value="members">members</option><option value="owner">owner only</option>
+            </select>
+          </div>
+          <textarea rows="3" placeholder={'headers JSON, e.g. {"x-api-key": "${ENV:MY_KEY}"}'} value={draft.headers || ''} onChange={(e) => setDraft({ ...draft, headers: e.target.value })} />
+          <button className="btn primary small" type="submit" disabled={!(draft.name || '').trim() || !(draft.url || '').trim()}>Create</button>
+        </form>
+      ) : null}
+      <div className="table-scroll">
+        <table className="admin-table">
+          <thead><tr><th>name</th><th>access</th><th>agent roles</th><th>tools on</th><th>enabled</th><th /><th /></tr></thead>
+          <tbody>
+            {list === null ? <tr><td colSpan="7" className="empty-hint">loading…</td></tr> : null}
+            {list && list.length === 0 ? <tr><td colSpan="7" className="empty-hint">no connectors configured</td></tr> : null}
+            {(list || []).map((srv) => (
+              <React.Fragment key={srv.id}>
+                <tr className={srv.enabled ? '' : 'roster-disabled'}>
+                  <td><b>{srv.name}</b><div className="dim mono connector-url">{srv.url}</div></td>
+                  <td>
+                    <select value={srv.access} onChange={(e) => patch(srv.id, { access: e.target.value }, `${srv.name} → ${e.target.value}`)}>
+                      <option value="members">members</option><option value="owner">owner only</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input className="roles-input" placeholder="all roles" value={(srv.roles || []).join(', ')} readOnly
+                      onFocus={(e) => e.target.select()} title="Edit via expand" />
+                  </td>
+                  <td className="mono">{srv.enabledTools.length}</td>
+                  <td>
+                    <button className={`link-btn ${srv.enabled ? 'danger-link' : ''}`}
+                      onClick={() => patch(srv.id, { enabled: !srv.enabled }, srv.enabled ? `${srv.name} disabled` : `${srv.name} enabled`)}>
+                      {srv.enabled ? 'disable' : 'enable'}
+                    </button>
+                  </td>
+                  <td><button className="btn ghost small" disabled={busy} onClick={() => probe(srv)}>Probe</button></td>
+                  <td><button className="link-btn" onClick={() => setOpen(open === srv.id ? null : srv.id)}>{open === srv.id ? 'close' : 'edit'}</button></td>
+                </tr>
+                {open === srv.id ? (
+                  <tr><td colSpan="7">
+                    <div className="roster-edit">
+                      <label className="dim">Agent roles offered this connector (comma-separated, blank = all):</label>
+                      <input defaultValue={(srv.roles || []).join(', ')}
+                        onBlur={(e) => {
+                          const roles = e.target.value.split(',').map((r) => r.trim()).filter(Boolean);
+                          if (roles.join(',') !== (srv.roles || []).join(',')) patch(srv.id, { roles });
+                        }} />
+                      <label className="dim">Headers (values masked; {'${ENV:NAME}'} references shown as-is):</label>
+                      <div className="mono connector-headers">{Object.entries(srv.headers || {}).map(([k, v]) => `${k}: ${v}`).join('\n') || '(none)'}</div>
+                      {probes[srv.id]?.tools ? (
+                        <>
+                          <label className="dim">Discovered tools — tick to enable for agents:</label>
+                          <ul className="connector-tools">
+                            {probes[srv.id].tools.map((t) => (
+                              <li key={t.name}>
+                                <label className="roster-check">
+                                  <input type="checkbox" checked={srv.enabledTools.includes(t.name)} onChange={() => toggleTool(srv, t.name)} />
+                                  <span className="mono">{t.name}</span>
+                                  <span className="dim">{t.description}</span>
+                                </label>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : probes[srv.id]?.error ? (
+                        <p className="empty-hint">Probe failed: {probes[srv.id].error}</p>
+                      ) : (
+                        <p className="dim">Probe to discover this server's tools. Currently enabled: {srv.enabledTools.join(', ') || 'none'}.</p>
+                      )}
                     </div>
                   </td></tr>
                 ) : null}

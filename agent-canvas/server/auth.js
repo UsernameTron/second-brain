@@ -37,6 +37,14 @@ function allowlistEntry(email) {
   return db.prepare('SELECT * FROM allowlist WHERE email = ?').get(String(email || '').toLowerCase());
 }
 
+// Workspace role for an email — used by the tool registry to decide which MCP
+// connectors a directing user's run may be offered. Unknown email = member
+// (least privilege; sign-in enforcement happens elsewhere).
+function workspaceRole(email) {
+  const entry = allowlistEntry(email);
+  return entry && entry.role === 'owner' ? 'owner' : 'member';
+}
+
 function upsertUser({ email, name, picture, role }) {
   const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   const ts = nowIso();
@@ -168,6 +176,7 @@ function requireCanvas(req, res, next) {
 function sessionSecret() { return JWT_SECRET; }
 
 module.exports = {
+  workspaceRole,
   ALLOWED_DOMAIN, GOOGLE_CLIENT_ID, DEV_AUTH,
   signInWithGoogle, signInDev, issueSession, clearSession, tokenFromReq, verifySessionToken,
   requireAuth, requireOwner, requireCanvas, canAccessCanvas, allowlistEntry, httpError, sessionSecret,

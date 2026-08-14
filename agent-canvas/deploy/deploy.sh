@@ -168,12 +168,20 @@ if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
   create_or_update_secret google-oauth-secret "${GOOGLE_CLIENT_SECRET}"
 fi
 
+# MCP connector credentials (optional): RapidAPI key for the LinkedIn
+# connectors. Referenced from mcp_servers rows as ${ENV:RAPIDAPI_KEY} —
+# resolved per request by the MCP client, never stored in the DB.
+if [ -n "${RAPIDAPI_KEY:-}" ]; then
+  create_or_update_secret rapidapi-key "${RAPIDAPI_KEY}"
+fi
+
 # 5. Runtime service account (least privilege: bucket objects + the two secrets).
 gcloud iam service-accounts describe "${SA_EMAIL}" --project "${PROJECT_ID}" >/dev/null 2>&1 || \
   gcloud iam service-accounts create "${SA_NAME}" --project "${PROJECT_ID}" --display-name="Agent Canvas Cloud Run"
 gcloud storage buckets add-iam-policy-binding "${BUCKET}" --member="serviceAccount:${SA_EMAIL}" --role=roles/storage.objectAdmin >/dev/null
 SECRETS_TO_GRANT="jwt-secret"
 if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then SECRETS_TO_GRANT="${SECRETS_TO_GRANT} google-oauth-secret"; fi
+if [ -n "${RAPIDAPI_KEY:-}" ]; then SECRETS_TO_GRANT="${SECRETS_TO_GRANT} rapidapi-key"; fi
 if [ "${MODEL_PROVIDER}" = "anthropic" ]; then SECRETS_TO_GRANT="anthropic-api-key jwt-secret"; fi
 for secret in ${SECRETS_TO_GRANT}; do
   gcloud secrets add-iam-policy-binding "${secret}" --project "${PROJECT_ID}" \
@@ -250,6 +258,9 @@ else
 fi
 if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
   SECRET_FLAGS="${SECRET_FLAGS},GOOGLE_CLIENT_SECRET=google-oauth-secret:latest"
+fi
+if [ -n "${RAPIDAPI_KEY:-}" ]; then
+  SECRET_FLAGS="${SECRET_FLAGS},RAPIDAPI_KEY=rapidapi-key:latest"
 fi
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then ENV_VARS="${ENV_VARS},GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"; fi
 # HubSpot Ops Runner (optional): agents become IAM-authenticated clients of the

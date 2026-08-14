@@ -78,6 +78,8 @@ roster.seedRoster();
 roster.healExecAgents();
 roster.linkExecAgents();
 roster.supersedeStaleIcpMemory(OWNER_EMAIL);
+require('./mcp/seed').seedMcpServers();
+require('./mcp/client').reload(); // pick up seeded connectors on first boot
 const orphans = recoverOrphans();
 
 const server = http.createServer(app);
