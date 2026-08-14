@@ -43,10 +43,9 @@ pipeline hygiene (lives in ctg-ops-automation).
 
 ## CURRENT STATE (2026-08-14 close-out — the ONE authoritative block; everything below is history)
 
-**Live:** redeploying to carry PRs #152–#163 (previous revision
-`agent-canvas-00042-m82` carried #152–#158; the close-out redeploy adds
-#161–#163 — check `latestReadyRevisionName` for the current one). Tests
-**169/169** on master. Deploys only via the "Redeploy procedure" below,
+**Live:** revision **`agent-canvas-00043-7wn`**, 100% traffic (Gate 0
+verified 2026-08-14 via `gcloud run services describe` — carries the
+close-out redeploy of #152–#163). Tests **169/169** on master. Deploys only via the "Redeploy procedure" below,
 token-verified pete@ (`tokeninfo`, never `gcloud auth list`);
 `ED_DISPATCH_URL` is a REQUIRED export — omitting it darkens the enrichment
 lane.
@@ -76,6 +75,29 @@ lane.
 - IAM verified clean: NO project-level bigquery.dataViewer on
   ctg-hs-exec-tool (the feared shortcut-grant was already reverted).
 
+**GATE 0 BASELINE (2026-08-14, post-close-out) — verified from this Mac,
+recorded so the P1 roadmap branch starts from facts, not a stale handoff:**
+- Production pinned: `agent-canvas-00043-7wn`, latest-ready, 100% traffic.
+  Suite 169/169 on synced master (`8a050e7`, #164). No redeploy owed.
+- **Ontology fix is fully landed** — `779cb2d` is the head of
+  CTG-Cloud-Tech-Gurus/CTG-Workspace-Build PR **#180, MERGED**
+  2026-08-14T21:46Z. List item 4 below is DONE. Caveats: that repo is
+  readable only with the peteconnorCTG token (no auth switch needed:
+  `GH_TOKEN=$(gh auth token --user peteconnorCTG) gh …`), and the local
+  clone's `origin/main` is stale (pre-merge) and cannot fetch as
+  UsernameTron — refresh it as peteconnorCTG when next working there.
+- **Dependabot #14 is CLEAR** — `gh api …/dependabot/alerts?state=open`
+  returns zero with the current token (it does have the scope). List item 6
+  below is DONE.
+- gh auth healthy on both accounts (UsernameTron active; a prior "both
+  identities invalid" diagnosis was stale — verify with `gh auth status`
+  before believing it again).
+- Residue dispositions, none blocking: second-brain `stash@{0}` is the
+  PETE-REVIEW sentinel (his to pop); CTG-Workspace-Build has 2 modified
+  rollout-board files + 1 untracked archive + 6 stashes (his, keep).
+- P1 (Inquiry Home / evidence receipts) branches only after list items 1–3
+  below pass in-app.
+
 **Pete's remaining list (nothing else is open from this Mac):**
 1. Wire + probe + tick the `soi` connector (WAVE2-SOI-RUNBOOK step 3–4),
    then the corpus-hit/miss agent runs → flip the ledger to DONE.
@@ -84,16 +106,13 @@ lane.
    separately; don't assume).
 3. Run the /exec parity checklist (5 questions, PORTFOLIO-FOLD-IN) in the
    same session.
-4. **Commit the staged ontology fix in CTG-Workspace-Build from a plain
-   terminal** — `ontology/ontology.json` + `.gitignore` are edited on branch
-   `fix/ontology-icp-registry-version-agnostic`; this session's user-level
-   git hooks deadlock in that repo (nested-git check at root vs
-   required-docs check in subdirs). One `git add ontology/ontology.json
-   .gitignore && git commit` + PR.
+4. ~~Commit the staged ontology fix in CTG-Workspace-Build~~ **DONE** —
+   committed as `779cb2d`, merged as CTG-Workspace-Build PR #180 (see
+   Gate 0 block above).
 5. B2 decision: fly.dev leadfinder v5→v6 re-export (recommended DO — the
    skew broke a live run today).
-6. Dependabot #14: Security tab — all 3 lockfiles audit clean locally, the
-   alert is likely stale; this Mac's token lacks the read scope.
+6. ~~Dependabot #14~~ **DONE** — zero open alerts via the API (see Gate 0
+   block above; the token does have the read scope).
 7. Stashes keep/drop (signal-radar, agent-canvas); /dream-apply review of
    the existing changeset, then /promote-memories batches.
 8. Vertex quota refile (deprioritized, unchanged).
