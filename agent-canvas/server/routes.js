@@ -274,7 +274,7 @@ router.get('/health/integrations', (req, res) => {
   res.json({ integrations, aggregate, queue: queueState(), provider });
 });
 
-router.post('/health/probe', rateLimit('auth'), asyncRoute(async (req, res) => {
+router.post('/health/probe', rateLimit('probe'), asyncRoute(async (req, res) => {
   const surface = String(req.body.surface || '');
   // Every outcome — success or failure — is recorded as probe evidence:
   // the lamps read this record, so a probe is how a lamp earns its colour.
