@@ -1,0 +1,16 @@
+# Cloud Build config for the Agent Canvas Workspace image.
+#
+# `gcloud builds submit --tag` drives Cloud Build's legacy Docker builder, which
+# runs with BuildKit disabled. The Dockerfile's optional build_ca hook is
+# BuildKit-only syntax (`RUN --mount=type=secret`) and fails there with
+# "the --mount option requires BuildKit". That hook exists so TLS-intercepting
+# build environments can inject their CA without baking it into the image, so
+# the fix is to enable BuildKit rather than to delete the capability.
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    env:
+      - 'DOCKER_BUILDKIT=1'
+    args: ['build', '--tag', '${_IMAGE}', '.']
+images:
+  - '${_IMAGE}'
+timeout: '1800s'

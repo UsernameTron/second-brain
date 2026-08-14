@@ -50,3 +50,19 @@ jobs:
       # .planning/todos.md — a non-blocking dev audit is the intended follow-up.
       - name: Dependency audit
         run: npm audit --audit-level=high --omit=dev
+
+  agent-canvas-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: agent-canvas/package-lock.json
+      - run: npm ci
+        working-directory: agent-canvas
+      - name: Agent Canvas unit tests (node:test)
+        run: npm test
+        working-directory: agent-canvas
+
