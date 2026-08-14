@@ -6,7 +6,7 @@ export default function AdminModal({ onClose, toast, selfEmail }) {
 
   return (
     <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal admin-modal">
+      <div className="modal admin-modal" role="dialog" aria-modal="true" aria-label="Admin">
         <header className="modal-head">
           <h2>Admin</h2>
           <nav className="modal-tabs">
@@ -15,7 +15,7 @@ export default function AdminModal({ onClose, toast, selfEmail }) {
             <button className={tab === 'connectors' ? 'active' : ''} onClick={() => setTab('connectors')}>Connectors</button>
             <button className={tab === 'audit' ? 'active' : ''} onClick={() => setTab('audit')}>Audit log</button>
           </nav>
-          <button className="icon-btn" onClick={onClose} title="Close">✕</button>
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">✕</button>
         </header>
         {tab === 'allowlist' ? <AllowlistTab toast={toast} selfEmail={selfEmail} /> : null}
         {tab === 'roster' ? <RosterTab toast={toast} /> : null}

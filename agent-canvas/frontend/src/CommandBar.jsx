@@ -106,6 +106,8 @@ export default function CommandBar({ paused, onParse, onConfirm, toast }) {
           className={`mic-btn ${listening ? 'listening' : ''}`}
           disabled={!SR}
           title={SR ? (listening ? 'Stop listening' : 'Speak a command') : 'Voice input is unavailable in this browser'}
+          aria-label={listening ? 'Stop listening' : 'Speak a command'}
+          aria-pressed={listening}
           onClick={toggleMic}
         >
           <MicIcon />
