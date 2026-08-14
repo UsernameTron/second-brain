@@ -174,6 +174,36 @@ production system. Reasonable as wave 1 or 2 — include it in the ranked
 roadmap Pete approves, with the ontology refresh called out as its
 prerequisite.
 
+## Apps Script URL audit (third exercise, 2026-08-14)
+
+All deployed `script.google.com/**/exec` web apps referenced across the
+estate were audited through the executive lens: execs won't track more
+URLs, so an Apps Script app earns a canvas seat only if it adds capability
+the canvas lacks. **Result: none does — and canvas retires two of them.**
+Do not re-audit.
+
+- **ctg-hs-exec-tool `/exec` Q&A page** (5 locked buttons; also embedded in
+  ctg-l10-eos HubspotChatView) — **superseded by canvas**: the
+  `hubspot-crm` connector's 21 read tools + exec personas answer the same
+  questions conversationally against the real portal. Retire the URL after
+  a parity check (each locked button's question answered correctly in a
+  canvas run).
+- **ctg-hs-ops-runner Exec UAT front** (`AKfycbzOgUPWl…`, most-referenced)
+  — UAT/provisioning harness for the CRM write lane. Canvas is the
+  production exec surface for that lane (preview-first writes, tray
+  approval). Stays Pete-internal; never exec-facing. No seat.
+- **automation-google M06 Dev Drive Portal** — well-built, read-only by
+  construction, but it fronts Pete's dev drive, not exec work. Its asset is
+  the M03 catalog Sheet (`18Z6DNKHtxJXDQO5YnieXVidbiWkS__8I6nv-S5px2I0`,
+  tab `catalog`: file/abstract/tags index) — canvas agents can already
+  read it via their existing per-user Sheets access; nothing to build. The
+  portal URL remains a human-preference UI, not a canvas gap.
+- **`simpleTasks` sample `/exec`** — vendored Google sample code
+  (google-workspace-resources), not a CTG deployment. Noise.
+
+Net effect: the canvas *reduces* the executive URL count (exec-tool Q&A
+absorbed, UAT front de-scoped from execs) rather than adding integrations.
+
 ## Decision rights
 
 The ranked roadmap, and anything touching production CRM, spend, or new
