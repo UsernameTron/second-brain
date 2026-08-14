@@ -41,14 +41,62 @@ for feedback data), embeddings (Vertex-only option; revisit if the eval
 suite shows lexical recall failing on real queries), agent builder,
 pipeline hygiene (lives in ctg-ops-automation).
 
-## CURRENT STATE (2026-08-14 session close — start here; everything below is history)
+## CURRENT STATE (2026-08-14 close-out — the ONE authoritative block; everything below is history)
 
-**Live:** `agent-canvas-00041-xk8`, tests **150/150** on master. Every open
-item that could be closed from this Mac is closed. Deploys only via the
-"Redeploy procedure" below, token-verified pete@ (`tokeninfo`, never
-`gcloud auth list`), and note `ED_DISPATCH_URL` is now a REQUIRED export in
-that procedure — deploy.sh passes it through, omitting it darkens the
-enrichment lane.
+**Live:** redeploying to carry PRs #152–#163 (previous revision
+`agent-canvas-00042-m82` carried #152–#158; the close-out redeploy adds
+#161–#163 — check `latestReadyRevisionName` for the current one). Tests
+**169/169** on master. Deploys only via the "Redeploy procedure" below,
+token-verified pete@ (`tokeninfo`, never `gcloud auth list`);
+`ED_DISPATCH_URL` is a REQUIRED export — omitting it darkens the enrichment
+lane.
+
+**Close-out session (late 2026-08-14) — shipped and verified:**
+- Memory-observability roadmap, waves 0a–5 (PRs #152–#158): Context Receipt,
+  retrieval log, run feedback, typed/scoped memory, FTS5 bm25 retrieval
+  (probe-verified, scored-OR fallback), analytics + conflict surfacing,
+  a11y/responsive floor, perf floor. Enrichment lane proven end-to-end by a
+  live paid `enrich_company` run (get_enriched_record never existed — the
+  free read is `get_enriched_contact`, docs corrected in #161).
+- Track A close-out (#162): ICP version-drift fix (org-context +
+  seed templates version-agnostic; verified byte-identical to the
+  regenerated output after the upstream ontology fix), /exec parity
+  checklist prepared, mascot 378KB, doc truth-ups.
+- **R2 (#163): `asked_by` on MCP calls is server-controlled** — the
+  directing user overwrites any model-supplied value when the tool schema
+  declares the field. External-review finding, verified then fixed.
+- **SOI `soi-mcp` DEPLOYED and verified** (`soi-mcp-00001-jk2`,
+  https://soi-mcp-6acfaoyzwa-uc.a.run.app): route merged
+  (peteconnorCTG/ctg-system-of-intelligence#5 + governance block), canvas SA
+  granted invoker, unauthenticated → 403, `tools/list` = exactly
+  `org_knowledge_search`, live corpus-miss returned "Not found in the
+  corpus.", `mcp_call user=pete@cloudtechgurus.com` in the service log.
+  Runbook bar items 1+4 DONE headlessly; items 2–3 (connector wire, probe,
+  tick, hit/miss agent runs) are Pete's — the tick IS the access sign-off.
+- IAM verified clean: NO project-level bigquery.dataViewer on
+  ctg-hs-exec-tool (the feared shortcut-grant was already reverted).
+
+**Pete's remaining list (nothing else is open from this Mac):**
+1. Wire + probe + tick the `soi` connector (WAVE2-SOI-RUNBOOK step 3–4),
+   then the corpus-hit/miss agent runs → flip the ledger to DONE.
+2. Enrichment lamp probe in-app; open Scout's failed `find_icp_leads` run
+   and read run_events for the real failure class (version skew is fixed
+   separately; don't assume).
+3. Run the /exec parity checklist (5 questions, PORTFOLIO-FOLD-IN) in the
+   same session.
+4. **Commit the staged ontology fix in CTG-Workspace-Build from a plain
+   terminal** — `ontology/ontology.json` + `.gitignore` are edited on branch
+   `fix/ontology-icp-registry-version-agnostic`; this session's user-level
+   git hooks deadlock in that repo (nested-git check at root vs
+   required-docs check in subdirs). One `git add ontology/ontology.json
+   .gitignore && git commit` + PR.
+5. B2 decision: fly.dev leadfinder v5→v6 re-export (recommended DO — the
+   skew broke a live run today).
+6. Dependabot #14: Security tab — all 3 lockfiles audit clean locally, the
+   alert is likely stale; this Mac's token lacks the read scope.
+7. Stashes keep/drop (signal-radar, agent-canvas); /dream-apply review of
+   the existing changeset, then /promote-memories batches.
+8. Vertex quota refile (deprioritized, unchanged).
 
 **What is live and verified (this session, PRs #134–#150 here + upstream):**
 - **GTM named-query bridge** — `gtm-mcp-bridge` on Cloud Run (dedicated SA,
