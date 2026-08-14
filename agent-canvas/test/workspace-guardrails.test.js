@@ -341,3 +341,37 @@ test('a bullet-masked ANTHROPIC_API_KEY shows a named down lamp, not a deep SDK 
     if (prevProvider === undefined) delete process.env.MODEL_PROVIDER; else process.env.MODEL_PROVIDER = prevProvider;
   }
 });
+
+test('agent system-prompt edits are owner-only and audited (finding 11)', async () => {
+  const crypto = require('node:crypto');
+  const { nowIso } = require('../server/db');
+  const express = require('express');
+  const app = express();
+  app.use(express.json());
+  app.use('/api', require('../server/routes'));
+  db.prepare("INSERT OR IGNORE INTO allowlist (email, role, display_name, added_by, added_at) VALUES ('pete@cloudtechgurus.com', 'owner', 'Pete', 'test', '')").run();
+  db.prepare("INSERT OR IGNORE INTO allowlist (email, role, display_name, added_by, added_at) VALUES ('member@cloudtechgurus.com', 'member', 'M', 'test', '')").run();
+  const canvasId = crypto.randomUUID();
+  db.prepare("INSERT INTO canvases (id, name, access_mode, created_by, created_at) VALUES (?, 'p', 'workspace', 't', ?)").run(canvasId, nowIso());
+  const agentId = crypto.randomUUID();
+  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at) VALUES (?, ?, 'P', 'research', '#2080D0', 'fast', 'original', 0, 0, ?)").run(agentId, canvasId, nowIso());
+  const server = app.listen(0);
+  await new Promise((r) => server.once('listening', r));
+  const port = server.address().port;
+  const signIn = async (email) => {
+    const r = await fetch(`http://127.0.0.1:${port}/api/auth/dev`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email }) });
+    return r.headers.get('set-cookie').split(';')[0];
+  };
+  const patch = (cookie, body) => fetch(`http://127.0.0.1:${port}/api/canvases/${canvasId}/agents/${agentId}`, { method: 'PATCH', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify(body) });
+  try {
+    const member = await signIn('member@cloudtechgurus.com');
+    assert.equal((await patch(member, { system_prompt: 'member rewrite' })).status, 403, 'member prompt edit refused');
+    assert.equal(db.prepare('SELECT system_prompt FROM agents WHERE id = ?').get(agentId).system_prompt, 'original');
+    assert.equal((await patch(member, { x: 9, y: 9 })).status, 200, 'member can still move the agent');
+    const owner = await signIn('pete@cloudtechgurus.com');
+    assert.equal((await patch(owner, { system_prompt: 'owner rewrite' })).status, 200);
+    assert.equal(db.prepare('SELECT system_prompt FROM agents WHERE id = ?').get(agentId).system_prompt, 'owner rewrite');
+    const audits = db.prepare("SELECT COUNT(*) n FROM audit_log WHERE action = 'agent.prompt_update'").get();
+    assert.ok(audits.n >= 1, 'the owner edit is audited');
+  } finally { server.close(); }
+});
