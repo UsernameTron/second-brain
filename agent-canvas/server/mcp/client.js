@@ -95,19 +95,9 @@ function resolveHeaderValue(value) {
 // ${GCP_IDTOKEN} — Google-signed identity token for the server's origin, for
 // IAM-gated Cloud Run connectors (the hubspot-mcp-bridge). Same keyless
 // metadata-server pattern as hubspot/opsrunner.js, cached per audience.
-const idTokenCache = new Map(); // audience -> { token, exp }
-async function gcpIdToken(audience) {
-  if (process.env.MCP_GCP_ID_TOKEN) return process.env.MCP_GCP_ID_TOKEN; // dev/test escape hatch
-  const cached = idTokenCache.get(audience);
-  if (cached && cached.exp > Date.now() + 60_000) return cached.token;
-  const res = await fetch(
-    `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${encodeURIComponent(audience)}`,
-    { headers: { 'Metadata-Flavor': 'Google' } },
-  ).catch(() => null);
-  if (!res || !res.ok) throw new Error('no service identity available for ${GCP_IDTOKEN} — needs Cloud Run (or MCP_GCP_ID_TOKEN for local dev)');
-  const token = await res.text();
-  idTokenCache.set(audience, { token, exp: Date.now() + 45 * 60_000 });
-  return token;
+const { identityToken } = require('../gcp-identity');
+function gcpIdToken(audience) {
+  return identityToken(audience, { escapeHatchEnv: 'MCP_GCP_ID_TOKEN' });
 }
 
 function maskHeaderValue(value) {

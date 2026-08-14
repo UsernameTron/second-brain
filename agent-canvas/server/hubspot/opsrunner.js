@@ -26,20 +26,9 @@ function audience() { return process.env.HS_OPS_RUNNER_AUDIENCE || runnerUrl(); 
 function configured() { return Boolean(runnerUrl()); }
 
 // ---------- service identity (keyless) ----------
-let tokenCache = { token: null, exp: 0 };
-async function identityToken() {
-  if (process.env.HS_OPS_RUNNER_ID_TOKEN) return process.env.HS_OPS_RUNNER_ID_TOKEN; // dev/test escape hatch
-  if (tokenCache.token && tokenCache.exp > Date.now() + 60_000) return tokenCache.token;
-  const res = await fetch(
-    `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${encodeURIComponent(audience())}`,
-    { headers: { 'Metadata-Flavor': 'Google' } },
-  ).catch(() => null);
-  if (!res || !res.ok) {
-    throw new Error('no service identity available — this call needs Cloud Run (or HS_OPS_RUNNER_ID_TOKEN for local dev)');
-  }
-  const token = await res.text();
-  tokenCache = { token, exp: Date.now() + 45 * 60_000 };
-  return token;
+const { identityToken: gcpIdentityToken } = require('../gcp-identity');
+function identityToken() {
+  return gcpIdentityToken(audience(), { escapeHatchEnv: 'HS_OPS_RUNNER_ID_TOKEN' });
 }
 
 // ---------- client-side mirror of the runner's refusal surface ----------
