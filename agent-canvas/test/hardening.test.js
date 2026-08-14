@@ -316,3 +316,14 @@ test('a run that produces no output at all ends failed, not a silent completed',
     assert.equal(runRow(runId).status, 'failed', 'no text, no memory write, no output — not a success');
   } finally { restore(); }
 });
+
+// ---------- rate-limit buckets ----------
+
+test('health probes do not share the sign-in rate bucket (lockout regression)', () => {
+  // Probing the systems board burned the auth bucket's 10/min and blocked
+  // sign-in. Probes must draw from their own, roomier bucket.
+  const { rateLimit } = require('../server/ratelimit');
+  assert.notStrictEqual(rateLimit('probe'), rateLimit('auth'), 'probe and auth must be distinct limiters');
+  const src = fs.readFileSync(require.resolve('../server/routes'), 'utf8');
+  assert.match(src, /\/health\/probe', rateLimit\('probe'\)/, 'the probe route must use the probe bucket');
+});
