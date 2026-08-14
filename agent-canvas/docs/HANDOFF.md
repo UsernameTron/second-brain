@@ -4,59 +4,26 @@ Fresh-context orientation for the next session. Everything here was true at
 handoff time; verify anything load-bearing with a probe or a gcloud describe
 before depending on it.
 
-## START HERE — three actions, in order
+## START HERE — deploy the connectors, then two owner actions in the app
 
-**Live right now:** revision `agent-canvas-00023-xhf`, carrying the Agent
-Roster (PR #105, master `6953f5b`). Working, verified, in use.
+**Live:** revision `agent-canvas-00023-xhf`+heal (#106 merged — verify
+`workspace.roster_heal` appeared in the audit log if not yet confirmed).
+**Waiting:** the MCP Connectors platform (branch
+`claude/agent-canvas-workspace-1qquiu`, this session) — merge + redeploy.
 
-**Waiting:** branch `claude/agent-canvas-roster-heal` (commit `712819b`,
-pushed, 84/84 green) — three boot migrations that repair pre-roster content
-in the LIVE database. Until it deploys, the Executive Roundtable canvas is
-serving stale content: Darren states the superseded 500–10,000+ ICP (which
-Sentinel's own review gate is written to flag as stale), Atlas has no
-confidentiality guard, and the target-buyer memory anchor still reads the old
-ICP. Those three agents also cannot be fixed from the UI — `linkExecAgents`
-only stamps `roster_id` on a byte-exact template match, so drifted prompts are
-unreachable by the Admin → Roster resync button. The branch fixes that too.
-
-1. **Open the PR.** The authoring session could not — this environment's proxy
-   blocks GitHub API writes ("an org admin must connect the Claude GitHub App
-   for this organization"); `git push` works, PR creation does not. One click:
-   https://github.com/UsernameTron/second-brain/compare/master...claude/agent-canvas-roster-heal
-   Then merge it (CI job `agent-canvas-test` should be green — 84/84 locally).
-2. **Redeploy** with the block under "Redeploy procedure" below. Nothing else
-   to do: the migrations run on boot, are guarded by settings keys, and are
-   idempotent.
-3. **Confirm the heal fired** — this is the whole point of the redeploy:
-   ```bash
-   gcloud logging read 'resource.labels.service_name=agent-canvas' \
-     --project agent-canvas-ctg-0811 --freshness=30m --limit 200 --format=json \
-     | grep -iE 'roster_heal|roster_icp_memory'
-   ```
-   Expect `workspace.roster_heal` naming **Darren and Atlas**, and
-   `workspace.roster_icp_memory` with `entries: 1`. Then in the app: Darren's
-   prompt should read `sr-icp-v5`, and Memory should show the old target-buyer
-   entry superseded with reason "superseded by ICP registry sr-icp-v5".
-
-The heal is verified against a *simulated* pre-roster database
-(`test/roster-heal.test.js`), not against production — step 3 is what turns
-that into proof.
-
-### Not blocking, worth doing once you are in there
-
-- **Exercise the roster end to end:** topbar **+** → staffing popover (Fred,
-  Darren, Jess, Atlas pre-checked) → create a canvas. Expect four agents plus
-  two notes: `Synthesis protocol` (pinned) and `ICP registry — sr-icp-v5`
-  (unpinned — that is deliberate, see the Agent Roster section).
-- **Dispatch Radar** with three sample contacts (one tier-1 decision-maker,
-  one excluded-industry, one hard-excluded title). Expect three scores showing
-  the multiplication, each stamped "scored against sr-icp-v5". This is the
-  first real exercise of Radar — it has never run against live input.
-- **Enable Gauge** (Admin → Roster) when you want HubSpot CRM legwork. It
-  ships `enabled=0` on purpose.
-
-The previous handoff's three actions are all DONE: PR #101 closed (the 2-byte
-mascot blob), PR #103 merged, *Conference Lead Cleanup* archived.
+1. **Redeploy** with the block below — note the NEW optional export
+   `RAPIDAPI_KEY` (get it from rapidapi.com → your app; it feeds both
+   LinkedIn connectors as `${ENV:RAPIDAPI_KEY}`). Without it the connectors
+   probe fine but calls fail loudly.
+2. **Admin → Connectors** (new tab): Probe `linkedin-fresh` and
+   `linkedin-blitz`, then tick the lookup tools you want agents to have —
+   connectors are inert until tools are explicitly enabled (consent model).
+   Access/roles are editable there too (both seeded members-visible, scoped
+   to research/targeting/commercial agent roles).
+3. **Phase 2 (Claude-side HubSpot Agent CLI):** follow
+   [HUBSPOT-AGENT-CLI.md](HUBSPOT-AGENT-CLI.md) — two environment settings
+   (`npm install -g @hubspot/cli` setup command + `HUBSPOT_PERSONAL_ACCESS_KEY`),
+   then a fresh session verifies with `hs account info`.
 
 ## What this is
 
@@ -117,6 +84,7 @@ export OWNER_EMAIL=pete@cloudtechgurus.com
 export GOOGLE_CLIENT_ID='1072020835166-veol39lc5meet0h5v1ftl272moudki9f.apps.googleusercontent.com'
 export ANTHROPIC_API_KEY="$(gcloud secrets versions access latest --secret anthropic-api-key --project agent-canvas-ctg-0811)"
 export GOOGLE_CLIENT_SECRET="$(gcloud secrets versions access latest --secret google-oauth-secret --project agent-canvas-ctg-0811)"
+export RAPIDAPI_KEY="$(gcloud secrets versions access latest --secret rapidapi-key --project agent-canvas-ctg-0811 2>/dev/null || true)"  # first deploy: export the literal key instead
 export HS_OPS_RUNNER_URL="$(gcloud run services describe agent-canvas --region us-central1 --project agent-canvas-ctg-0811 --format=json | python3 -c 'import json,sys;print(next(e["value"] for e in json.load(sys.stdin)["spec"]["template"]["spec"]["containers"][0]["env"] if e["name"]=="HS_OPS_RUNNER_URL"))')"
 ./agent-canvas/deploy/deploy.sh
 ```
@@ -228,6 +196,45 @@ adopted into the roster; the owner resyncs explicitly from Admin → Roster.
 The memory fix goes through the normal `correctEntry` path, so the old anchor
 survives, stamped `superseded_by`, and the correction cites it. Verified
 against a simulated pre-roster database in `test/roster-heal.test.js`.
+
+## MCP Connectors (this session — Phase 1+2 of the connector plan)
+
+**What it is:** owner-managed external MCP servers, served to agents through
+the existing server-side Streamable-HTTP client — users install nothing,
+ever (the Docker question's structural answer). New `mcp_servers` DB table +
+**Admin → Connectors** tab: add server, probe (returns tool inventory), tick
+tools to enable, set access (`owner`/`members`) and agent-role scope. Nothing
+a server offers reaches an agent unless the owner ticked it.
+
+**Enforcement is two-layer** (the hs_apply_change shape): owner-only
+connectors are never OFFERED to member-directed runs (`toolsForRole(role,
+{userRole})`, runner passes the directing user's allowlist role), and the MCP
+execution path re-checks at call time (audited `mcp.denied`). Role scoping is
+a token-cost lever: every offered tool schema rides in every model call, so
+LinkedIn tools are scoped to research/targeting/commercial and editable in
+the tab.
+
+**Seeded** (`seed_mcp_v1`): `linkedin-fresh` + `linkedin-blitz` (RapidAPI,
+member-visible, tools EMPTY until probed+ticked, key as `${ENV:RAPIDAPI_KEY}`
+→ Secret Manager `rapidapi-key`). **HubSpot is deliberately NOT seeded** —
+both HubSpot MCPs are stdio-only (verified from package source) and arrive
+via the Phase 3 `hubspot-mcp-bridge` service (ops-runner pattern: one IAM-
+gated Cloud Run service bridging `/crm` → @hubspot/mcp-server with a
+READ-ONLY-scoped token, `/dev` → the Agent CLI's server with a GCS-mounted
+workspace). CRM writes remain solely ctg-hs-ops-runner (ADR-0041).
+
+**Decisions on record:** GCP/dev/qwen MCPs stay in Pete's local Claude Code
+(stdio; not product material). Docker MCP Gateway cannot be wired directly
+(stdio on the Mac; needs Docker-in-Docker, impossible on Cloud Run); the
+GCE-VM route is documented as future-only. CloudMindMaps: pending an
+execution-time auth probe (claude.ai-configured, possibly OAuth-only) — wire
+member-visible if static auth works and tools return shareable map URLs,
+else drop. RapidAPI key: Pete's call, no rotation, one shared key.
+
+**Cost levers** (no new code): `FAST_PROVIDER=gemini` moves the fast tier
+(Atlas/Forge/Gauge/Radar) to Gemini on Vertex — `providerForTier`
+(orchestrator/anthropic.js) + the tested Gemini adapter already support it.
+Grok/OpenAI adapters: explicitly out of scope until Gemini cost data exists.
 
 ## Session log — 2026-08-13 evening (roster + heal)
 
