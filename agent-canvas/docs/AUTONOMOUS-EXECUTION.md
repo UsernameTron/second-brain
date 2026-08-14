@@ -34,8 +34,9 @@ governs. Then adversarially review the plans as a set:
   add a one-line pointer to it in the ledger. If a claim **cannot** be
   verified from the current surface (e.g. enrichment-dispatch LIVE needs a
   `gcloud describe` that pete@ lacks IAM for and cloud containers cannot
-  run), mark it UNVERIFIED in the ledger, treat the wave it gates as
-  blocked-on-local, and continue — never assume it true.
+  run), mark the wave it gates `BLOCKED` in the ledger with the unverified
+  claim in Notes, and continue — never assume it true. A local session
+  clears `BLOCKED` rows by verifying the claim.
 - **Improve where evidence warrants.** Every change to the brief must cite
   what was observed (tool result, file, probe) — no taste-based rewrites.
 - Output of step 1: an updated PORTFOLIO-FOLD-IN.md (if warranted) and a
@@ -65,12 +66,19 @@ from a local Mac session. If you are cloud-only, finish the wave to
 "PR + runbook" state, record it in the ledger as `READY-TO-DEPLOY`, and
 continue to the next wave's code — deploys batch up for the next local
 session, whose **first duty** is running the deferred verification bar for
-every `READY-TO-DEPLOY` row (flipping each to `DONE` or `HALTED`) before
-starting new wave code. Never claim deployed what you could not probe.
+every `READY-TO-DEPLOY` and `BLOCKED` row before starting new wave code.
+A row flips to `DONE` when the bar passes; if the bar fails for a fixable
+reason (deploy defect, transient outage, missing grant) it **stays**
+`READY-TO-DEPLOY` with a failure memo — `HALTED` is reserved for actual
+Stop Conditions. Ledger/HANDOFF updates from this deferred verification
+ship as a small verification-docs PR (an allowed exception to one-PR-per-
+wave, same auto-merge rule). Never claim deployed what you could not
+probe.
 
 **Completion:** after the last wave in the Revised wave order, write a
 closing ledger row — `PORTFOLIO COMPLETE`, or a list of rows left
-`READY-TO-DEPLOY`/`SKIPPED`/`HALTED` — update HANDOFF.md, and stop.
+`READY-TO-DEPLOY`/`BLOCKED`/`SKIPPED`/`HALTED` — update HANDOFF.md, and
+stop.
 Parked items stay parked; do not invent a Wave 4.
 
 ## Step 3 — Decision policy (replaces asking Pete)
@@ -118,16 +126,21 @@ the Step-0 and Step-1 docs PRs. After CI is green, enable auto-merge:
 `gh pr merge <n> --squash --auto` — that is the delegated merge authority.
 If the merge call returns 403 (stale-container GitHub write access — a
 known failure mode, see HANDOFF.md's environment caveat), record the PR
-number in the ledger for the next session; do not retry-loop. If CI fails,
+number in the ledger and **end the session there** — do not retry-loop,
+and do not start the next wave: its branch must cut from a master that
+already contains this wave, which the 403 blocks. If CI fails,
 fix it; never merge red, never bypass hooks. Squash-merge drops exec bits —
 after any PR that adds a script, append a ledger row assigning the
 post-merge `chmod +x` check so it is tracked, not assumed.
 
 ## Definitions
 
-- **Lamps** — connector status indicators in the canvas UI. Dark =
-  honestly unwired; green only after a live probe (DEPLOY.md; house rule:
-  "lamps never fake green").
+- **Lamps** — the systems-board integration statuses (`server/routes.js`
+  systems list: ready/attention/planned/down). Note an MCP lamp reads
+  `ready` from `enabledTools.length` — config, not probe evidence — so a
+  green lamp never substitutes for the connector probe in the
+  verification bar; they are separate required checks. Dark/planned =
+  honestly unwired (house rule: "lamps never fake green").
 - **Probe** — two senses in the docs: the health-lamp latency probe
   (gmail/drive/model timings) and the **connector probe** that returns the
   server's tool inventory + latency. The verification bar means the
@@ -138,8 +151,11 @@ post-merge `chmod +x` check so it is tracked, not assumed.
   writes are sandbox-only, preview/dry-run first, apply explicitly
   confirmed; the service never bypasses the dry-run digest.
 - **Ledger Status vocabulary** — `IN-PROGRESS` · `READY-TO-DEPLOY` (cloud
-  built, bar deferred to local) · `DONE` (full bar passed) · `SKIPPED`
-  (decision memo in Notes) · `HALTED` (stop condition, memo in Notes).
+  built, bar deferred to local; also where a fixable verification failure
+  lands, with memo) · `BLOCKED` (gating claim unverifiable from current
+  surface; claim named in Notes) · `DONE` (full bar passed) · `SKIPPED`
+  (decision memo in Notes) · `HALTED` (actual Stop Condition only, memo
+  in Notes).
 
 ## Progress ledger (append-only; newest session on top)
 
