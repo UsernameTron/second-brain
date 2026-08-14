@@ -76,6 +76,21 @@ test('daily budget gate: when spend >= budget, new dispatches are refused', () =
   assert.equal(control.budgetExceeded(), false);
 });
 
+test('monthly usage rolls up usage_daily by month, newest first', () => {
+  const ins = db.prepare(`INSERT INTO usage_daily (date, input_tokens, output_tokens, cost_usd) VALUES (?, ?, ?, ?)
+                          ON CONFLICT(date) DO UPDATE SET input_tokens=excluded.input_tokens, output_tokens=excluded.output_tokens, cost_usd=excluded.cost_usd`);
+  ins.run('2001-01-01', 100, 10, 1.5);
+  ins.run('2001-01-02', 200, 20, 2.5);
+  ins.run('2001-02-01', 50, 5, 0.25);
+  const months = control.getMonthlyUsage();
+  const jan = months.find((m) => m.month === '2001-01');
+  const feb = months.find((m) => m.month === '2001-02');
+  assert.deepEqual({ in: jan.input_tokens, out: jan.output_tokens, cost: jan.cost_usd, days: jan.days },
+    { in: 300, out: 30, cost: 4.0, days: 2 });
+  assert.equal(feb.cost_usd, 0.25);
+  assert.ok(months.indexOf(feb) < months.indexOf(jan), 'sorted newest first');
+});
+
 test('global pause: queued runs do not start while paused; abort registry fires', () => {
   let aborted = false;
   const controller = new AbortController();

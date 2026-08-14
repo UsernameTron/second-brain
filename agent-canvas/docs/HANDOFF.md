@@ -26,24 +26,33 @@ start over with a brand-new session, don't debug the settings page again.
 (Also confirmed this session: no `gcloud` binary in this container — Cloud
 Run verification has always required Pete's Mac or a session that has it.)
 
+**UPDATE 2026-08-14 late night — items 1, 2, and 4 are ALL DONE, live, and
+verified in-app.** Canvas redeployed (revision `agent-canvas-00027-hj5`,
+carries #110); linkedin-fresh (5 tools) + linkedin-blitz (4 tools) probed and
+enabled; **Phase 3 /crm is COMPLETE** — see the Phase 3 STATUS block under
+"MCP Connectors". `hubspot-crm` connector live with 21 tools (105ms probe),
+smoke-tested end-to-end by a Scout run (`hubspot-get-user-details` → verified
+memory entry). Note from that run: the bridge's read-only key hits the REAL
+portal 243103424; writes remain sandbox-only via ops-runner (246460341).
+Remaining owner action: **Phase 2 (item 3)**. Deploy gotchas fixed along the
+way: `rapidapi-key` secret needed a manual `secretAccessor` grant for
+agent-canvas-run (now durable); squash-merge drops exec bits (deploy.sh
+needed `chmod +x`, PR #111).
+
 1. **Confirm the redeploy happened / run it.** From Pete's Mac, the block
    under "Redeploy procedure" below — note the `RAPIDAPI_KEY` export added
    this cycle. If already run, skip straight to the check command in that
-   section (`workspace.seed_mcp` in the audit log, `servers: 2`).
+   section (`workspace.seed_mcp` in the audit log, `servers: 2`). **DONE**
 2. **Admin → Connectors** (new tab, live once deployed): Probe
    `linkedin-fresh` and `linkedin-blitz`, tick the lookup tools you want
    agents to have — connectors are inert until tools are explicitly enabled
    (consent model holds end to end). Access/roles editable there too (both
-   seeded members-visible, scoped to research/targeting/commercial).
+   seeded members-visible, scoped to research/targeting/commercial). **DONE**
 3. **Phase 2 (Claude-side HubSpot Agent CLI):** follow
    [HUBSPOT-AGENT-CLI.md](HUBSPOT-AGENT-CLI.md) — two environment settings
    (`npm install -g @hubspot/cli` setup command + `HUBSPOT_PERSONAL_ACCESS_KEY`),
    then a **fresh** session verifies with `hs account info`.
-4. **Phase 3, once network access actually works in a session:** the first
-   move is verifying HubSpot's "MCP Auth Apps" remote endpoint (see the
-   Phase 3 intel block under "MCP Connectors" below) — it may collapse the
-   planned bridge service to a single connector row. Do this check before
-   writing any bridge code.
+4. **Phase 3 — DONE** (verification, build, deploy, wire, smoke test).
 
 ## What this is
 
@@ -251,7 +260,19 @@ execution-time auth probe (claude.ai-configured, possibly OAuth-only) — wire
 member-visible if static auth works and tools return shareable map URLs,
 else drop. RapidAPI key: Pete's call, no rotation, one shared key.
 
-**Phase 3 STATUS (2026-08-13 night): verification DONE, /crm bridge BUILT.**
+**Phase 3 STATUS (2026-08-14 late night): /crm COMPLETE — deployed, wired,
+smoke-tested.** Bridge live at
+`https://hubspot-mcp-bridge-mqqftm2ora-uc.a.run.app/crm` (revision
+`hubspot-mcp-bridge-00001-kjr`, IAM-gated, sole invoker
+`agent-canvas-run@…`); secret `hubspot-mcp-token` stored (`pat-na2-…`,
+shape-verified) with `secretAccessor` granted to the DEFAULT COMPUTE SA
+(the bridge's runtime identity — deploy.sh grants it). `hubspot-crm`
+connector wired owner-access with `authorization: ${GCP_IDTOKEN}`, 21 tools
+enabled, probe 105ms; Scout smoke run pulled real user details and logged a
+verified memory entry. Reads hit REAL portal 243103424 (read-only scopes);
+writes stay sandbox-only via ops-runner. Build history below:
+
+**(2026-08-13 night): verification DONE, /crm bridge BUILT.**
 The remote MCP check ran first as mandated: mcp.hubspot.com is **OAuth-only**
 (anonymous probe → 401 + `WWW-Authenticate: Bearer resource_metadata=
 .../oauth-protected-resource`; developers.hubspot.com/mcp confirms OAuth 2.0

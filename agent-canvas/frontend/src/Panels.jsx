@@ -234,6 +234,24 @@ export function SpendPanel({ spend, budget, isOwner, onSetBudget, onClose }) {
         </form>
       ) : null}
 
+      <h3>By month (workspace, all canvases)</h3>
+      <table className="spend-table">
+        <thead><tr><th>month</th><th>days</th><th>tokens</th><th>cost</th></tr></thead>
+        <tbody>
+          {(spend?.monthly || []).map((m) => (
+            <tr key={m.month}>
+              <td className="mono">{m.month}</td>
+              <td className="mono">{m.days}</td>
+              <td className="mono">{m.input_tokens}/{m.output_tokens}</td>
+              <td className="mono">{fmtUSD(m.cost_usd)}</td>
+            </tr>
+          ))}
+          {(spend?.monthly || []).length === 0 ? (
+            <tr><td colSpan="4" className="empty-hint">no spend recorded yet</td></tr>
+          ) : null}
+        </tbody>
+      </table>
+
       <h3>This canvas</h3>
       <div className="mono spend-canvas">
         {spend?.canvasTotal

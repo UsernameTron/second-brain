@@ -900,7 +900,7 @@ router.get('/canvases/:canvasId/spend', auth.requireCanvas, (req, res) => {
     WHERE a.canvas_id = ? GROUP BY a.id
   `).all(req.params.canvasId);
   const canvasTotal = db.prepare('SELECT COALESCE(SUM(cost_usd),0) AS cost_usd, COALESCE(SUM(input_tokens),0) AS input_tokens, COALESCE(SUM(output_tokens),0) AS output_tokens FROM runs WHERE canvas_id = ?').get(req.params.canvasId);
-  res.json({ perAgent, canvasTotal, daily: control.getDailyUsage() });
+  res.json({ perAgent, canvasTotal, daily: control.getDailyUsage(), monthly: control.getMonthlyUsage() });
 });
 
 // ---------- audit (owner only) ----------
