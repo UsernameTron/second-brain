@@ -4,7 +4,43 @@ Fresh-context orientation for the next session. Everything here was true at
 handoff time; verify anything load-bearing with a probe or a gcloud describe
 before depending on it.
 
-## START HERE (2026-08-14 late) — four merged PRs, nothing deployed
+## START HERE (2026-08-14, final) — live and verified on `agent-canvas-00031-mpk`
+
+The fold-in is **live**. Full verification bar passed on Wave 1's connector
+row, the hardening pass, and the two context registries: 124/124, deployed,
+`hubspot-crm` probed at 85ms with 14 read tools, `sr-icp-leadfinder` carrying
+its 3 tools, and an end-to-end agent run on `read_registry` with its audit
+entry confirmed in Cloud Logging (`stepsUsed: 2`, `costUsd: 0.164229`).
+
+**What is left, in the order it is worth doing.**
+
+1. **One `sr-icp-leadfinder` smoke run.** The row is live and probed but no
+   agent has exercised it. Give a targeting-role agent a search and tell it to
+   poll — `find_icp_leads` and `check_lead_search` are a **start/poll pair**,
+   and an agent that calls the first and stops gets nothing. Results are
+   **v5-scored**.
+2. **Light the enrichment lane** (highest value, one grant + one redeploy) —
+   the three steps in the Wave 2 section below. It is inert until then and
+   cannot spend even if wired, because the service fails closed on an unset
+   budget.
+3. **Blocked on access, each with a runbook:** SOI
+   ([WAVE2-SOI-RUNBOOK.md](WAVE2-SOI-RUNBOOK.md)) · the GTM bridge
+   (`dataViewer` on `ctg_gtm_marts`) · the Wave 3 upstream ICP v6 harvest (a
+   push to `peteconnorCTG`).
+4. **Three known-open improvements** with their reasoning in
+   [IMPROVE-FINDINGS.md](IMPROVE-FINDINGS.md)'s disposition table — the
+   biggest is finding 8, lamps deriving from config rather than probe
+   evidence. That one changes what operators see and wants its own PR.
+
+**Two live defects were found and fixed during go-live**, both worth not
+repeating: a refused write tool reported itself as a fatal config-parse
+failure claiming no connector was active (#127), and the admin route rejected
+any save containing a write tool — so the save that removed them was refused
+for containing them, with no way out (#128). It strips and reports now. Both
+were introduced by the connector rule in #124; the rule itself was right and
+caught seven live write tools against the production portal.
+
+## Superseded — START HERE (2026-08-14 late) — four merged PRs, nothing deployed
 
 The portfolio fold-in ran to the end of its wave order. **Nothing reached
 Cloud Run**: `./agent-canvas/deploy/deploy.sh` was refused by the executing
