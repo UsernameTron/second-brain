@@ -15,6 +15,28 @@ const { db, tx, nowIso } = require('./db');
 const { audit } = require('./audit');
 
 const EPISTEMIC = ['verified', 'inference', 'assumption'];
+
+// Wave 4: FTS5 + bm25 retrieval, probe-gated. External-content index over
+// memory_entries.content — the store is append-only (corrections INSERT and
+// stamp superseded_by; content never mutates), so an INSERT trigger is the
+// entire sync story. Falls back to the scored-OR LIKE scorer when the SQLite
+// build lacks FTS5 or MEMORY_FTS=0 is set. Count-mismatch check backfills
+// databases created before the index existed (and self-heals).
+const FTS_DISABLED = process.env.MEMORY_FTS === '0';
+let FTS_OK = false;
+if (!FTS_DISABLED) {
+  try {
+    db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(content, content='memory_entries', content_rowid='rowid')");
+    db.exec(`CREATE TRIGGER IF NOT EXISTS memory_fts_ai AFTER INSERT ON memory_entries BEGIN
+      INSERT INTO memory_fts(rowid, content) VALUES (new.rowid, new.content);
+    END`);
+    const indexed = db.prepare('SELECT COUNT(*) n FROM memory_fts').get().n;
+    const stored = db.prepare('SELECT COUNT(*) n FROM memory_entries').get().n;
+    if (indexed !== stored) db.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+    FTS_OK = true;
+  } catch { FTS_OK = false; }
+}
+function retrievalEngine() { return FTS_OK ? 'fts5-bm25' : 'scored-or'; }
 // Wave 3 typed memory. All optional — entries written before (or without)
 // types are plain untyped facts and stay fully readable/retrievable.
 const KINDS = ['fact', 'decision', 'preference', 'constraint', 'outcome', 'feedback'];
@@ -239,22 +261,34 @@ function listEntries({ canvasId, includeSuperseded = false, epistemic, since, qu
   // agent searched "7-person team capacity constraint" against an entry
   // containing "team size: 7 … feasible at 7-person scale" and strict-AND
   // returned nothing — the memory was there, the search refused to see it.
-  const tokens = query ? String(query).toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8) : [];
-  if (tokens.length === 1) {
-    clauses.push('LOWER(content) LIKE ?');
-    params.push(`%${tokens[0]}%`);
-  }
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  // FTS tokenization splits on non-alphanumerics ("7-person" → 7, person),
+  // so mirror that split here; the LIKE fallback keeps whitespace splitting.
+  const rawTokens = query ? String(query).toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter(Boolean).slice(0, 8) : [];
+  const likeTokens = query ? String(query).toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8) : [];
   const lim = Math.min(Number(limit) || 200, 1000);
   let rows;
-  if (tokens.length >= 2) {
-    const scoreExpr = tokens.map(() => '(CASE WHEN LOWER(content) LIKE ? THEN 1 ELSE 0 END)').join(' + ');
-    const scoreParams = tokens.map((t) => `%${t}%`);
-    const threshold = Math.max(1, Math.ceil(tokens.length / 2));
+  if (rawTokens.length >= 1 && FTS_OK) {
+    // Prefix-match each token, any may hit; bm25 ranks (lower = better).
+    const match = rawTokens.map((t) => `"${t}"*`).join(' OR ');
+    const where = clauses.length ? `AND ${clauses.join(' AND ')}` : '';
+    rows = db.prepare(
+      `SELECT m.*, -bm25(memory_fts) AS mscore FROM memory_fts JOIN memory_entries m ON m.rowid = memory_fts.rowid
+       WHERE memory_fts MATCH ? ${where} ORDER BY bm25(memory_fts), m.created_at DESC LIMIT ?`
+    ).all(match, ...params, lim);
+  } else if (likeTokens.length >= 2) {
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const scoreExpr = likeTokens.map(() => '(CASE WHEN LOWER(content) LIKE ? THEN 1 ELSE 0 END)').join(' + ');
+    const scoreParams = likeTokens.map((t) => `%${t}%`);
+    const threshold = Math.max(1, Math.ceil(likeTokens.length / 2));
     rows = db.prepare(
       `SELECT * FROM (SELECT *, ${scoreExpr} AS mscore FROM memory_entries ${where}) WHERE mscore >= ? ORDER BY mscore DESC, created_at DESC LIMIT ?`
     ).all(...scoreParams, ...params, threshold, lim);
   } else {
+    if (likeTokens.length === 1) {
+      clauses.push('LOWER(content) LIKE ?');
+      params.push(`%${likeTokens[0]}%`);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     rows = db.prepare(
       `SELECT * FROM memory_entries ${where} ORDER BY created_at DESC LIMIT ?`
     ).all(...params, lim);
@@ -318,4 +352,4 @@ function lineage(entryId) {
   };
 }
 
-module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, recordRetrievals, EPISTEMIC, KINDS, APPLIES_TO };
+module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, recordRetrievals, retrievalEngine, EPISTEMIC, KINDS, APPLIES_TO };
