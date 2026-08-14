@@ -599,6 +599,7 @@ async function executeTool(name, input, ctx) {
         limit: Math.min(input.limit || 20, 50),
       });
       memory.recordRunReads(run.id, entries.map((e) => e.id));
+      memory.recordRetrievals(run.id, input.query, entries);
       return { content: JSON.stringify(entries.map((e) => ({
         id: e.id, content: e.content, epistemic: e.epistemic,
         author: e.author.name || e.author.id, source: e.source, created_at: e.createdAt, tainted: e.tainted,

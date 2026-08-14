@@ -668,6 +668,55 @@ router.get('/canvases/:canvasId/runs/:runId/events', auth.requireCanvas, (req, r
   res.json({ events });
 });
 
+// Context Receipt: what this run knew and how it came to know it.
+//   provided  — entries attached before the run began (handoff payloads,
+//               escalation lineage): run_reads rows with no retrieval record
+//   retrieved — every memory_search this run made: query, rank, score
+//   cited     — entries this run wrote, with what they cite
+//   delivered — the full run_reads set (provided ∪ retrieved)
+router.get('/canvases/:canvasId/runs/:runId/receipt', auth.requireCanvas, (req, res) => {
+  const run = db.prepare(
+    'SELECT id, agent_id, trigger_kind, status, instruction, summary, steps_used, step_budget, cost_usd, started_at, ended_at, created_at FROM runs WHERE id = ? AND canvas_id = ?'
+  ).get(req.params.runId, req.params.canvasId);
+  if (!run) return res.status(404).json({ error: 'run not found' });
+
+  const delivered = db.prepare('SELECT entry_id FROM run_reads WHERE run_id = ?').all(run.id).map((r) => r.entry_id);
+  const retrievalRows = db.prepare('SELECT entry_id, query, rank, score, ts FROM memory_retrievals WHERE run_id = ? ORDER BY id').all(run.id);
+  const retrievedIds = new Set(retrievalRows.map((r) => r.entry_id));
+  const providedIds = delivered.filter((id) => !retrievedIds.has(id));
+  const written = db.prepare('SELECT id FROM memory_entries WHERE run_id = ?').all(run.id).map((r) => r.id);
+
+  const hydrate = (id) => memory.getEntry(id);
+  // Group retrievals by query so the receipt reads as "searches this run made".
+  const searches = [];
+  for (const r of retrievalRows) {
+    let s = searches.find((x) => x.query === r.query && x.ts === r.ts);
+    if (!s) { s = { query: r.query, ts: r.ts, results: [] }; searches.push(s); }
+    s.results.push({ rank: r.rank, score: r.score, entry: hydrate(r.entry_id) });
+  }
+  const feedback = db.prepare('SELECT verdict, note, by, ts FROM run_feedback WHERE run_id = ?').get(run.id) || null;
+
+  res.json({
+    run,
+    provided: providedIds.map(hydrate).filter(Boolean),
+    searches,
+    cited: written.map(hydrate).filter(Boolean),
+    deliveredCount: delivered.length,
+    feedback,
+  });
+});
+
+router.post('/canvases/:canvasId/runs/:runId/feedback', auth.requireCanvas, (req, res) => {
+  const run = db.prepare('SELECT id, status FROM runs WHERE id = ? AND canvas_id = ?').get(req.params.runId, req.params.canvasId);
+  if (!run) return res.status(404).json({ error: 'run not found' });
+  const { verdict, note = '' } = req.body;
+  if (!['up', 'down'].includes(verdict)) return res.status(400).json({ error: 'verdict must be up|down' });
+  db.prepare('INSERT OR REPLACE INTO run_feedback (run_id, verdict, note, by, ts) VALUES (?, ?, ?, ?, ?)')
+    .run(run.id, verdict, String(note).slice(0, 1000), req.user.email, nowIso());
+  audit('user', req.user.email, 'run.feedback', { runId: run.id, verdict });
+  res.json({ ok: true, feedback: { verdict, note, by: req.user.email } });
+});
+
 router.get('/canvases/:canvasId/activity', auth.requireCanvas, (req, res) => {
   const limit = Math.min(Number(qstr(req.query.limit)) || 200, 1000);
   const events = db.prepare('SELECT * FROM run_events WHERE canvas_id = ? ORDER BY id DESC LIMIT ?').all(req.params.canvasId, limit)

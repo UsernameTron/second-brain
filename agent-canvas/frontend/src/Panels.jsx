@@ -21,23 +21,30 @@ const RUN_STATUS_CLASS = {
   halted_paused: 'run-halted', halted_budget: 'run-halted',
 };
 
-export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, onDispatch, fetchRunEvents, onClose }) {
+export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, onDispatch, fetchRunEvents, fetchRunReceipt, onFeedback, onClose }) {
   const [instruction, setInstruction] = useState('');
   const [sending, setSending] = useState(false);
   const [runSel, setRunSel] = useState(initialRunId);
   const [events, setEvents] = useState(null);
+  const [receipt, setReceipt] = useState(null);
 
   useEffect(() => { setRunSel(initialRunId); }, [initialRunId, agent.id]);
 
   useEffect(() => {
-    if (!runSel) { setEvents(null); return undefined; }
+    if (!runSel) { setEvents(null); setReceipt(null); return undefined; }
     let alive = true;
     setEvents(null);
+    setReceipt(null);
     fetchRunEvents(runSel)
       .then((evs) => { if (alive) setEvents(evs); })
       .catch(() => { if (alive) setEvents([]); });
+    if (fetchRunReceipt) {
+      fetchRunReceipt(runSel)
+        .then((r) => { if (alive) setReceipt(r); })
+        .catch(() => { if (alive) setReceipt(null); });
+    }
     return () => { alive = false; };
-  }, [runSel, fetchRunEvents]);
+  }, [runSel, fetchRunEvents, fetchRunReceipt]);
 
   const send = async (e) => {
     e.preventDefault();
@@ -94,6 +101,15 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, onDisp
           <div className="run-detail-instr">{short(selRun.instruction, 240)}</div>
           {selRun.summary ? <div className="run-summary">{selRun.summary}</div> : null}
           {selRun.error ? <div className="run-error">⚠ {selRun.error}</div> : null}
+          {receipt ? (
+            <ContextReceipt
+              receipt={receipt}
+              onFeedback={onFeedback ? async (verdict, note) => {
+                const r = await onFeedback(selRun.id, verdict, note);
+                if (r) setReceipt({ ...receipt, feedback: r.feedback });
+              } : null}
+            />
+          ) : null}
           <div className="run-events">
             {events === null ? <div className="empty-hint">loading events…</div> : null}
             {events && events.length === 0 ? <div className="empty-hint">no events recorded</div> : null}
@@ -122,6 +138,60 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, onDisp
         </div>
       )}
     </Panel>
+  );
+}
+
+// The Context Receipt: what the run knew and how it came to know it.
+// "provided" = attached before start (handoff payload, escalation lineage);
+// "searches" = what it asked memory and what came back (rank + score);
+// "cited" = what it wrote to memory. Retrieved ≠ used — only cites prove use.
+function ContextReceipt({ receipt, onFeedback }) {
+  const [note, setNote] = useState('');
+  const fb = receipt.feedback;
+  const entryLine = (e, extra) => (
+    <div key={e.id} className={`receipt-entry epi-${e.epistemic}`}>
+      <span className="chip">{e.epistemic}</span>
+      {extra}
+      <span className="receipt-content">{short(e.content, 120)}</span>
+      {e.tainted ? <span className="tainted-flag">⚠</span> : null}
+    </div>
+  );
+  return (
+    <div className="context-receipt">
+      <h3>Context receipt</h3>
+      <h4>Provided before start ({receipt.provided.length})</h4>
+      {receipt.provided.length === 0 ? <div className="empty-hint">nothing attached — the run started from its instruction alone</div> : null}
+      {receipt.provided.map((e) => entryLine(e))}
+
+      <h4>Memory searches ({receipt.searches.length})</h4>
+      {receipt.searches.length === 0 ? <div className="empty-hint">the run never searched memory</div> : null}
+      {receipt.searches.map((s, i) => (
+        <div key={i} className="receipt-search">
+          <div className="mono receipt-query">“{s.query || '(recent entries)'}”</div>
+          {s.results.map((r) => entryLine(r.entry, (
+            <span className="mono chip">#{r.rank}{r.score != null ? ` · ${r.score}` : ''}</span>
+          )))}
+        </div>
+      ))}
+
+      <h4>Written to memory ({receipt.cited.length})</h4>
+      {receipt.cited.length === 0 ? <div className="empty-hint">the run wrote nothing to memory</div> : null}
+      {receipt.cited.map((e) => entryLine(e))}
+
+      {onFeedback ? (
+        <div className="run-feedback">
+          {fb ? (
+            <div className="mono">rated {fb.verdict === 'up' ? '👍' : '👎'} by {fb.by}{fb.note ? ` — ${fb.note}` : ''}</div>
+          ) : (
+            <>
+              <input placeholder="optional note" value={note} onChange={(e) => setNote(e.target.value)} />
+              <button className="btn ghost small" onClick={() => onFeedback('up', note)} title="This run did its job">👍</button>
+              <button className="btn ghost small" onClick={() => onFeedback('down', note)} title="This run missed">👎</button>
+            </>
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
