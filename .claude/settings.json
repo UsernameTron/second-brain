@@ -1,4 +1,18 @@
 {
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Bash(git diff:*)",
+      "Bash(git status:*)",
+      "Bash(npm audit:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": [
+      "Bash(npm audit fix:*)",
+      "Bash(npm install:*)",
+      "Bash(npm ci:*)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
