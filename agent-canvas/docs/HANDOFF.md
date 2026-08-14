@@ -74,7 +74,7 @@ pause with epoch fencing, and a hash-chained audit log.
 - **Code:** `agent-canvas/` in UsernameTron/second-brain — **PR #99 MERGED
   to master 2026-08-13** (squash, ~55 commits; CodeQL-remediated, final
   review hardened). Follow-up work starts from master on a fresh branch.
-- **Tests:** 84/84 (`cd agent-canvas && npm test`). CI job `agent-canvas-test`.
+- **Tests:** 95/95 as of 2026-08-14 (`cd agent-canvas && npm test`). CI job `agent-canvas-test`.
 - **Docs:** `docs/DEPLOY.md`, `docs/GO-LIVE-UNBLOCK.md`, `docs/FRONTEND-SPEC.md`.
 
 ## Deployed state (LIVE and proven)

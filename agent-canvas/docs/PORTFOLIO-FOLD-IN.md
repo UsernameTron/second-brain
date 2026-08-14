@@ -79,6 +79,9 @@ signal-radar fork — one engine, two domains, integrate once.
    run today; integration surface (MCP / HTTP+IAM / data export); what
    canvas capability it adds; effort S/M/L. Present a ranked fold-in
    roadmap to Pete with a recommendation BEFORE building anything.
+   *Superseded 2026-08-14: Pete delegated execution — proceed per
+   [AUTONOMOUS-EXECUTION.md](AUTONOMOUS-EXECUTION.md) Step 3 without
+   waiting for approval.*
 2. **Integrate in waves, cheapest-first, ONE PR per wave** — Pete wants few
    PRs; batch related changes. Wave 1 is likely sr-icp-connector as a
    connector row plus a signal-radar MCP/bridge; later waves per Pete's
@@ -349,3 +352,8 @@ absorbed, UAT front de-scoped from execs) rather than adding integrations.
 The ranked roadmap, and anything touching production CRM, spend, or new
 external services → Pete decides. Wiring already-approved waves, tests,
 docs → proceed autonomously.
+
+*Superseded 2026-08-14: Pete's delegation replaces "Pete decides" with the
+standing defaults in [AUTONOMOUS-EXECUTION.md](AUTONOMOUS-EXECUTION.md)
+Step 3 (SOI, enrichment-dispatch, GTM bridge, conservative-default/SKIP
+rule). Stop Conditions there remain absolute.*
