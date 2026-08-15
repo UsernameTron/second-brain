@@ -9,10 +9,14 @@ export function useDialog(onClose) {
   const ref = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose; // callers may pass an inline closure — never re-run the effect for it
+  // Capture the opener during the first render, before the same commit can
+  // unmount it (e.g. a menu item that closes its menu while opening a modal).
+  const openerRef = useRef(null);
+  if (openerRef.current === null) openerRef.current = document.activeElement;
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return undefined;
-    const opener = document.activeElement;
+    const opener = openerRef.current;
     const first = dialog.querySelector(FOCUSABLE);
     (first || dialog).focus();
 
@@ -33,7 +37,9 @@ export function useDialog(onClose) {
     dialog.addEventListener('keydown', onKey);
     return () => {
       dialog.removeEventListener('keydown', onKey);
-      if (opener && typeof opener.focus === 'function' && document.contains(opener)) opener.focus();
+      // Restore only to a real, still-mounted opener — never yank focus to
+      // <body>, and never fight a caller's own onClose focus handoff.
+      if (opener && opener !== document.body && typeof opener.focus === 'function' && document.contains(opener)) opener.focus();
     };
   }, []);
   return ref;

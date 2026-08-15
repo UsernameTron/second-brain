@@ -90,6 +90,9 @@ export default function Workspace() {
     else if (ws === 'denied') { toast('Workspace connection was cancelled before granting access'); }
   }, [refreshCaps, toast]);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Modals opened from the user menu unmount their opener with the menu —
+  // hand focus back to the avatar when they close.
+  const avatarRef = useRef(null);
 
   const wsRef = useRef(null);
   const canvasIdRef = useRef(null);
@@ -959,7 +962,7 @@ export default function Workspace() {
           {presence.filter((p) => p.email !== user.email).length > 6 ? <span className="avatar more">+{presence.filter((p) => p.email !== user.email).length - 6}</span> : null}
         </div>
         <div className="user-menu-wrap">
-          <button className="avatar me" onClick={() => setMenuOpen((v) => !v)} title={user.email}>
+          <button className="avatar me" ref={avatarRef} onClick={() => setMenuOpen((v) => !v)} title={user.email}>
             {user.picture ? <img src={user.picture} alt="" referrerPolicy="no-referrer" /> : initials(user.name || user.email)}
           </button>
           {menuOpen ? (
@@ -1138,7 +1141,7 @@ export default function Workspace() {
         />
       </div>
 
-      {adminOpen ? <AdminModal onClose={() => { setAdminOpen(false); refreshRoster(); }} toast={toast} selfEmail={user.email} /> : null}
+      {adminOpen ? <AdminModal onClose={() => { setAdminOpen(false); refreshRoster(); if (avatarRef.current) avatarRef.current.focus(); }} toast={toast} selfEmail={user.email} /> : null}
       {addAgentOpen && canvasId ? (
         <AddAgentModal
           canvasId={canvasId}
@@ -1152,7 +1155,7 @@ export default function Workspace() {
         <ArchivedModal
           archivedCanvases={archivedCanvases}
           restoreCanvas={restoreCanvas}
-          onClose={() => setArchivedOpen(false)}
+          onClose={() => { setArchivedOpen(false); if (avatarRef.current) avatarRef.current.focus(); }}
         />
       ) : null}
       {capsOpen ? <CapabilitiesModal onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}

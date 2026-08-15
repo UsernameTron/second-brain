@@ -496,7 +496,11 @@ router.post('/mcp/servers/:id/probe', auth.requireOwner, asyncRoute(async (req, 
 // ---------- canvases ----------
 router.get('/canvases', (req, res) => {
   const all = db.prepare('SELECT * FROM canvases ORDER BY created_at').all();
-  const visible = all.filter((c) => auth.canAccessCanvas(req.user, c.id).ok);
+  // Effective access rides along so the client can render view-only sessions.
+  const visible = all
+    .map((c) => ({ canvas: c, check: auth.canAccessCanvas(req.user, c.id) }))
+    .filter((e) => e.check.ok)
+    .map((e) => ({ ...e.canvas, access: e.check.access }));
   // Archived canvases leave everyone's switcher. The owner gets them back in a
   // separate list (the "Archived" section) — archive is tidiness, not
   // destruction: rows, memory, audit lineage all stay.
@@ -546,7 +550,7 @@ router.get('/canvases/:canvasId', auth.requireCanvas, (req, res) => {
         .map((c) => ({ ...c, cite_entry_ids: JSON.parse(c.cite_entry_ids) })),
     }));
   res.json({
-    canvas: req.canvas, agents, notes, tasks, people, files, rows, escalations, handoffs, runs, changesets,
+    canvas: req.canvas, access: req.canvasAccess, agents, notes, tasks, people, files, rows, escalations, handoffs, runs, changesets,
     budget: control.getDailyUsage(), queue: queueState(),
   });
 });

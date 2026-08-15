@@ -189,6 +189,7 @@ function requireCanvas(req, res, next) {
     return res.status(403).json({ error: 'view-only access to this canvas' });
   }
   req.canvas = check.canvas;
+  req.canvasAccess = check.access;
   next();
 }
 

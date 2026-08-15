@@ -83,6 +83,14 @@ test('member route rejects unknown access levels', async () => {
   assert.equal(res.status, 400);
 });
 
+test('effective access level rides along on canvas reads', async () => {
+  const list = await call(viewerCookie, 'GET', '/api/canvases');
+  assert.equal(list.data.canvases.find((c) => c.id === canvasId).access, 'view');
+  const one = await call(viewerCookie, 'GET', `/api/canvases/${canvasId}`);
+  assert.equal(one.data.access, 'view');
+  assert.equal((await call(editorCookie, 'GET', `/api/canvases/${canvasId}`)).data.access, 'edit');
+});
+
 test('view member can read the canvas but not mutate it', async () => {
   assert.equal((await call(viewerCookie, 'GET', `/api/canvases/${canvasId}`)).status, 200);
   const note = await call(viewerCookie, 'POST', `/api/canvases/${canvasId}/notes`, { text: 'nope', x: 0, y: 0 });

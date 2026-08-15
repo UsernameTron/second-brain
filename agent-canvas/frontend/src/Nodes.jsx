@@ -51,7 +51,10 @@ function NodeShell({ kind, id, x, y, z, className = '', style, selColor, mine, l
 
   return (
     <div
-      role="button"
+      // file nodes contain a real download <a> — a button role would demote
+      // it to presentational, so they get a labeled group instead. Keyboard
+      // behavior (focus + Enter/Space) is identical either way.
+      role={kind === 'file' ? 'group' : 'button'}
       tabIndex={0}
       aria-label={label}
       onKeyDown={key}
