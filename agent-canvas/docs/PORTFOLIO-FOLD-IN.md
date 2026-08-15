@@ -449,22 +449,41 @@ Do not re-audit.
   a parity check (each locked button's question answered correctly in a
   canvas run).
 
-  **Parity checklist (prepared 2026-08-14 from `app/commands.py` — needs one
-  signed-in canvas session; dispatch each to an exec persona or Scout, tick
-  when the answer matches the /exec page's):**
-  1. [ ] *Workflows* — "How many HubSpot automations are active, what do
-     they do, and as of when?"
-  2. [ ] *Data trustworthiness* — "Assess completeness, gaps, and
-     inconsistencies across contacts, companies, and deals."
-  3. [ ] *Ownership & gaps* — "Show owner distribution and concentration —
-     who holds the book, who is idle."
-  4. [ ] *Open deals by category* — "Open-deal counts and concentration by
-     product category."
-  5. [ ] *Account relationships* — "Top-accounts relationship rollup — how
-     the book is structured and connected."
+  **Parity checklist — RUN 2026-08-15 headlessly** against the REAL portal
+  243103424 via the canvas runtime SA (`agent-canvas-run@`) impersonated
+  against the `hubspot-mcp-bridge` audience — the connector's exact call path
+  and tool set. **Result: 4 of 5 reach parity; Q1 does NOT.**
+  1. [ ] **Workflows — FAIL (scope).** `hubspot-list-workflows` returns
+     `403 MISSING_SCOPES: automation`. The canvas CRM token is CRM-read-only
+     by design (verified via `hubspot-get-user-details`: no `automation`
+     scope), so the two workflow tools cannot be honored. **This button
+     cannot be retired to canvas.** See the Q1 decision below.
+  2. [x] *Data trustworthiness* — contacts/companies/deals all readable;
+     canvas even quantifies a gap the /exec page would flag: 522/1102 deals
+     (47%) have no `product_category`.
+  3. [x] *Ownership & gaps* — 1102 deals paged; concentration owner
+     `159596078` 614 (56%), `159596082` 364 (33%) → two owners hold 89% of
+     the book. (Owner→name needs an owners tool not currently enabled; IDs
+     only.)
+  4. [x] *Open deals by category* — 291 open / 811 closed, $120,960 open
+     pipeline; open by `product_category`: Bots AI IVA Digital 34, Accent
+     Neutralization 30, UCaaS 26, CCaaS/CPaaS 21, Caller-ID/STIR-SHAKEN 20,
+     AI Agent Assist 17.
+  5. [x] *Account relationships* — companies readable; association defs
+     rich, incl. USER_DEFINED `Supplier` and `Referral Partner`
+     (company→deal).
 
-  All five ticked → retire the URL (and the ctg-l10-eos embed) and mark this
-  audit line DONE with the run links.
+  **Q1 decision (Pete's), because 4/5 is not "retire the URL":** the /exec
+  Workflows button answered against an app that held `automation`; the canvas
+  token deliberately does not (least-privilege — the admin-plane Developer API
+  key is deliberately UNUSED per HANDOFF). Options, recommended first:
+  (a) **untick `hubspot-list-workflows` + `hubspot-get-workflow`** on the
+  connector — consistent with #124's "never advertise a tool the deployment
+  cannot honor" — and keep the one /exec Workflows button; (b) grant
+  `automation` read scope to the CRM token (widens it during diligence — only
+  if the view is worth it); (c) retire the other four buttons, keep Workflows.
+  **Retire the four verified buttons now; do NOT retire Workflows.** Until Q1
+  is decided, this audit line is **4/5 DONE, Workflows open** — not fully DONE.
 - **ctg-hs-ops-runner Exec UAT front** (`AKfycbzOgUPWl…`, most-referenced)
   — UAT/provisioning harness for the CRM write lane. Canvas is the
   production exec surface for that lane (preview-first writes, tray

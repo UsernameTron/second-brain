@@ -114,11 +114,19 @@ recorded so the P1 roadmap branch starts from facts, not a stale handoff:**
    team-priorities / content-strategy docs — no V/TO, no commission
    governance; those miss honestly until M02 ingests more.
 2. Enrichment lamp: ~~probe~~ **DONE** (board all-green on `00045-gwg`).
-   Still open: read Scout's failed `find_icp_leads` run_events for the
-   real failure class (version skew is now fixed separately; don't assume),
-   and one targeting-role start/poll run to close the sr-icp smoke row.
-3. Run the /exec parity checklist (5 questions, PORTFOLIO-FOLD-IN) in the
-   same session.
+   ~~sr-icp start/poll smoke run~~ **DONE 2026-08-15** — ran headlessly
+   against fly.dev: job `c1613ff9337e` → 10 Healthcare tier-1 leads,
+   `icp_version: sr-icp-v6`, per-lead `why` arithmetic (ledger has it). The
+   earlier failed Scout run is moot — the pair works and is v6-scored now.
+3. ~~Run the /exec parity checklist~~ **4/5 DONE 2026-08-15**, conducted
+   headlessly via the canvas SA on the hubspot bridge (PORTFOLIO-FOLD-IN §
+   parity has the numbers). Q2/Q3/Q4/Q5 pass against portal 243103424.
+   **Q1 Workflows FAILS** — the CRM token has no `automation` scope, so
+   `hubspot-list-workflows`/`hubspot-get-workflow` 403. **Your decision:**
+   recommend unticking those two tools on the `hubspot-crm` connector (honours
+   the "no tool the deployment can't honor" rule) and keeping the /exec
+   Workflows button; alternatively grant `automation` read scope. Retire the
+   other four /exec buttons now; not Workflows.
 4. ~~Commit the staged ontology fix in CTG-Workspace-Build~~ **DONE** —
    committed as `779cb2d`, merged as CTG-Workspace-Build PR #180 (see
    Gate 0 block above).
