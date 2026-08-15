@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
 import { ContextReceipt } from './Panels.jsx';
 
@@ -123,11 +123,15 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
   const [busy, setBusy] = useState(false);
   const [savedOnly, setSavedOnly] = useState(false);
 
+  // Overlapping loads (canvas switch, Saved Only toggle, runTick bursts) may
+  // resolve out of order — only the latest request may write the list.
+  const loadSeq = useRef(0);
   const load = useCallback(() => {
     if (!canvasId) return;
+    const seq = ++loadSeq.current;
     api(`/api/canvases/${canvasId}/inquiries${savedOnly ? '?saved=1' : ''}`)
-      .then((d) => setInquiries(d.inquiries || []))
-      .catch((e) => toast(e.message));
+      .then((d) => { if (seq === loadSeq.current) setInquiries(d.inquiries || []); })
+      .catch((e) => { if (seq === loadSeq.current) toast(e.message); });
   }, [canvasId, savedOnly, toast]);
 
   useEffect(() => { setInquiries(null); load(); }, [load]);

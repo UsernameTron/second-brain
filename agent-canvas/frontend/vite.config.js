@@ -6,6 +6,12 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   build: { outDir: 'dist' },
+  test: {
+    globals: true, // lets @testing-library/react auto-clean the DOM between tests
+    environment: 'jsdom',
+    setupFiles: ['./test/setup.js'],
+    include: ['test/**/*.test.jsx'],
+  },
   server: {
     proxy: {
       '/api': { target: 'http://localhost:8080', changeOrigin: false },

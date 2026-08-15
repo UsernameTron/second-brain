@@ -11,7 +11,8 @@
     "start": "node server/index.js",
     "dev": "DEV_AUTH=1 node server/index.js",
     "seed": "node server/seed.js",
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "test:frontend": "npm test --prefix frontend"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.0",

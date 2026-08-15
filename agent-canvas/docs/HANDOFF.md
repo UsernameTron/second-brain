@@ -5,6 +5,31 @@ depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
 
+## P2.1 HARDENING GATE — BUILT ON `fix/p2.1-hardening` (2026-08-15, pre-P3)
+
+Four-item gate the P2 review demanded before Evidence Rooms. Backend suite
+**234/234**; new frontend suite **7/7** (`npm run test:frontend`); production
+build verified. Not yet merged or deployed at the time of writing.
+
+- **T1 view/edit authorization split:** `canAccessCanvas` now always reports
+  the access level; `requireCanvas` blocks non-GET requests from `view`
+  members in one place; `canEditCanvas` guards the direct-check mutating
+  routes (escalation assign/resolve, inquiry save, demo run); the member
+  route accepts `access: view|edit` (was hardcoded `edit`, upsert now
+  updates the level). Covered by `test/view-edit-access.test.js`.
+- **T2 inquiry list race:** `Home.jsx` loads carry a sequence token — a
+  stale response can never replace the current list (regression-tested).
+- **T3 keyboard access:** canvas nodes are focusable buttons with
+  aria-labels and Enter/Space activation; all four modals share
+  `useDialog` (initial focus, Tab trap, Escape close, focus restore);
+  the archived-canvases modal is its own component to host it.
+- **T4 frontend interaction tests:** Vitest + Testing Library under
+  `frontend/test/`; `frontend npm ci` refreshed the lockfile so local Vite
+  matches the manifest (6.4.3), closing the prior verification caveat.
+- **CI note:** the `agent-canvas-test` job does not yet run
+  `npm run test:frontend` — adding that step needs the operator's approval
+  (CI edits are gated).
+
 ## P2 MERGED, DEPLOYED, AND LIVE-ACCEPTED (2026-08-15 — PRs #181–#184 + #187)
 
 All four slices of the approved P2 roadmap (people ownership / unified NEEDS

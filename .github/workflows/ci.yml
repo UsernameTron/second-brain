@@ -65,4 +65,9 @@ jobs:
       - name: Agent Canvas unit tests (node:test)
         run: npm test
         working-directory: agent-canvas
+      - run: npm ci
+        working-directory: agent-canvas/frontend
+      - name: Agent Canvas frontend tests (vitest)
+        run: npm run test:frontend
+        working-directory: agent-canvas
 
