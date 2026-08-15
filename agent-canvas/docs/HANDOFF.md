@@ -41,7 +41,47 @@ for feedback data), embeddings (Vertex-only option; revisit if the eval
 suite shows lexical recall failing on real queries), agent builder,
 pipeline hygiene (lives in ctg-ops-automation).
 
-## CURRENT STATE (2026-08-14 close-out — the ONE authoritative block; everything below is history)
+## SESSION CLOSE (2026-08-15) — Gate 0 fully accepted; P1 is the next build
+
+**Live:** revision **`agent-canvas-00045-gwg`**, 100% traffic (carries the
+sr-icp v5 reseed / v6 Radar version-check prompt). Tests **169/169** on
+master (`9fc75fa`). The whole systems board is green.
+
+**Everything from the Gate 0 acceptance checklist is now DONE:**
+- **SOI** — wired, probed (71ms), `org_knowledge_search` ticked, corpus-miss
+  verified ×2 by live agent runs, corpus-hit verified with citations, and the
+  connector access flipped `members`→`owner` (Pete, in-app 2026-08-15).
+- **sr-icp** — start/poll pair exercised live: 10 Healthcare tier-1 leads,
+  `icp_version: sr-icp-v6`, per-lead `why` arithmetic. v6 re-export proven.
+- **/exec parity — CLOSED (Pete resolved Q1, 2026-08-15).** Q2–Q5 verified
+  live against portal 243103424 via SA impersonation; Q1 Workflows (token had
+  no `automation` scope) resolved by Pete in-app. The four verified /exec
+  buttons and the Workflows button are all reconciled. *(Config-side changes —
+  the SOI access flip and the Q1 resolution — are not headlessly re-verifiable
+  from this Mac; recorded on Pete's confirmation.)*
+- **Enrichment lamp** green; **ontology fix** merged (#180); **fly.dev v6
+  re-export** live; **Dependabot** clear. All prior list items closed.
+
+**OUTSTANDING (nothing blocks P1; ranked):**
+1. **sr-icp connector source hygiene** — the v6 registry commit is on branch
+   `feat/icp-v6-registry` in `CTG-Workspace-Build/projects/sr-icp-connector`,
+   which has **no `origin` remote**. The fly.dev deploy is already live, so
+   this is source-of-truth hygiene only: push the branch wherever that project
+   is hosted when convenient.
+2. **`claude-review` CI is flaky** — the claude-code-action installer 403s
+   (~1 in N runs), producing no review; `gh run rerun <id> --failed` clears
+   it. Worth pinning/replacing the action eventually; non-blocking today.
+3. **Memory hygiene** — second-brain `stash@{0}` (PETE-REVIEW sentinel) and
+   CTG-Workspace-Build's 6 stashes are keep/drop calls; `/dream-apply` review
+   of the existing changeset; `/promote-memories` batches.
+4. **Vertex quota refile** — deprioritized (the Anthropic bridge works); paths
+   in Open item 1 below.
+5. **P1 — Inquiry Home / evidence receipts** (roadmap in the Desktop verdict).
+   Gate 0 is fully accepted, so P1 may open on a fresh branch when you're ready.
+
+---
+
+## CURRENT STATE (2026-08-14 close-out — prior authoritative block; superseded by SESSION CLOSE above)
 
 **Live:** revision **`agent-canvas-00043-7wn`**, 100% traffic (Gate 0
 verified 2026-08-14 via `gcloud run services describe` — carries the
