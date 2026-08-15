@@ -78,6 +78,11 @@ test('an explicit reviewAt always wins the default', () => {
   assert.equal(e.reviewAt, '2099-01-01T00:00:00.000Z');
 });
 
+test('an explicit null reviewAt opts out of the default entirely', () => {
+  const e = memory.writeEntry({ canvasId, content: 'Assume this never needs review.', epistemic: 'assumption', reviewAt: null, ...AUTHOR });
+  assert.equal(e.reviewAt, null, 'explicit null = unscheduled, not defaulted');
+});
+
 test('corrections inherit rather than re-defaulting (NEW entries only)', () => {
   const orig = memory.writeEntry({ canvasId, content: 'Assume 10 seats.', epistemic: 'assumption', reviewAt: '2030-06-01T00:00:00.000Z', ...AUTHOR });
   const { entry } = memory.correctEntry({ entryId: orig.id, content: 'Actually 12 seats.', epistemic: 'assumption', reason: 'recount', ...AUTHOR });
@@ -100,6 +105,28 @@ test('timeline classifies created → corrected → reclassified → reaffirmed 
     assert.deepEqual(res.data.events.map((ev) => ev.event), ['created', 'corrected', 'reclassified', 'reaffirmed']);
     assert.deepEqual(res.data.entries, [e1.id, e2.id, e3.id, re.data.entry.id]);
   }
+});
+
+test('a no-op correction (same content/label/date) reads corrected, not reaffirmed', () => {
+  const e1 = memory.writeEntry({ canvasId, content: 'Same words forever.', epistemic: 'verified', ...AUTHOR });
+  const { entry: e2 } = memory.correctEntry({ entryId: e1.id, content: e1.content, epistemic: 'verified', reason: 'noop', ...AUTHOR });
+  const t = memory.entryTimeline(e2.id);
+  assert.deepEqual(t.events.map((ev) => ev.event), ['created', 'corrected'],
+    'reaffirmed is earned by a refreshed review date');
+});
+
+test('a chain longer than the hop cap says so instead of inventing a created event', () => {
+  let e = memory.writeEntry({ canvasId, content: 'v0', epistemic: 'assumption', ...AUTHOR });
+  const rootId = e.id;
+  for (let i = 1; i <= 15; i += 1) {
+    e = memory.correctEntry({ entryId: e.id, content: `v${i}`, epistemic: 'assumption', reason: 'iterate', ...AUTHOR }).entry;
+  }
+  const fromHead = memory.entryTimeline(e.id);
+  assert.equal(fromHead.events[0].event, 'earlier history truncated');
+  assert.notEqual(fromHead.events[0].entryId, rootId, 'the cap stops before the true root');
+  const fromRoot = memory.entryTimeline(rootId);
+  assert.equal(fromRoot.events[0].event, 'created');
+  assert.equal(fromRoot.events[0].entryId, rootId);
 });
 
 test('timeline 404s on unknown entries and carries author names', async () => {

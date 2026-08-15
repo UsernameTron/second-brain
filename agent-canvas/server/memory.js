@@ -61,11 +61,13 @@ function defaultReviewAt(epistemic, kind) {
 }
 
 function writeEntry({ canvasId, content, epistemic, authorType, authorId, authorName = '', source = '', runId = null, cites = [],
-  kind = null, subject = null, appliesToType = null, appliesToId = null, effectiveAt = null, reviewAt = null }) {
+  kind = null, subject = null, appliesToType = null, appliesToId = null, effectiveAt = null, reviewAt }) {
   if (!content || typeof content !== 'string') throw new Error('memory content required');
   if (!EPISTEMIC.includes(epistemic)) throw new Error(`epistemic must be one of ${EPISTEMIC.join(', ')}`);
   validateTyped({ kind, appliesToType, appliesToId });
-  if (reviewAt === null) reviewAt = defaultReviewAt(epistemic, kind);
+  // Defaults apply only when the field is OMITTED — an explicit null is the
+  // caller opting out of scheduled review (codex on #184).
+  if (reviewAt === undefined) reviewAt = defaultReviewAt(epistemic, kind);
   const id = crypto.randomUUID();
   const ts = nowIso();
   const uniqueCites = [...new Set(cites)].filter(Boolean);
@@ -409,12 +411,17 @@ function entryTimeline(entryId) {
   const classify = (prev, next) => {
     if (next.content === prev.content) {
       if (next.epistemic !== prev.epistemic || next.kind !== prev.kind) return 'reclassified';
-      return 'reaffirmed'; // same words, fresh review date — a human looked
+      // "reaffirmed" is earned by an actually refreshed review date — a no-op
+      // correction with the same stale deadline is not a review (codex #184).
+      if (next.review_at !== prev.review_at) return 'reaffirmed';
     }
     return 'corrected';
   };
   const events = [{
-    event: 'created', at: chain[0].created_at, entryId: chain[0].id,
+    // A chain longer than the hop cap starts mid-history: say so rather than
+    // presenting an intermediate correction as the creation (codex #184).
+    event: chain[0].supersedes ? 'earlier history truncated' : 'created',
+    at: chain[0].created_at, entryId: chain[0].id,
     byName: chain[0].author_name || chain[0].author_id, epistemic: chain[0].epistemic, kind: chain[0].kind,
   }];
   for (let i = 1; i < chain.length; i += 1) {

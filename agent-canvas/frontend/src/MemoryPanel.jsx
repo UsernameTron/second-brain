@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
 import { Panel } from './Panels.jsx';
 
@@ -129,16 +129,20 @@ export default function MemoryPanel({
   const [timeline, setTimeline] = useState(null); // P2: {entryId, events}|null
   const [filter, setFilter] = useState('');
   const [kindFilter, setKindFilter] = useState('');
+  const traceIdRef = useRef(null); // the entry being traced NOW — stale responses check it
 
   const trace = (entryId) => {
+    traceIdRef.current = entryId;
     setLineage({ entryId, data: null });
     setTimeline(null);
     api(`/api/memory/${entryId}/lineage`)
       .then((d) => setLineage((cur) => (cur && cur.entryId === entryId ? { entryId, data: d } : cur)))
       .catch((e) => { toast(e.message); setLineage(null); });
     // The lifecycle timeline rides alongside lineage; failure never blocks it.
+    // A slow response for a PREVIOUS entry must not clobber the current one's
+    // timeline (codex on #184).
     api(`/api/memory/${entryId}/timeline`)
-      .then((d) => setTimeline({ entryId, events: d.events || [] }))
+      .then((d) => { if (traceIdRef.current === entryId) setTimeline({ entryId, events: d.events || [] }); })
       .catch(() => {});
   };
 
