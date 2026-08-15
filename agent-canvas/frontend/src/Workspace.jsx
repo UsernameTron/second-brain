@@ -443,8 +443,9 @@ export default function Workspace() {
   }, []);
 
   // ---------- actions ----------
-  const dispatchToAgent = useCallback(async (agentId, instruction) => {
-    const d = await api(`/api/canvases/${canvasIdRef.current}/agents/${agentId}/dispatch`, { method: 'POST', body: { instruction } });
+  const dispatchToAgent = useCallback(async (agentId, instruction, mode) => {
+    const body = mode && mode !== 'act' ? { instruction, mode } : { instruction };
+    const d = await api(`/api/canvases/${canvasIdRef.current}/agents/${agentId}/dispatch`, { method: 'POST', body });
     setState((s) => s && ({ ...s, runs: [d.run, ...s.runs] }));
     return d.run;
   }, []);
@@ -561,14 +562,17 @@ export default function Workspace() {
   }, [toast]);
 
   const parseIntent = useCallback(
-    (text) => api(`/api/canvases/${canvasIdRef.current}/intent`, { method: 'POST', body: { text } }).then((d) => d.intent),
+    // Mode rides client-side on the parsed intent — the parse itself is
+    // mode-agnostic; the mode only matters at dispatch time.
+    (text, mode) => api(`/api/canvases/${canvasIdRef.current}/intent`, { method: 'POST', body: { text } })
+      .then((d) => ({ ...d.intent, mode: mode || 'act' })),
     []
   );
 
   const confirmIntent = useCallback(async (intent) => {
     if (intent.action === 'dispatch' && intent.agent_id) {
-      await dispatchToAgent(intent.agent_id, intent.instruction || '');
-      toast(`Dispatched to ${intent.agent_name || 'agent'}`, 'ok');
+      await dispatchToAgent(intent.agent_id, intent.instruction || '', intent.mode);
+      toast(`Dispatched to ${intent.agent_name || 'agent'}${intent.mode && intent.mode !== 'act' ? ` (${intent.mode})` : ''}`, 'ok');
       return;
     }
     if (intent.action === 'pause') { await pauseAll(); return; }

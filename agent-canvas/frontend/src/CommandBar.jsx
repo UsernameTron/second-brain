@@ -10,8 +10,15 @@ function MicIcon() {
   );
 }
 
+const CMD_MODES = [
+  { key: 'ask', label: 'Ask', hint: 'read-only — answer with evidence' },
+  { key: 'act', label: 'Act', hint: 'normal run — may draft and hand off' },
+  { key: 'rehearse', label: 'Rehearse', hint: 'dry run — narrates, changes nothing' },
+];
+
 export default function CommandBar({ paused, onParse, onConfirm, toast }) {
   const [text, setText] = useState('');
+  const [mode, setMode] = useState('act');
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(null); // { intent, text }
   const [listening, setListening] = useState(false);
@@ -22,7 +29,7 @@ export default function CommandBar({ paused, onParse, onConfirm, toast }) {
     if (!value || busy) return;
     setBusy(true);
     try {
-      const intent = await onParse(value);
+      const intent = await onParse(value, mode);
       setPending({ intent, text: value });
       setText('');
     } catch (e) {
@@ -36,7 +43,9 @@ export default function CommandBar({ paused, onParse, onConfirm, toast }) {
     if (!pending || busy) return;
     setBusy(true);
     try {
-      await onConfirm(pending.intent);
+      // The CURRENT mode wins, not the snapshot captured at parse time — a
+      // user who flips to Ask while the confirm is open means Ask.
+      await onConfirm({ ...pending.intent, mode });
       setPending(null);
     } catch (e) {
       toast(e.message);
@@ -89,6 +98,7 @@ export default function CommandBar({ paused, onParse, onConfirm, toast }) {
             {!unknown && (pending.intent.agent_name || pending.intent.action !== 'dispatch') ? (
               <div className="intent-detail mono">
                 {pending.intent.action}
+                {` · ${mode.toUpperCase()}`}
                 {pending.intent.agent_name ? ` · ${pending.intent.agent_name}` : ''}
                 {pending.intent.instruction ? ` — ${pending.intent.instruction}` : ''}
               </div>
@@ -101,6 +111,13 @@ export default function CommandBar({ paused, onParse, onConfirm, toast }) {
         </div>
       ) : null}
       <form className="cmd-row" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <div className="mode-switch cmd-modes" role="radiogroup" aria-label="Run mode">
+          {CMD_MODES.map((m) => (
+            <button key={m.key} type="button" role="radio" aria-checked={mode === m.key}
+              className={`btn ghost small ${mode === m.key ? 'lens-on' : ''}`} title={m.hint}
+              onClick={() => setMode(m.key)}>{m.label}</button>
+          ))}
+        </div>
         <button
           type="button"
           className={`mic-btn ${listening ? 'listening' : ''}`}
