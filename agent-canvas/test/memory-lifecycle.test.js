@@ -78,6 +78,15 @@ test('an explicit reviewAt always wins the default', () => {
   assert.equal(e.reviewAt, '2099-01-01T00:00:00.000Z');
 });
 
+test('the HTTP write route defaults review_at when the field is omitted (live-probe regression)', async () => {
+  const omitted = await call('POST', `/api/canvases/${canvasId}/memory`, { content: 'HTTP assumption, no review field.', epistemic: 'assumption' });
+  assert.equal(omitted.status, 200);
+  assert.ok(Math.abs(daysFromNow(omitted.data.entry.reviewAt) - 14) < 0.1,
+    'the route must not coerce omitted review_at to an explicit null opt-out');
+  const optedOut = await call('POST', `/api/canvases/${canvasId}/memory`, { content: 'HTTP assumption, explicit null.', epistemic: 'assumption', review_at: null });
+  assert.equal(optedOut.data.entry.reviewAt, null);
+});
+
 test('an explicit null reviewAt opts out of the default entirely', () => {
   const e = memory.writeEntry({ canvasId, content: 'Assume this never needs review.', epistemic: 'assumption', reviewAt: null, ...AUTHOR });
   assert.equal(e.reviewAt, null, 'explicit null = unscheduled, not defaulted');
