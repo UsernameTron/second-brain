@@ -4,7 +4,7 @@
 
 const crypto = require('node:crypto');
 const express = require('express');
-const { db, tx, nowIso } = require('./db');
+const { db, tx, nowIso, getSetting } = require('./db');
 const roster = require('./roster');
 const { audit, queryAudit, verifyChain, verifyChainTail } = require('./audit');
 const memory = require('./memory');
@@ -48,6 +48,9 @@ router.get('/config', (req, res) => {
     devAuth: auth.DEV_AUTH,
     domain: auth.ALLOWED_DOMAIN,
     models: { fast: FAST_MODEL, strong: STRONG_MODEL },
+    // P1 reversible exposure: Inquiry Home as the signed-in landing view.
+    // setSetting('inquiry_home', '0') reverts sign-in to the canvas, no deploy.
+    inquiryHome: getSetting('inquiry_home', '1') === '1',
   });
 });
 
