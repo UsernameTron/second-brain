@@ -5,18 +5,28 @@ depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
 
-## P2 MERGED TO MASTER (2026-08-15 later session — PRs #181–#184) — DEPLOYED
+## P2 MERGED, DEPLOYED, AND LIVE-ACCEPTED (2026-08-15 — PRs #181–#184 + #187)
 
 All four slices of the approved P2 roadmap (people ownership / unified NEEDS
 YOU / memory lifecycle — plan file `jiggly-hugging-kahan`, scope from
-`p2-people-needs-you.md`) are merged; suite **228/228**, frontend build clean.
-**DEPLOYED 2026-08-15: revision `agent-canvas-00048-fc7`, 100% traffic.**
-Verified after the wholesale env set: `HS_OPS_RUNNER_URL` + `ED_DISPATCH_URL` +
-`MODEL_PROVIDER` intact on the revision, `/api/config` 200 with
-**`needsYou: true`** + `inquiryHome: true`, clean boot line, zero ERROR log
-entries. (First attempt earlier in the session failed closed on an expired
-gcloud refresh token; Pete ran `gcloud auth login` — token is now pete@,
-tokeninfo-verified. Lamps are AMBER until probed, by design.)
+`p2-people-needs-you.md`) are merged; suite **229/229**. **LIVE: revision
+`agent-canvas-00049-l8m`, 100% traffic** (00048 carried the train; 00049
+added hotfix #187 — the HTTP memory route's `review_at = null` destructuring
+default was erasing the omitted/null distinction and silently disabling the
+review defaults; caught by the live probe, fixed with a regression test).
+
+**LIVE ACCEPTANCE PASSED 2026-08-15 — every done-when criterion exercised
+against production via a signed-in session (Pete's Chrome, driven headlessly),
+not deferred:** person card created for darren@ (renders as HUMAN on the
+canvas); a real Scout run escalated a question; assign→darren@ put the card
+under Team-not-Mine, reassign→pete@ moved it to Mine; accept-resolve closed
+the source escalation and dispatched the resume run; an overdue assumption
+surfaced as an overdue_review card, reaffirm gave it a fresh date, dropped
+the card, and its timeline reads created→reaffirmed; a failed run's Retry
+dispatched a child and removed the card (no duplicate-retry loophole); the
+Tray badge and HUD tracked 3→2 live; omitted `review_at` defaults to +14d on
+00049 while explicit null stays unscheduled; `/api/config` serves
+`needsYou: true`. Rollback remains `setSetting('needs_you','0')`, zero deploy.
 
 - **T1 people + assignment** (#181): `canvas_people` (presentation-only,
   allowlist-validated, UNIQUE per canvas); `tasks.assignee_email`;
@@ -52,11 +62,9 @@ tokeninfo-verified. Lamps are AMBER until probed, by design.)
   records into panels (payload caps), a human changeset-verify action
   (verification stays the agent tool per ADR-0041's write-lane logic).
 
-**Pete's probe list (deploy is DONE — this is the only open P2 item):**
-assign an escalation to a teammate/agent
-→ shows under Team not Mine → resolve it from NEEDS YOU → source closes +
-audit line lands; retry one failed run; watch a new assumption entry carry
-`review <+14d>` and its timeline; confirm the Tray badge opens the view.
+**Probe list: DONE (see the live-acceptance paragraph above) — nothing P2
+remains open.** Probe fixtures left on the Smoke Test canvas on purpose
+(Darren person card, "P2 probe" memory entries — append-only, honest records).
 
 ## P1 SHIPPED TO MASTER (2026-08-15 — PRs #171–#175 + S6)
 
@@ -111,8 +119,8 @@ not and need not change the deployed service.
   re-reviewed clean (zip-bomb gate, mode laundering via escalation resume,
   paid enrichment in read-only modes, pause race in routing, etc.).
 
-**Next:** ~~P2~~ **BUILT, MERGED, AND DEPLOYED** (revision `00048-fc7` — see
-the P2 block at the top). The only open P2 item is Pete's in-app probe. The
+**Next:** ~~P2~~ **DONE — built, merged, deployed (`00049-l8m`), and
+live-accepted** (see the P2 block at the top). Nothing P2 remains open. The
 P1 deploy and probe in this block are DONE; do not redo them.
 
 ## MEMORY-OBSERVABILITY ROADMAP SHIPPED (2026-08-14, late session — PRs #152–#158)
