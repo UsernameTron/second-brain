@@ -19,10 +19,15 @@ results / 0 written (the "cites nothing — unsupported summary" warning fired
 correctly), Explain Map rendered. Env verified intact through the wholesale
 set; `/api/config` 200 with `inquiryHome: true`; zero error logs.
 
-Operational signal from the probe receipt (pre-existing, not P1): the
-sr-icp-leadfinder MCP still serves v5 and refused three consecutive
-find_icp_leads calls that run — the v6 connector push (branch
-`feat/icp-v6-registry`, no origin remote) remains on Pete's list.
+Operational signal from the probe receipt — RESOLVED as stale memory, not
+production skew: the "sr-icp-v5" and find_icp_leads-refusal entries the
+probe retrieved were written by runs BEFORE the 2026-08-14 v6 re-export. A
+live ping of https://sr-icp-connector.fly.dev/mcp on 2026-08-15 returns
+`icp_version: sr-icp-v6` — the deployed connector is current. Cleanup worth
+doing in-app: memory_correct those stale v5/refusal entries so future
+answers stop citing them as current. The `feat/icp-v6-registry` source push
+(no origin remote) remains separate source-of-truth hygiene only — it does
+not and need not change the deployed service.
 
 - **S1 evidence spine** (#171): `evidence_refs` + `evidence_citations`
   (entry→external artifact — the one missing edge); refs minted at the tool
@@ -53,9 +58,9 @@ find_icp_leads calls that run — the v6 connector push (branch
   re-reviewed clean (zip-bomb gate, mode laundering via escalation resume,
   paid enrichment in read-only modes, pause race in routing, etc.).
 
-**Next:** deploy + in-app probe (ask a canonical question on Home, open
-receipt + map, confirm evidence parity), then the P2 plan (people/NEEDS YOU)
-when Pete calls it.
+**Next:** P2 (people ownership / unified NEEDS YOU / memory lifecycle) —
+plan drafted at `~/.claude/plans/p2-people-needs-you.md`, awaiting Pete's
+go. Deploy and in-app probe are DONE (see the block above); do not redo them.
 
 ## MEMORY-OBSERVABILITY ROADMAP SHIPPED (2026-08-14, late session — PRs #152–#158)
 
