@@ -9,12 +9,20 @@ kept for the reasoning, not the status.**
 
 All six slices of the approved P1 roadmap (Inquiry Home / evidence receipts /
 Explain Map — plan file `cosmic-pondering-axolotl`) are merged; suite
-**199/199**. **DEPLOYED 2026-08-15: revision `agent-canvas-00046-5zg`, 100%
-traffic** — env verified intact through the wholesale set (MODEL_PROVIDER,
-GOOGLE_CLIENT_ID, HS_OPS_RUNNER_URL, ED_DISPATCH_URL), `/api/config` 200 with
-`inquiryHome: true`, zero error logs post-boot. Migrations self-applied.
-Lamps AMBER until probed, by design — Pete probes in-app (ask a canonical
-question on Home, open receipt + map, confirm evidence parity).
+**199/199**. **DEPLOYED + LIVE-ACCEPTED 2026-08-15: revision
+`agent-canvas-00047-jnz`, 100% traffic** (00046 carried P1; 00047 added the
+dark-theme token fix #178 that Pete's probe caught — P1 CSS had hard-coded
+light-theme colors). Pete's in-app probe passed all done-when criteria:
+ICP-scoring question auto-routed to Radar (targeting), answered from memory
+with a live v5/v6 skew check, receipt showed 1 search / 9 ranked scored
+results / 0 written (the "cites nothing — unsupported summary" warning fired
+correctly), Explain Map rendered. Env verified intact through the wholesale
+set; `/api/config` 200 with `inquiryHome: true`; zero error logs.
+
+Operational signal from the probe receipt (pre-existing, not P1): the
+sr-icp-leadfinder MCP still serves v5 and refused three consecutive
+find_icp_leads calls that run — the v6 connector push (branch
+`feat/icp-v6-registry`, no origin remote) remains on Pete's list.
 
 - **S1 evidence spine** (#171): `evidence_refs` + `evidence_citations`
   (entry→external artifact — the one missing edge); refs minted at the tool
