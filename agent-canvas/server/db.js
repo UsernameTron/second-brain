@@ -361,6 +361,33 @@ CREATE TABLE IF NOT EXISTS roster_agents (
 );
 `);
 
+// ===== P1 evidence spine: entry → external artifact provenance =====
+// citations stays entry→entry; evidence_refs records the external artifacts a
+// run actually touched (web page, Drive file, CRM record, MCP result), and
+// evidence_citations links a memory entry to the refs that support it. This
+// replaces the free-text-URL-in-source convention with an auditable edge.
+db.exec(`
+CREATE TABLE IF NOT EXISTS evidence_refs (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  source_kind TEXT NOT NULL,
+  source_id TEXT NOT NULL DEFAULT '',
+  display_title TEXT NOT NULL DEFAULT '',
+  uri TEXT NOT NULL DEFAULT '',
+  directed_by TEXT NOT NULL DEFAULT '',
+  retrieved_at TEXT NOT NULL,
+  visibility TEXT NOT NULL DEFAULT 'canvas',
+  meta_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_run ON evidence_refs(run_id);
+CREATE TABLE IF NOT EXISTS evidence_citations (
+  entry_id TEXT NOT NULL REFERENCES memory_entries(id),
+  evidence_ref_id TEXT NOT NULL REFERENCES evidence_refs(id),
+  PRIMARY KEY (entry_id, evidence_ref_id)
+);
+CREATE INDEX IF NOT EXISTS idx_evidence_citations_ref ON evidence_citations(evidence_ref_id);
+`);
+
 // ===== MCP connectors: owner-managed external tool servers =====
 // The managed source for the MCP client (server/mcp/client.js). Header values
 // may be literal or ${ENV:NAME} references resolved at request time — GET
