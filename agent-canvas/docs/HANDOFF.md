@@ -5,6 +5,59 @@ depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
 
+## P2 MERGED TO MASTER (2026-08-15 later session — PRs #181–#184) — DEPLOY OWED
+
+All four slices of the approved P2 roadmap (people ownership / unified NEEDS
+YOU / memory lifecycle — plan file `jiggly-hugging-kahan`, scope from
+`p2-people-needs-you.md`) are merged; suite **228/228**, frontend build clean.
+**NOT YET DEPLOYED: the redeploy failed closed on expired gcloud credentials**
+(`Reauthentication failed. cannot prompt during non-interactive execution` on
+every `gcloud secrets versions access` — nothing was stored, the paste-guard
+never ran, the live revision is untouched, still `00047-jnz`). To ship:
+`gcloud auth login` as the gmail bootstrap identity (verify with `tokeninfo`,
+never `gcloud auth list` — the crossed-credential lesson), then run the
+"Redeploy procedure" block below verbatim. After deploy expect `/api/config`
+to return **`needsYou: true`** alongside `inquiryHome: true`.
+
+- **T1 people + assignment** (#181): `canvas_people` (presentation-only,
+  allowlist-validated, UNIQUE per canvas); `tasks.assignee_email`;
+  `escalations.owner_email/owner_agent_id/due_at`; `POST /escalations/:id/assign`
+  (open-only, person XOR agent); task PATCH can now change both assignee
+  fields; task endpoints audited (they weren't); PersonNode on the canvas,
+  assignee selects on the task panel + tray.
+- **T2 attention projection** (#182): `server/attention.js` — ONE read-time
+  union (open escalations, verified-vs-verified conflicts via shared
+  `memory.findConflicts`, overdue `review_at` rows with a new index, failed
+  runs deduped against escalations AND retry children, proposed changesets).
+  `GET /api/attention?scope=mine|team|all[&canvas_id=]`, access decided per
+  canvas before rows are read. Projection only — no new business tables.
+- **T3 NEEDS YOU view** (#183): flag `needs_you` default on
+  (`setSetting('needs_you','0')` reverts, zero deploy); `NeedsYouView.jsx`
+  full-stage view, Mine/Team/All; Tray collapses to the badge; every card
+  resolves via its SOURCE record — escalation resolve/redirect/assign inline
+  (with the escalation context blob), `POST /runs/:id/retry` (new run, mode
+  inherits via parentRunId, initiated_by = the clicking human, audited),
+  `POST /memory/:id/reaffirm` (append-only re-affirmation).
+- **T4 memory lifecycle** (#184): `writeEntry` review defaults for NEW
+  entries only — assumption +14d, inference +45d, verified/decision/constraint
+  none unless explicit (explicit `null` opts out); `GET /api/memory/:id/timeline`
+  (created → corrected → reclassified → reaffirmed, truncation stated
+  honestly); MemoryPanel renders the lifecycle above lineage.
+- **Review hygiene:** all 7 claude-review findings on #182, all 9 codex
+  findings on #183, and all 4 codex findings on #184 were verified, fixed
+  in-train with regression tests, and replied to on-thread. The load-bearing
+  one: `taintedSet` now walks each supersession chain and taints only when a
+  successor actually changed the content — re-affirm/reclassify no longer
+  contaminate dependents.
+- Deliberately NOT built (dispositions in the plan): deep-linking absent
+  records into panels (payload caps), a human changeset-verify action
+  (verification stays the agent tool per ADR-0041's write-lane logic).
+
+**Pete's probe list once deployed:** assign an escalation to a teammate/agent
+→ shows under Team not Mine → resolve it from NEEDS YOU → source closes +
+audit line lands; retry one failed run; watch a new assumption entry carry
+`review <+14d>` and its timeline; confirm the Tray badge opens the view.
+
 ## P1 SHIPPED TO MASTER (2026-08-15 — PRs #171–#175 + S6)
 
 All six slices of the approved P1 roadmap (Inquiry Home / evidence receipts /
@@ -58,9 +111,9 @@ not and need not change the deployed service.
   re-reviewed clean (zip-bomb gate, mode laundering via escalation resume,
   paid enrichment in read-only modes, pause race in routing, etc.).
 
-**Next:** P2 (people ownership / unified NEEDS YOU / memory lifecycle) —
-plan drafted at `~/.claude/plans/p2-people-needs-you.md`, awaiting Pete's
-go. Deploy and in-app probe are DONE (see the block above); do not redo them.
+**Next:** ~~P2~~ **BUILT AND MERGED** (see the P2 block at the top) — what
+remains is the P2 deploy (blocked on `gcloud auth login`) and Pete's in-app
+probe. The P1 deploy and probe in this block are DONE; do not redo them.
 
 ## MEMORY-OBSERVABILITY ROADMAP SHIPPED (2026-08-14, late session — PRs #152–#158)
 
