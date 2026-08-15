@@ -17,6 +17,14 @@ const { server } = require('../server/index');
 const { db, nowIso } = require('../server/db');
 const anthropic = require('../server/orchestrator/anthropic');
 const control = require('../server/orchestrator/control');
+const runner = require('../server/orchestrator/runner');
+
+// Every successful inquiry queues a REAL background run — stub the run
+// loop's model so those finish instantly instead of hitting the network
+// with the placeholder key (claude-review finding on #173).
+runner._internal.setCallModel(async () => ({
+  content: [{ type: 'text', text: 'stubbed answer' }], stop_reason: 'end_turn', usage: {},
+}));
 
 let base;
 let cookie;

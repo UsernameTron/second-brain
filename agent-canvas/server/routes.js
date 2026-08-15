@@ -1000,6 +1000,10 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
         agentId, canvasId: escalation.canvas_id,
         instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}\nHuman decision (${req.user.email}): ${answer}\nThe decision is already recorded as verified memory (entry ${decisionEntry.id}) — do not re-record it. Apply it now: if it fixes workbook fields, apply them with apply_row_fix using escalation_id ${escalation.id}. Then complete. Your summary must state exactly what you changed — nothing more.`,
         triggerKind: 'escalation_resume', actor: req.user.email, initiatedBy: req.user.email,
+        // Carry the escalating run as parent so the resume INHERITS its mode —
+        // resolving an ask/rehearse run's question must not silently produce
+        // an act run with mutating tools (claude-review finding on #173).
+        parentRunId: escalation.run_id || null,
         initialReads: [...new Set([decisionEntry.id, ...contextIds])],
       });
     }
@@ -1027,8 +1031,12 @@ function inquiryWithRun(row) {
     : null;
   const status = deriveInquiryStatus(run && run.status);
   // Lazy write-back: the stored status catches up once the run is terminal.
+  // The returned object carries the SAME timestamp the write lands, so the
+  // first post-terminal read and the second agree.
   if (status !== 'pending' && row.status !== status) {
-    db.prepare('UPDATE inquiries SET status = ?, updated_at = ? WHERE id = ?').run(status, nowIso(), row.id);
+    const ts = nowIso();
+    db.prepare('UPDATE inquiries SET status = ?, updated_at = ? WHERE id = ?').run(status, ts, row.id);
+    row = { ...row, status, updated_at: ts };
   }
   const agent = row.selected_agent_id
     ? db.prepare('SELECT id, name, role, color FROM agents WHERE id = ?').get(row.selected_agent_id) || null
@@ -1095,6 +1103,10 @@ router.post('/canvases/:canvasId/inquiries', rateLimit('model'), auth.requireCan
     }
   }
 
+  // A pause that landed while the selection call was in flight must not slip
+  // through as a fallback dispatch — the abort reads like a parse failure.
+  if (control.isPaused()) return res.status(409).json({ error: 'workspace was paused while routing — resume before asking' });
+
   // Both halves or neither, exactly like escalation resolve: the inquiry row
   // and its dispatched run land in one tx; a 429/409 rolls both back.
   const inquiryId = crypto.randomUUID();
@@ -1116,7 +1128,7 @@ router.post('/canvases/:canvasId/inquiries', rateLimit('model'), auth.requireCan
 }));
 
 router.get('/canvases/:canvasId/inquiries', auth.requireCanvas, (req, res) => {
-  const limit = Math.min(Number(qstr(req.query.limit)) || 25, 100);
+  const limit = Math.min(Math.max(Math.floor(Number(qstr(req.query.limit)) || 25), 1), 100);
   const savedOnly = qstr(req.query.saved) === '1';
   const rows = db.prepare(
     `SELECT * FROM inquiries WHERE canvas_id = ? ${savedOnly ? 'AND saved = 1' : ''} ORDER BY created_at DESC, id DESC LIMIT ?`

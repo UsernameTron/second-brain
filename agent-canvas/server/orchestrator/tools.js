@@ -523,6 +523,9 @@ const MUTATING_TOOLS = new Set([
   'ws_sheets_append', 'ws_sheets_update', 'ws_gmail_draft', 'ws_calendar_create', 'ws_docs_create',
   'hs_preview_change', 'hs_apply_change',
   'apply_row_fix', 'set_row_status', 'propose_changes', 'verify_changes', 'handoff',
+  // Paid enrichment spends real credits — a side effect, even though it reads.
+  // The cached get_enriched_contact re-read is free and stays available.
+  'enrich_contact', 'enrich_company', 'verify_email',
 ]);
 function blockedInMode(name, mode) {
   if (!mode || mode === 'act') return false;
