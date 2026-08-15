@@ -160,6 +160,9 @@ test('export preview names what leaves and what stays; export is owner-only, aud
   // An assumption and a private-surface ref must land in `excluded`.
   memory.writeEntry({ canvasId, content: 'They probably churn without a discount', epistemic: 'assumption', authorType: 'user', authorId: OWNER, authorName: 'Pete', source: 'test' });
   evidence.recordRef({ runId: 'run-room-1', sourceKind: 'web', sourceId: 'https://acme.example', title: 'Acme pricing page', uri: 'https://acme.example/pricing', directedBy: OWNER });
+  // A verified fact that QUOTES a private source's title: exported as written,
+  // but flagged as a content warning for the disclosure review.
+  memory.writeEntry({ canvasId, content: 'Terms confirmed in the Renewal thread on Tuesday', epistemic: 'verified', kind: 'fact', authorType: 'user', authorId: OWNER, authorName: 'Pete', source: 'test' });
 
   assert.equal((await call(viewerCookie, 'GET', `/api/rooms/${roomId}/export/preview`)).status, 403); // edit access required
   const preview = (await call(editorCookie, 'GET', `/api/rooms/${roomId}/export/preview`)).data;
@@ -170,6 +173,15 @@ test('export preview names what leaves and what stays; export is owner-only, aud
   assert.ok(preview.excluded.assumptionsAndInferences.some((e) => e.epistemic === 'assumption'));
   assert.ok(preview.excluded.openEscalations.length >= 1);
   assert.equal(preview.excluded.auditChain, 'always excluded');
+
+  // Content-level screen: the fact naming "Renewal thread" (a gmail ref's
+  // title) is flagged for wording review but still included; the clean
+  // decision is not flagged.
+  assert.equal(preview.contentWarnings.length, 1);
+  assert.equal(preview.contentWarnings[0].kind, 'fact');
+  assert.deepEqual(preview.contentWarnings[0].matchedTitles, ['Renewal thread']);
+  assert.ok(preview.included.facts.some((f) => f.id === preview.contentWarnings[0].id), 'flagged fact still ships — reviewer aid, not redactor');
+  assert.ok(!preview.contentWarnings.some((w) => w.kind === 'decision'));
 
   assert.equal((await call(editorCookie, 'POST', `/api/rooms/${roomId}/export`, { manifest_hash: preview.manifestHash })).status, 403); // owner only
 
@@ -186,6 +198,7 @@ test('export preview names what leaves and what stays; export is owner-only, aud
   const html = await res.text();
   assert.match(html, /We will renew at flat pricing/);
   assert.match(html, /Acme pricing page/);
+  assert.match(html, /Renewal thread on Tuesday/); // flagged fact ships as written
   assert.ok(!html.includes('probably churn'), 'assumptions never leave');
   assert.ok(!html.includes('mail.example'), 'private URIs never leave');
   assert.ok(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'room.export'").get().n >= 1);

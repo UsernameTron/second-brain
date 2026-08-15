@@ -160,6 +160,22 @@ function exportManifest(roomId) {
   const publicRefs = refs.filter((r) => !PRIVATE_KINDS.has(r.source_kind));
   const privateRefs = refs.filter((r) => PRIVATE_KINDS.has(r.source_kind));
 
+  // Content-level screen: the ref filter above is reference-level, so an
+  // included fact can still QUOTE a private source's title in its text
+  // (observed in production: a refresh run wrote Drive doc titles into a
+  // verified fact). Flag those for the disclosure review — a reviewer aid,
+  // never an automatic redactor. Titles under 4 chars are skipped: substring
+  // matching on tiny titles sprays false positives.
+  const privateTitles = [...new Set(privateRefs.map((r) => String(r.display_title || '').trim()).filter((t) => t.length >= 4))];
+  const mentionsPrivate = (list, kind) => list.flatMap((e) => {
+    const matched = privateTitles.filter((t) => e.content.toLowerCase().includes(t.toLowerCase()));
+    return matched.length ? [{ id: e.id, kind, content: e.content, matchedTitles: matched }] : [];
+  });
+  const contentWarnings = [
+    ...mentionsPrivate(decisions.clean, 'decision'),
+    ...mentionsPrivate(facts.clean, 'fact'),
+  ];
+
   const tasks = db.prepare("SELECT id, title, status, created_at FROM tasks WHERE canvas_id = ? ORDER BY created_at").all(canvasId);
   const openEscalations = db.prepare("SELECT id, question, created_at FROM escalations WHERE canvas_id = ? AND status = 'open'").all(canvasId);
 
@@ -171,6 +187,7 @@ function exportManifest(roomId) {
       evidence: publicRefs.map((r) => ({ id: r.id, sourceKind: r.source_kind, title: r.display_title, uri: r.uri, retrievedAt: r.retrieved_at })),
       tasks,
     },
+    contentWarnings,
     excluded: {
       assumptionsAndInferences: softMemory.map((e) => ({ id: e.id, epistemic: e.epistemic, content: e.content })),
       taintedEntries: [...decisions.tainted, ...facts.tainted].map((e) => ({ id: e.id, content: e.content })),
