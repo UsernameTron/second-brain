@@ -48,11 +48,26 @@ function validateTyped({ kind, appliesToType, appliesToId }) {
   if (appliesToId != null && appliesToType == null) throw new Error('applies_to_id requires applies_to_type');
 }
 
+// P2 review defaults — NEW entries only (corrections inherit, old rows are
+// never touched). Assumptions go stale fast; inferences slower; verified
+// facts carry a review date only when the writer supplies one (an external
+// fact's shelf life is the writer's call, per the verdict); decisions and
+// constraints don't expire.
+const REVIEW_DEFAULT_DAYS = { assumption: 14, inference: 45 };
+function defaultReviewAt(epistemic, kind) {
+  if (kind === 'decision' || kind === 'constraint') return null;
+  const days = REVIEW_DEFAULT_DAYS[epistemic];
+  return days ? new Date(Date.now() + days * 24 * 3600 * 1000).toISOString() : null;
+}
+
 function writeEntry({ canvasId, content, epistemic, authorType, authorId, authorName = '', source = '', runId = null, cites = [],
-  kind = null, subject = null, appliesToType = null, appliesToId = null, effectiveAt = null, reviewAt = null }) {
+  kind = null, subject = null, appliesToType = null, appliesToId = null, effectiveAt = null, reviewAt }) {
   if (!content || typeof content !== 'string') throw new Error('memory content required');
   if (!EPISTEMIC.includes(epistemic)) throw new Error(`epistemic must be one of ${EPISTEMIC.join(', ')}`);
   validateTyped({ kind, appliesToType, appliesToId });
+  // Defaults apply only when the field is OMITTED — an explicit null is the
+  // caller opting out of scheduled review (codex on #184).
+  if (reviewAt === undefined) reviewAt = defaultReviewAt(epistemic, kind);
   const id = crypto.randomUUID();
   const ts = nowIso();
   const uniqueCites = [...new Set(cites)].filter(Boolean);
@@ -372,6 +387,53 @@ function lineage(entryId) {
   };
 }
 
+// P2: compact per-entry lifecycle, derived from the supersession chain — no
+// new storage, no new events. Walk supersedes back to the root and
+// superseded_by forward to the head (bounded like lineage), then classify
+// each hop by what actually changed. A chain is same-canvas by construction
+// (corrections inherit canvas_id), so one access check covers it.
+const TIMELINE_MAX_HOPS = 12;
+function entryTimeline(entryId) {
+  const get = (id) => db.prepare('SELECT * FROM memory_entries WHERE id = ?').get(id);
+  let row = get(entryId);
+  if (!row) return null;
+  for (let i = 0; row.supersedes && i < TIMELINE_MAX_HOPS; i += 1) {
+    const prev = get(row.supersedes);
+    if (!prev) break;
+    row = prev;
+  }
+  const chain = [row];
+  for (let i = 0; chain[chain.length - 1].superseded_by && i < TIMELINE_MAX_HOPS; i += 1) {
+    const next = get(chain[chain.length - 1].superseded_by);
+    if (!next) break;
+    chain.push(next);
+  }
+  const classify = (prev, next) => {
+    if (next.content === prev.content) {
+      if (next.epistemic !== prev.epistemic || next.kind !== prev.kind) return 'reclassified';
+      // "reaffirmed" is earned by an actually refreshed review date — a no-op
+      // correction with the same stale deadline is not a review (codex #184).
+      if (next.review_at !== prev.review_at) return 'reaffirmed';
+    }
+    return 'corrected';
+  };
+  const events = [{
+    // A chain longer than the hop cap starts mid-history: say so rather than
+    // presenting an intermediate correction as the creation (codex #184).
+    event: chain[0].supersedes ? 'earlier history truncated' : 'created',
+    at: chain[0].created_at, entryId: chain[0].id,
+    byName: chain[0].author_name || chain[0].author_id, epistemic: chain[0].epistemic, kind: chain[0].kind,
+  }];
+  for (let i = 1; i < chain.length; i += 1) {
+    events.push({
+      event: classify(chain[i - 1], chain[i]), at: chain[i].created_at, entryId: chain[i].id,
+      byName: chain[i].author_name || chain[i].author_id, epistemic: chain[i].epistemic, kind: chain[i].kind,
+      reason: chain[i].supersede_reason || '',
+    });
+  }
+  return { canvasId: row.canvas_id, entries: chain.map((c) => c.id), events };
+}
+
 // Same-subject verified-vs-verified disagreement, computed on read (nothing
 // stored). Shared by GET /memory/conflicts and the P2 attention projection.
 function findConflicts(canvasId) {
@@ -388,4 +450,4 @@ function findConflicts(canvasId) {
   return pairs.map((p) => ({ subject: p.subject, entries: [getEntry(p.a_id), getEntry(p.b_id)] }));
 }
 
-module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, recordRetrievals, retrievalEngine, citeMapsFor, findConflicts, EPISTEMIC, KINDS, APPLIES_TO };
+module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, recordRetrievals, retrievalEngine, citeMapsFor, findConflicts, entryTimeline, EPISTEMIC, KINDS, APPLIES_TO };

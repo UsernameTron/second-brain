@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
 import { Panel } from './Panels.jsx';
 
@@ -126,14 +126,24 @@ export default function MemoryPanel({
   entries, agentsById, showSuperseded, onToggleSuperseded, ripple, onOpenRun, onCorrect, onClose, toast,
 }) {
   const [lineage, setLineage] = useState(null); // {entryId, data|null}
+  const [timeline, setTimeline] = useState(null); // P2: {entryId, events}|null
   const [filter, setFilter] = useState('');
   const [kindFilter, setKindFilter] = useState('');
+  const traceIdRef = useRef(null); // the entry being traced NOW — stale responses check it
 
   const trace = (entryId) => {
+    traceIdRef.current = entryId;
     setLineage({ entryId, data: null });
+    setTimeline(null);
     api(`/api/memory/${entryId}/lineage`)
       .then((d) => setLineage((cur) => (cur && cur.entryId === entryId ? { entryId, data: d } : cur)))
       .catch((e) => { toast(e.message); setLineage(null); });
+    // The lifecycle timeline rides alongside lineage; failure never blocks it.
+    // A slow response for a PREVIOUS entry must not clobber the current one's
+    // timeline (codex on #184).
+    api(`/api/memory/${entryId}/timeline`)
+      .then((d) => { if (traceIdRef.current === entryId) setTimeline({ entryId, events: d.events || [] }); })
+      .catch(() => {});
   };
 
   if (lineage) {
@@ -149,6 +159,25 @@ export default function MemoryPanel({
           <div className="lineage">
             <h3>Entry</h3>
             <MemoryEntry entry={d.entry} ripple={ripple} onOpenRun={onOpenRun} onTrace={trace} compact />
+
+            {timeline && timeline.entryId === lineage.entryId && timeline.events.length > 0 ? (
+              <>
+                <h3>Lifecycle</h3>
+                <div className="mem-timeline">
+                  {timeline.events.map((ev) => (
+                    <div key={ev.entryId} className={`mem-timeline-row tl-${ev.event}`}>
+                      <span className={`chip tl-chip tl-${ev.event}`}>{ev.event}</span>
+                      <span className="mono dim">{String(ev.at).slice(0, 10)}</span>
+                      <span className="dim">{ev.byName}</span>
+                      {ev.reason ? <span className="tl-reason">{ev.reason}</span> : null}
+                      {ev.entryId !== lineage.entryId ? (
+                        <button className="link-btn" onClick={() => trace(ev.entryId)}>view ↗</button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : null}
 
             <h3>Upstream — what fed it ({d.upstream.length})</h3>
             {d.upstream.length === 0 ? <div className="empty-hint">nothing upstream — this is a root observation</div> : null}
