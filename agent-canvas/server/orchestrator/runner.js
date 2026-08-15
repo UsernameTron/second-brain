@@ -12,7 +12,7 @@ const { callModel, tierConfig, webSearchToolFor } = require('./anthropic');
 // reachable without a way to script the model's replies. Production always
 // runs the real callModel.
 let callModelImpl = callModel;
-const { toolsForRole, executeTool, createEscalation } = require('./tools');
+const { toolsForRole, executeTool, createEscalation, parseAuthority, intersectAuthority } = require('./tools');
 const evidence = require('../evidence');
 const control = require('./control');
 
@@ -51,7 +51,7 @@ function buildSystemPrompt(agent, canvas, run) {
   const modeBlock = mode === 'ask'
     ? '\n## Run mode: ASK (read-only toward the world)\nThis run answers a question. Tools that change anything outside this workspace are unavailable (the server refuses them). Read, search, and write your findings to memory with evidence — do not attempt drafts, writes, or handoffs.\n'
     : mode === 'rehearse'
-      ? '\n## Run mode: REHEARSE (dry run)\nThis run rehearses a task without performing it. Mutating tools are unavailable (the server refuses them); hs_preview_change is allowed because it is already a dry run. NARRATE each step you WOULD take, with the exact tool and arguments, then summarize the full plan and what evidence supports it.\n'
+      ? '\n## Run mode: REHEARSE (dry run)\nThis run rehearses a task without performing it. Mutating tools are unavailable (the server refuses them); hs_preview_change is allowed because it is already a dry run. Shared memory is READ-ONLY here — memory_write and memory_correct are refused, because a rehearsal\'s findings are hypothetical and must not become records. This overrides the shared memory contract below for this run: put your findings in your summary instead. NARRATE each step you WOULD take, with the exact tool and arguments, then summarize the full plan and what evidence supports it.\n'
       : '';
   return `You are "${agent.name}", the ${agent.role} agent on the shared canvas "${canvas.name}" in the Agent Canvas Workspace (cloudtechgurus.com).
 
@@ -112,7 +112,10 @@ async function executeRun(runId) {
 
   const system = buildSystemPrompt(agent, canvas, run);
   const { workspaceRole } = require('../auth');
-  const authority = require('./tools').parseAuthority(agent.tools_json);
+  // The agent's LIVE authority, intersected with whatever snapshot this run was
+  // dispatched under (a standing authorization). Widening the agent after the
+  // grant must not widen the run; narrowing it must still narrow the run.
+  const authority = intersectAuthority(parseAuthority(run.authority_json), parseAuthority(agent.tools_json));
   const tools = toolsForRole(agent.role, { userRole: workspaceRole(run.initiated_by), mode: run.mode || 'act', authority });
   // Web search rides the Claude providers only in v1 (Google grounding has a
   // different result shape); Gemini research agents work from row data + memory.

@@ -208,6 +208,35 @@ describe('Rules & Briefs view', () => {
     expect(screen.getByText('2026-W33')).toBeInTheDocument();
   });
 
+  // The NEEDS YOU brief_ready card advertises open_rule and shows only ~300
+  // chars; the deep link has to land on the detail, full brief and refs included.
+  it('focusRuleId opens that rule detail on mount, with the full brief and refs', async () => {
+    const briefRule = { ...DRAFT_RULE, output_type: 'brief', state: 'active' };
+    const refs = [{ id: 'ev-1', sourceKind: 'memory', title: 'Acme renewal note', uri: null }];
+    const run = {
+      id: 'rr1', rule_id: 'sr1', state: 'completed', occurrence_key: '2026-W33',
+      result_summary: '## Weekly brief\n- **Acme** renewal moved to legal',
+      output_refs: refs, created_at: new Date().toISOString(),
+    };
+    api.mockImplementation((path) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [briefRule] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [run] });
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({ rule: briefRule, authorization: null, runs: [], rehearsalRun: null });
+      }
+      return Promise.resolve({});
+    });
+    const { container } = renderRules({ focusRuleId: 'sr1' });
+    // Detail screen, not the list — no click needed.
+    expect(await screen.findByText('What this rule means')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '← Rules' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Weekly brief' })).toBeInTheDocument();
+    expect(screen.getByText('Evidence: Acme renewal note')).toBeInTheDocument();
+    // Run-state chips carry a class that actually has CSS behind it.
+    expect(container.querySelector('.chip.run-completed')).not.toBeNull();
+    expect(container.querySelector('[class*="inq-"]')).toBeNull();
+  });
+
   it('owner can pause, resume, and revoke', async () => {
     const active = { ...DRAFT_RULE, state: 'active', next_run_at: '2026-08-16T08:00:00Z' };
     api.mockImplementation((path, opts) => {
@@ -242,25 +271,50 @@ describe('NEEDS YOU standing-rule cards', () => {
     consequence: 'unreviewed output goes stale', recommendation: '',
     created_at: new Date().toISOString(),
   };
+  // sourceRef is server/attention.js standingRuleCards() shape — ruleId is what
+  // the Open-rule control deep-links on.
   const rows = [
-    { ...baseRow, type: 'rule_alert', sourceRef: { kind: 'standing_rule_run', id: 'rr1', canvasId: 'c1' }, decision: '3 deals matched the inbound-deal watch' },
-    { ...baseRow, type: 'brief_ready', sourceRef: { kind: 'standing_rule_run', id: 'rr2', canvasId: 'c1' }, decision: 'Your weekly brief is ready' },
+    { ...baseRow, type: 'rule_alert', sourceRef: { kind: 'standing_rule_run', id: 'rr1', ruleId: 'sr1', canvasId: 'c1' }, decision: '3 deals matched the inbound-deal watch' },
+    { ...baseRow, type: 'brief_ready', sourceRef: { kind: 'standing_rule_run', id: 'rr2', ruleId: 'sr2', canvasId: 'c1' }, decision: 'Your weekly brief is ready' },
   ];
 
-  it('labels rule_alert and brief_ready cards and acknowledges through the source run', async () => {
-    const ack = vi.fn();
-    render(
+  function renderNeedsYou(props = {}) {
+    return render(
       <NeedsYouView
         rows={rows} userEmail={OWNER.email} agentsById={{}} people={[]} agents={[]}
         onResolveEscalation={vi.fn()} onAssign={vi.fn()} onOpenMemory={vi.fn()} onOpenRun={vi.fn()}
-        onOpenWorkbook={vi.fn()} onRetryRun={vi.fn()} onExtendReview={vi.fn()} onAcknowledgeRuleRun={ack}
+        onOpenWorkbook={vi.fn()} onRetryRun={vi.fn()} onExtendReview={vi.fn()} onAcknowledgeRuleRun={vi.fn()}
+        {...props}
       />
     );
+  }
+
+  it('labels rule_alert and brief_ready cards and acknowledges through the source run', async () => {
+    const ack = vi.fn();
+    renderNeedsYou({ onAcknowledgeRuleRun: ack });
     expect(screen.getByText('rule alert')).toBeInTheDocument();
     expect(screen.getByText('brief ready')).toBeInTheDocument();
     const buttons = screen.getAllByRole('button', { name: 'Acknowledge' });
     expect(buttons.length).toBe(2);
     await userEvent.click(buttons[0]);
-    expect(ack).toHaveBeenCalledWith({ kind: 'standing_rule_run', id: 'rr1', canvasId: 'c1' });
+    expect(ack).toHaveBeenCalledWith({ kind: 'standing_rule_run', id: 'rr1', ruleId: 'sr1', canvasId: 'c1' });
+  });
+
+  // The card carries only a truncated result — the advertised open_rule action
+  // has to be reachable, or acknowledging is the only thing a human can do.
+  it('offers Open rule / Open brief and deep-links on the rule id', async () => {
+    const openRule = vi.fn();
+    renderNeedsYou({ onOpenRule: openRule });
+    await userEvent.click(screen.getByRole('button', { name: 'Open rule' }));
+    expect(openRule).toHaveBeenCalledWith(expect.objectContaining({ ruleId: 'sr1' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Open brief' }));
+    expect(openRule).toHaveBeenLastCalledWith(expect.objectContaining({ ruleId: 'sr2' }));
+  });
+
+  it('hides the control when Rules is flagged off, rather than dead-ending', () => {
+    renderNeedsYou({ onOpenRule: null });
+    expect(screen.queryByRole('button', { name: 'Open rule' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Open brief' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Acknowledge' }).length).toBe(2);
   });
 });

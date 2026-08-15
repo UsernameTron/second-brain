@@ -16,7 +16,7 @@ const TYPE_LABELS = {
   brief_ready: 'brief ready',
 };
 
-function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onOpenWorkbook, onRetryRun, onExtendReview, onAcknowledgeRuleRun }) {
+function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onOpenWorkbook, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onOpenRule }) {
   const [answer, setAnswer] = useState('');
   const [mode, setMode] = useState(null); // escalation: null | 'accept' | 'redirect'
   const [target, setTarget] = useState('');
@@ -130,14 +130,24 @@ function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, o
           <button className="btn small" onClick={() => onOpenWorkbook(row.sourceRef)}>Open workbook</button>
         ) : null}
         {row.type === 'rule_alert' || row.type === 'brief_ready' ? (
-          <button className="btn ok small" onClick={() => onAcknowledgeRuleRun(row.sourceRef)}>Acknowledge</button>
+          <>
+            <button className="btn ok small" onClick={() => onAcknowledgeRuleRun(row.sourceRef)}>Acknowledge</button>
+            {/* The card carries only the first ~300 chars of the result — the full
+                brief and its evidence refs live on the rule. Absent when Rules is
+                flagged off (no onOpenRule) so the control never dead-ends. */}
+            {onOpenRule && row.sourceRef.ruleId ? (
+              <button className="btn ghost small" onClick={() => onOpenRule(row.sourceRef)}>
+                {row.type === 'brief_ready' ? 'Open brief' : 'Open rule'}
+              </button>
+            ) : null}
+          </>
         ) : null}
       </div>
     </div>
   );
 }
 
-export default function NeedsYouView({ rows, userEmail, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onOpenWorkbook, onRetryRun, onExtendReview, onAcknowledgeRuleRun }) {
+export default function NeedsYouView({ rows, userEmail, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onOpenWorkbook, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onOpenRule }) {
   const [scope, setScope] = useState('all');
   const me = String(userEmail || '').toLowerCase();
 
@@ -184,6 +194,7 @@ export default function NeedsYouView({ rows, userEmail, agentsById, people, agen
             onRetryRun={onRetryRun}
             onExtendReview={onExtendReview}
             onAcknowledgeRuleRun={onAcknowledgeRuleRun}
+            onOpenRule={onOpenRule}
           />
         ))}
       </div>

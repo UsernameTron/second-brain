@@ -98,6 +98,14 @@ function InterpretationCard({ rule, agentsById }) {
   );
 }
 
+// standing_rule_runs.state — its own vocabulary (pending/skipped don't exist on
+// agent runs), but the run-* chip colors already carry these meanings, so map
+// onto them instead of inventing a second palette.
+const RUN_STATE_CHIP = {
+  pending: 'run-queued', running: 'run-running', completed: 'run-completed',
+  failed: 'run-failed', skipped: 'run-halted',
+};
+
 function RunHistory({ runs, outputType }) {
   return (
     <section className="room-section">
@@ -106,7 +114,7 @@ function RunHistory({ runs, outputType }) {
         <ul className="room-list">
           {runs.map((r) => (
             <li key={r.id}>
-              <span className={`chip inq-${r.state}`}>{r.state}</span>
+              <span className={`chip ${RUN_STATE_CHIP[r.state] || ''}`}>{r.state}</span>
               <span className="mono dim"> {r.occurrence_key}</span>
               {r.matched_count != null ? <span className="chip">{r.matched_count} matched</span> : null}
               {r.skip_reason ? <span className="dim"> skipped: {r.skip_reason}</span> : null}
@@ -126,7 +134,7 @@ function RunHistory({ runs, outputType }) {
   );
 }
 
-export default function RulesView({ user, canvasId, agents, toast }) {
+export default function RulesView({ user, canvasId, agents, toast, focusRuleId = null }) {
   const isOwner = user.role === 'owner';
   const [rulesList, setRulesList] = useState(null);
   const [instruction, setInstruction] = useState('');
@@ -153,11 +161,16 @@ export default function RulesView({ user, canvasId, agents, toast }) {
     setDetail({ runs: [], authorization: null, rehearsalRun: null, ...d });
   }, []);
 
-  const openRule = (id) => {
+  const openRule = useCallback((id) => {
     Promise.all([rulesApi.get(id), rulesApi.runs(id)])
       .then(([d, h]) => showDetail({ ...d, runs: h.runs || d.runs || [] }))
       .catch((e) => toast(e.message));
-  };
+  }, [showDetail, toast]);
+
+  // Deep link from a NEEDS YOU rule card: land on that rule's detail — where the
+  // full brief and its evidence refs are — instead of the list. Workspace
+  // unmounts this view on every switch, so mount is the only entry point.
+  useEffect(() => { if (focusRuleId) openRule(focusRuleId); }, [focusRuleId, openRule]);
 
   const interpret = async (e) => {
     e.preventDefault();

@@ -527,10 +527,19 @@ const MUTATING_TOOLS = new Set([
   // The cached get_enriched_contact re-read is free and stays available.
   'enrich_contact', 'enrich_company', 'verify_email',
 ]);
+// A rehearsal's findings are hypothetical — what WOULD have matched. Writing
+// them into the canvas's shared memory persists a guess as a record before
+// anyone approved the rule (or the draft agent), and nothing downstream can
+// tell it apart from a real finding. An ask run's findings ARE real, so memory
+// stays writable there; a rehearsal reports in its summary instead.
+const REHEARSAL_BLOCKED_TOOLS = new Set(['memory_write', 'memory_correct']);
 function blockedInMode(name, mode) {
   if (!mode || mode === 'act') return false;
   if (name.startsWith('mcp_')) return true; // connector side effects are unknowable — all blocked
-  if (mode === 'rehearse' && name === 'hs_preview_change') return false; // already a server-enforced dry run
+  if (mode === 'rehearse') {
+    if (name === 'hs_preview_change') return false; // already a server-enforced dry run
+    if (REHEARSAL_BLOCKED_TOOLS.has(name)) return true;
+  }
   return MUTATING_TOOLS.has(name);
 }
 
@@ -560,6 +569,16 @@ function parseAuthority(toolsJson) {
     const arr = JSON.parse(toolsJson);
     return Array.isArray(arr) ? arr.map(String) : null;
   } catch { return null; }
+}
+
+// A run dispatched under a snapshot (a standing authorization) may use only
+// what BOTH the snapshot and the agent's live authority allow. null means "no
+// explicit allowlist", so it is the identity element: widening the agent after
+// a grant can never widen the run, narrowing it afterwards still takes effect.
+function intersectAuthority(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  return a.filter((name) => b.includes(name));
 }
 
 function toolsForRole(role, { userRole = 'member', mode = 'act', authority = null } = {}) {
@@ -628,6 +647,13 @@ async function executeTool(name, input, ctx) {
     return { content: 'Workspace is paused (or was paused since this run started) — this action was rejected server-side.', isError: true };
   }
 
+  // Same defense in depth for a cancelled run: revoking a standing rule aborts
+  // the run's signal, and its remaining tool calls must stop reading and
+  // writing immediately rather than at the next model call.
+  if (ctx.signal && ctx.signal.aborted) {
+    return { content: 'This run was cancelled — the action was rejected server-side.', isError: true };
+  }
+
   // Run-mode gate (P1): ask/rehearse runs never mutate outside state. The
   // offer filter in toolsForRole is the first layer; this is the call-time
   // re-check, same defense-in-depth shape as the MCP owner gate below.
@@ -639,11 +665,14 @@ async function executeTool(name, input, ctx) {
   // may never execute a governed tool outside it, even if a def leaked into
   // the offer. Same defense-in-depth shape as the mode gate above.
   // Authority is re-read from the DB, not the run-start snapshot — an owner
-  // narrowing an agent mid-run takes effect on the very next tool call.
+  // narrowing an agent mid-run takes effect on the very next tool call. The
+  // dispatch-time snapshot (runs.authority_json) is intersected with it, so a
+  // widening after a standing grant cannot reach this run.
   const liveAuthority = agent && agent.id
     ? (db.prepare('SELECT tools_json FROM agents WHERE id = ?').get(agent.id) || agent).tools_json
     : agent && agent.tools_json;
-  if (!allowedByAuthority(name, parseAuthority(liveAuthority))) {
+  const effective = intersectAuthority(parseAuthority(run.authority_json), parseAuthority(liveAuthority));
+  if (!allowedByAuthority(name, effective)) {
     return { content: `REFUSED: this agent's authority map does not include ${name}. Work within your granted tools, or escalate if the task requires this authority.`, isError: true };
   }
 
@@ -1162,4 +1191,4 @@ function createEscalation({ canvasId, runId, agentId, kind, question, context })
   return escalation;
 }
 
-module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS, blockedInMode, MUTATING_TOOLS, governedTool, allowedByAuthority, parseAuthority, authorityMenu };
+module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS, blockedInMode, MUTATING_TOOLS, REHEARSAL_BLOCKED_TOOLS, governedTool, allowedByAuthority, parseAuthority, intersectAuthority, authorityMenu };

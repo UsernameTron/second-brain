@@ -10,6 +10,7 @@ const crypto = require('node:crypto');
 const { db, tx, nowIso, getSetting } = require('./db');
 const { audit } = require('./audit');
 const auth = require('./auth');
+const bus = require('./bus');
 const evidence = require('./evidence');
 const workspace = require('./google/workspace');
 const control = require('./orchestrator/control');
@@ -18,14 +19,22 @@ const { dispatchRun } = require('./orchestrator/queue');
 const CADENCES = ['hourly', 'daily', 'weekly'];
 const OUTPUT_TYPES = ['alert', 'brief'];
 const CATEGORIES = ['watch', 'report', 'digest'];
-const SOURCES = ['gmail', 'drive', 'sheets', 'calendar', 'hubspot', 'memory', 'web', 'mcp'];
+// No 'mcp': rule runs are ask-mode, and every mcp_* tool is blocked outside act
+// mode (orchestrator/tools.js blockedInMode). Offering it would let a card tell
+// the owner it is watching a source the run can never read.
+const SOURCES = ['gmail', 'drive', 'sheets', 'calendar', 'hubspot', 'memory', 'web'];
 // Sources that read through the grantor's own Google connection — a rule
 // watching these skips (with an alert) when that connection is gone.
 const WORKSPACE_SOURCES = new Set(['gmail', 'drive', 'sheets', 'calendar']);
 const STEP_BUDGET_RANGE = [1, 64];
 const WALL_MS_RANGE = [30_000, 1_800_000];
 const MAX_ATTEMPTS = 2;
-const LEASE_MS = 10 * 60_000;
+// The lease must outlive the run it guards. A flat 10 minutes over a wall
+// budget of up to 30 expires while the run is legitimately still working, and
+// the finalizer then dispatches a SECOND attempt alongside the first: two runs
+// spending the same occurrence's budget and writing conflicting memory.
+const LEASE_FLOOR_MS = 10 * 60_000;
+const LEASE_SLACK_MS = 5 * 60_000; // queue wait + finalize latency
 
 function flagOn() { return getSetting('standing_rules', '1') === '1'; }
 
@@ -227,18 +236,28 @@ function verifyAuthorization(rule, authz, now = new Date(), { checkWorkspace = t
 // summary; add a completion tool if rules ever need structured match lists.
 const MATCHED_CONTRACT = 'End your summary with a final line reading exactly "MATCHED: <n>" (the count of items that matched or need attention) or "NOTHING MATCHED" if nothing did.';
 
-function ruleInstruction(rule) {
+// A rehearsal must not carry the memory directive: telling the agent to record
+// conclusions is the more specific instruction, so a model following it writes
+// hypothetical "would have matched" data into shared memory before the owner
+// has approved the rule. The tool layer refuses those writes in rehearse mode
+// (tools.js REHEARSAL_BLOCKED_TOOLS) — this keeps the prompt from asking for a
+// refusal it will only burn steps on.
+const MEMORY_DIRECTIVE = 'Record selected conclusions as memory entries with evidence references; never copy whole source records.';
+const REHEARSAL_MEMORY_LINE = 'Memory is read-only in a rehearsal (the server refuses writes) — put everything you found in your summary instead.';
+
+function ruleInstruction(rule, { rehearsal = false } = {}) {
   let scope = '';
   try { scope = JSON.parse(rule.source_scope_json || '{}').scope || ''; } catch { /* keep empty */ }
   const scopeLine = scope ? `Scope: ${scope}\n` : '';
+  const memoryLine = rehearsal ? REHEARSAL_MEMORY_LINE : MEMORY_DIRECTIVE;
   if (rule.output_type === 'brief') {
-    return `Scheduled ${rule.cadence} brief (standing rule ${rule.id}). ${rule.instruction}\n${scopeLine}Write the operating brief in markdown with source references (evidence refs) and explicit uncertainty — state plainly what you could not verify. Record selected conclusions as memory entries with evidence references; never copy whole source records. ${MATCHED_CONTRACT}`;
+    return `Scheduled ${rule.cadence} brief (standing rule ${rule.id}). ${rule.instruction}\n${scopeLine}Write the operating brief in markdown with source references (evidence refs) and explicit uncertainty — state plainly what you could not verify. ${memoryLine} ${MATCHED_CONTRACT}`;
   }
-  return `Scheduled ${rule.cadence} watch (standing rule ${rule.id}). ${rule.instruction}\n${scopeLine}Check what this rule watches and raise ONLY what genuinely needs a human's attention — "nothing to report" is a valid result. Record selected conclusions as memory entries with evidence references; never copy whole source records. ${MATCHED_CONTRACT}`;
+  return `Scheduled ${rule.cadence} watch (standing rule ${rule.id}). ${rule.instruction}\n${scopeLine}Check what this rule watches and raise ONLY what genuinely needs a human's attention — "nothing to report" is a valid result. ${memoryLine} ${MATCHED_CONTRACT}`;
 }
 
 function rehearsalInstruction(rule) {
-  return `REHEARSAL against recent data: report exactly what WOULD have matched in the last 7 days; change nothing.\n${ruleInstruction(rule)}`;
+  return `REHEARSAL against recent data: report exactly what WOULD have matched in the last 7 days; change nothing.\n${ruleInstruction(rule, { rehearsal: true })}`;
 }
 
 function parseMatchedCount(summary) {
@@ -250,7 +269,20 @@ function parseMatchedCount(summary) {
 }
 
 // ---------- finalize + retry (D7) ----------
-function leaseIso(now) { return new Date(now.getTime() + LEASE_MS).toISOString(); }
+function leaseMs(rule) {
+  return Math.max(LEASE_FLOOR_MS, (Number(rule && rule.wall_ms_budget) || 0) + LEASE_SLACK_MS);
+}
+function leaseIso(now, rule) { return new Date(now.getTime() + leaseMs(rule)).toISOString(); }
+
+// Finalization is the moment a rule run gains needs_attention, and no other
+// producer fires then: the orchestrator's run_status event already made the
+// client refetch attention BEFORE this row was written, and later scheduler
+// ticks emit nothing at all. Without this, a connected user sees a new alert
+// or brief only after a reload. canvas_structure is the client's existing
+// "this canvas changed — refetch" signal.
+function notifyCanvas(canvasId) {
+  if (canvasId) bus.emit('event', { type: 'canvas_structure', canvasId });
+}
 
 // Retry with a fresh run on the SAME occurrence row (attempt max 2), then
 // failed + alert. The prior run id is preserved in retry_run_ids_json.
@@ -274,11 +306,12 @@ function retryOrFail(rr, reason, now = new Date()) {
       agentId: rule.agent_id, canvasId: rule.canvas_id, instruction: ruleInstruction(rule),
       triggerKind: 'system', mode: 'ask', initiatedBy: authz.authorized_by, actor: 'standing-rules',
       stepBudget: rule.step_budget || undefined, wallMs: rule.wall_ms_budget || undefined,
+      authorityJson: authz.allowed_tools_json,
     });
     const prior = JSON.parse(rr.retry_run_ids_json || '[]');
     if (rr.run_id) prior.push(rr.run_id);
     db.prepare('UPDATE standing_rule_runs SET run_id = ?, retry_run_ids_json = ?, attempt = attempt + 1, lease_until = ? WHERE id = ?')
-      .run(run.id, JSON.stringify(prior), leaseIso(now), rr.id);
+      .run(run.id, JSON.stringify(prior), leaseIso(now, rule), rr.id);
     audit('system', 'standing-rules', 'standing_rule_run.retry', { ruleId: rr.rule_id, ruleRunId: rr.id, runId: run.id, attempt: rr.attempt + 1, reason: String(reason).slice(0, 200) });
   });
 }
@@ -288,32 +321,69 @@ function retryOrFail(rr, reason, now = new Date()) {
 // evidence refs, cost — onto the rule-run row. The run IS the result (D3).
 function finalizeRuleRuns(now = new Date()) {
   let finalized = 0;
-  const open = db.prepare(`SELECT rr.*, r.output_type FROM standing_rule_runs rr
+  // A global pause must never consume the occurrence's retries. Pausing aborts
+  // the scheduled run; a paused sweep would read that as a failure, queue
+  // attempt two, then expire it — exhausting the occurrence purely because an
+  // operator hit pause. Terminal successes still copy through.
+  const paused = control.isPaused();
+  const touched = new Set();
+  const open = db.prepare(`SELECT rr.*, r.output_type, r.canvas_id FROM standing_rule_runs rr
     JOIN standing_rules r ON r.id = rr.rule_id WHERE rr.state = 'running'`).all();
   for (const rr of open) {
     try {
       const run = rr.run_id ? db.prepare('SELECT * FROM runs WHERE id = ?').get(rr.run_id) : null;
       if (run && run.status === 'completed') {
         const matched = parseMatchedCount(run.summary);
-        const needsAttention = rr.output_type === 'brief' ? 1 : (matched > 0 ? 1 : 0);
+        // An unparseable MATCHED line means the count is UNKNOWN, not zero.
+        // Model adherence to a prompt-only output contract is not guaranteed,
+        // and silently suppressing the card on a summary that may be reporting
+        // urgent matches is the one failure an alert rule cannot have.
+        const needsAttention = rr.output_type === 'brief' || matched === null || matched > 0 ? 1 : 0;
         db.prepare(`UPDATE standing_rule_runs SET state = 'completed', result_summary = ?, matched_count = ?,
             output_refs_json = ?, cost_usd = ?, needs_attention = ?, ended_at = ? WHERE id = ?`)
           .run(run.summary || '', matched, JSON.stringify(evidence.refsForRun(run.id)), run.cost_usd || 0,
             needsAttention, run.ended_at || nowIso(), rr.id);
         finalized += 1;
+        touched.add(rr.canvas_id);
+      } else if (paused) {
+        continue; // no dispatch, no attempt consumed, until the workspace resumes
       } else if (run && !['queued', 'running'].includes(run.status)) {
         retryOrFail(rr, `run ${run.status}${run.error ? `: ${run.error}` : ''}`, now);
         finalized += 1;
+        touched.add(rr.canvas_id);
       } else if (rr.lease_until && rr.lease_until <= now.toISOString()) {
         retryOrFail(rr, run ? `lease expired while run ${run.status}` : 'lease expired with no run', now);
         finalized += 1;
+        touched.add(rr.canvas_id);
       }
     } catch (err) {
       // One bad occurrence must not kill the sweep — record and continue.
       audit('system', 'standing-rules', 'standing_rule_run.fail', { ruleRunId: rr.id, error: String(err.message || err).slice(0, 200) });
     }
   }
+  for (const canvasId of touched) notifyCanvas(canvasId);
   return finalized;
+}
+
+// Revoke and pause must stop work already in flight. Updating the rule and
+// authorization rows alone leaves a queued or running occurrence to finish its
+// reads and memory writes under an authorization that no longer exists — most
+// reproducible when concurrency is saturated or the workspace is paused.
+function haltRuleRuns(ruleId, reason) {
+  const open = db.prepare("SELECT * FROM standing_rule_runs WHERE rule_id = ? AND state IN ('pending', 'running')").all(ruleId);
+  for (const rr of open) {
+    if (rr.run_id) {
+      control.abortRun(rr.run_id, reason);
+      // A run that has not started has no controller to abort: closing the row
+      // is what stops it, because executeRun no-ops on a non-queued run.
+      db.prepare("UPDATE runs SET status = 'failed', error = ?, ended_at = ? WHERE id = ? AND status IN ('queued', 'running')")
+        .run(reason, nowIso(), rr.run_id);
+    }
+    db.prepare("UPDATE standing_rule_runs SET state = 'skipped', skip_reason = ?, ended_at = ? WHERE id = ?")
+      .run(reason, nowIso(), rr.id);
+    audit('system', 'standing-rules', 'standing_rule_run.halt', { ruleId, ruleRunId: rr.id, runId: rr.run_id, reason });
+  }
+  return open.length;
 }
 
 // ---------- the tick (D1/D2/D5/D7) ----------
@@ -343,25 +413,33 @@ function claimAndDispatch(rule, now) {
       db.prepare("UPDATE standing_rule_runs SET state = 'skipped', skip_reason = ?, needs_attention = ?, ended_at = ? WHERE id = ?")
         .run(check.reason, check.alert ? 1 : 0, nowIso(), id);
       db.prepare('UPDATE standing_rules SET next_run_at = ? WHERE id = ?').run(nextIso, rule.id);
-      outcome = { claimed: false, reason: check.reason };
+      outcome = { claimed: false, reason: check.reason, alert: !!check.alert };
       return;
     }
     // Byte-for-byte the room-refresh dispatch template: a normal run, ask
     // mode hard-coded (no parameter to escalate), system trigger, acting as
     // the human who authorized the rule — never an invented identity.
+    // The authorization's tool snapshot rides with the dispatch: the run's
+    // surface is that snapshot INTERSECTED with the agent's live authority, so
+    // widening the agent after the grant never widens this rule.
     const run = dispatchRun({
       agentId: rule.agent_id, canvasId: rule.canvas_id, instruction: ruleInstruction(rule),
       triggerKind: 'system', mode: 'ask', initiatedBy: authz.authorized_by, actor: 'standing-rules',
       stepBudget: rule.step_budget || undefined, wallMs: rule.wall_ms_budget || undefined,
+      authorityJson: authz.allowed_tools_json,
     });
     db.prepare("UPDATE standing_rule_runs SET state = 'running', run_id = ?, attempt = 1, lease_until = ? WHERE id = ?")
-      .run(run.id, leaseIso(now), id);
+      .run(run.id, leaseIso(now, rule), id);
     db.prepare('UPDATE standing_rules SET next_run_at = ?, last_run_at = ? WHERE id = ?').run(nextIso, nowIso(), rule.id);
     audit('system', 'standing-rules', 'standing_rule_run.dispatch', {
       ruleId: rule.id, ruleRunId: id, runId: run.id, occurrenceKey: key, initiatedBy: authz.authorized_by,
     });
     outcome = { claimed: true, runId: run.id };
   });
+  // A skip that raises an alert is a new NEEDS YOU card with no other producer
+  // behind it — tell the connected clients to refetch (emitted after the tx so
+  // a rollback cannot announce a card that was never written).
+  if (outcome && outcome.alert) notifyCanvas(rule.canvas_id);
   return outcome;
 }
 
@@ -414,13 +492,13 @@ let tickVerifier = async (idToken, audience) => {
 function verifyTickOidc(idToken, audience) { return tickVerifier(idToken, audience); }
 
 module.exports = {
-  CADENCES, OUTPUT_TYPES, CATEGORIES, SOURCES, MAX_ATTEMPTS, LEASE_MS,
+  CADENCES, OUTPUT_TYPES, CATEGORIES, SOURCES, MAX_ATTEMPTS, LEASE_FLOOR_MS, leaseMs,
   PARSE_SYSTEM, validateInterpretation,
   occurrenceKey, nextRunAt, isoWeekKey,
   getRule, ruleView, upsertDraft,
   createAuthorization, currentAuthorization, revokeAuthorization, verifyAuthorization, touchesWorkspace,
   ruleInstruction, rehearsalInstruction, parseMatchedCount,
-  finalizeRuleRuns, tick, verifyTickOidc,
+  finalizeRuleRuns, haltRuleRuns, tick, verifyTickOidc,
   _internal: {
     claimAndDispatch, retryOrFail,
     setTickVerifier(fn) { const prev = tickVerifier; tickVerifier = fn; return () => { tickVerifier = prev; }; },

@@ -19,9 +19,10 @@ delete process.env.TICK_INVOKER_SA;
 
 const { server } = require('../server/index');
 const { db, nowIso, setSetting } = require('../server/db');
+const bus = require('../server/bus');
 const runner = require('../server/orchestrator/runner');
 const control = require('../server/orchestrator/control');
-const { toolsForRole, MUTATING_TOOLS } = require('../server/orchestrator/tools');
+const { toolsForRole, executeTool, parseAuthority, intersectAuthority, MUTATING_TOOLS } = require('../server/orchestrator/tools');
 const standingRules = require('../server/standing-rules');
 
 // Scheduled runs go through the real run loop — stub its model.
@@ -319,6 +320,212 @@ test('a failed dispatched run is retried, then completes on the fresh run', asyn
   assert.equal(rr.state, 'completed');
   assert.equal(rr.matched_count, 2);
   db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+// ---------- authority snapshot (Codex P1) ----------
+
+test('widening the agent after the grant never widens the rule; narrowing it still does', async () => {
+  const GRANTED = ['hs_search', 'ws_drive_search'];
+  db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(GRANTED), agentId);
+  const { rule } = mkActiveRule(); // authorization snapshots tools_json as it is NOW
+  try {
+    // The owner widens the agent AFTER the standing authorization was granted.
+    db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify([...GRANTED, 'ws_gmail_search']), agentId);
+    assert.equal(standingRules.tick({ source: 'owner', actor: OWNER }).claimed, 1);
+    const [rr] = ruleRuns(rule.id);
+    const run = db.prepare('SELECT * FROM runs WHERE id = ?').get(rr.run_id);
+    assert.deepEqual(JSON.parse(run.authority_json), GRANTED, 'the dispatch carries the grant-time snapshot');
+
+    const canvas = { id: canvasId };
+    const live = () => db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId);
+    const widened = await executeTool('ws_gmail_search', { query: 'anything' }, { run, agent: live(), canvas });
+    assert.ok(widened.isError, 'a tool added after the grant must not execute on the rule run');
+    assert.match(widened.content, /authority map/);
+
+    // A later NARROWING still takes effect — the snapshot is a ceiling, not a floor.
+    db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(['hs_search']), agentId);
+    const narrowed = await executeTool('ws_drive_search', { query: 'anything' }, { run, agent: live(), canvas });
+    assert.ok(narrowed.isError, 'a tool removed after the grant must stop executing');
+    assert.match(narrowed.content, /authority map/);
+
+    // The offer side agrees: only what BOTH allow is on the tool list.
+    const effective = intersectAuthority(parseAuthority(run.authority_json), parseAuthority(live().tools_json));
+    assert.deepEqual(effective, ['hs_search']);
+    const offered = toolsForRole('research', { mode: 'ask', authority: effective }).map((t) => t.name);
+    assert.ok(offered.includes('hs_search'));
+    assert.ok(!offered.includes('ws_drive_search'));
+    assert.ok(!offered.includes('ws_gmail_search'));
+
+    await waitForRun(rr.run_id);
+    standingRules.finalizeRuleRuns();
+  } finally {
+    db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// ---------- lease vs wall budget (Codex P1) ----------
+
+test('the occurrence lease outlives the run it guards — no double dispatch', async () => {
+  assert.equal(standingRules.leaseMs({ wall_ms_budget: 60_000 }), standingRules.LEASE_FLOOR_MS, 'short runs keep the floor');
+  assert.ok(standingRules.leaseMs({ wall_ms_budget: 1_800_000 }) > 1_800_000,
+    'the maximum wall budget must never outlive its own lease');
+
+  const { rule } = mkActiveRule();
+  db.prepare('UPDATE standing_rules SET wall_ms_budget = 1800000 WHERE id = ?').run(rule.id);
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    const [rr] = ruleRuns(rule.id);
+    assert.ok(new Date(rr.lease_until).getTime() - Date.now() > 1_800_000,
+      'a still-running 30-minute run is never called expired and retried alongside itself');
+    await waitForRun(rr.run_id);
+    standingRules.finalizeRuleRuns();
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// ---------- revoke / pause halt in-flight work (Codex P1) ----------
+
+async function inFlightRule() {
+  const { rule } = mkActiveRule();
+  standingRules.tick({ source: 'owner', actor: OWNER });
+  const [rr] = ruleRuns(rule.id);
+  await waitForRun(rr.run_id);
+  // Put the occurrence back in flight, the way a saturated queue leaves it.
+  db.prepare("UPDATE runs SET status = 'running', ended_at = NULL WHERE id = ?").run(rr.run_id);
+  const controller = new AbortController();
+  control.registerAbort(rr.run_id, controller);
+  return { rule, rr, controller };
+}
+
+test('revoking a rule halts the occurrence already in flight', async () => {
+  const { rule, rr, controller } = await inFlightRule();
+  try {
+    const res = await fetch(`${base}/api/standing-rules/${rule.id}/revoke`, { method: 'POST', headers: { Cookie: ownerCookie } });
+    assert.equal(res.status, 200);
+    assert.ok(controller.signal.aborted, 'the in-flight model call is aborted');
+    assert.equal(db.prepare('SELECT status FROM runs WHERE id = ?').get(rr.run_id).status, 'failed', 'the run is closed out');
+    const halted = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+    assert.equal(halted.state, 'skipped');
+    assert.match(halted.skip_reason, /revoked/);
+
+    // Whatever the run was mid-way through is refused too — no read, no write.
+    const out = await executeTool('memory_search', { query: 'anything' }, {
+      run: db.prepare('SELECT * FROM runs WHERE id = ?').get(rr.run_id),
+      agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId),
+      canvas: { id: canvasId }, signal: controller.signal,
+    });
+    assert.ok(out.isError);
+    assert.match(out.content, /cancelled/);
+
+    // And the finalizer never resurrects it as a retry.
+    standingRules.finalizeRuleRuns();
+    assert.equal(db.prepare('SELECT state FROM standing_rule_runs WHERE id = ?').get(rr.id).state, 'skipped');
+
+    // A deliberate halt is a control action, not a failure: no "retry this
+    // run" card for work the owner just stopped.
+    const attn = await fetch(`${base}/api/attention?canvas_id=${canvasId}`, { headers: { Cookie: ownerCookie } });
+    const cards = (await attn.json()).attention;
+    assert.ok(!cards.some((c) => c.type === 'failed_run' && c.sourceRef.id === rr.run_id),
+      'a revoked rule’s halted run must not offer a retry card');
+  } finally {
+    control.unregisterAbort(rr.run_id);
+  }
+});
+
+test('pausing a rule halts the occurrence already in flight', async () => {
+  const { rule, rr, controller } = await inFlightRule();
+  try {
+    const res = await fetch(`${base}/api/standing-rules/${rule.id}/pause`, { method: 'POST', headers: { Cookie: ownerCookie } });
+    assert.equal(res.status, 200);
+    assert.ok(controller.signal.aborted, 'pause stops work already running under the rule');
+    assert.equal(db.prepare('SELECT state FROM standing_rule_runs WHERE id = ?').get(rr.id).state, 'skipped');
+  } finally {
+    control.unregisterAbort(rr.run_id);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// ---------- pause must not consume retries (Codex P1) ----------
+
+test('a paused workspace never consumes a retry attempt or expires an occurrence', async () => {
+  const { rule } = mkActiveRule();
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    let [rr] = ruleRuns(rule.id);
+    await waitForRun(rr.run_id);
+    // Pause aborted the scheduled run — exactly what control.setPaused does.
+    db.prepare("UPDATE runs SET status = 'halted_paused', error = 'global pause' WHERE id = ?").run(rr.run_id);
+
+    control.setPaused(true, OWNER);
+    try {
+      standingRules.tick({ source: 'owner', actor: OWNER }); // finalize runs BEFORE the pause gate
+      rr = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+      assert.equal(rr.attempt, 1, 'a paused tick must not queue attempt two');
+      assert.equal(rr.state, 'running', 'the occurrence stays open for the resume');
+      // Even with the lease long gone, a paused sweep must not expire it.
+      db.prepare('UPDATE standing_rule_runs SET lease_until = ? WHERE id = ?').run(PAST(), rr.id);
+      standingRules.finalizeRuleRuns();
+      rr = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+      assert.equal(rr.attempt, 1);
+      assert.notEqual(rr.state, 'failed', 'an operator pause must never exhaust the occurrence');
+    } finally {
+      control.setPaused(false, OWNER);
+    }
+
+    // Resumed, the retry happens normally.
+    standingRules.finalizeRuleRuns();
+    rr = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+    assert.equal(rr.attempt, 2, 'the retry lands once the workspace is back');
+    await waitForRun(rr.run_id);
+    standingRules.finalizeRuleRuns();
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// ---------- finalization announces itself (Codex P1) ----------
+
+test('finalizing a rule run emits a canvas event so a connected client refetches attention', async () => {
+  const { rule } = mkActiveRule();
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    const [rr] = ruleRuns(rule.id);
+    await waitForRun(rr.run_id);
+    const seen = [];
+    const listener = (ev) => seen.push(ev);
+    bus.on('event', listener);
+    try { standingRules.finalizeRuleRuns(); } finally { bus.off('event', listener); }
+    assert.equal(db.prepare('SELECT needs_attention FROM standing_rule_runs WHERE id = ?').get(rr.id).needs_attention, 1);
+    assert.ok(seen.some((e) => e.type === 'canvas_structure' && e.canvasId === canvasId),
+      'the moment a run gains needs_attention must reach connected clients');
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// ---------- unknown MATCHED count (Codex P2) ----------
+
+test('a completed watch with no parseable MATCHED line surfaces instead of going quiet', async () => {
+  const restoreModel = runner._internal.setCallModel(async () => ({
+    content: [{ type: 'text', text: 'Three contracts are past their renewal date and need review today.' }],
+    stop_reason: 'end_turn', usage: {},
+  }));
+  const { rule } = mkActiveRule();
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    const [rr] = ruleRuns(rule.id);
+    await waitForRun(rr.run_id);
+    standingRules.finalizeRuleRuns();
+    const done = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+    assert.equal(done.state, 'completed');
+    assert.equal(done.matched_count, null, 'the count is unknown, not zero');
+    assert.equal(done.needs_attention, 1, 'an unknown count must be reviewed, never silently suppressed');
+  } finally {
+    restoreModel();
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
 });
 
 test('workspace-touching rule with a disconnected grantor skips with an alert, never fails silently', async () => {

@@ -180,6 +180,7 @@ CREATE TABLE IF NOT EXISTS runs (
   error TEXT,
   started_at TEXT,
   ended_at TEXT,
+  authority_json TEXT,                  -- authority snapshot this run was dispatched under
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_runs_canvas ON runs(canvas_id, created_at);
@@ -413,6 +414,12 @@ CREATE INDEX IF NOT EXISTS idx_inquiries_canvas ON inquiries(canvas_id, created_
 // ask + hs_preview_change + narrate-only prompt. Enum validated in JS
 // (SQLite can't retro-add CHECK constraints).
 try { db.exec("ALTER TABLE runs ADD COLUMN mode TEXT NOT NULL DEFAULT 'act'"); } catch { /* already present */ }
+// P5: the authority a run was DISPATCHED under, when the dispatcher held a
+// snapshot (a standing authorization). The run's effective surface is this
+// snapshot intersected with the agent's live authority — a later widening of
+// the agent must never widen a rule the owner already approved, and a later
+// narrowing must still bite. NULL = no snapshot, live authority governs alone.
+try { db.exec('ALTER TABLE runs ADD COLUMN authority_json TEXT'); } catch { /* already present */ }
 
 // ===== MCP connectors: owner-managed external tool servers =====
 // The managed source for the MCP client (server/mcp/client.js). Header values

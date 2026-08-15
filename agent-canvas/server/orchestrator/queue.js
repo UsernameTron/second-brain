@@ -20,7 +20,7 @@ let runningCount = 0;
 
 const RUN_MODES = ['act', 'ask', 'rehearse'];
 
-function dispatchRun({ agentId, canvasId, instruction, triggerKind = 'user', parentRunId = null, initialReads = [], stepBudget, wallMs, actor = 'system', initiatedBy = null, mode = null }) {
+function dispatchRun({ agentId, canvasId, instruction, triggerKind = 'user', parentRunId = null, initialReads = [], stepBudget, wallMs, actor = 'system', initiatedBy = null, mode = null, authorityJson = null }) {
   const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND canvas_id = ?').get(agentId, canvasId);
   if (!agent) throw Object.assign(new Error('agent not found on this canvas'), { status: 404 });
   if (control.budgetExceeded()) {
@@ -49,13 +49,13 @@ function dispatchRun({ agentId, canvasId, instruction, triggerKind = 'user', par
     throw Object.assign(new Error('this agent is an unpublished draft — it can only rehearse'), { status: 403 });
   }
   db.prepare(
-    `INSERT INTO runs (id, agent_id, canvas_id, parent_run_id, trigger_kind, instruction, status, step_budget, wall_ms_budget, created_at, initiated_by, mode)
-     VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)`
+    `INSERT INTO runs (id, agent_id, canvas_id, parent_run_id, trigger_kind, instruction, status, step_budget, wall_ms_budget, created_at, initiated_by, mode, authority_json)
+     VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)`
   ).run(id, agentId, canvasId, parentRunId, triggerKind, instruction,
     // Per-agent budgets (P4 builder proposals) are the dispatch default;
     // an explicit caller budget still wins, the env default is the floor.
     stepBudget || agent.step_budget || DEFAULT_STEP_BUDGET, wallMs || agent.wall_ms_budget || DEFAULT_WALL_MS,
-    nowIso(), initiator, runMode);
+    nowIso(), initiator, runMode, authorityJson);
   if (initialReads.length) memory.recordRunReads(id, initialReads);
   audit(triggerKind === 'user' ? 'user' : 'system', actor, 'run.dispatch', { runId: id, agentId, canvasId, triggerKind });
   bus.emit('event', { type: 'run_status', canvasId, runId: id, agentId, status: 'queued' });

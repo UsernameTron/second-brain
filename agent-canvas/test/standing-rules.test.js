@@ -19,6 +19,7 @@ const { server } = require('../server/index');
 const { db, nowIso } = require('../server/db');
 const anthropic = require('../server/orchestrator/anthropic');
 const runner = require('../server/orchestrator/runner');
+const { blockedInMode, toolsForRole, executeTool } = require('../server/orchestrator/tools');
 const standingRules = require('../server/standing-rules');
 
 // Rehearsal runs go through the real run loop — stub its model.
@@ -173,6 +174,54 @@ test('authorization verify matrix: missing/revoked/expired/off-allowlist/no-acce
   assert.equal(standingRules.verifyAuthorization({ ...rule, expires_at: '2020-01-01T00:00:00.000Z' }, authz).ok, false);
 
   db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id); // park the fixture
+});
+
+// A rule fixture that needs no HTTP ceremony — the instruction templates read
+// nothing but these fields.
+const INSTRUCTION_FIXTURE = {
+  id: 'rule-instruction-fixture', cadence: 'daily', instruction: 'watch the deals',
+  output_type: 'alert', source_scope_json: JSON.stringify({ scope: 'deals above $50k' }),
+};
+
+test('a rehearsal can never write to shared memory — the gate, not just the prompt', async () => {
+  // The gate. A rehearsal's findings are hypothetical; persisting them as
+  // records before the owner approves the rule is the whole bug.
+  assert.equal(blockedInMode('memory_write', 'rehearse'), true);
+  assert.equal(blockedInMode('memory_correct', 'rehearse'), true);
+  assert.equal(blockedInMode('memory_write', 'ask'), false, 'ask findings are real — receipts still need memory');
+  const offered = toolsForRole('research', { mode: 'rehearse' }).map((t) => t.name);
+  assert.ok(!offered.includes('memory_write'), 'memory_write must not be offered in rehearse mode');
+  assert.ok(!offered.includes('memory_correct'));
+  assert.ok(offered.includes('memory_search'), 'a rehearsal still reads memory');
+
+  const before = db.prepare('SELECT COUNT(*) AS n FROM memory_entries WHERE canvas_id = ?').get(canvasId).n;
+  const refused = await executeTool('memory_write', { content: 'two deals would have matched', epistemic: 'inference' }, {
+    run: { id: 'run-rehearse-mem', canvas_id: canvasId, agent_id: agentId, mode: 'rehearse' },
+    agent: { id: agentId, name: 'Scout', role: 'research' },
+    canvas: { id: canvasId },
+  });
+  assert.ok(refused.isError, 'a forced memory_write in a rehearsal is refused server-side');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM memory_entries WHERE canvas_id = ?').get(canvasId).n, before,
+    'nothing hypothetical reached shared memory');
+
+  // The prompt must stop ordering the write it would only be refused for.
+  assert.match(standingRules.ruleInstruction(INSTRUCTION_FIXTURE), /Record selected conclusions as memory entries/);
+  const rehearsal = standingRules.rehearsalInstruction(INSTRUCTION_FIXTURE);
+  assert.doesNotMatch(rehearsal, /Record selected conclusions as memory entries/,
+    'the rehearsal prompt must not embed the memory-write directive');
+  assert.match(rehearsal, /Memory is read-only in a rehearsal/);
+  assert.doesNotMatch(standingRules.rehearsalInstruction({ ...INSTRUCTION_FIXTURE, output_type: 'brief' }),
+    /Record selected conclusions as memory entries/, 'brief rehearsals too');
+});
+
+test('MCP is not an offerable rule source — a scheduled ask run could never read it', () => {
+  assert.ok(!standingRules.SOURCES.includes('mcp'), 'mcp must not be a reviewable source');
+  assert.ok(!standingRules.PARSE_SYSTEM([{ id: agentId, name: 'Scout', role: 'research' }]).includes('"mcp"'),
+    'the parse prompt must not offer mcp');
+  // Why: rules dispatch in ask mode, where every mcp_* tool is blocked.
+  assert.equal(blockedInMode('mcp_soi_org_knowledge_search', 'ask'), true);
+  const interp = standingRules.validateInterpretation(INTERP(agentId, { sources: ['mcp', 'memory'] }), { agents: [{ id: agentId }] });
+  assert.deepEqual(interp.sources, ['memory'], 'a hallucinated mcp source never persists onto the card');
 });
 
 // ---------- T2: parse → rehearse → activate ceremony ----------

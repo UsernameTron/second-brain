@@ -128,6 +128,13 @@ function failedRunCards(canvasId) {
           AND (e.status = 'open' OR e.kind != 'question')
       )
       AND NOT EXISTS (SELECT 1 FROM runs child WHERE child.parent_run_id = r.id)
+      -- P5: a run the owner deliberately halted by revoking or pausing its
+      -- standing rule is a control action, not a failure — same reason
+      -- halted_paused is excluded above. Offering "retry" would re-dispatch
+      -- work the owner just stopped.
+      AND NOT EXISTS (
+        SELECT 1 FROM standing_rule_runs srr WHERE srr.run_id = r.id AND srr.state = 'skipped'
+      )
     ORDER BY r.created_at DESC LIMIT 50
   `).all(canvasId);
   return rows.map((r) => card({

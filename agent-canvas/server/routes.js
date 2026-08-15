@@ -1289,8 +1289,14 @@ router.post('/standing-rules/:ruleId/pause', auth.requireOwner, (req, res) => {
   const rule = standingRules.getRule(req.params.ruleId);
   if (!rule) return res.status(404).json({ error: 'standing rule not found' });
   if (rule.state !== 'active') return res.status(409).json({ error: `only active rules can be paused (rule is ${rule.state})` });
-  db.prepare("UPDATE standing_rules SET state = 'paused', updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
-  audit('user', req.user.email, 'standing_rule.pause', { ruleId: rule.id, canvasId: rule.canvas_id });
+  // Pausing stops the rule, including the occurrence already in flight — an
+  // unhalted run would keep reading and writing memory after the owner paused.
+  let halted = 0;
+  tx(() => {
+    db.prepare("UPDATE standing_rules SET state = 'paused', updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
+    halted = standingRules.haltRuleRuns(rule.id, 'rule paused');
+  });
+  audit('user', req.user.email, 'standing_rule.pause', { ruleId: rule.id, canvasId: rule.canvas_id, haltedRuns: halted });
   res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)) });
 });
 
@@ -1313,11 +1319,16 @@ router.post('/standing-rules/:ruleId/revoke', auth.requireOwner, (req, res) => {
   const rule = standingRules.getRule(req.params.ruleId);
   if (!rule) return res.status(404).json({ error: 'standing rule not found' });
   if (rule.state === 'revoked') return res.status(409).json({ error: 'rule is already revoked' });
+  // Revoking the authorization rows is not enough: an occurrence already
+  // queued or running would finish its reads and memory writes under an
+  // authorization that no longer exists. Halt it in the same transaction.
+  let halted = 0;
   tx(() => {
     standingRules.revokeAuthorization(rule.id, req.user.email);
     db.prepare("UPDATE standing_rules SET state = 'revoked', updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
+    halted = standingRules.haltRuleRuns(rule.id, 'rule revoked');
   });
-  audit('user', req.user.email, 'standing_rule.revoke', { ruleId: rule.id, canvasId: rule.canvas_id });
+  audit('user', req.user.email, 'standing_rule.revoke', { ruleId: rule.id, canvasId: rule.canvas_id, haltedRuns: halted });
   res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)) });
 });
 

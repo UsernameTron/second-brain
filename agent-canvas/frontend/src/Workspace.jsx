@@ -58,6 +58,8 @@ export default function Workspace() {
   const roomsOn = !!(config && config.rooms);
   // P5 reversible exposure: setSetting('standing_rules','0') hides Rules & Briefs.
   const rulesOn = !!(config && config.standingRules);
+  // Rule a NEEDS YOU card asked to open; RulesView mounts straight onto it.
+  const [ruleFocusId, setRuleFocusId] = useState(null);
   const [runTick, setRunTick] = useState(0); // bumps on run_status → Home refetch
   const [ripple, setRipple] = useState(null); // {flash, ids:Set}
   const [amberAgents, setAmberAgents] = useState(() => new Set());
@@ -960,7 +962,7 @@ export default function Workspace() {
         ) : null}
         {rulesOn ? (
           <button className={`btn ghost ${view === 'rules' ? 'active' : ''}`}
-            onClick={() => setView(view === 'rules' ? 'canvas' : 'rules')}
+            onClick={() => { setRuleFocusId(null); setView(view === 'rules' ? 'canvas' : 'rules'); }}
             title="Rules & Briefs — standing instructions that watch, alert, and brief on a cadence">
             Rules
           </button>
@@ -1053,6 +1055,7 @@ export default function Workspace() {
               onRetryRun={retryRun}
               onExtendReview={extendReview}
               onAcknowledgeRuleRun={acknowledgeRuleRun}
+              onOpenRule={rulesOn ? (ref) => { setRuleFocusId(ref.ruleId); setView('rules'); } : null}
             />
           ) : null}
           {view === 'rooms' ? (
@@ -1071,7 +1074,7 @@ export default function Workspace() {
             />
           ) : null}
           {state && view === 'rules' ? (
-            <RulesView user={user} canvasId={canvasId} agents={state.agents || []} toast={toast} />
+            <RulesView user={user} canvasId={canvasId} agents={state.agents || []} toast={toast} focusRuleId={ruleFocusId} />
           ) : null}
           {state && view !== 'home' && view !== 'needsyou' && view !== 'rooms' && view !== 'rules' ? (
             <Canvas
