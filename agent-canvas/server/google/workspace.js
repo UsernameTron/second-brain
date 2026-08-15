@@ -279,6 +279,128 @@ async function driveSearch({ email, query, limit = 10 }) {
   audit('user', email, 'workspace.drive_search', { query });
   return (d.files || []).map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, modified: f.modifiedTime, link: f.webViewLink }));
 }
+// ---------- native XLSX read (P1) ----------
+// Limits are enforced HERE, not trusted to the library: pre-download size cap
+// from Drive metadata plus a byte-capped download (a lying/absent size field
+// must not bypass the cap), then sheet/row/cell budgets on the parse, cached
+// formula RESULTS only (never evaluated), and a hard time guard. Kill-switch:
+// XLSX_READ=0 restores the old convert-it-first error.
+const XLSX_LIMITS = {
+  fileBytes: 10 * 1024 * 1024,
+  // A small compressed file can inflate into a huge model (zip bomb), so the
+  // DECLARED UNCOMPRESSED size is capped before exceljs builds anything.
+  uncompressedBytes: 50 * 1024 * 1024,
+  sheets: 10,
+  rowsPerSheet: 2000,
+  totalCells: 50_000,
+  parseMs: 30_000,
+};
+
+// Reject workbooks whose zip entries declare more uncompressed bytes than the
+// cap, BEFORE exceljs decompresses and models them. jszip (an exceljs dep)
+// reads only the archive directory here — cheap relative to a full load.
+// ponytail: a size gate, not isolation; move parsing to a worker process if a
+// hostile-workbook threat model ever becomes real.
+async function assertUncompressedSize(buf, name) {
+  const JSZip = require('jszip');
+  let zip;
+  try {
+    zip = await JSZip.loadAsync(buf);
+  } catch {
+    throw new Error(`"${name}" could not be read as a workbook (corrupt or not a real .xlsx).`);
+  }
+  let total = 0;
+  zip.forEach((_, entry) => { total += (entry._data && entry._data.uncompressedSize) || 0; });
+  if (total > XLSX_LIMITS.uncompressedBytes) {
+    throw new Error(`"${name}" expands to ${Math.round(total / 1048576)}MB uncompressed — over the ${XLSX_LIMITS.uncompressedBytes / 1048576}MB workbook limit. Ask for a trimmed copy or a CSV export.`);
+  }
+}
+
+async function downloadCapped(token, url, meta) {
+  if (Number(meta.size) > XLSX_LIMITS.fileBytes) {
+    throw new Error(`"${meta.name}" is ${Math.round(meta.size / 1048576)}MB — over the ${XLSX_LIMITS.fileBytes / 1048576}MB workbook read limit. Ask for a trimmed copy or a CSV export of the sheet you need.`);
+  }
+  const res = await fetch(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) throw new Error(`Google API error: HTTP ${res.status}`);
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of res.body) {
+    total += chunk.length;
+    if (total > XLSX_LIMITS.fileBytes) throw new Error(`"${meta.name}" exceeded the ${XLSX_LIMITS.fileBytes / 1048576}MB workbook read limit mid-download.`);
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+// CSV-escape so a comma or newline INSIDE a cell ("Acme, Inc.") can never
+// read as an extra cell or row.
+function csvCell(s) {
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function xlsxCellText(v) {
+  if (v === null || v === undefined) return '';
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === 'object') {
+    if (v.richText) return v.richText.map((r) => r.text).join('');
+    if (v.formula !== undefined || v.sharedFormula !== undefined) return xlsxCellText(v.result); // cached result, never evaluated
+    if (v.hyperlink) return xlsxCellText(v.text ?? v.hyperlink);
+    if (v.error) return String(v.error);
+    return JSON.stringify(v);
+  }
+  return String(v);
+}
+
+async function xlsxToText(buf, name) {
+  await assertUncompressedSize(buf, name);
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  const load = wb.xlsx.load(buf).then(() => wb);
+  const timer = new Promise((_, reject) => {
+    const t = setTimeout(() => reject(new Error(`"${name}" took longer than ${XLSX_LIMITS.parseMs / 1000}s to parse — too complex for the workbook read limit.`)), XLSX_LIMITS.parseMs);
+    const clear = () => clearTimeout(t);
+    load.then(clear, clear); // not .finally — that chains a second, unhandled rejection
+  });
+  try {
+    await Promise.race([load, timer]);
+  } catch (err) {
+    if (/parse|longer than/.test(String(err.message))) throw err;
+    throw new Error(`"${name}" could not be read as a workbook (corrupt or not a real .xlsx): ${String(err.message).slice(0, 120)}`);
+  }
+  const lines = [`Workbook "${name}" (formulas render their cached values):`];
+  let cells = 0;
+  let sheetsShown = 0;
+  let cellsOmitted = false;
+  wb.eachSheet((sheet) => {
+    if (sheetsShown >= XLSX_LIMITS.sheets || cells >= XLSX_LIMITS.totalCells) return;
+    sheetsShown += 1;
+    lines.push(`\n## Sheet: ${sheet.name}`);
+    let rows = 0;
+    // Markers fire only when data was actually OMITTED — a sheet with exactly
+    // the limit must not claim truncation it didn't perform.
+    let rowsOmitted = false;
+    sheet.eachRow({ includeEmpty: false }, (row) => {
+      if (rows >= XLSX_LIMITS.rowsPerSheet || cells >= XLSX_LIMITS.totalCells) { rowsOmitted = true; return; }
+      rows += 1;
+      // Clamp the row to the REMAINING cell budget — a maximum-width row at
+      // 49,999 cells must not blow past the advertised hard total.
+      let vals = row.values.slice(1).map((v) => csvCell(xlsxCellText(v)));
+      const remaining = XLSX_LIMITS.totalCells - cells;
+      if (vals.length > remaining) { vals = vals.slice(0, remaining); cellsOmitted = true; }
+      cells += vals.length;
+      lines.push(vals.join(','));
+    });
+    if (rowsOmitted) { lines.push(`[...sheet truncated at ${XLSX_LIMITS.rowsPerSheet} rows]`); cellsOmitted = cellsOmitted || cells >= XLSX_LIMITS.totalCells; }
+  });
+  if (wb.worksheets.length > sheetsShown) lines.push(`\n[...${wb.worksheets.length - sheetsShown} more sheet(s) not shown]`);
+  if (cellsOmitted && cells >= XLSX_LIMITS.totalCells) lines.push(`[...workbook truncated at ${XLSX_LIMITS.totalCells} cells]`);
+  const text = lines.join('\n');
+  if (text.length <= TEXT_CAP) return text;
+  // Character-cap truncation must be visible, not a silent mid-cell cut.
+  const marker = `\n[...output truncated at the ${TEXT_CAP}-character cap — later rows/sheets are missing; ask for a narrower range or a CSV export]`;
+  return text.slice(0, TEXT_CAP - marker.length) + marker;
+}
+
 async function driveReadText({ email, fileId }) {
   const meta = await gcall(email, `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size`);
   const token = await accessTokenFor(email);
@@ -286,6 +408,14 @@ async function driveReadText({ email, fileId }) {
   if (meta.mimeType === 'application/vnd.google-apps.document') url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=text/plain`;
   else if (meta.mimeType === 'application/vnd.google-apps.spreadsheet') url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=text/csv`;
   else if ((meta.mimeType || '').startsWith('text/') || meta.mimeType === 'application/json' || meta.mimeType === 'text/csv') url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`;
+  else if ((meta.mimeType || '').includes('spreadsheetml.sheet') && process.env.XLSX_READ !== '0') {
+    // Native .xlsx read (P1). Legacy .xls stays on the friendly throw below —
+    // exceljs reads only the OOXML container.
+    const buf = await downloadCapped(token, `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, meta);
+    const text = await xlsxToText(buf, meta.name);
+    audit('user', email, 'workspace.drive_read', { fileId, name: meta.name, xlsx: true });
+    return { id: meta.id, name: meta.name, mimeType: meta.mimeType, text };
+  }
   else if ((meta.mimeType || '').includes('officedocument') || (meta.mimeType || '').includes('ms-excel') || (meta.mimeType || '').includes('msword')) {
     throw new Error(`"${meta.name}" is an uploaded Office file (${meta.mimeType}), which this integration cannot extract text from yet. Workaround: ask the user to open it with Google Sheets/Docs (right-click in Drive → Open with) which creates a readable converted copy, or export it as CSV — then search Drive again for the converted file.`);
   }
@@ -415,5 +545,5 @@ module.exports = {
   probeSurface,
   sheetsRead, sheetsAppend, sheetsUpdate, driveSearch, driveReadText, docsCreate,
   gmailSearch, gmailRead, gmailCreateDraft, calendarList, calendarCreate,
-  _internal: { encrypt, decrypt, assertValues, accessTokenFor },
+  _internal: { encrypt, decrypt, assertValues, accessTokenFor, xlsxToText, xlsxCellText, downloadCapped, XLSX_LIMITS },
 };

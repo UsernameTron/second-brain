@@ -306,7 +306,7 @@ const WORKSPACE_READ_TOOLS = [
   },
   {
     name: 'ws_drive_read',
-    description: 'Read a Google Doc, Sheet (as CSV), or text/CSV file from Drive as plain text (size-capped). Read-only: you cannot edit existing files.',
+    description: 'Read a Google Doc, Sheet (as CSV), uploaded Excel workbook (.xlsx, bounded: 10MB/10 sheets/2000 rows per sheet, formulas render cached values), or text/CSV file from Drive as plain text (size-capped). Read-only: you cannot edit existing files.',
     input_schema: { type: 'object', properties: { file_id: { type: 'string' } }, required: ['file_id'] },
   },
   {
