@@ -489,4 +489,51 @@ CREATE TABLE IF NOT EXISTS room_refreshes (
 CREATE INDEX IF NOT EXISTS idx_room_refreshes_room ON room_refreshes(room_id, created_at);
 `);
 
+// ===== P4 agent builder: explicit authority, drafts, versions =====
+// tools_json is the agent's Authority Map: a JSON array of EXTERNAL tool
+// names this agent may be offered. NULL = legacy behavior (full role-derived
+// surface) so every pre-P4 agent is untouched; builder-published agents
+// always carry an explicit list. lifecycle 'draft' rows are the shadow agents
+// rehearsals run on — invisible everywhere except the builder. step/wall
+// budgets become per-agent dispatch defaults (enum/shape validated in JS).
+try { db.exec("ALTER TABLE agents ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'active'"); } catch { /* already present */ }
+try { db.exec('ALTER TABLE agents ADD COLUMN tools_json TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE agents ADD COLUMN step_budget INTEGER'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE agents ADD COLUMN wall_ms_budget INTEGER'); } catch { /* already present */ }
+db.exec(`
+CREATE TABLE IF NOT EXISTS agent_drafts (
+  id TEXT PRIMARY KEY,
+  canvas_id TEXT NOT NULL REFERENCES canvases(id),
+  brief TEXT NOT NULL,
+  proposal_json TEXT NOT NULL DEFAULT '{}',
+  state TEXT NOT NULL DEFAULT 'draft' CHECK (state IN ('draft','rehearsed','published','abandoned')),
+  shadow_agent_id TEXT,
+  rehearsal_run_id TEXT,
+  published_agent_id TEXT,
+  target_agent_id TEXT,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_agent_drafts_canvas ON agent_drafts(canvas_id, created_at);
+CREATE TABLE IF NOT EXISTS agent_versions (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  canvas_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  model_tier TEXT NOT NULL,
+  system_prompt TEXT NOT NULL,
+  tools_json TEXT,
+  step_budget INTEGER,
+  wall_ms_budget INTEGER,
+  source TEXT NOT NULL CHECK (source IN ('baseline','publish','patch','rollback')),
+  draft_id TEXT,
+  restored_from TEXT,
+  actor TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, created_at);
+`);
+
 module.exports = { db, tx, nowIso, getSetting, setSetting, DB_PATH };

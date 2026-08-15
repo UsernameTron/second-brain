@@ -12,6 +12,7 @@ const evidence = require('./evidence');
 const explain = require('./explain');
 const attention = require('./attention');
 const rooms = require('./rooms');
+const builder = require('./builder');
 const bus = require('./bus');
 const auth = require('./auth');
 const control = require('./orchestrator/control');
@@ -59,6 +60,9 @@ router.get('/config', (req, res) => {
     // P3 reversible exposure: Evidence Rooms. setSetting('rooms', '0') hides
     // the Rooms view, no deploy. Data stays; the flag gates the UI only.
     rooms: getSetting('rooms', '1') === '1',
+    // P4 reversible exposure: plain-language agent builder as the default
+    // AddAgent tab. setSetting('agent_builder', '0') reverts, no deploy.
+    agentBuilder: getSetting('agent_builder', '1') === '1',
   });
 });
 
@@ -535,7 +539,7 @@ router.post('/canvases', (req, res) => {
 
 router.get('/canvases/:canvasId', auth.requireCanvas, (req, res) => {
   const canvasId = req.params.canvasId;
-  const agents = db.prepare('SELECT * FROM agents WHERE canvas_id = ?').all(canvasId);
+  const agents = db.prepare("SELECT * FROM agents WHERE canvas_id = ? AND lifecycle = 'active'").all(canvasId);
   const notes = db.prepare('SELECT * FROM notes WHERE canvas_id = ?').all(canvasId);
   const tasks = db.prepare('SELECT * FROM tasks WHERE canvas_id = ?').all(canvasId);
   const people = db.prepare('SELECT * FROM canvas_people WHERE canvas_id = ?').all(canvasId);
@@ -664,7 +668,7 @@ router.post('/rooms/:roomId/refresh', rateLimit('model'), (req, res) => {
   if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted — raise it or wait for the reset' });
   const canvasId = ctx.room.canvasId;
   const body = req.body || {}; // a bare POST with no JSON body is valid — both fields are optional
-  const agents = db.prepare('SELECT id, name, role FROM agents WHERE canvas_id = ?').all(canvasId);
+  const agents = db.prepare("SELECT id, name, role FROM agents WHERE canvas_id = ? AND lifecycle = 'active'").all(canvasId);
   if (!agents.length) return res.status(409).json({ error: 'this room has no agents — staff it first' });
   let agentId = body.agent_id || null;
   if (agentId && !agents.some((a) => a.id === agentId)) return res.status(400).json({ error: 'agent_id is not on this room' });
@@ -782,10 +786,45 @@ router.patch('/canvases/:canvasId/agents/:agentId', auth.requireCanvas, (req, re
       fromLen: (agent.system_prompt || '').length, toLen: String(system_prompt).length,
     });
   }
+  const nextTier = ['fast', 'strong'].includes(model_tier) ? model_tier : agent.model_tier;
+  const promptChanged = system_prompt != null && system_prompt !== agent.system_prompt;
+  const tierChanged = nextTier !== agent.model_tier;
+  // P4: config-shaping changes are versioned (append-only) so every agent
+  // has a rollback source. Pre-P4 agents get a baseline snapshot first.
+  if (promptChanged || tierChanged) builder.ensureBaseline(agent, req.user.email);
   db.prepare('UPDATE agents SET x = ?, y = ?, system_prompt = ?, model_tier = ?, name = ?, color = ? WHERE id = ?')
     .run(x ?? agent.x, y ?? agent.y, system_prompt ?? agent.system_prompt,
-      ['fast', 'strong'].includes(model_tier) ? model_tier : agent.model_tier, name ?? agent.name, color ?? agent.color, agent.id);
+      nextTier, name ?? agent.name, color ?? agent.color, agent.id);
+  if (promptChanged || tierChanged) {
+    builder.recordVersion(db.prepare('SELECT * FROM agents WHERE id = ?').get(agent.id), { source: 'patch', actor: req.user.email });
+  }
   res.json({ ok: true });
+});
+
+// P4: version history + owner-only rollback. Rollback restores CONFIG
+// (prompt, tier, authority, budgets) — never name/color/position, which are
+// per-canvas identity (same rule as resync). History never rewrites: the
+// restore itself lands as a new version row.
+router.get('/canvases/:canvasId/agents/:agentId/versions', auth.requireCanvas, (req, res) => {
+  const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND canvas_id = ?').get(req.params.agentId, req.params.canvasId);
+  if (!agent) return res.status(404).json({ error: 'agent not found' });
+  res.json({ versions: builder.listVersions(agent.id) });
+});
+
+router.post('/canvases/:canvasId/agents/:agentId/rollback/:versionId', auth.requireOwner, (req, res) => {
+  const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND canvas_id = ?').get(req.params.agentId, req.params.canvasId);
+  if (!agent) return res.status(404).json({ error: 'agent not found' });
+  const version = builder.getVersion(req.params.versionId);
+  if (!version || version.agent_id !== agent.id) return res.status(404).json({ error: 'version not found for this agent' });
+  builder.ensureBaseline(agent, req.user.email);
+  const diff = builder.diffConfigs(agent, version);
+  db.prepare('UPDATE agents SET system_prompt = ?, model_tier = ?, tools_json = ?, step_budget = ?, wall_ms_budget = ? WHERE id = ?')
+    .run(version.system_prompt, version.model_tier, version.tools_json, version.step_budget, version.wall_ms_budget, agent.id);
+  const updated = db.prepare('SELECT * FROM agents WHERE id = ?').get(agent.id);
+  const newVersionId = builder.recordVersion(updated, { source: 'rollback', actor: req.user.email, restoredFrom: version.id });
+  audit('user', req.user.email, 'agent.rollback', { agentId: agent.id, canvasId: agent.canvas_id, restoredFrom: version.id, versionId: newVersionId, changed: Object.keys(diff) });
+  bus.emit('event', { type: 'canvas_structure', canvasId: agent.canvas_id });
+  res.json({ agent: updated, diff, versionId: newVersionId });
 });
 
 // Owner-only: re-copy prompt + tier from the source roster entry. Name and
@@ -828,7 +867,7 @@ router.post('/canvases/:canvasId/runs/:runId/retry', rateLimit('model'), auth.re
   const run = db.prepare('SELECT * FROM runs WHERE id = ? AND canvas_id = ?').get(req.params.runId, req.params.canvasId);
   if (!run) return res.status(404).json({ error: 'run not found' });
   if (['queued', 'running'].includes(run.status)) return res.status(409).json({ error: 'run is still active — only terminal runs can be retried' });
-  if (!db.prepare('SELECT id FROM agents WHERE id = ? AND canvas_id = ?').get(run.agent_id, req.params.canvasId)) {
+  if (!db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(run.agent_id, req.params.canvasId)) {
     return res.status(400).json({ error: 'the run’s agent is no longer on this canvas' });
   }
   try {
@@ -1145,7 +1184,7 @@ router.patch('/canvases/:canvasId/tasks/:taskId', auth.requireCanvas, (req, res)
   }
   if (req.body.assignee_agent_id !== undefined) {
     const agentId = req.body.assignee_agent_id;
-    if (agentId && !db.prepare('SELECT id FROM agents WHERE id = ? AND canvas_id = ?').get(agentId, req.params.canvasId)) {
+    if (agentId && !db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(agentId, req.params.canvasId)) {
       return res.status(400).json({ error: 'assignee agent is not on this canvas' });
     }
     assigneeAgentId = agentId;
@@ -1278,7 +1317,7 @@ router.post('/escalations/:id/assign', (req, res) => {
   }
   if (owner_agent_id !== undefined) {
     agentId = owner_agent_id;
-    if (agentId && !db.prepare('SELECT id FROM agents WHERE id = ? AND canvas_id = ?').get(agentId, escalation.canvas_id)) {
+    if (agentId && !db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(agentId, escalation.canvas_id)) {
       return res.status(400).json({ error: 'owner agent is not on this escalation’s canvas' });
     }
     if (agentId) email = null;
@@ -1312,7 +1351,7 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
   let agentId = escalation.agent_id;
   if (action === 'redirect') {
     if (!target_agent_id) return res.status(400).json({ error: 'target_agent_id required for redirect' });
-    const target = db.prepare('SELECT id FROM agents WHERE id = ? AND canvas_id = ?').get(target_agent_id, escalation.canvas_id);
+    const target = db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(target_agent_id, escalation.canvas_id);
     if (!target) return res.status(400).json({ error: 'target agent is not on this escalation’s canvas' });
     agentId = target_agent_id;
   }
@@ -1411,7 +1450,7 @@ router.post('/canvases/:canvasId/inquiries', rateLimit('model'), auth.requireCan
   if (!RUN_MODES.includes(mode)) return res.status(400).json({ error: `mode must be one of ${RUN_MODES.join(', ')}` });
   if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused — resume before asking' });
   if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted — raise it or wait for the reset' });
-  const agents = db.prepare('SELECT id, name, role FROM agents WHERE canvas_id = ?').all(req.params.canvasId);
+  const agents = db.prepare("SELECT id, name, role FROM agents WHERE canvas_id = ? AND lifecycle = 'active'").all(req.params.canvasId);
   if (!agents.length) return res.status(409).json({ error: 'this canvas has no agents to ask' });
 
   let agentId = req.body.agent_id || null;
@@ -1523,7 +1562,7 @@ router.post('/canvases/:canvasId/intent', rateLimit('model'), auth.requireCanvas
   const abort = new AbortController();
   const intentAbortId = `intent-${crypto.randomUUID()}`;
   control.registerAbort(intentAbortId, abort);
-  const agents = db.prepare('SELECT id, name, role FROM agents WHERE canvas_id = ?').all(req.params.canvasId);
+  const agents = db.prepare("SELECT id, name, role FROM agents WHERE canvas_id = ? AND lifecycle = 'active'").all(req.params.canvasId);
   const fastTier = tierConfig('fast');
   let response;
   try {

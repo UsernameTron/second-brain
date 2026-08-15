@@ -118,6 +118,9 @@ function failedRunCards(canvasId) {
     FROM runs r
     WHERE r.canvas_id = ?
       AND (r.status IN ('failed','refused') OR (r.status LIKE 'halted_%' AND r.status != 'halted_paused'))
+      -- P4: a draft agent's rehearsal failure belongs to the builder flow,
+      -- not the NEEDS YOU tray (its Retry card would 400 on a draft anyway)
+      AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.id = r.agent_id AND a.lifecycle = 'draft')
       AND NOT EXISTS (
         SELECT 1 FROM escalations e WHERE e.run_id = r.id
           AND (e.status = 'open' OR e.kind != 'question')
