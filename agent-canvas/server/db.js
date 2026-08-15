@@ -464,7 +464,8 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_memory_review ON memory_entries(review_a
 // ===== P3 Evidence Rooms: metadata over an existing canvas =====
 // A Room is a 1:1 metadata record on a canvas — never a second graph. Its
 // sections (people/evidence/work/decisions/risks/open questions) are read-time
-// projections over existing tables (server/rooms.js). room_refreshes is the
+// projections over existing tables (server/rooms.js). Lifecycle is DERIVED
+// from canvases.archived (no second flag to desync). room_refreshes is the
 // lossless refresh history: time + actor + the ask-mode run it dispatched.
 db.exec(`
 CREATE TABLE IF NOT EXISTS rooms (
@@ -472,7 +473,6 @@ CREATE TABLE IF NOT EXISTS rooms (
   canvas_id TEXT NOT NULL UNIQUE REFERENCES canvases(id),
   room_type TEXT NOT NULL CHECK (room_type IN ('deal','client','initiative','decision')),
   external_ref TEXT NOT NULL DEFAULT '',
-  lifecycle TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle IN ('active','archived')),
   created_by TEXT NOT NULL,
   created_at TEXT NOT NULL,
   refreshed_at TEXT,

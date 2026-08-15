@@ -171,8 +171,16 @@ test('export preview names what leaves and what stays; export is owner-only, aud
   assert.ok(preview.excluded.openEscalations.length >= 1);
   assert.equal(preview.excluded.auditChain, 'always excluded');
 
-  assert.equal((await call(editorCookie, 'POST', `/api/rooms/${roomId}/export`)).status, 403); // owner only
-  const res = await fetch(`${base}/api/rooms/${roomId}/export`, { method: 'POST', headers: { Cookie: ownerCookie } });
+  assert.equal((await call(editorCookie, 'POST', `/api/rooms/${roomId}/export`, { manifest_hash: preview.manifestHash })).status, 403); // owner only
+
+  // The export is bound to the reviewed manifest: no hash → 400, stale hash → 409.
+  assert.equal((await call(ownerCookie, 'POST', `/api/rooms/${roomId}/export`)).status, 400);
+  assert.equal((await call(ownerCookie, 'POST', `/api/rooms/${roomId}/export`, { manifest_hash: 'stale' })).status, 409);
+
+  const res = await fetch(`${base}/api/rooms/${roomId}/export`, {
+    method: 'POST', headers: { Cookie: ownerCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ manifest_hash: preview.manifestHash }),
+  });
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-disposition'), /attachment/);
   const html = await res.text();
@@ -193,6 +201,11 @@ test('archive is lossless and flips room + canvas together', async () => {
   const list = (await call(ownerCookie, 'GET', '/api/rooms')).data;
   assert.equal(list.rooms.length, 0);
   assert.equal(list.archived.length, 1);
+
+  // Lifecycle is DERIVED from canvases.archived — archiving via the canvas
+  // route archives the room too, with no second flag to desync.
+  db.prepare('UPDATE canvases SET archived = 0 WHERE id = ?').run(canvasId);
+  assert.equal((await call(ownerCookie, 'GET', '/api/rooms')).data.rooms.length, 1);
 
   // Everything underneath survives; unarchive restores the projection whole.
   await call(ownerCookie, 'PATCH', `/api/rooms/${roomId}`, { lifecycle: 'active' });

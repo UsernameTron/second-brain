@@ -1038,7 +1038,13 @@ export default function Workspace() {
               user={user}
               roster={roster}
               onOpenCanvas={(id) => { setCanvasId(id); setView('canvas'); }}
-              onOpenRun={(runId) => { setView('canvas'); openRun(runId); }}
+              onOpenRun={({ canvasId: cid, agentId, runId }) => {
+                // The room's canvas may not be the selected one — switch first;
+                // the agent panel renders as soon as that canvas state loads.
+                if (cid && cid !== canvasId) setCanvasId(cid);
+                setView('canvas');
+                setPanel({ type: 'agent', id: agentId, runId });
+              }}
               toast={toast}
             />
           ) : null}
