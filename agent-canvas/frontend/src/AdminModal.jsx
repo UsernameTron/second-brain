@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
+import { useDialog } from './useDialog.js';
 
 export default function AdminModal({ onClose, toast, selfEmail }) {
+  const dialogRef = useDialog(onClose);
   const [tab, setTab] = useState('allowlist');
 
   return (
     <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal admin-modal" role="dialog" aria-modal="true" aria-label="Admin">
+      <div className="modal admin-modal" role="dialog" aria-modal="true" aria-label="Admin" ref={dialogRef} tabIndex={-1}>
         <header className="modal-head">
           <h2>Admin</h2>
           <nav className="modal-tabs">

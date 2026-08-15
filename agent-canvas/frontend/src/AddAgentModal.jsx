@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { api } from './api.js';
+import { useDialog } from './useDialog.js';
 
 // Staff a canvas: instantiate a vetted roster template (the normal path) or
 // hand-build a custom agent. Roster instantiation copies the template
 // server-side and pins its companion note; the copy is editable per-canvas
 // and only changes on an owner resync.
 export default function AddAgentModal({ canvasId, roster, onClose, onAdded, toast }) {
+  const dialogRef = useDialog(onClose);
   const [tab, setTab] = useState(roster.length ? 'roster' : 'custom');
   const [busy, setBusy] = useState(false);
 
@@ -42,7 +44,7 @@ export default function AddAgentModal({ canvasId, roster, onClose, onAdded, toas
 
   return (
     <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal add-agent-modal" role="dialog" aria-modal="true" aria-label="Add agent">
+      <div className="modal add-agent-modal" role="dialog" aria-modal="true" aria-label="Add agent" ref={dialogRef} tabIndex={-1}>
         <header className="modal-head">
           <h2>Add agent</h2>
           <nav className="modal-tabs">

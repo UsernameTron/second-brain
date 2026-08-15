@@ -11,7 +11,9 @@ export const NODE_SIZES = {
 
 // Shared draggable shell: distinguishes click from drag (4px threshold),
 // converts pointer deltas to world coordinates via the current zoom.
-function NodeShell({ kind, id, x, y, z, className = '', style, selColor, mine, onMoveLive, onMoveEnd, onClick, children }) {
+// Keyboard: each node is focusable; Enter/Space activates the same handler
+// as a click, so panel-opening never requires a pointer.
+function NodeShell({ kind, id, x, y, z, className = '', style, selColor, mine, label, onMoveLive, onMoveEnd, onClick, children }) {
   const dragRef = useRef(null);
 
   const down = (e) => {
@@ -40,9 +42,19 @@ function NodeShell({ kind, id, x, y, z, className = '', style, selColor, mine, o
     if (d.moved) onMoveEnd(kind, id, Math.round(d.lx), Math.round(d.ly));
     else if (onClick) onClick(e);
   };
+  const key = (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target !== e.currentTarget) return; // inner links/buttons keep their own keys
+    e.preventDefault();
+    if (onClick) onClick(e);
+  };
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      onKeyDown={key}
       className={`node ${className} ${mine ? 'sel-mine' : ''}`}
       style={{
         left: x,
@@ -65,6 +77,7 @@ export function AgentNode({ agent, spend, amber, paused, ...shell }) {
     <NodeShell
       kind="agent"
       id={agent.id}
+      label={`${agent.name}, ${agent.role} agent`}
       x={agent.x}
       y={agent.y}
       className={`agent-node st-${agent.status} ${amber ? 'amber-glow' : ''} ${paused ? 'frozen' : ''}`}
@@ -94,6 +107,7 @@ export function NoteNode({ note, ...shell }) {
     <NodeShell
       kind="note"
       id={note.id}
+      label={`Note: ${note.title}`}
       x={note.x}
       y={note.y}
       className={`note-node ${note.pinned ? 'pinned' : ''}`}
@@ -111,6 +125,7 @@ export function TaskNode({ task, ...shell }) {
     <NodeShell
       kind="task"
       id={task.id}
+      label={`Task: ${task.title}`}
       x={task.x}
       y={task.y}
       className="task-node"
@@ -131,6 +146,7 @@ export function PersonNode({ person, ...shell }) {
     <NodeShell
       kind="person"
       id={person.id}
+      label={`${person.display || person.email}, human`}
       x={person.x}
       y={person.y}
       className="person-node"
@@ -152,6 +168,7 @@ export function FileNode({ file, canvasId, ...shell }) {
     <NodeShell
       kind="file"
       id={file.id}
+      label={`File: ${file.name}`}
       x={file.x}
       y={file.y}
       className="file-node"

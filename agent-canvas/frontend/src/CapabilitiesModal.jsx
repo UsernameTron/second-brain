@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
+import { useDialog } from './useDialog.js';
 
 // The capability matrix — what agents can and cannot do, rendered from the
 // same object the server enforces. This is the expectation-setting surface:
@@ -8,6 +9,7 @@ import { api } from './api.js';
 const ICONS = { mail: '✉', folder: '🗀', grid: '▦', calendar: '🗓', shield: '⛨' };
 
 export default function CapabilitiesModal({ onClose, toast }) {
+  const dialogRef = useDialog(onClose);
   const [caps, setCaps] = useState(null);
   const [health, setHealth] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -46,7 +48,7 @@ export default function CapabilitiesModal({ onClose, toast }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal caps-modal" role="dialog" aria-modal="true" aria-label="Capabilities and systems" onClick={(e) => e.stopPropagation()}>
+      <div className="modal caps-modal" role="dialog" aria-modal="true" aria-label="Capabilities and systems" onClick={(e) => e.stopPropagation()} ref={dialogRef} tabIndex={-1}>
         <div className="modal-head">
           <h2>What agents can do</h2>
           <span className="caps-identity dim">

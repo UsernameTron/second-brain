@@ -8,6 +8,7 @@ import CommandBar from './CommandBar.jsx';
 import MemoryPanel from './MemoryPanel.jsx';
 import Workbook from './Workbook.jsx';
 import { AgentPanel, NotePanel, SpendPanel } from './Panels.jsx';
+import { useDialog } from './useDialog.js';
 import Home from './Home.jsx';
 import NeedsYouView from './NeedsYouView.jsx';
 import AdminModal from './AdminModal.jsx';
@@ -1148,30 +1149,43 @@ export default function Workspace() {
         />
       ) : null}
       {archivedOpen ? (
-        <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setArchivedOpen(false); }}>
-          <div className="modal archived-modal" role="dialog" aria-modal="true" aria-label="Archived canvases">
-            <header className="modal-head">
-              <b>Archived canvases</b>
-              <button className="icon-btn" onClick={() => setArchivedOpen(false)} title="Close" aria-label="Close">×</button>
-            </header>
-            <div className="modal-body">
-              {archivedCanvases.length === 0 ? (
-                <p className="dim">Nothing here — archived canvases will show up in this list.</p>
-              ) : (
-                <ul className="archived-list">
-                  {archivedCanvases.map((c) => (
-                    <li key={c.id} className="archived-row">
-                      <span className="archived-name">{c.name}</span>
-                      <button className="btn ghost small" onClick={() => restoreCanvas(c.id)}>Restore</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
+        <ArchivedModal
+          archivedCanvases={archivedCanvases}
+          restoreCanvas={restoreCanvas}
+          onClose={() => setArchivedOpen(false)}
+        />
       ) : null}
       {capsOpen ? <CapabilitiesModal onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}
+    </div>
+  );
+}
+
+// Archived-canvas list in its own component so the shared dialog behavior
+// (focus trap, Escape, focus restore) mounts with it.
+function ArchivedModal({ archivedCanvases, restoreCanvas, onClose }) {
+  const dialogRef = useDialog(onClose);
+  return (
+    <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal archived-modal" role="dialog" aria-modal="true" aria-label="Archived canvases" ref={dialogRef} tabIndex={-1}>
+        <header className="modal-head">
+          <b>Archived canvases</b>
+          <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">×</button>
+        </header>
+        <div className="modal-body">
+          {archivedCanvases.length === 0 ? (
+            <p className="dim">Nothing here — archived canvases will show up in this list.</p>
+          ) : (
+            <ul className="archived-list">
+              {archivedCanvases.map((c) => (
+                <li key={c.id} className="archived-row">
+                  <span className="archived-name">{c.name}</span>
+                  <button className="btn ghost small" onClick={() => restoreCanvas(c.id)}>Restore</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
