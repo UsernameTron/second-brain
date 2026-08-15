@@ -5,19 +5,18 @@ depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
 
-## P2 MERGED TO MASTER (2026-08-15 later session — PRs #181–#184) — DEPLOY OWED
+## P2 MERGED TO MASTER (2026-08-15 later session — PRs #181–#184) — DEPLOYED
 
 All four slices of the approved P2 roadmap (people ownership / unified NEEDS
 YOU / memory lifecycle — plan file `jiggly-hugging-kahan`, scope from
 `p2-people-needs-you.md`) are merged; suite **228/228**, frontend build clean.
-**NOT YET DEPLOYED: the redeploy failed closed on expired gcloud credentials**
-(`Reauthentication failed. cannot prompt during non-interactive execution` on
-every `gcloud secrets versions access` — nothing was stored, the paste-guard
-never ran, the live revision is untouched, still `00047-jnz`). To ship:
-`gcloud auth login` as the gmail bootstrap identity (verify with `tokeninfo`,
-never `gcloud auth list` — the crossed-credential lesson), then run the
-"Redeploy procedure" block below verbatim. After deploy expect `/api/config`
-to return **`needsYou: true`** alongside `inquiryHome: true`.
+**DEPLOYED 2026-08-15: revision `agent-canvas-00048-fc7`, 100% traffic.**
+Verified after the wholesale env set: `HS_OPS_RUNNER_URL` + `ED_DISPATCH_URL` +
+`MODEL_PROVIDER` intact on the revision, `/api/config` 200 with
+**`needsYou: true`** + `inquiryHome: true`, clean boot line, zero ERROR log
+entries. (First attempt earlier in the session failed closed on an expired
+gcloud refresh token; Pete ran `gcloud auth login` — token is now pete@,
+tokeninfo-verified. Lamps are AMBER until probed, by design.)
 
 - **T1 people + assignment** (#181): `canvas_people` (presentation-only,
   allowlist-validated, UNIQUE per canvas); `tasks.assignee_email`;
@@ -53,7 +52,8 @@ to return **`needsYou: true`** alongside `inquiryHome: true`.
   records into panels (payload caps), a human changeset-verify action
   (verification stays the agent tool per ADR-0041's write-lane logic).
 
-**Pete's probe list once deployed:** assign an escalation to a teammate/agent
+**Pete's probe list (deploy is DONE — this is the only open P2 item):**
+assign an escalation to a teammate/agent
 → shows under Team not Mine → resolve it from NEEDS YOU → source closes +
 audit line lands; retry one failed run; watch a new assumption entry carry
 `review <+14d>` and its timeline; confirm the Tray badge opens the view.
@@ -111,9 +111,9 @@ not and need not change the deployed service.
   re-reviewed clean (zip-bomb gate, mode laundering via escalation resume,
   paid enrichment in read-only modes, pause race in routing, etc.).
 
-**Next:** ~~P2~~ **BUILT AND MERGED** (see the P2 block at the top) — what
-remains is the P2 deploy (blocked on `gcloud auth login`) and Pete's in-app
-probe. The P1 deploy and probe in this block are DONE; do not redo them.
+**Next:** ~~P2~~ **BUILT, MERGED, AND DEPLOYED** (revision `00048-fc7` — see
+the P2 block at the top). The only open P2 item is Pete's in-app probe. The
+P1 deploy and probe in this block are DONE; do not redo them.
 
 ## MEMORY-OBSERVABILITY ROADMAP SHIPPED (2026-08-14, late session — PRs #152–#158)
 
