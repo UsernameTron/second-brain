@@ -104,11 +104,19 @@ recorded so the P1 roadmap branch starts from facts, not a stale handoff:**
   below pass in-app.
 
 **Pete's remaining list (nothing else is open from this Mac):**
-1. Wire + probe + tick the `soi` connector (WAVE2-SOI-RUNBOOK step 3–4),
-   then the corpus-hit/miss agent runs → flip the ledger to DONE.
-2. Enrichment lamp probe in-app; open Scout's failed `find_icp_leads` run
-   and read run_events for the real failure class (version skew is fixed
-   separately; don't assume).
+1. ~~Wire + probe + tick the `soi` connector, corpus-hit/miss runs~~
+   **DONE 2026-08-15** (ledger row has the full evidence: probe 71ms, miss
+   ×2 by agent runs, grounded hit with citations, asked_by
+   server-controlled). **One click left: flip the soi row's access
+   dropdown to `owner`** — it was created `members`; the runbook holds it
+   owner-only until usage data (rate ceiling, no limiter). Note for hit
+   questions: the M01 corpus holds firm-overview / projects-roster /
+   team-priorities / content-strategy docs — no V/TO, no commission
+   governance; those miss honestly until M02 ingests more.
+2. Enrichment lamp: ~~probe~~ **DONE** (board all-green on `00045-gwg`).
+   Still open: read Scout's failed `find_icp_leads` run_events for the
+   real failure class (version skew is now fixed separately; don't assume),
+   and one targeting-role start/poll run to close the sr-icp smoke row.
 3. Run the /exec parity checklist (5 questions, PORTFOLIO-FOLD-IN) in the
    same session.
 4. ~~Commit the staged ontology fix in CTG-Workspace-Build~~ **DONE** —
