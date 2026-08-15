@@ -5,11 +5,104 @@ depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
 
+## WHERE THINGS STAND (2026-08-15 — every number below re-verified this session)
+
+**Production is still `agent-canvas-00050-5ht`, 100% traffic, created
+2026-08-15T20:19:14Z** (Cloud Run API, checked this session). It carries P2.1 +
+P3 and **nothing after**. Master is AHEAD of production by two merges, both cut
+after that revision: the room-export content screen **#194** (21:10:38Z) and
+**P4 #195** (21:58:43Z). Neither is running. **P5 is not on master at all** —
+PR [#196](https://github.com/UsernameTron/second-brain/pull/196) is **OPEN, not
+merged, not deployed**, on `feat/agent-canvas-p5-standing-rules`.
+
+Branch state, re-run this session: backend `npm test` **285 pass / 0 fail**
+(258 pre-existing + 27 new P5); frontend `npm test --prefix frontend` **23 pass
+across 6 files** (15 pre-existing + 8 new P5); frontend production build clean;
+`npm audit --omit=dev` **0 vulnerabilities**.
+
+### Operator-gated, in this order
+
+1. **Deploy master** — lands P4 (#195) + #194 in production, then run the
+   signed-in P4 acceptance walk that #195 still owes.
+2. **Create the Cloud Scheduler invoker SA + job** targeting
+   `POST /api/standing-rules/tick`.
+3. **Add `TICK_AUDIENCE` and `TICK_INVOKER_SA` to the deploy export block** in
+   the redeploy procedure below. Env vars are set WHOLESALE — a var you do not
+   export is DROPPED from the new revision, and dropping these two silently
+   disables the scheduled tick lane. Neither is on `00050-5ht` today (verified).
+4. **Deploy P5, then run the P5 acceptance walk** (in the P5 block below).
+   **P5 has had NO live acceptance of any kind.**
+
+## P5 STANDING RULES — BUILT ON `feat/agent-canvas-p5-standing-rules` (2026-08-15)
+
+"Watch X and alert me." "Brief me weekly on Y." A standing rule is a stored
+instruction **plus a persisted, server-verifiable authorization** — nothing
+more. A rule run **IS a normal ask-mode run**, dispatched by a tick route
+instead of a human click: **no new execution engine, no cron parser** (3-value
+cadence enum + slot, occurrence keys derived from the due time, a
+conditional-claim lease on the occurrence row). Reversible:
+`setSetting('standing_rules','0')`.
+
+**Consent path.** Plain-language instruction → `POST .../standing-rules/parse`
+→ a **10-field interpretation card** (Watched, Sources, Scope, Cadence, Run by,
+Output, Budget, Expires, Can/Cannot, Next run) → **rehearse** against the last 7
+days → **owner** activates. Activate is a **409** unless the rule is `rehearsed`
+with a COMPLETED rehearsal run, and **any edit resets the gate** (state→draft,
+version++, rehearsal cleared) — the P4 publish-gate pattern. The model proposes;
+the server validates and clamps everything: `agent_id` must come from the
+server-supplied active-agent list, cadence/output from enums, budgets from
+clamped ranges.
+
+**Authorization, re-verified per dispatch** inside the tick transaction
+(`verifyAuthorization`, `server/standing-rules.js`): not revoked, not expired,
+**grantor still on the workspace allowlist AND still holding edit access to the
+canvas**, rule still `active` and unexpired, global pause off, flag on. A rule
+reading gmail/drive/sheets/calendar whose grantor's Google connection is gone
+**skips with an alert**, never silently. Runs carry **`initiatedBy` = the
+grantor** — no invented interactive user. Scheduled dispatch is hard-coded
+`mode: 'ask'`, so mutating tools are **double-gated out** (mode gate + authority
+map).
+
+**Tick lane + env contract.** Cloud Scheduler → `POST /api/standing-rules/tick`,
+registered above `requireAuth`. Two lanes into one handler: a signed-in **owner**
+session (manual/recovery ticks), else a **Google-signed OIDC ID token** verified
+with the same `google-auth-library` machinery sign-in uses, against
+**`TICK_AUDIENCE`**, where the caller must BE **`TICK_INVOKER_SA`**. **Either
+var unset → 503 and the scheduled lane is off** — never open by default. Both
+vars **MUST** be added to the wholesale deploy export block (see the redeploy
+procedure below) or they are dropped and the lane dies quietly.
+
+**Rollback needs no deploy.** `setSetting('standing_rules','0')` hides the UI
+**and** no-ops the tick before a single rule row is read — scheduled execution
+stops immediately. The Scheduler job pauses independently of that. The new
+tables (`standing_rules`, `standing_authorizations`, `standing_rule_runs`) are
+additive and inert on revert.
+
+**Acceptance walk still owed (signed-in, on production):** create rule →
+interpretation card → rehearse → activate → manual owner tick → run → NEEDS YOU
+alert → acknowledge → weekly-brief rule → brief renders with refs. **Not run.**
+
+**Known gaps — deliberate or filed, not hidden:**
+- **Editing a rule reuses the stored interpretation.** `PATCH
+  /standing-rules/:id` with only `instruction` reuses `interpretation_json`, so
+  the review card can show a **stale summary** until rehearsal. The server's
+  re-parse path exists (`POST .../standing-rules/parse` accepts `rule_id`) but
+  the UI never calls it — `frontend/src/api.js` `standingRules.parse` takes only
+  `(canvasId, instruction)`. The gate still resets on edit and the rehearsal
+  runs the NEW text, so nothing activates unrehearsed; only the card's prose
+  lags.
+- **`standingRuleCards` is not gated by the `standing_rules` flag.**
+  `server/attention.js` folds rule-run cards into NEEDS YOU without consulting
+  the flag, so flipping it off hides the nav but leaves already-produced cards
+  acknowledgeable. Deliberate — don't strand unacknowledged work — but the flag
+  comment in `routes.js` says it "hides the UI", which overstates the sweep.
+
 ## P4 AGENT BUILDER — BUILT ON `feat/p4-agent-builder` (2026-08-15)
 
 Describe the job → review the proposed agent → rehearse it → publish it.
 Backend **257/257**, frontend **15/15**, build green. One PR for the phase.
-Not deployed. Reversible: `setSetting('agent_builder','0')`.
+**Merged to master as #195; NOT in production** — `00050-5ht` predates it.
+Reversible: `setSetting('agent_builder','0')`.
 
 Blockbuster upgrades beyond the roadmap text, none of it dropped:
 - **Enforceable Authority Map:** `agents.tools_json` allowlist over governed
@@ -43,6 +136,30 @@ legibility ✓ (menu descriptions, one line each), rehearsal before creation ✓
 (server 409), no implicit connector authority ✓ (intersection + execute
 recheck, tested end-to-end), publish diff exactness ✓ (field-by-field,
 tested). In-app signed-in acceptance on production still owed post-deploy.
+
+**Five invariants re-verified this session as genuinely test-covered, not just
+asserted:** intersection-only authority and the offer + **execute-time** recheck
+(`test/agent-authority.test.js` — `allowedByAuthority` is called both in
+`toolsForRole` and in `executeTool` against authority re-read from the DB);
+rehearse-gated publish 409 and no NL-derived authority (`test/agent-builder.test.js`
+— hallucinated authority dropped at propose time); versions + rollback
+(baseline-first, owner-only, `test/agent-authority.test.js`).
+
+**An adversarial pass then found seven uncovered edges in P4. They are filed as
+follow-up work and are NOT fixed here.** Two re-verified directly this session:
+- **`web_search` is offer-gated only.** It is attached at run setup
+  (`runner.js`, `authority.includes('web_search')`) and, being an Anthropic-side
+  server tool, never routes through `executeTool` — so it gets **no
+  execute-time recheck**, unlike every registry-governed tool. **No test covers
+  that gate**: the one web_search authority test asserts it is *grantable* at
+  propose time, not that it is *withheld* at dispatch.
+- **The `target_agent_id` publish path is entirely untested.** Publishing a
+  draft with `target_agent_id` set REWRITES A LIVE AGENT'S authority
+  (`routes.js`), and nothing in `test/` exercises it — the sole `target_agent_id`
+  hit in the suite is the unrelated escalation-redirect field.
+
+The other five findings come from that pass's report and were **not
+independently re-verified here**.
 
 ## P3 EVIDENCE ROOMS — BUILT ON `feat/p3-evidence-rooms` (2026-08-15)
 
@@ -759,7 +876,10 @@ and `HS_OPS_RUNNER_URL` from the running revision, so the paste incident below
 cannot recur, and deploy.sh's shape guards (`sk-ant-*` / `GOCSPX-*`) still
 validate before anything is stored. Env vars are set WHOLESALE: a var you do
 not export is DROPPED from the new revision — that is why the HubSpot URL is
-read back from the live service rather than omitted. Verify after deploying:
+read back from the live service rather than omitted. **When P5 deploys, this
+block must also export `TICK_AUDIENCE` and `TICK_INVOKER_SA`** (real values
+only, same no-placeholder rule); without both, the scheduled tick lane 503s and
+standing rules never fire. Verify after deploying:
 
 ```bash
 gcloud run services describe agent-canvas --region us-central1 --project agent-canvas-ctg-0811 \
