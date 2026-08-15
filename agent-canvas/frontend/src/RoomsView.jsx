@@ -25,11 +25,14 @@ function RoomBrief({ built, onOpenRun }) {
   const s = built.sections;
   return (
     <div className="room-brief">
-      <Section title="People" count={s.people.members.length}>
-        {s.people.members.length === 0 ? <p className="dim">No members yet — the owner can add them from the canvas.</p> : (
+      <Section title="People" count={s.people.members.length + s.people.onCanvas.length}>
+        {s.people.members.length + s.people.onCanvas.length === 0 ? <p className="dim">No people yet — the owner can add members or person cards from the canvas.</p> : (
           <ul className="room-list">
             {s.people.members.map((m) => (
-              <li key={m.email}><span className="mono">{m.email}</span> <span className="chip">{m.access}</span></li>
+              <li key={`m-${m.email}`}><span className="mono">{m.email}</span> <span className="chip">{m.access}</span></li>
+            ))}
+            {s.people.onCanvas.filter((p) => !s.people.members.some((m) => m.email.toLowerCase() === p.email.toLowerCase())).map((p) => (
+              <li key={`p-${p.id}`}><span className="mono">{p.display || p.email}</span> <span className="chip">on canvas</span></li>
             ))}
           </ul>
         )}
@@ -57,7 +60,7 @@ function RoomBrief({ built, onOpenRun }) {
           {s.work.runs.map((r) => (
             <li key={r.id}>
               <span className="chip">run</span>{' '}
-              <button className="btn ghost small" onClick={() => onOpenRun(r.id)}>{short(r.instruction, 60)}</button>
+              <button className="btn ghost small" onClick={() => onOpenRun({ canvasId: built.room.canvasId, agentId: r.agent_id, runId: r.id })}>{short(r.instruction, 60)}</button>
               <span className={`chip inq-${r.status}`}>{r.status}</span>
               <span className="dim mono"> · {timeAgo(r.created_at)}</span>
             </li>
@@ -163,7 +166,11 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
   };
   const downloadExport = async () => {
     try {
-      const res = await fetch(`/api/rooms/${roomId}/export`, { method: 'POST', credentials: 'same-origin' });
+      const res = await fetch(`/api/rooms/${roomId}/export`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manifest_hash: exportPreview.manifestHash }),
+      });
       if (!res.ok) throw new Error((await res.json()).error || 'export failed');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -177,10 +184,13 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
     } catch (e) { toast(e.message); }
   };
 
+  const activitySeq = useRef(0);
   const showActivity = () => {
+    const seq = ++activitySeq.current;
+    const forRoom = roomId;
     api(`/api/canvases/${built.room.canvasId}/activity`)
-      .then((d) => setActivity(d.events || []))
-      .catch((e) => toast(e.message));
+      .then((d) => { if (seq === activitySeq.current && forRoom === roomId) setActivity(d.events || []); })
+      .catch((e) => { if (seq === activitySeq.current) toast(e.message); });
   };
 
   if (roomId && built) {

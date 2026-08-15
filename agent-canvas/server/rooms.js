@@ -4,6 +4,7 @@
 // attention.js pattern) — no section has its own business table. Every item
 // carries its source and a timestamp so freshness is never implied.
 
+const crypto = require('node:crypto');
 const { db } = require('./db');
 const memory = require('./memory');
 const attention = require('./attention');
@@ -15,7 +16,10 @@ const LENSES = ['now', 'history', 'risk'];
 function rowToRoom(row) {
   return {
     id: row.id, canvasId: row.canvas_id, roomType: row.room_type,
-    externalRef: row.external_ref, lifecycle: row.lifecycle,
+    externalRef: row.external_ref,
+    // Derived, never stored twice: archiving the canvas (either route)
+    // archives the room with it.
+    lifecycle: row.archived ? 'archived' : 'active',
     createdBy: row.created_by, createdAt: row.created_at,
     refreshedAt: row.refreshed_at, refreshedBy: row.refreshed_by,
     name: row.name, description: row.description,
@@ -24,14 +28,14 @@ function rowToRoom(row) {
 
 function getRoom(roomId) {
   const row = db.prepare(
-    'SELECT r.*, c.name, c.description FROM rooms r JOIN canvases c ON c.id = r.canvas_id WHERE r.id = ?'
+    'SELECT r.*, c.name, c.description, c.archived FROM rooms r JOIN canvases c ON c.id = r.canvas_id WHERE r.id = ?'
   ).get(roomId);
   return row ? rowToRoom(row) : null;
 }
 
 function listRooms() {
   return db.prepare(
-    'SELECT r.*, c.name, c.description FROM rooms r JOIN canvases c ON c.id = r.canvas_id ORDER BY r.created_at DESC'
+    'SELECT r.*, c.name, c.description, c.archived FROM rooms r JOIN canvases c ON c.id = r.canvas_id ORDER BY r.created_at DESC'
   ).all().map(rowToRoom);
 }
 
@@ -100,10 +104,15 @@ function buildRoom(roomId, { lens = 'now', viewer = {} } = {}) {
 
   if (lens === 'risk') {
     // Risk lens: only what can bite — attention rows, tainted decisions,
-    // evidence cited by tainted entries stays visible via the decisions list.
+    // and the evidence actually CITED by tainted entries (redaction state
+    // is a visibility concern, not a risk signal).
+    const taintedEvidence = taintedIds.length
+      ? [...new Map([...evidence.evidenceMapsFor(taintedIds).values()].flat().map((r) => [r.id, r])).values()]
+        .map((r) => evidence.redactRef(r, viewer.email))
+      : [];
     sections = {
       people,
-      evidence: evidenceRefs.filter((r) => r.redacted),
+      evidence: taintedEvidence,
       work: { tasks: tasks.filter((t) => t.status === 'escalated'), runs: runs.filter((r) => ['failed', 'refused', 'halted_budget', 'halted_timeout', 'halted_steps'].includes(r.status)) },
       decisions: decisions.filter((d) => d.tainted || taintedIds.includes(d.id)),
       risks,
@@ -129,7 +138,10 @@ function exportManifest(roomId) {
   const canvasId = room.canvasId;
   const taintedIds = memory.taintedSet(canvasId);
 
-  const allDecisions = memory.listEntries({ canvasId, kind: 'decision', limit: 200 });
+  // Only VERIFIED decisions may leave — a decision recorded as an assumption
+  // or inference stays internal with the rest of the soft memory.
+  const allDecisions = memory.listEntries({ canvasId, kind: 'decision', limit: 200 })
+    .filter((e) => e.epistemic === 'verified');
   const verifiedFacts = memory.listEntries({ canvasId, epistemic: 'verified', limit: 200 })
     .filter((e) => e.kind !== 'decision');
   const splitTainted = (list) => ({
@@ -151,7 +163,7 @@ function exportManifest(roomId) {
   const tasks = db.prepare("SELECT id, title, status, created_at FROM tasks WHERE canvas_id = ? ORDER BY created_at").all(canvasId);
   const openEscalations = db.prepare("SELECT id, question, created_at FROM escalations WHERE canvas_id = ? AND status = 'open'").all(canvasId);
 
-  return {
+  const manifest = {
     room,
     included: {
       decisions: decisions.clean,
@@ -168,6 +180,21 @@ function exportManifest(roomId) {
     },
     generatedAt: new Date().toISOString(),
   };
+  // The disclosure contract is content-addressed: the export endpoint only
+  // ships the exact manifest the owner previewed. Any write landing between
+  // preview and export changes the hash and forces a re-review.
+  manifest.manifestHash = manifestHash(manifest);
+  return manifest;
+}
+
+function manifestHash(manifest) {
+  const stable = {
+    decisions: manifest.included.decisions.map((d) => d.id),
+    facts: manifest.included.facts.map((f) => f.id),
+    evidence: manifest.included.evidence.map((e) => e.id),
+    tasks: manifest.included.tasks.map((t) => `${t.id}:${t.status}`),
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex');
 }
 
 function esc(s) {

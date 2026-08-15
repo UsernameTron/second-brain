@@ -663,9 +663,10 @@ router.post('/rooms/:roomId/refresh', rateLimit('model'), (req, res) => {
   if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused — resume before refreshing' });
   if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted — raise it or wait for the reset' });
   const canvasId = ctx.room.canvasId;
+  const body = req.body || {}; // a bare POST with no JSON body is valid — both fields are optional
   const agents = db.prepare('SELECT id, name, role FROM agents WHERE canvas_id = ?').all(canvasId);
   if (!agents.length) return res.status(409).json({ error: 'this room has no agents — staff it first' });
-  let agentId = req.body.agent_id || null;
+  let agentId = body.agent_id || null;
   if (agentId && !agents.some((a) => a.id === agentId)) return res.status(400).json({ error: 'agent_id is not on this room' });
   if (!agentId) {
     const ranked = [...agents].sort((a, b) => {
@@ -684,7 +685,7 @@ router.post('/rooms/:roomId/refresh', rateLimit('model'), (req, res) => {
         triggerKind: 'user', actor: req.user.email, initiatedBy: req.user.email, mode: 'ask',
       });
       db.prepare('INSERT INTO room_refreshes (id, room_id, run_id, actor, note, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(refreshId, ctx.room.id, run.id, req.user.email, String(req.body.note || '').slice(0, 300), nowIso());
+        .run(refreshId, ctx.room.id, run.id, req.user.email, String(body.note || '').slice(0, 300), nowIso());
       db.prepare('UPDATE rooms SET refreshed_at = ?, refreshed_by = ? WHERE id = ?').run(nowIso(), req.user.email, ctx.room.id);
     });
   } catch (err) {
@@ -708,6 +709,13 @@ router.post('/rooms/:roomId/export', auth.requireOwner, (req, res) => {
   const room = rooms.getRoom(req.params.roomId);
   if (!room) return res.status(404).json({ error: 'room not found' });
   const manifest = rooms.exportManifest(room.id);
+  // The export ships ONLY the manifest the owner reviewed: the preview's
+  // content hash must match the current one, or the review is stale.
+  const reviewedHash = (req.body || {}).manifest_hash;
+  if (!reviewedHash) return res.status(400).json({ error: 'manifest_hash required — review the disclosure preview first' });
+  if (reviewedHash !== manifest.manifestHash) {
+    return res.status(409).json({ error: 'room content changed since the disclosure preview — re-review before exporting' });
+  }
   const html = rooms.renderExportHtml(manifest, req.user.email);
   audit('user', req.user.email, 'room.export', {
     roomId: room.id, canvasId: room.canvasId,
@@ -724,12 +732,10 @@ router.patch('/rooms/:roomId', auth.requireOwner, (req, res) => {
   if (!room) return res.status(404).json({ error: 'room not found' });
   const { lifecycle } = req.body;
   if (!['active', 'archived'].includes(lifecycle)) return res.status(400).json({ error: 'lifecycle must be active|archived' });
-  // Archive is tidiness, not destruction: room + canvas flip together and
-  // every underlying record stays put (lossless, same as canvas archive).
-  tx(() => {
-    db.prepare('UPDATE rooms SET lifecycle = ? WHERE id = ?').run(lifecycle, room.id);
-    db.prepare('UPDATE canvases SET archived = ? WHERE id = ?').run(lifecycle === 'archived' ? 1 : 0, room.canvasId);
-  });
+  // Archive is tidiness, not destruction, and there is ONE flag: the room's
+  // lifecycle is derived from canvases.archived, so archiving via either the
+  // room route or the canvas route can never desync the two.
+  db.prepare('UPDATE canvases SET archived = ? WHERE id = ?').run(lifecycle === 'archived' ? 1 : 0, room.canvasId);
   audit('user', req.user.email, lifecycle === 'archived' ? 'room.archive' : 'room.unarchive', { roomId: room.id, canvasId: room.canvasId });
   res.json({ room: rooms.getRoom(room.id) });
 });
