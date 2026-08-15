@@ -603,8 +603,9 @@ function authorityMenu(role, { userRole = 'member' } = {}) {
   // web_search rides outside the registry (runner.js pushes it per-run), so
   // the menu adds it under the same gates the runner applies — otherwise a
   // builder research agent could never be granted real web search.
+  const tierProviders = [require('./anthropic').tierConfig('fast').provider, require('./anthropic').tierConfig('strong').provider];
   if (role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0'
-    && require('./anthropic').currentProvider() !== 'gemini') {
+    && tierProviders.some((p) => p !== 'gemini')) {
     menu.push({ name: 'web_search', description: 'Search the public web (Claude providers only)' });
   }
   return menu;
@@ -637,7 +638,12 @@ async function executeTool(name, input, ctx) {
   // P4 Authority Map call-time re-check: an agent with an explicit allowlist
   // may never execute a governed tool outside it, even if a def leaked into
   // the offer. Same defense-in-depth shape as the mode gate above.
-  if (!allowedByAuthority(name, parseAuthority(agent && agent.tools_json))) {
+  // Authority is re-read from the DB, not the run-start snapshot — an owner
+  // narrowing an agent mid-run takes effect on the very next tool call.
+  const liveAuthority = agent && agent.id
+    ? (db.prepare('SELECT tools_json FROM agents WHERE id = ?').get(agent.id) || agent).tools_json
+    : agent && agent.tools_json;
+  if (!allowedByAuthority(name, parseAuthority(liveAuthority))) {
     return { content: `REFUSED: this agent's authority map does not include ${name}. Work within your granted tools, or escalate if the task requires this authority.`, isError: true };
   }
 

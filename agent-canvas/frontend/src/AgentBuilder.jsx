@@ -57,7 +57,8 @@ export default function AgentBuilder({ canvasId, isOwner, onPublished, toast }) 
       setDraft(d.draft);
       setWarnings(d.warnings || []);
       setRehearsal(null); // any edit resets the rehearsal gate
-    } catch (e) { toast(e.message); }
+      return true;
+    } catch (e) { toast(e.message); return false; }
   };
 
   const setField = (field, value) => {
@@ -76,8 +77,9 @@ export default function AgentBuilder({ canvasId, isOwner, onPublished, toast }) 
     if (busy) return;
     setBusy(true);
     try {
-      // Persist any local text edits first so what rehearses is what publishes.
-      await saveProposal(draft.proposal);
+      // Persist any local text edits first so what rehearses is what publishes;
+      // if the save fails, do NOT rehearse a different proposal than shown.
+      if (!(await saveProposal(draft.proposal))) return;
       const d = await api(`/api/agent-drafts/${draft.id}/rehearse`, { method: 'POST', body: {} });
       setDraft(d.draft);
       setRehearsal({ status: 'running' });

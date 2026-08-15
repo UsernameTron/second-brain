@@ -546,7 +546,9 @@ router.get('/canvases/:canvasId', auth.requireCanvas, (req, res) => {
   const files = db.prepare('SELECT id, canvas_id, name, mime, size, x, y, uploaded_by, created_at FROM files WHERE canvas_id = ?').all(canvasId);
   const rows = db.prepare('SELECT id, row_index, data, status, notes FROM sheet_rows WHERE canvas_id = ? ORDER BY row_index').all(canvasId)
     .map((r) => ({ ...r, data: JSON.parse(r.data) }));
-  const escalations = db.prepare("SELECT * FROM escalations WHERE canvas_id = ? ORDER BY created_at DESC LIMIT 50").all(canvasId)
+  const escalations = db.prepare(`SELECT * FROM escalations e WHERE e.canvas_id = ?
+    AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.id = e.agent_id AND a.lifecycle = 'draft')
+    ORDER BY e.created_at DESC LIMIT 50`).all(canvasId)
     .map((e) => ({ ...e, context: JSON.parse(e.context) }));
   const handoffs = db.prepare('SELECT * FROM handoffs WHERE canvas_id = ? ORDER BY ts DESC LIMIT 100').all(canvasId)
     .map((h) => ({ ...h, payload_entry_ids: JSON.parse(h.payload_entry_ids) }));
@@ -761,11 +763,23 @@ router.post('/canvases/:canvasId/agents', auth.requireCanvas, (req, res) => {
     }
   }
   const id = crypto.randomUUID();
-  const { name, role = 'research', color = '#2080D0', model_tier = 'strong', system_prompt = '', x = 0, y = 0 } = req.body;
+  const { name, role = 'research', color = '#2080D0', model_tier = 'strong', system_prompt = '', x = 0, y = 0, tools_json } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
-  db.prepare('INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(id, req.params.canvasId, name, role, color, model_tier === 'fast' ? 'fast' : 'strong', system_prompt, x, y, nowIso());
-  audit('user', req.user.email, 'agent.create', { agentId: id, canvasId: req.params.canvasId, role });
+  // The advanced path may pass an explicit authority list (validated against
+  // the registry menu, like builder proposals). Omitting it keeps the legacy
+  // full role surface — a deliberate expert escape hatch, and the pre-P4
+  // behavior for scripts/tests that create agents directly.
+  let authorityJson = null;
+  if (tools_json !== undefined && tools_json !== null) {
+    let requested;
+    try { requested = Array.isArray(tools_json) ? tools_json : JSON.parse(tools_json); } catch { requested = null; }
+    if (!Array.isArray(requested)) return res.status(400).json({ error: 'tools_json must be an array of tool names' });
+    const menu = new Set(require('./orchestrator/tools').authorityMenu(role, { userRole: auth.workspaceRole(req.user.email) }).map((m) => m.name));
+    authorityJson = JSON.stringify([...new Set(requested.map(String))].filter((n) => menu.has(n)));
+  }
+  db.prepare('INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at, tools_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(id, req.params.canvasId, name, role, color, model_tier === 'fast' ? 'fast' : 'strong', system_prompt, x, y, nowIso(), authorityJson);
+  audit('user', req.user.email, 'agent.create', { agentId: id, canvasId: req.params.canvasId, role, explicitAuthority: authorityJson !== null });
   bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
   res.json({ agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(id) });
 });
@@ -817,7 +831,7 @@ router.post('/canvases/:canvasId/agents/:agentId/rollback/:versionId', auth.requ
   const version = builder.getVersion(req.params.versionId);
   if (!version || version.agent_id !== agent.id) return res.status(404).json({ error: 'version not found for this agent' });
   builder.ensureBaseline(agent, req.user.email);
-  const diff = builder.diffConfigs(agent, version);
+  const diff = builder.diffConfigs(agent, version, ['model_tier', 'system_prompt', 'tools_json', 'step_budget', 'wall_ms_budget']);
   db.prepare('UPDATE agents SET system_prompt = ?, model_tier = ?, tools_json = ?, step_budget = ?, wall_ms_budget = ? WHERE id = ?')
     .run(version.system_prompt, version.model_tier, version.tools_json, version.step_budget, version.wall_ms_budget, agent.id);
   const updated = db.prepare('SELECT * FROM agents WHERE id = ?').get(agent.id);
@@ -831,11 +845,17 @@ router.post('/canvases/:canvasId/agents/:agentId/rollback/:versionId', auth.requ
 // Access rides the draft's canvas. Members with edit access can propose and
 // rehearse; PUBLISHING an agent (or changing one) is owner-only, matching the
 // owner-only prompt rule above.
-function draftAccess(req, res, { edit = true } = {}) {
+function draftAccess(req, res, { edit = true, mutate = false } = {}) {
   const draft = builder.draftRow(req.params.draftId);
   if (!draft) { res.status(404).json({ error: 'draft not found' }); return null; }
   const check = edit ? auth.canEditCanvas(req.user, draft.canvas_id) : auth.canAccessCanvas(req.user, draft.canvas_id);
   if (!check.ok) { res.status(check.status).json({ error: check.error }); return null; }
+  // Mutating someone else's draft would silently change what THEY rehearse —
+  // only its creator or the owner may edit/rehearse/abandon it.
+  if (mutate && draft.created_by !== req.user.email && auth.workspaceRole(req.user.email) !== 'owner') {
+    res.status(403).json({ error: 'only the draft creator or the owner can change this draft' });
+    return null;
+  }
   return draft;
 }
 
@@ -864,7 +884,7 @@ router.post('/agent-drafts/propose', rateLimit('model'), asyncRoute(async (req, 
   let canvasId = body.canvas_id;
   let existing = null;
   if (draftId) {
-    existing = draftAccess({ ...req, params: { draftId } }, res);
+    existing = draftAccess({ ...req, params: { draftId } }, res, { mutate: true });
     if (!existing) return;
     canvasId = existing.canvas_id;
   } else {
@@ -932,7 +952,7 @@ router.post('/agent-drafts/propose', rateLimit('model'), asyncRoute(async (req, 
 // Owner/creator edits of a reviewed proposal (trim authority, budgets, text).
 // Any edit resets the rehearsal gate — what publishes must be what rehearsed.
 router.patch('/agent-drafts/:draftId', (req, res) => {
-  const draft = draftAccess(req, res);
+  const draft = draftAccess(req, res, { mutate: true });
   if (!draft) return;
   if (['published', 'abandoned'].includes(draft.state)) return res.status(409).json({ error: `draft is ${draft.state}` });
   let validated;
@@ -950,7 +970,7 @@ router.patch('/agent-drafts/:draftId', (req, res) => {
 // proposed config. The entire proven rehearse machinery applies — mutating
 // tools absent and refused, mode inherited by any child.
 router.post('/agent-drafts/:draftId/rehearse', rateLimit('model'), (req, res) => {
-  const draft = draftAccess(req, res);
+  const draft = draftAccess(req, res, { mutate: true });
   if (!draft) return;
   if (['published', 'abandoned'].includes(draft.state)) return res.status(409).json({ error: `draft is ${draft.state}` });
   if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused' });
@@ -974,7 +994,8 @@ router.post('/agent-drafts/:draftId/rehearse', rateLimit('model'), (req, res) =>
     return res.status(err.status || 400).json({ error: err.message });
   }
   audit('user', req.user.email, 'agent_draft.rehearse', { draftId: draft.id, canvasId: draft.canvas_id, runId: run.id, shadowAgentId: shadowId });
-  res.json({ draft: builder.draftRow(draft.id), run: db.prepare('SELECT id, status, mode FROM runs WHERE id = ?').get(run.id) });
+  const updatedDraft = builder.draftRow(draft.id);
+  res.json({ draft: { ...updatedDraft, proposal: JSON.parse(updatedDraft.proposal_json) }, run: db.prepare('SELECT id, status, mode FROM runs WHERE id = ?').get(run.id) });
 });
 
 // Publish: owner-only ceremony. Requires a COMPLETED rehearsal of the exact
@@ -1003,8 +1024,8 @@ router.post('/agent-drafts/:draftId/publish', auth.requireOwner, (req, res) => {
     if (target) {
       builder.ensureBaseline(target, req.user.email);
       diff = builder.diffConfigs(target, fields);
-      db.prepare('UPDATE agents SET name = ?, model_tier = ?, system_prompt = ?, tools_json = ?, step_budget = ?, wall_ms_budget = ? WHERE id = ?')
-        .run(fields.name, fields.model_tier, fields.system_prompt, fields.tools_json, fields.step_budget, fields.wall_ms_budget, target.id);
+      db.prepare('UPDATE agents SET name = ?, role = ?, model_tier = ?, system_prompt = ?, tools_json = ?, step_budget = ?, wall_ms_budget = ? WHERE id = ?')
+        .run(fields.name, fields.role, fields.model_tier, fields.system_prompt, fields.tools_json, fields.step_budget, fields.wall_ms_budget, target.id);
       agentId = target.id;
     } else {
       const shadowId = builder.syncShadowAgent(draft, proposal);
@@ -1018,9 +1039,10 @@ router.post('/agent-drafts/:draftId/publish', auth.requireOwner, (req, res) => {
     db.prepare("UPDATE agent_drafts SET state = 'published', published_agent_id = ?, updated_at = ? WHERE id = ?")
       .run(agentId, nowIso(), draft.id);
     if (req.body && req.body.save_as_template) {
-      db.prepare(`INSERT INTO roster_agents (id, name, role, color, model_tier, system_prompt, enabled, default_on, sort, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 1, 0, 999, ?, ?)`)
-        .run(crypto.randomUUID(), fields.name, proposal.role, fields.color || proposal.color, fields.model_tier, fields.system_prompt, nowIso(), nowIso());
+      db.prepare(`INSERT INTO roster_agents (id, name, role, color, model_tier, system_prompt, tools_json, step_budget, wall_ms_budget, enabled, default_on, sort, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 999, ?, ?)`)
+        .run(crypto.randomUUID(), fields.name, proposal.role, fields.color || proposal.color, fields.model_tier, fields.system_prompt,
+          fields.tools_json, fields.step_budget, fields.wall_ms_budget, nowIso(), nowIso());
     }
   });
   const warnings = builder.lintProposal(proposal);
@@ -1030,15 +1052,13 @@ router.post('/agent-drafts/:draftId/publish', auth.requireOwner, (req, res) => {
     promptWarnings: warnings.length,
   });
   bus.emit('event', { type: 'canvas_structure', canvasId: draft.canvas_id });
-  res.json({ agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId), diff, versionId, warnings, draft: builder.draftRow(draft.id) });
+  const publishedDraft = builder.draftRow(draft.id);
+  res.json({ agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId), diff, versionId, warnings, draft: { ...publishedDraft, proposal: JSON.parse(publishedDraft.proposal_json) } });
 });
 
 router.post('/agent-drafts/:draftId/abandon', (req, res) => {
-  const draft = draftAccess(req, res);
+  const draft = draftAccess(req, res, { mutate: true });
   if (!draft) return;
-  if (draft.created_by !== req.user.email && auth.workspaceRole(req.user.email) !== 'owner') {
-    return res.status(403).json({ error: 'only the draft creator or the owner can abandon it' });
-  }
   if (draft.state === 'published') return res.status(409).json({ error: 'draft is already published' });
   db.prepare("UPDATE agent_drafts SET state = 'abandoned', updated_at = ? WHERE id = ?").run(nowIso(), draft.id);
   audit('user', req.user.email, 'agent_draft.abandon', { draftId: draft.id, canvasId: draft.canvas_id });
@@ -1053,7 +1073,9 @@ router.post('/canvases/:canvasId/agents/:agentId/resync', auth.requireOwner, (re
   if (!agent.roster_id) return res.status(404).json({ error: 'agent has no roster provenance' });
   const entry = db.prepare('SELECT * FROM roster_agents WHERE id = ?').get(agent.roster_id);
   if (!entry) return res.status(404).json({ error: 'source roster entry no longer exists' });
+  builder.ensureBaseline(agent, req.user.email);
   db.prepare('UPDATE agents SET system_prompt = ?, model_tier = ? WHERE id = ?').run(entry.system_prompt, entry.model_tier, agent.id);
+  builder.recordVersion(db.prepare('SELECT * FROM agents WHERE id = ?').get(agent.id), { source: 'resync', actor: req.user.email });
   audit('user', req.user.email, 'agent.resync', { agentId: agent.id, canvasId: req.params.canvasId, rosterId: entry.id });
   bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
   res.json({ agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(agent.id) });

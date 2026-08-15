@@ -34,8 +34,7 @@ function getVersion(versionId) {
 }
 
 // The publish/rollback diff: exactly what becomes active, field by field.
-function diffConfigs(from, to) {
-  const fields = ['name', 'model_tier', 'system_prompt', 'tools_json', 'step_budget', 'wall_ms_budget'];
+function diffConfigs(from, to, fields = ['name', 'role', 'model_tier', 'system_prompt', 'tools_json', 'step_budget', 'wall_ms_budget']) {
   const diff = {};
   for (const f of fields) {
     const a = from ? from[f] ?? null : null;

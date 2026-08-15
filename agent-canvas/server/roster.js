@@ -254,9 +254,10 @@ function instantiateOnCanvas({ canvasId, rosterId, actor, x, y }) {
   const ts = nowIso();
   const agentCount = db.prepare('SELECT COUNT(*) AS n FROM agents WHERE canvas_id = ?').get(canvasId).n;
   const agentId = crypto.randomUUID();
-  db.prepare('INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at, roster_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+  db.prepare('INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at, roster_id, tools_json, step_budget, wall_ms_budget) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .run(agentId, canvasId, entry.name, entry.role, entry.color, entry.model_tier, entry.system_prompt,
-      x ?? (150 + 340 * agentCount), y ?? 200, ts, entry.id);
+      x ?? (150 + 340 * agentCount), y ?? 200, ts, entry.id,
+      entry.tools_json ?? null, entry.step_budget ?? null, entry.wall_ms_budget ?? null);
   let noteId = null;
   const spec = entry.companion_note_key ? ROSTER_NOTES[entry.companion_note_key] : null;
   if (spec) {

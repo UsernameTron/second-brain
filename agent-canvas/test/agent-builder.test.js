@@ -181,7 +181,10 @@ test('publish: owner-only, exact diff, version row, authority persisted, audited
   const state = (await call(ownerCookie, 'GET', `/api/canvases/${canvasId}`)).data;
   assert.ok(state.agents.some((a) => a.id === agent.id), 'published agent visible');
 
-  assert.ok(db.prepare('SELECT id FROM roster_agents WHERE name = ?').get('Deal Screener'), 'saved as template');
+  const template = db.prepare('SELECT * FROM roster_agents WHERE name = ?').get('Deal Screener');
+  assert.ok(template, 'saved as template');
+  assert.deepEqual(JSON.parse(template.tools_json), ['hs_search'], 'template keeps the authority map');
+  assert.equal(template.step_budget, 8, 'template keeps budgets');
   assert.ok(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'agent.publish'").get().n >= 1);
 
   // Republishing a published draft is refused.
@@ -201,6 +204,27 @@ test('prompt lint flags boundary-undercutting instructions; web_search is granta
     assert.ok(proposed.data.draft.proposal.authority.includes('web_search'), 'web_search is on the research menu');
     await call(ownerCookie, 'POST', `/api/agent-drafts/${proposed.data.draft.id}/abandon`);
   } finally { restore(); }
+});
+
+test('a member cannot mutate another creator\'s draft; act-mode dispatch on a shadow agent is refused', async () => {
+  const restore = stubProposal(PROPOSAL);
+  let id;
+  try {
+    id = (await call(ownerCookie, 'POST', '/api/agent-drafts/propose', { canvas_id: canvasId, brief: 'owner draft' })).data.draft.id;
+  } finally { restore(); }
+  const draft = db.prepare('SELECT * FROM agent_drafts WHERE id = ?').get(id);
+  const denied = await call(memberCookie, 'PATCH', `/api/agent-drafts/${id}`, { proposal: JSON.parse(draft.proposal_json) });
+  assert.equal(denied.status, 403);
+  assert.equal((await call(memberCookie, 'POST', `/api/agent-drafts/${id}/rehearse`, {})).status, 403);
+
+  // A shadow (draft-lifecycle) agent refuses any non-rehearse dispatch.
+  const rehearsed = await call(ownerCookie, 'POST', `/api/agent-drafts/${id}/rehearse`, {});
+  assert.equal(rehearsed.status, 200);
+  const shadowId = db.prepare('SELECT shadow_agent_id FROM agent_drafts WHERE id = ?').get(id).shadow_agent_id;
+  const actDispatch = await call(ownerCookie, 'POST', `/api/canvases/${canvasId}/agents/${shadowId}/dispatch`, { instruction: 'mutate things', mode: 'act' });
+  assert.ok([400, 403].includes(actDispatch.status), `act dispatch on a draft must fail, got ${actDispatch.status}`);
+  await waitForRun(rehearsed.data.run.id);
+  await call(ownerCookie, 'POST', `/api/agent-drafts/${id}/abandon`);
 });
 
 test('abandon: creator or owner only; published drafts refuse', async () => {

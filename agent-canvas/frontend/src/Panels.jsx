@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fmtUSD, timeAgo, fmtClock, short } from './api.js';
+import { api, fmtUSD, timeAgo, fmtClock, short } from './api.js';
 import ExplainMap from './ExplainMap.jsx';
 
 export function Panel({ title, wide, onClose, headerExtra, children }) {
@@ -12,6 +12,54 @@ export function Panel({ title, wide, onClose, headerExtra, children }) {
       </header>
       <div className="panel-body">{children}</div>
     </aside>
+  );
+}
+
+// P4: the agent's append-only config history. Rollback restores config
+// (prompt/tier/authority/budgets), never identity; owner-only server-side —
+// a member's click gets the server's 403 message inline.
+function AgentVersions({ canvasId, agentId }) {
+  const [open, setOpen] = useState(false);
+  const [versions, setVersions] = useState(null);
+  const [note, setNote] = useState('');
+
+  const load = () => api(`/api/canvases/${canvasId}/agents/${agentId}/versions`)
+    .then((d) => setVersions(d.versions)).catch((e) => setNote(e.message));
+
+  const rollback = async (versionId) => {
+    setNote('');
+    try {
+      const d = await api(`/api/canvases/${canvasId}/agents/${agentId}/rollback/${versionId}`, { method: 'POST', body: {} });
+      setNote(`Restored: ${Object.keys(d.diff).join(', ') || 'no fields differed'}`);
+      load();
+    } catch (e) { setNote(e.message); }
+  };
+
+  return (
+    <div className="agent-versions">
+      <button className="btn ghost small" aria-expanded={open}
+        onClick={() => { setOpen(!open); if (!open && versions === null) load(); }}>
+        {open ? 'Hide versions' : 'Versions'}
+      </button>
+      {open ? (
+        <>
+          {note ? <p className="dim">{note}</p> : null}
+          {versions === null ? <p className="dim">loading…</p> : null}
+          {versions && versions.length === 0 ? <p className="dim">No tracked versions yet — the first prompt/tier change or publish creates history.</p> : null}
+          <ul className="room-list">
+            {(versions || []).map((v) => (
+              <li key={v.id}>
+                <span className="chip">{v.source}</span>
+                <span className={`chip tier-${v.model_tier}`}>{v.model_tier}</span>
+                <span className="dim mono">{timeAgo(v.created_at)} · {v.actor}</span>
+                <span>{short(v.system_prompt, 60)}</span>
+                <button className="btn ghost small" onClick={() => rollback(v.id)}>Rollback</button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </div>
   );
 }
 
@@ -93,6 +141,7 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
         </button>
       </form>
 
+      {canvasId ? <AgentVersions canvasId={canvasId} agentId={agent.id} /> : null}
       {selRun ? (
         <div className="run-detail">
           <button className="btn ghost small" onClick={() => setRunSel(null)}>← all runs</button>

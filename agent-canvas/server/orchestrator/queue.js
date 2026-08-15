@@ -43,6 +43,11 @@ function dispatchRun({ agentId, canvasId, instruction, triggerKind = 'user', par
     if (!runMode) runMode = parent?.mode || null;
   }
   runMode = runMode || 'act';
+  // P4: a draft shadow agent exists only to rehearse. Any other mode through
+  // ANY dispatch path (route, handoff, retry, resume) is refused server-side.
+  if (agent.lifecycle === 'draft' && runMode !== 'rehearse') {
+    throw Object.assign(new Error('this agent is an unpublished draft — it can only rehearse'), { status: 403 });
+  }
   db.prepare(
     `INSERT INTO runs (id, agent_id, canvas_id, parent_run_id, trigger_kind, instruction, status, step_budget, wall_ms_budget, created_at, initiated_by, mode)
      VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)`

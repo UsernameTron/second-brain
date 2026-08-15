@@ -500,6 +500,10 @@ try { db.exec("ALTER TABLE agents ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'ac
 try { db.exec('ALTER TABLE agents ADD COLUMN tools_json TEXT'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE agents ADD COLUMN step_budget INTEGER'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE agents ADD COLUMN wall_ms_budget INTEGER'); } catch { /* already present */ }
+// Templates saved from the builder keep the full config, not just the prompt.
+try { db.exec('ALTER TABLE roster_agents ADD COLUMN tools_json TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE roster_agents ADD COLUMN step_budget INTEGER'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE roster_agents ADD COLUMN wall_ms_budget INTEGER'); } catch { /* already present */ }
 db.exec(`
 CREATE TABLE IF NOT EXISTS agent_drafts (
   id TEXT PRIMARY KEY,
@@ -527,7 +531,7 @@ CREATE TABLE IF NOT EXISTS agent_versions (
   tools_json TEXT,
   step_budget INTEGER,
   wall_ms_budget INTEGER,
-  source TEXT NOT NULL CHECK (source IN ('baseline','publish','patch','rollback')),
+  source TEXT NOT NULL CHECK (source IN ('baseline','publish','patch','rollback','resync')),
   draft_id TEXT,
   restored_from TEXT,
   actor TEXT NOT NULL,
