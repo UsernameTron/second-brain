@@ -159,20 +159,35 @@ function requireOwner(req, res, next) {
   next();
 }
 
-// Server-side per-canvas access check (never trusts the client).
+// Server-side per-canvas access check (never trusts the client). `access` is
+// always set: owners and workspace-mode canvases get 'edit'; explicit members
+// get their membership level ('view' stays read-only).
 function canAccessCanvas(user, canvasId) {
   const canvas = db.prepare('SELECT * FROM canvases WHERE id = ?').get(canvasId);
   if (!canvas) return { ok: false, status: 404, error: 'canvas not found' };
-  if (user.role === 'owner') return { ok: true, canvas };
-  if (canvas.access_mode === 'workspace') return { ok: true, canvas };
+  if (user.role === 'owner') return { ok: true, canvas, access: 'edit' };
+  if (canvas.access_mode === 'workspace') return { ok: true, canvas, access: 'edit' };
   const member = db.prepare('SELECT * FROM canvas_members WHERE canvas_id = ? AND user_email = ?').get(canvasId, user.email);
   if (!member) return { ok: false, status: 403, error: 'no access to this canvas' };
-  return { ok: true, canvas, access: member.access };
+  return { ok: true, canvas, access: member.access === 'edit' ? 'edit' : 'view' };
+}
+
+// Same check, but mutating callers must hold edit access.
+function canEditCanvas(user, canvasId) {
+  const check = canAccessCanvas(user, canvasId);
+  if (!check.ok) return check;
+  if (check.access !== 'edit') return { ok: false, status: 403, error: 'view-only access to this canvas' };
+  return check;
 }
 
 function requireCanvas(req, res, next) {
   const check = canAccessCanvas(req.user, req.params.canvasId);
   if (!check.ok) return res.status(check.status).json({ error: check.error });
+  // One guard for every mutating route mounted behind this middleware:
+  // view-level members can read, never write.
+  if (req.method !== 'GET' && req.method !== 'HEAD' && check.access !== 'edit') {
+    return res.status(403).json({ error: 'view-only access to this canvas' });
+  }
   req.canvas = check.canvas;
   next();
 }
@@ -186,5 +201,5 @@ module.exports = {
   workspaceRole,
   ALLOWED_DOMAIN, GOOGLE_CLIENT_ID, DEV_AUTH,
   signInWithGoogle, signInDev, issueSession, clearSession, tokenFromReq, verifySessionToken,
-  requireAuth, requireOwner, requireCanvas, canAccessCanvas, allowlistEntry, httpError, sessionSecret,
+  requireAuth, requireOwner, requireCanvas, canAccessCanvas, canEditCanvas, allowlistEntry, httpError, sessionSecret,
 };

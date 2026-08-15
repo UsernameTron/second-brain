@@ -580,9 +580,11 @@ router.patch('/canvases/:canvasId', auth.requireOwner, (req, res) => {
 router.post('/canvases/:canvasId/members', auth.requireOwner, (req, res) => {
   const email = String(req.body.email || '').toLowerCase().trim();
   if (!auth.allowlistEntry(email)) return res.status(400).json({ error: 'member must be on the workspace allowlist' });
-  db.prepare("INSERT INTO canvas_members (canvas_id, user_email, access) VALUES (?, ?, 'edit') ON CONFLICT(canvas_id, user_email) DO NOTHING")
-    .run(req.params.canvasId, email);
-  audit('user', req.user.email, 'canvas.member_add', { canvasId: req.params.canvasId, email });
+  const access = req.body.access === undefined ? 'edit' : req.body.access;
+  if (!['view', 'edit'].includes(access)) return res.status(400).json({ error: 'access must be view|edit' });
+  db.prepare('INSERT INTO canvas_members (canvas_id, user_email, access) VALUES (?, ?, ?) ON CONFLICT(canvas_id, user_email) DO UPDATE SET access = excluded.access')
+    .run(req.params.canvasId, email, access);
+  audit('user', req.user.email, 'canvas.member_add', { canvasId: req.params.canvasId, email, access });
   res.json({ ok: true });
 });
 
@@ -1117,7 +1119,7 @@ router.post('/escalations/:id/assign', (req, res) => {
   if (!escalation) return res.status(404).json({ error: 'escalation not found' });
   if (escalation.status !== 'open') return res.status(409).json({ error: 'only open escalations can be assigned' });
   if (escalation.canvas_id) {
-    const check = auth.canAccessCanvas(req.user, escalation.canvas_id);
+    const check = auth.canEditCanvas(req.user, escalation.canvas_id);
     if (!check.ok) return res.status(check.status).json({ error: check.error });
   }
   const { owner_email, owner_agent_id, due_at } = req.body;
@@ -1153,7 +1155,7 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
   if (!escalation) return res.status(404).json({ error: 'escalation not found' });
   if (escalation.status !== 'open') return res.status(409).json({ error: 'already resolved' });
   if (escalation.canvas_id) {
-    const check = auth.canAccessCanvas(req.user, escalation.canvas_id);
+    const check = auth.canEditCanvas(req.user, escalation.canvas_id);
     if (!check.ok) return res.status(check.status).json({ error: check.error });
   }
   const { action, answer = '', target_agent_id } = req.body; // 'accept' | 'redirect' | 'dismiss'
@@ -1356,7 +1358,7 @@ router.get('/inquiries/:inquiryId', (req, res) => {
 router.patch('/inquiries/:inquiryId', (req, res) => {
   const row = db.prepare('SELECT * FROM inquiries WHERE id = ?').get(req.params.inquiryId);
   if (!row) return res.status(404).json({ error: 'inquiry not found' });
-  const check = auth.canAccessCanvas(req.user, row.canvas_id);
+  const check = auth.canEditCanvas(req.user, row.canvas_id);
   if (!check.ok) return res.status(check.status).json({ error: check.error });
   if (typeof req.body.saved !== 'boolean') return res.status(400).json({ error: 'saved (boolean) required' });
   db.prepare('UPDATE inquiries SET saved = ?, updated_at = ? WHERE id = ?').run(req.body.saved ? 1 : 0, nowIso(), row.id);
