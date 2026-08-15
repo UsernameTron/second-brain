@@ -874,6 +874,19 @@ router.post('/canvases/:canvasId/memory/:entryId/reaffirm', auth.requireCanvas, 
   }
 });
 
+// P2: compact lifecycle timeline (created → corrected/reclassified/reaffirmed)
+// derived from the supersession chain. Same-canvas by construction, so one
+// access check covers the whole chain.
+router.get('/memory/:entryId/timeline', (req, res) => {
+  const timeline = memory.entryTimeline(req.params.entryId);
+  if (!timeline) return res.status(404).json({ error: 'entry not found' });
+  if (timeline.canvasId) {
+    const check = auth.canAccessCanvas(req.user, timeline.canvasId);
+    if (!check.ok) return res.status(check.status).json({ error: check.error });
+  }
+  res.json(timeline);
+});
+
 router.get('/memory/:entryId/lineage', (req, res) => {
   const trace = memory.lineage(req.params.entryId);
   if (!trace) return res.status(404).json({ error: 'entry not found' });
