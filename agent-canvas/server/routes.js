@@ -806,7 +806,11 @@ router.get('/canvases/:canvasId/memory', auth.requireCanvas, (req, res) => {
 });
 
 router.post('/canvases/:canvasId/memory', auth.requireCanvas, (req, res) => {
-  const { content, epistemic, source = '', cites = [], kind = null, subject = null, applies_to_type = null, applies_to_id = null, effective_at = null, review_at = null } = req.body;
+  // review_at deliberately has NO destructuring default: omitted must reach
+  // writeEntry as undefined (apply the epistemic default), while an explicit
+  // null opts out of scheduled review. `= null` here erased that distinction
+  // and silently disabled the P2 review defaults for every HTTP write.
+  const { content, epistemic, source = '', cites = [], kind = null, subject = null, applies_to_type = null, applies_to_id = null, effective_at = null, review_at } = req.body;
   try {
     const entry = memory.writeEntry({
       canvasId: req.params.canvasId, content, epistemic,
