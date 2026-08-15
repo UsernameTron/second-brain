@@ -287,11 +287,34 @@ async function driveSearch({ email, query, limit = 10 }) {
 // XLSX_READ=0 restores the old convert-it-first error.
 const XLSX_LIMITS = {
   fileBytes: 10 * 1024 * 1024,
+  // A small compressed file can inflate into a huge model (zip bomb), so the
+  // DECLARED UNCOMPRESSED size is capped before exceljs builds anything.
+  uncompressedBytes: 50 * 1024 * 1024,
   sheets: 10,
   rowsPerSheet: 2000,
   totalCells: 50_000,
   parseMs: 30_000,
 };
+
+// Reject workbooks whose zip entries declare more uncompressed bytes than the
+// cap, BEFORE exceljs decompresses and models them. jszip (an exceljs dep)
+// reads only the archive directory here — cheap relative to a full load.
+// ponytail: a size gate, not isolation; move parsing to a worker process if a
+// hostile-workbook threat model ever becomes real.
+async function assertUncompressedSize(buf, name) {
+  const JSZip = require('jszip');
+  let zip;
+  try {
+    zip = await JSZip.loadAsync(buf);
+  } catch {
+    throw new Error(`"${name}" could not be read as a workbook (corrupt or not a real .xlsx).`);
+  }
+  let total = 0;
+  zip.forEach((_, entry) => { total += (entry._data && entry._data.uncompressedSize) || 0; });
+  if (total > XLSX_LIMITS.uncompressedBytes) {
+    throw new Error(`"${name}" expands to ${Math.round(total / 1048576)}MB uncompressed — over the ${XLSX_LIMITS.uncompressedBytes / 1048576}MB workbook limit. Ask for a trimmed copy or a CSV export.`);
+  }
+}
 
 async function downloadCapped(token, url, meta) {
   if (Number(meta.size) > XLSX_LIMITS.fileBytes) {
@@ -309,6 +332,12 @@ async function downloadCapped(token, url, meta) {
   return Buffer.concat(chunks);
 }
 
+// CSV-escape so a comma or newline INSIDE a cell ("Acme, Inc.") can never
+// read as an extra cell or row.
+function csvCell(s) {
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 function xlsxCellText(v) {
   if (v === null || v === undefined) return '';
   if (v instanceof Date) return v.toISOString();
@@ -323,6 +352,7 @@ function xlsxCellText(v) {
 }
 
 async function xlsxToText(buf, name) {
+  await assertUncompressedSize(buf, name);
   const ExcelJS = require('exceljs');
   const wb = new ExcelJS.Workbook();
   const load = wb.xlsx.load(buf).then(() => wb);
@@ -348,7 +378,11 @@ async function xlsxToText(buf, name) {
     sheet.eachRow({ includeEmpty: false }, (row) => {
       if (rows >= XLSX_LIMITS.rowsPerSheet || cells >= XLSX_LIMITS.totalCells) return;
       rows += 1;
-      const vals = row.values.slice(1).map(xlsxCellText);
+      // Clamp the row to the REMAINING cell budget — a maximum-width row at
+      // 49,999 cells must not blow past the advertised hard total.
+      let vals = row.values.slice(1).map((v) => csvCell(xlsxCellText(v)));
+      const remaining = XLSX_LIMITS.totalCells - cells;
+      if (vals.length > remaining) vals = vals.slice(0, remaining);
       cells += vals.length;
       lines.push(vals.join(','));
     });
@@ -356,7 +390,11 @@ async function xlsxToText(buf, name) {
   });
   if (wb.worksheets.length > sheetsShown) lines.push(`\n[...${wb.worksheets.length - sheetsShown} more sheet(s) not shown]`);
   if (cells >= XLSX_LIMITS.totalCells) lines.push(`[...workbook truncated at ${XLSX_LIMITS.totalCells} cells]`);
-  return lines.join('\n').slice(0, TEXT_CAP);
+  const text = lines.join('\n');
+  if (text.length <= TEXT_CAP) return text;
+  // Character-cap truncation must be visible, not a silent mid-cell cut.
+  const marker = `\n[...output truncated at the ${TEXT_CAP}-character cap — later rows/sheets are missing; ask for a narrower range or a CSV export]`;
+  return text.slice(0, TEXT_CAP - marker.length) + marker;
 }
 
 async function driveReadText({ email, fileId }) {

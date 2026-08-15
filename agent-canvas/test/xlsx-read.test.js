@@ -72,6 +72,39 @@ test('corrupt archive is a normal, friendly error', async () => {
   );
 });
 
+test('cells containing commas or newlines are CSV-quoted, not split', async () => {
+  const buf = await buildWorkbook((wb) => {
+    const s = wb.addWorksheet('Names');
+    s.addRow(['Acme, Inc.', 'line1\nline2', 'plain']);
+  });
+  const text = await xlsxToText(buf, 'names.xlsx');
+  assert.match(text, /"Acme, Inc\."/);
+  assert.match(text, /"line1\nline2"/);
+  assert.match(text, /,plain/);
+});
+
+test('declared uncompressed size over the cap is rejected before parse', async () => {
+  const buf = await buildWorkbook((wb) => {
+    const s = wb.addWorksheet('S');
+    for (let i = 0; i < 200; i++) s.addRow(['aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', i]);
+  });
+  const real = XLSX_LIMITS.uncompressedBytes;
+  XLSX_LIMITS.uncompressedBytes = 100; // any real workbook exceeds this
+  try {
+    await assert.rejects(() => xlsxToText(buf, 'bomb.xlsx'), /expands to .* uncompressed|over the .*MB workbook limit/);
+  } finally { XLSX_LIMITS.uncompressedBytes = real; }
+});
+
+test('character-cap truncation is explicit, never a silent cut', async () => {
+  const buf = await buildWorkbook((wb) => {
+    const s = wb.addWorksheet('Long');
+    for (let i = 0; i < 1500; i++) s.addRow([`row ${i} `.padEnd(60, 'x')]);
+  });
+  const text = await xlsxToText(buf, 'long.xlsx');
+  assert.ok(text.length <= 60_000);
+  assert.match(text, /output truncated at the 60000-character cap/);
+});
+
 test('metadata size over the cap is rejected before download', async () => {
   await assert.rejects(
     () => _internal.downloadCapped('tok', 'https://example.invalid/x', { name: 'huge.xlsx', size: XLSX_LIMITS.fileBytes + 1 }),
