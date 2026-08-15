@@ -1,0 +1,28 @@
+// P2.1: canvas nodes are keyboard-first-class — focusable, labeled, and
+// Enter/Space activates the same handler as a click.
+import React from 'react';
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { AgentNode, NoteNode } from '../src/Nodes.jsx';
+
+const shell = (onClick) => ({ z: 1, onMoveLive: vi.fn(), onMoveEnd: vi.fn(), onClick });
+const AGENT = { id: 'a1', name: 'Scout', role: 'research', status: 'idle', model_tier: 'fast', color: '#0af', x: 0, y: 0 };
+
+describe('canvas node keyboard access', () => {
+  it('agent node is a focusable labeled button', () => {
+    render(<AgentNode agent={AGENT} spend={null} {...shell(vi.fn())} />);
+    const node = screen.getByRole('button', { name: 'Scout, research agent' });
+    expect(node).toHaveAttribute('tabindex', '0');
+  });
+
+  it('Enter and Space activate the node click handler', async () => {
+    const onClick = vi.fn();
+    render(<NoteNode note={{ id: 'n1', title: 'Plan', content: 'text', x: 0, y: 0 }} {...shell(onClick)} />);
+    const node = screen.getByRole('button', { name: 'Note: Plan' });
+    node.focus();
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard(' ');
+    expect(onClick).toHaveBeenCalledTimes(2);
+  });
+});
