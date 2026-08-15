@@ -6,6 +6,7 @@ import Tray from './Tray.jsx';
 import ActivityDock from './ActivityDock.jsx';
 import CommandBar from './CommandBar.jsx';
 import MemoryPanel from './MemoryPanel.jsx';
+import RoomsView from './RoomsView.jsx';
 import Workbook from './Workbook.jsx';
 import { AgentPanel, NotePanel, SpendPanel } from './Panels.jsx';
 import { useDialog } from './useDialog.js';
@@ -53,6 +54,7 @@ export default function Workspace() {
   // P2 unified NEEDS YOU: view 'needsyou' + Tray collapsed to its badge.
   // Reversible exposure: setSetting('needs_you','0') restores the inline tray.
   const needsYouOn = !!(config && config.needsYou);
+  const roomsOn = !!(config && config.rooms);
   const [runTick, setRunTick] = useState(0); // bumps on run_status → Home refetch
   const [ripple, setRipple] = useState(null); // {flash, ids:Set}
   const [amberAgents, setAmberAgents] = useState(() => new Set());
@@ -935,6 +937,13 @@ export default function Workspace() {
             Needs you{attention && attention.length ? <span className="tray-badge">{attention.length}</span> : null}
           </button>
         ) : null}
+        {roomsOn ? (
+          <button className={`btn ghost ${view === 'rooms' ? 'active' : ''}`}
+            onClick={() => setView(view === 'rooms' ? 'canvas' : 'rooms')}
+            title="Evidence Rooms — one room per deal, client, initiative, or decision">
+            Rooms
+          </button>
+        ) : null}
         <button className={`btn ghost ${panel?.type === 'memory' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'memory' ? null : { type: 'memory' })}>Memory</button>
         <button className={`btn ghost ${panel?.type === 'workbook' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'workbook' ? null : { type: 'workbook' })}>Workbook</button>
         <button
@@ -1024,7 +1033,16 @@ export default function Workspace() {
               onExtendReview={extendReview}
             />
           ) : null}
-          {state && view !== 'home' && view !== 'needsyou' ? (
+          {view === 'rooms' ? (
+            <RoomsView
+              user={user}
+              roster={roster}
+              onOpenCanvas={(id) => { setCanvasId(id); setView('canvas'); }}
+              onOpenRun={(runId) => { setView('canvas'); openRun(runId); }}
+              toast={toast}
+            />
+          ) : null}
+          {state && view !== 'home' && view !== 'needsyou' && view !== 'rooms' ? (
             <Canvas
               agents={state.agents || []}
               notes={state.notes || []}
