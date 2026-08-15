@@ -461,4 +461,32 @@ try { db.exec('ALTER TABLE escalations ADD COLUMN due_at TEXT'); } catch { /* al
 // P2 attention projection: overdue-review scans hit review_at directly.
 db.exec('CREATE INDEX IF NOT EXISTS idx_memory_review ON memory_entries(review_at)');
 
+// ===== P3 Evidence Rooms: metadata over an existing canvas =====
+// A Room is a 1:1 metadata record on a canvas — never a second graph. Its
+// sections (people/evidence/work/decisions/risks/open questions) are read-time
+// projections over existing tables (server/rooms.js). room_refreshes is the
+// lossless refresh history: time + actor + the ask-mode run it dispatched.
+db.exec(`
+CREATE TABLE IF NOT EXISTS rooms (
+  id TEXT PRIMARY KEY,
+  canvas_id TEXT NOT NULL UNIQUE REFERENCES canvases(id),
+  room_type TEXT NOT NULL CHECK (room_type IN ('deal','client','initiative','decision')),
+  external_ref TEXT NOT NULL DEFAULT '',
+  lifecycle TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle IN ('active','archived')),
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  refreshed_at TEXT,
+  refreshed_by TEXT
+);
+CREATE TABLE IF NOT EXISTS room_refreshes (
+  id TEXT PRIMARY KEY,
+  room_id TEXT NOT NULL REFERENCES rooms(id),
+  run_id TEXT,
+  actor TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_room_refreshes_room ON room_refreshes(room_id, created_at);
+`);
+
 module.exports = { db, tx, nowIso, getSetting, setSetting, DB_PATH };
