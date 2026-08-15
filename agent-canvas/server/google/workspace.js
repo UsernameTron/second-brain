@@ -279,6 +279,86 @@ async function driveSearch({ email, query, limit = 10 }) {
   audit('user', email, 'workspace.drive_search', { query });
   return (d.files || []).map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, modified: f.modifiedTime, link: f.webViewLink }));
 }
+// ---------- native XLSX read (P1) ----------
+// Limits are enforced HERE, not trusted to the library: pre-download size cap
+// from Drive metadata plus a byte-capped download (a lying/absent size field
+// must not bypass the cap), then sheet/row/cell budgets on the parse, cached
+// formula RESULTS only (never evaluated), and a hard time guard. Kill-switch:
+// XLSX_READ=0 restores the old convert-it-first error.
+const XLSX_LIMITS = {
+  fileBytes: 10 * 1024 * 1024,
+  sheets: 10,
+  rowsPerSheet: 2000,
+  totalCells: 50_000,
+  parseMs: 30_000,
+};
+
+async function downloadCapped(token, url, meta) {
+  if (Number(meta.size) > XLSX_LIMITS.fileBytes) {
+    throw new Error(`"${meta.name}" is ${Math.round(meta.size / 1048576)}MB — over the ${XLSX_LIMITS.fileBytes / 1048576}MB workbook read limit. Ask for a trimmed copy or a CSV export of the sheet you need.`);
+  }
+  const res = await fetch(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) throw new Error(`Google API error: HTTP ${res.status}`);
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of res.body) {
+    total += chunk.length;
+    if (total > XLSX_LIMITS.fileBytes) throw new Error(`"${meta.name}" exceeded the ${XLSX_LIMITS.fileBytes / 1048576}MB workbook read limit mid-download.`);
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+function xlsxCellText(v) {
+  if (v === null || v === undefined) return '';
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === 'object') {
+    if (v.richText) return v.richText.map((r) => r.text).join('');
+    if (v.formula !== undefined || v.sharedFormula !== undefined) return xlsxCellText(v.result); // cached result, never evaluated
+    if (v.hyperlink) return xlsxCellText(v.text ?? v.hyperlink);
+    if (v.error) return String(v.error);
+    return JSON.stringify(v);
+  }
+  return String(v);
+}
+
+async function xlsxToText(buf, name) {
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  const load = wb.xlsx.load(buf).then(() => wb);
+  const timer = new Promise((_, reject) => {
+    const t = setTimeout(() => reject(new Error(`"${name}" took longer than ${XLSX_LIMITS.parseMs / 1000}s to parse — too complex for the workbook read limit.`)), XLSX_LIMITS.parseMs);
+    const clear = () => clearTimeout(t);
+    load.then(clear, clear); // not .finally — that chains a second, unhandled rejection
+  });
+  try {
+    await Promise.race([load, timer]);
+  } catch (err) {
+    if (/parse|longer than/.test(String(err.message))) throw err;
+    throw new Error(`"${name}" could not be read as a workbook (corrupt or not a real .xlsx): ${String(err.message).slice(0, 120)}`);
+  }
+  const lines = [`Workbook "${name}" (formulas render their cached values):`];
+  let cells = 0;
+  let sheetsShown = 0;
+  wb.eachSheet((sheet) => {
+    if (sheetsShown >= XLSX_LIMITS.sheets || cells >= XLSX_LIMITS.totalCells) return;
+    sheetsShown += 1;
+    lines.push(`\n## Sheet: ${sheet.name}`);
+    let rows = 0;
+    sheet.eachRow({ includeEmpty: false }, (row) => {
+      if (rows >= XLSX_LIMITS.rowsPerSheet || cells >= XLSX_LIMITS.totalCells) return;
+      rows += 1;
+      const vals = row.values.slice(1).map(xlsxCellText);
+      cells += vals.length;
+      lines.push(vals.join(','));
+    });
+    if (rows >= XLSX_LIMITS.rowsPerSheet) lines.push(`[...sheet truncated at ${XLSX_LIMITS.rowsPerSheet} rows]`);
+  });
+  if (wb.worksheets.length > sheetsShown) lines.push(`\n[...${wb.worksheets.length - sheetsShown} more sheet(s) not shown]`);
+  if (cells >= XLSX_LIMITS.totalCells) lines.push(`[...workbook truncated at ${XLSX_LIMITS.totalCells} cells]`);
+  return lines.join('\n').slice(0, TEXT_CAP);
+}
+
 async function driveReadText({ email, fileId }) {
   const meta = await gcall(email, `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size`);
   const token = await accessTokenFor(email);
@@ -286,6 +366,14 @@ async function driveReadText({ email, fileId }) {
   if (meta.mimeType === 'application/vnd.google-apps.document') url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=text/plain`;
   else if (meta.mimeType === 'application/vnd.google-apps.spreadsheet') url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=text/csv`;
   else if ((meta.mimeType || '').startsWith('text/') || meta.mimeType === 'application/json' || meta.mimeType === 'text/csv') url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`;
+  else if ((meta.mimeType || '').includes('spreadsheetml.sheet') && process.env.XLSX_READ !== '0') {
+    // Native .xlsx read (P1). Legacy .xls stays on the friendly throw below —
+    // exceljs reads only the OOXML container.
+    const buf = await downloadCapped(token, `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, meta);
+    const text = await xlsxToText(buf, meta.name);
+    audit('user', email, 'workspace.drive_read', { fileId, name: meta.name, xlsx: true });
+    return { id: meta.id, name: meta.name, mimeType: meta.mimeType, text };
+  }
   else if ((meta.mimeType || '').includes('officedocument') || (meta.mimeType || '').includes('ms-excel') || (meta.mimeType || '').includes('msword')) {
     throw new Error(`"${meta.name}" is an uploaded Office file (${meta.mimeType}), which this integration cannot extract text from yet. Workaround: ask the user to open it with Google Sheets/Docs (right-click in Drive → Open with) which creates a readable converted copy, or export it as CSV — then search Drive again for the converted file.`);
   }
@@ -415,5 +503,5 @@ module.exports = {
   probeSurface,
   sheetsRead, sheetsAppend, sheetsUpdate, driveSearch, driveReadText, docsCreate,
   gmailSearch, gmailRead, gmailCreateDraft, calendarList, calendarCreate,
-  _internal: { encrypt, decrypt, assertValues, accessTokenFor },
+  _internal: { encrypt, decrypt, assertValues, accessTokenFor, xlsxToText, xlsxCellText, downloadCapped, XLSX_LIMITS },
 };
