@@ -13,6 +13,7 @@ const explain = require('./explain');
 const attention = require('./attention');
 const rooms = require('./rooms');
 const builder = require('./builder');
+const standingRules = require('./standing-rules');
 const bus = require('./bus');
 const auth = require('./auth');
 const control = require('./orchestrator/control');
@@ -63,6 +64,10 @@ router.get('/config', (req, res) => {
     // P4 reversible exposure: plain-language agent builder as the default
     // AddAgent tab. setSetting('agent_builder', '0') reverts, no deploy.
     agentBuilder: getSetting('agent_builder', '1') === '1',
+    // P5 reversible exposure: standing rules & briefs. setSetting(
+    // 'standing_rules', '0') hides the UI AND no-ops the scheduler tick
+    // before any rule is read — scheduled execution stops, no deploy.
+    standingRules: getSetting('standing_rules', '1') === '1',
   });
 });
 
@@ -90,6 +95,42 @@ router.get('/me', auth.requireAuth, (req, res) => {
 function publicUser(u) {
   return { id: u.id, email: u.email, name: u.name, picture: u.picture, role: u.role, theme: u.theme || 'light' };
 }
+
+// ---------- P5 standing rules: the scheduler tick ----------
+// Registered ABOVE requireAuth (the /auth/google placement pattern). Two
+// lanes into one handler: a signed-in OWNER session (manual/dev/recovery
+// ticks), else a Google-signed OIDC ID token from Cloud Scheduler — verified
+// with the same google-auth-library machinery sign-in uses, against
+// TICK_AUDIENCE, and the caller must BE the configured invoker SA. Either
+// env var unset → the OIDC lane is disabled (503), never open by default.
+router.post('/standing-rules/tick', rateLimit('auth'), asyncRoute(async (req, res) => {
+  const sessionToken = auth.tokenFromReq(req);
+  if (sessionToken) {
+    let user = null;
+    try { user = auth.verifySessionToken(sessionToken); } catch { /* stale cookie — fall through to OIDC */ }
+    if (user) {
+      if (user.role !== 'owner') return res.status(403).json({ error: 'owner only' });
+      return res.json(standingRules.tick({ source: 'owner', actor: user.email }));
+    }
+  }
+  const audience = process.env.TICK_AUDIENCE;
+  const invoker = process.env.TICK_INVOKER_SA;
+  if (!audience || !invoker) {
+    return res.status(503).json({ error: 'scheduled tick lane disabled (TICK_AUDIENCE / TICK_INVOKER_SA unset)' });
+  }
+  const header = String(req.headers.authorization || '');
+  if (!header.startsWith('Bearer ')) return res.status(401).json({ error: 'missing bearer token' });
+  let payload;
+  try {
+    payload = await standingRules.verifyTickOidc(header.slice(7), audience);
+  } catch {
+    return res.status(401).json({ error: 'OIDC token verification failed' });
+  }
+  if (!payload || payload.email !== invoker || !payload.email_verified) {
+    return res.status(403).json({ error: 'caller is not the tick invoker service account' });
+  }
+  res.json(standingRules.tick({ source: 'scheduler', actor: invoker }));
+}));
 
 // Everything below requires a signed-in allowlisted user.
 router.use(auth.requireAuth);
@@ -1063,6 +1104,245 @@ router.post('/agent-drafts/:draftId/abandon', (req, res) => {
   db.prepare("UPDATE agent_drafts SET state = 'abandoned', updated_at = ? WHERE id = ?").run(nowIso(), draft.id);
   audit('user', req.user.email, 'agent_draft.abandon', { draftId: draft.id, canvasId: draft.canvas_id });
   res.json({ draft: builder.draftRow(draft.id) });
+});
+
+// ---------- standing rules (P5): parse -> review -> rehearse -> activate ----------
+// Access rides the rule's canvas (the draftAccess pattern). Members with edit
+// access parse and rehearse; ACTIVATING a rule (granting a standing
+// authorization), pausing, resuming, and revoking are owner-only ceremonies.
+function ruleAccess(req, res, { edit = true, mutate = false } = {}) {
+  const rule = standingRules.getRule(req.params.ruleId);
+  if (!rule) { res.status(404).json({ error: 'standing rule not found' }); return null; }
+  const check = edit ? auth.canEditCanvas(req.user, rule.canvas_id) : auth.canAccessCanvas(req.user, rule.canvas_id);
+  if (!check.ok) { res.status(check.status).json({ error: check.error }); return null; }
+  if (mutate && rule.created_by !== req.user.email && auth.workspaceRole(req.user.email) !== 'owner') {
+    res.status(403).json({ error: 'only the rule creator or the owner can change this rule' });
+    return null;
+  }
+  return rule;
+}
+
+// Parse: plain language → validated interpretation (D9, the P4 propose
+// pattern). Creates a draft rule, or re-interprets an existing one — either
+// way the rehearsal gate resets. The model proposes; the server re-validates
+// everything (agent on canvas, cadence enum, budget clamps) — it grants nothing.
+router.post('/canvases/:canvasId/standing-rules/parse', rateLimit('model'), auth.requireCanvas, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const instruction = String(body.instruction || '').trim();
+  if (!instruction) return res.status(400).json({ error: 'instruction required — describe the standing rule in plain language' });
+  if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused' });
+  if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted' });
+  let existing = null;
+  if (body.rule_id) {
+    existing = db.prepare('SELECT * FROM standing_rules WHERE id = ? AND canvas_id = ?').get(body.rule_id, req.params.canvasId);
+    if (!existing) return res.status(404).json({ error: 'standing rule not found on this canvas' });
+    if (existing.created_by !== req.user.email && auth.workspaceRole(req.user.email) !== 'owner') {
+      return res.status(403).json({ error: 'only the rule creator or the owner can change this rule' });
+    }
+    if (existing.state === 'revoked') return res.status(409).json({ error: 'rule is revoked' });
+  }
+  const agents = db.prepare("SELECT id, name, role FROM agents WHERE canvas_id = ? AND lifecycle = 'active'").all(req.params.canvasId);
+  if (!agents.length) return res.status(409).json({ error: 'this canvas has no agents — staff it first' });
+  let parsed;
+  try {
+    const abort = new AbortController();
+    const abortId = `standing-rule-${crypto.randomUUID()}`;
+    control.registerAbort(abortId, abort);
+    const fastTier = tierConfig('fast');
+    let response;
+    try {
+      // Resolved at call time so tests can stub the module's callModel.
+      response = await require('./orchestrator/anthropic').callModel({
+        provider: fastTier.provider, model: fastTier.model, signal: abort.signal,
+        system: standingRules.PARSE_SYSTEM(agents),
+        messages: [{ role: 'user', content: instruction }],
+        maxTokens: 1000,
+      });
+    } finally {
+      control.unregisterAbort(abortId);
+    }
+    control.addUsage(response.model || fastTier.model, response.usage || {});
+    const raw = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+  } catch {
+    return res.status(502).json({ error: 'rule interpretation failed to produce valid JSON — try again or rephrase' });
+  }
+  let interp;
+  try {
+    interp = standingRules.validateInterpretation(parsed, { agents });
+  } catch (err) {
+    return res.status(502).json({ error: `generated interpretation was invalid (${err.message}) — try again or rephrase` });
+  }
+  const rule = standingRules.upsertDraft({
+    canvasId: req.params.canvasId, ruleId: existing ? existing.id : null, instruction, interp, actor: req.user.email,
+  });
+  audit('user', req.user.email, existing ? 'standing_rule.parse' : 'standing_rule.create',
+    { ruleId: rule.id, canvasId: req.params.canvasId, version: rule.version, agentId: rule.agent_id });
+  res.json({ rule: standingRules.ruleView(rule) });
+}));
+
+router.get('/canvases/:canvasId/standing-rules', auth.requireCanvas, (req, res) => {
+  const rules = db.prepare('SELECT * FROM standing_rules WHERE canvas_id = ? ORDER BY created_at DESC LIMIT 100')
+    .all(req.params.canvasId).map(standingRules.ruleView);
+  res.json({ rules });
+});
+
+router.get('/standing-rules/:ruleId', (req, res) => {
+  const rule = ruleAccess(req, res, { edit: false });
+  if (!rule) return;
+  const authz = standingRules.currentAuthorization(rule.id) || null;
+  const runs = db.prepare('SELECT * FROM standing_rule_runs WHERE rule_id = ? ORDER BY created_at DESC LIMIT 10').all(rule.id)
+    .map((r) => ({ ...r, output_refs: JSON.parse(r.output_refs_json || '[]'), retry_run_ids: JSON.parse(r.retry_run_ids_json || '[]') }));
+  const rehearsalRun = rule.rehearsal_run_id
+    ? db.prepare('SELECT id, status, mode, summary, error, created_at, ended_at FROM runs WHERE id = ?').get(rule.rehearsal_run_id)
+    : null;
+  res.json({ rule: standingRules.ruleView(rule), authorization: authz, runs, rehearsalRun });
+});
+
+// Edits reset the rehearsal gate: state→draft, version++, rehearsal cleared —
+// what activates must be what rehearsed (D8).
+router.patch('/standing-rules/:ruleId', (req, res) => {
+  const rule = ruleAccess(req, res, { mutate: true });
+  if (!rule) return;
+  if (rule.state === 'revoked') return res.status(409).json({ error: 'rule is revoked' });
+  const body = req.body || {};
+  const instruction = body.instruction === undefined ? rule.instruction : String(body.instruction || '').trim();
+  if (!instruction) return res.status(400).json({ error: 'instruction cannot be empty' });
+  let interp;
+  if (body.interpretation !== undefined) {
+    const agents = db.prepare("SELECT id, name, role FROM agents WHERE canvas_id = ? AND lifecycle = 'active'").all(rule.canvas_id);
+    try {
+      interp = standingRules.validateInterpretation(body.interpretation, { agents });
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.message });
+    }
+  } else if (body.instruction !== undefined) {
+    interp = JSON.parse(rule.interpretation_json || '{}');
+  } else {
+    return res.status(400).json({ error: 'nothing to update — provide instruction and/or interpretation' });
+  }
+  const updated = standingRules.upsertDraft({ canvasId: rule.canvas_id, ruleId: rule.id, instruction, interp, actor: req.user.email });
+  audit('user', req.user.email, 'standing_rule.edit', { ruleId: rule.id, canvasId: rule.canvas_id, version: updated.version });
+  res.json({ rule: standingRules.ruleView(updated) });
+});
+
+// Rehearse: one rehearse-mode run on the rule's agent — "report what WOULD
+// have matched; change nothing". The proven rehearse machinery applies:
+// mutating tools absent and refused.
+router.post('/standing-rules/:ruleId/rehearse', rateLimit('model'), (req, res) => {
+  const rule = ruleAccess(req, res, { mutate: true });
+  if (!rule) return;
+  if (!['draft', 'rehearsed'].includes(rule.state)) return res.status(409).json({ error: `rule is ${rule.state} — edit it back to draft first` });
+  if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused' });
+  if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted' });
+  if (!db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id)) {
+    return res.status(409).json({ error: 'the rule’s agent is no longer active on this canvas — re-parse or edit the rule' });
+  }
+  let run = null;
+  try {
+    tx(() => {
+      run = dispatchRun({
+        agentId: rule.agent_id, canvasId: rule.canvas_id, instruction: standingRules.rehearsalInstruction(rule),
+        triggerKind: 'user', actor: req.user.email, initiatedBy: req.user.email, mode: 'rehearse',
+        stepBudget: rule.step_budget || undefined, wallMs: rule.wall_ms_budget || undefined,
+      });
+      db.prepare("UPDATE standing_rules SET state = 'rehearsed', rehearsal_run_id = ?, updated_at = ? WHERE id = ?")
+        .run(run.id, nowIso(), rule.id);
+    });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+  audit('user', req.user.email, 'standing_rule.rehearse', { ruleId: rule.id, canvasId: rule.canvas_id, runId: run.id });
+  res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)), run: db.prepare('SELECT id, status, mode FROM runs WHERE id = ?').get(run.id) });
+});
+
+// Activate: owner-only ceremony. Requires a COMPLETED rehearsal of the exact
+// current version (any edit resets the gate — the P4 publish 409 pattern).
+// Creates the standing authorization snapshot and computes next_run_at.
+router.post('/standing-rules/:ruleId/activate', auth.requireOwner, (req, res) => {
+  const rule = standingRules.getRule(req.params.ruleId);
+  if (!rule) return res.status(404).json({ error: 'standing rule not found' });
+  if (rule.state !== 'rehearsed') return res.status(409).json({ error: 'rehearse before activating — the rehearsal is the review' });
+  const run = db.prepare('SELECT id, status FROM runs WHERE id = ?').get(rule.rehearsal_run_id);
+  if (!run || run.status !== 'completed') {
+    return res.status(409).json({ error: `rehearsal run is ${run ? run.status : 'missing'} — activation requires a completed rehearsal` });
+  }
+  if (!db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id)) {
+    return res.status(409).json({ error: 'the rule’s agent is no longer active on this canvas' });
+  }
+  const interp = JSON.parse(rule.interpretation_json || '{}');
+  const expiresAt = new Date(Date.now() + (interp.expires_days || 90) * 86_400_000).toISOString();
+  let authz = null;
+  tx(() => {
+    authz = standingRules.createAuthorization({ rule, authorizedBy: req.user.email, expiresAt });
+    db.prepare("UPDATE standing_rules SET state = 'active', expires_at = ?, next_run_at = ?, updated_at = ? WHERE id = ?")
+      .run(expiresAt, standingRules.nextRunAt(rule), nowIso(), rule.id);
+  });
+  const updated = standingRules.getRule(rule.id);
+  audit('user', req.user.email, 'standing_rule.activate', {
+    ruleId: rule.id, canvasId: rule.canvas_id, authorizationId: authz.id, expiresAt, nextRunAt: updated.next_run_at,
+  });
+  res.json({ rule: standingRules.ruleView(updated), authorization: authz });
+});
+
+router.post('/standing-rules/:ruleId/pause', auth.requireOwner, (req, res) => {
+  const rule = standingRules.getRule(req.params.ruleId);
+  if (!rule) return res.status(404).json({ error: 'standing rule not found' });
+  if (rule.state !== 'active') return res.status(409).json({ error: `only active rules can be paused (rule is ${rule.state})` });
+  db.prepare("UPDATE standing_rules SET state = 'paused', updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
+  audit('user', req.user.email, 'standing_rule.pause', { ruleId: rule.id, canvasId: rule.canvas_id });
+  res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)) });
+});
+
+// Resume re-checks authorization validity — a rule whose grantor lost access
+// (or whose authorization expired) does not come back to life.
+router.post('/standing-rules/:ruleId/resume', auth.requireOwner, (req, res) => {
+  const rule = standingRules.getRule(req.params.ruleId);
+  if (!rule) return res.status(404).json({ error: 'standing rule not found' });
+  if (rule.state !== 'paused') return res.status(409).json({ error: `only paused rules can resume (rule is ${rule.state})` });
+  const authz = standingRules.currentAuthorization(rule.id);
+  const check = standingRules.verifyAuthorization({ ...rule, state: 'active' }, authz, new Date(), { checkWorkspace: false });
+  if (!check.ok) return res.status(409).json({ error: `cannot resume: ${check.reason} — revoke and re-activate instead` });
+  db.prepare("UPDATE standing_rules SET state = 'active', next_run_at = ?, updated_at = ? WHERE id = ?")
+    .run(standingRules.nextRunAt(rule), nowIso(), rule.id);
+  audit('user', req.user.email, 'standing_rule.resume', { ruleId: rule.id, canvasId: rule.canvas_id });
+  res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)) });
+});
+
+router.post('/standing-rules/:ruleId/revoke', auth.requireOwner, (req, res) => {
+  const rule = standingRules.getRule(req.params.ruleId);
+  if (!rule) return res.status(404).json({ error: 'standing rule not found' });
+  if (rule.state === 'revoked') return res.status(409).json({ error: 'rule is already revoked' });
+  tx(() => {
+    standingRules.revokeAuthorization(rule.id, req.user.email);
+    db.prepare("UPDATE standing_rules SET state = 'revoked', updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
+  });
+  audit('user', req.user.email, 'standing_rule.revoke', { ruleId: rule.id, canvasId: rule.canvas_id });
+  res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)) });
+});
+
+router.get('/standing-rules/:ruleId/runs', (req, res) => {
+  const rule = ruleAccess(req, res, { edit: false });
+  if (!rule) return;
+  const runs = db.prepare('SELECT * FROM standing_rule_runs WHERE rule_id = ? ORDER BY created_at DESC LIMIT 50').all(rule.id)
+    .map((r) => ({ ...r, output_refs: JSON.parse(r.output_refs_json || '[]'), retry_run_ids: JSON.parse(r.retry_run_ids_json || '[]') }));
+  res.json({ runs });
+});
+
+// Acknowledge resolves the NEEDS YOU card (source-record style, like every
+// other attention producer). Idempotent: acknowledging twice is a no-op.
+router.post('/standing-rule-runs/:ruleRunId/acknowledge', (req, res) => {
+  const rr = db.prepare(`SELECT rr.*, r.canvas_id FROM standing_rule_runs rr
+    JOIN standing_rules r ON r.id = rr.rule_id WHERE rr.id = ?`).get(req.params.ruleRunId);
+  if (!rr) return res.status(404).json({ error: 'standing rule run not found' });
+  const check = auth.canEditCanvas(req.user, rr.canvas_id);
+  if (!check.ok) return res.status(check.status).json({ error: check.error });
+  if (!rr.acknowledged_at) {
+    db.prepare('UPDATE standing_rule_runs SET acknowledged_at = ?, acknowledged_by = ? WHERE id = ?')
+      .run(nowIso(), req.user.email, rr.id);
+    audit('user', req.user.email, 'standing_rule_run.acknowledge', { ruleRunId: rr.id, ruleId: rr.rule_id, canvasId: rr.canvas_id });
+  }
+  res.json({ run: db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id) });
 });
 
 // Owner-only: re-copy prompt + tier from the source roster entry. Name and

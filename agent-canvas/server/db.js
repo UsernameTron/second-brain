@@ -540,4 +540,70 @@ CREATE TABLE IF NOT EXISTS agent_versions (
 CREATE INDEX IF NOT EXISTS idx_agent_versions_agent ON agent_versions(agent_id, created_at);
 `);
 
+// ===== P5 standing rules: stored instruction + persisted authorization =====
+// A standing rule is plain language + a validated interpretation; a rule run
+// IS a normal ask-mode run dispatched by the tick instead of a human click
+// (server/standing-rules.js). No cron: cadence enum + slot, occurrence_key
+// derived from the due time, UNIQUE(rule_id, occurrence_key) makes duplicate
+// scheduler delivery a no-op. Authorization is a snapshot verified server-side
+// at every dispatch — never trusted from the rule row.
+db.exec(`
+CREATE TABLE IF NOT EXISTS standing_rules (
+  id TEXT PRIMARY KEY,
+  canvas_id TEXT NOT NULL REFERENCES canvases(id),
+  agent_id TEXT NOT NULL,               -- deliberately no FK (room_refreshes precedent)
+  owner_email TEXT NOT NULL,            -- creator; activation grantor lives on the authorization
+  instruction TEXT NOT NULL,            -- original plain language
+  interpretation_json TEXT NOT NULL DEFAULT '{}',
+  category TEXT NOT NULL DEFAULT 'watch',          -- task category (watch|report|digest)
+  source_scope_json TEXT NOT NULL DEFAULT '{}',    -- what's watched + sources + scope
+  output_type TEXT NOT NULL CHECK (output_type IN ('alert','brief')),
+  cadence TEXT NOT NULL CHECK (cadence IN ('hourly','daily','weekly')),
+  cadence_hour INTEGER NOT NULL DEFAULT 8,
+  cadence_day INTEGER,                              -- 0-6, weekly only
+  step_budget INTEGER, wall_ms_budget INTEGER,      -- per-run budget (dispatch clamps)
+  state TEXT NOT NULL DEFAULT 'draft' CHECK (state IN ('draft','rehearsed','active','paused','revoked','expired')),
+  version INTEGER NOT NULL DEFAULT 1,               -- bumped on every interpretation edit
+  rehearsal_run_id TEXT,
+  expires_at TEXT,                                  -- default now+90d at activation
+  last_run_at TEXT, next_run_at TEXT,
+  created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_standing_rules_due ON standing_rules(state, next_run_at);
+
+CREATE TABLE IF NOT EXISTS standing_rule_runs (
+  id TEXT PRIMARY KEY,
+  rule_id TEXT NOT NULL REFERENCES standing_rules(id),
+  rule_version INTEGER NOT NULL,
+  authorization_id TEXT NOT NULL,
+  occurrence_key TEXT NOT NULL,
+  run_id TEXT,                                      -- the dispatched run; no FK (precedent)
+  retry_run_ids_json TEXT NOT NULL DEFAULT '[]',
+  state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','running','completed','failed','skipped')),
+  skip_reason TEXT,
+  lease_until TEXT, attempt INTEGER NOT NULL DEFAULT 0,
+  matched_count INTEGER,                            -- parsed from run summary; NULL = unknown
+  needs_attention INTEGER NOT NULL DEFAULT 0,
+  acknowledged_at TEXT, acknowledged_by TEXT,
+  result_summary TEXT,                              -- alert text / brief markdown (from runs.summary)
+  output_refs_json TEXT NOT NULL DEFAULT '[]',      -- evidence/memory refs from the run
+  cost_usd REAL, error TEXT,
+  created_at TEXT NOT NULL, ended_at TEXT,
+  UNIQUE (rule_id, occurrence_key)
+);
+CREATE INDEX IF NOT EXISTS idx_rule_runs_attention ON standing_rule_runs(state, needs_attention, acknowledged_at);
+
+CREATE TABLE IF NOT EXISTS standing_authorizations (
+  id TEXT PRIMARY KEY,
+  rule_id TEXT NOT NULL REFERENCES standing_rules(id),
+  canvas_id TEXT NOT NULL,
+  authorized_by TEXT NOT NULL,
+  workspace_role_at_grant TEXT NOT NULL,
+  allowed_tools_json TEXT,                          -- read-only tool subset snapshot
+  mode TEXT NOT NULL DEFAULT 'ask' CHECK (mode IN ('ask','rehearse')),
+  granted_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+  revoked_at TEXT, revoked_by TEXT
+);
+`);
+
 module.exports = { db, tx, nowIso, getSetting, setSetting, DB_PATH };

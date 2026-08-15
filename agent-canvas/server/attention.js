@@ -158,6 +158,41 @@ function changesetCards(canvasId) {
   }));
 }
 
+// P5 (D4): unacknowledged standing-rule outcomes that demand a human — alert
+// matches (matched_count > 0), failures after retries, workspace-disconnected
+// skips, and finished briefs (which always surface once, as brief_ready).
+// Draft rules never emit cards: a rule edited back to draft takes its pending
+// cards with it. Resolution is source-record style: POST .../acknowledge.
+function standingRuleCards(canvasId) {
+  const rows = db.prepare(`
+    SELECT rr.id, rr.rule_id, rr.state, rr.skip_reason, rr.matched_count, rr.result_summary, rr.error, rr.created_at,
+           r.canvas_id, r.instruction, r.output_type, r.agent_id
+    FROM standing_rule_runs rr JOIN standing_rules r ON r.id = rr.rule_id
+    WHERE r.canvas_id = ? AND rr.needs_attention = 1 AND rr.acknowledged_at IS NULL AND r.state != 'draft'
+    ORDER BY rr.created_at DESC LIMIT 50
+  `).all(canvasId);
+  return rows.map((rr) => {
+    const brief = rr.output_type === 'brief' && rr.state === 'completed';
+    return card({
+      type: brief ? 'brief_ready' : 'rule_alert',
+      decision: brief
+        ? `A new brief is ready: "${String(rr.instruction).slice(0, 120)}"`
+        : rr.state === 'completed'
+          ? `Standing rule matched ${rr.matched_count} item(s): "${String(rr.instruction).slice(0, 120)}"`
+          : `Standing rule run ${rr.state}: "${String(rr.instruction).slice(0, 120)}"`,
+      context: rr.state === 'completed'
+        ? String(rr.result_summary || '').slice(0, 300)
+        : String(rr.skip_reason || rr.error || rr.state).slice(0, 300),
+      consequence: brief ? 'The brief goes unread until someone opens it.' : 'Whatever this rule watches may need action.',
+      recommendation: brief ? 'Read the brief, then acknowledge.' : 'Review the result, act on it, then acknowledge.',
+      owner: { agentId: rr.agent_id },
+      actions: ['acknowledge', 'open_rule'],
+      sourceRef: { kind: 'standing_rule_run', id: rr.id, ruleId: rr.rule_id, canvasId: rr.canvas_id },
+      createdAt: rr.created_at,
+    });
+  });
+}
+
 function canvasAttention(canvasId, nowIsoStr, scopeOpts) {
   return [
     ...escalationCards(canvasId, scopeOpts),
@@ -165,6 +200,7 @@ function canvasAttention(canvasId, nowIsoStr, scopeOpts) {
     ...overdueReviewCards(canvasId, nowIsoStr),
     ...failedRunCards(canvasId),
     ...changesetCards(canvasId),
+    ...standingRuleCards(canvasId),
   ];
 }
 
