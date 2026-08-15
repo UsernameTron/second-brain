@@ -53,6 +53,9 @@ export function normEsc(e) {
     question: e.question,
     context: e.context,
     status: e.status || 'open',
+    owner_email: e.owner_email !== undefined ? e.owner_email : (e.ownerEmail ?? null),
+    owner_agent_id: e.owner_agent_id !== undefined ? e.owner_agent_id : (e.ownerAgentId ?? null),
+    due_at: e.due_at !== undefined ? e.due_at : (e.dueAt ?? null),
     created_at: e.created_at || e.createdAt,
     leaving: e.leaving || false,
   };

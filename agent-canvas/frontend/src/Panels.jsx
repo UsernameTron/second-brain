@@ -217,7 +217,7 @@ function runEventPreview(ev) {
   }
 }
 
-export function NotePanel({ note, task, onSave, onClose }) {
+export function NotePanel({ note, task, people = [], agents = [], onAssignTask, onSave, onClose }) {
   const [draft, setDraft] = useState(() => (note ? { title: note.title, content: note.content, pinned: !!note.pinned } : null));
   const [saving, setSaving] = useState(false);
 
@@ -229,6 +229,24 @@ export function NotePanel({ note, task, onSave, onClose }) {
     return (
       <Panel title={task.title} onClose={onClose} headerExtra={<span className={`chip task-st tk-${task.status}`}>{task.status.replace('_', ' ')}</span>}>
         <p className="task-desc">{task.description || 'No description.'}</p>
+        {onAssignTask ? (
+          <label className="task-assign">
+            Assignee{' '}
+            <select
+              value={task.assignee_email ? `p:${task.assignee_email}` : (task.assignee_agent_id ? `a:${task.assignee_agent_id}` : '')}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v.startsWith('p:')) onAssignTask(task.id, { assignee_email: v.slice(2), assignee_agent_id: null });
+                else if (v.startsWith('a:')) onAssignTask(task.id, { assignee_agent_id: v.slice(2), assignee_email: null });
+                else onAssignTask(task.id, { assignee_email: null, assignee_agent_id: null });
+              }}
+            >
+              <option value="">unassigned</option>
+              {people.map((p) => <option key={p.id} value={`p:${p.email}`}>{p.display || p.email}</option>)}
+              {agents.map((a) => <option key={a.id} value={`a:${a.id}`}>{a.name} (agent)</option>)}
+            </select>
+          </label>
+        ) : null}
         <div className="mono empty-hint">created {timeAgo(task.created_at)} · updated {timeAgo(task.updated_at)}</div>
       </Panel>
     );

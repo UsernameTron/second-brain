@@ -537,6 +537,18 @@ a:hover { text-decoration: underline; }
 .tk-done { color: var(--green); border-color: rgba(22, 158, 106, 0.5); }
 .tk-escalated { color: var(--red); border-color: rgba(196, 54, 42, 0.5); }
 
+/* person nodes (P2) — presentation-only human cards */
+.person-node { border-style: solid; border-color: color-mix(in srgb, var(--c, #8b5cf6) 45%, transparent); }
+.person-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--c, #8b5cf6); color: #fff;
+  font-size: 10px; font-weight: 700; flex: none;
+}
+.owner-chip { color: var(--text-dim); }
+.tray-assign { max-width: 140px; }
+.task-assign { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+
 /* file nodes */
 .file-node { background: var(--surface-glass); }
 .file-mark { color: var(--blue); }

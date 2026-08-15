@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AgentNode, NoteNode, TaskNode, FileNode, NODE_SIZES } from './Nodes.jsx';
+import { AgentNode, NoteNode, TaskNode, FileNode, PersonNode, NODE_SIZES } from './Nodes.jsx';
 import { short, timeAgo } from './api.js';
 
 const MIN_Z = 0.15;
@@ -8,7 +8,7 @@ const CLUSTER_Z = 0.5;
 const EDGE_TTL_MS = 10 * 60 * 1000;
 
 export default function Canvas({
-  agents, notes, tasks, files, canvasId, handoffs, memoryMap, agentsById,
+  agents, notes, tasks, files, people, canvasId, handoffs, memoryMap, agentsById,
   cursors, selections, mySelection, spendByAgent, amberAgents, paused,
   hoverHandoffId, onOpen, onMoveLive, onMoveEnd, onCursor, onSelect,
   fitSignal, onArrange,
@@ -68,7 +68,7 @@ export default function Canvas({
 
   // fit all content in view (used on first load, on demand, and after Tidy)
   const fitNow = useCallback(() => {
-    const pts = [...agents, ...notes, ...tasks, ...files];
+    const pts = [...agents, ...notes, ...tasks, ...files, ...people];
     if (!pts.length || !size.w || !size.h) return false;
     const xs = pts.map((p) => p.x);
     const ys = pts.map((p) => p.y);
@@ -83,7 +83,7 @@ export default function Canvas({
       z,
     });
     return true;
-  }, [agents, notes, tasks, files, size]);
+  }, [agents, notes, tasks, files, people, size]);
 
   // auto-fit content once per canvas
   useEffect(() => {
@@ -287,6 +287,18 @@ export default function Canvas({
             onClick={() => { onSelect(t.id); onOpen('task', t); }}
           />
         ))}
+        {people.map((p) => (
+          <PersonNode
+            key={p.id}
+            person={p}
+            z={view.z}
+            selColor={selColors[p.id]}
+            mine={mySelection === p.id}
+            onMoveLive={onMoveLive}
+            onMoveEnd={onMoveEnd}
+            onClick={() => onSelect(p.id)}
+          />
+        ))}
         {files.map((f) => (
           <FileNode
             key={f.id}
@@ -316,6 +328,7 @@ export default function Canvas({
         notes={notes}
         tasks={tasks}
         files={files}
+        people={people}
         view={view}
         size={size}
         onJump={(wx, wy) => jumpTo(wx, wy)}
@@ -366,7 +379,7 @@ export default function Canvas({
   );
 }
 
-function Minimap({ agents, notes, tasks, files, view, size, onJump }) {
+function Minimap({ agents, notes, tasks, files, people, view, size, onJump }) {
   const MW = 200;
   const MH = 140;
   const all = [
@@ -374,6 +387,7 @@ function Minimap({ agents, notes, tasks, files, view, size, onJump }) {
     ...notes.map((n) => ({ ...n, kind: 'note' })),
     ...tasks.map((t) => ({ ...t, kind: 'task' })),
     ...files.map((f) => ({ ...f, kind: 'file' })),
+    ...people.map((p) => ({ ...p, kind: 'person' })),
   ];
   if (!all.length) {
     return <div className="minimap"><svg width={MW} height={MH} /></div>;
