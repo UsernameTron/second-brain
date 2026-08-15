@@ -352,4 +352,20 @@ function lineage(entryId) {
   };
 }
 
-module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, recordRetrievals, retrievalEngine, citeMapsFor, EPISTEMIC, KINDS, APPLIES_TO };
+// Same-subject verified-vs-verified disagreement, computed on read (nothing
+// stored). Shared by GET /memory/conflicts and the P2 attention projection.
+function findConflicts(canvasId) {
+  const pairs = db.prepare(`
+    SELECT a.id AS a_id, b.id AS b_id, a.subject
+    FROM memory_entries a JOIN memory_entries b
+      ON LOWER(a.subject) = LOWER(b.subject) AND a.id < b.id
+    WHERE a.canvas_id = ? AND b.canvas_id = ?
+      AND a.subject IS NOT NULL AND a.subject != ''
+      AND a.superseded_by IS NULL AND b.superseded_by IS NULL
+      AND a.epistemic = 'verified' AND b.epistemic = 'verified'
+      AND a.content != b.content
+  `).all(canvasId, canvasId);
+  return pairs.map((p) => ({ subject: p.subject, entries: [getEntry(p.a_id), getEntry(p.b_id)] }));
+}
+
+module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, recordRetrievals, retrievalEngine, citeMapsFor, findConflicts, EPISTEMIC, KINDS, APPLIES_TO };
