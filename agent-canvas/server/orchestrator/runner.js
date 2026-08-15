@@ -47,9 +47,16 @@ function buildSystemPrompt(agent, canvas, run) {
   const pinnedBlock = pinned.length
     ? `\n## Pinned working context (live notes on this canvas — treat as current ground rules)\n${pinned.map((n) => `### ${n.title}\n${n.content}`).join('\n\n')}\n`
     : '';
+  const mode = run.mode || 'act';
+  const modeBlock = mode === 'ask'
+    ? '\n## Run mode: ASK (read-only toward the world)\nThis run answers a question. Tools that change anything outside this workspace are unavailable (the server refuses them). Read, search, and write your findings to memory with evidence — do not attempt drafts, writes, or handoffs.\n'
+    : mode === 'rehearse'
+      ? '\n## Run mode: REHEARSE (dry run)\nThis run rehearses a task without performing it. Mutating tools are unavailable (the server refuses them); hs_preview_change is allowed because it is already a dry run. NARRATE each step you WOULD take, with the exact tool and arguments, then summarize the full plan and what evidence supports it.\n'
+      : '';
   return `You are "${agent.name}", the ${agent.role} agent on the shared canvas "${canvas.name}" in the Agent Canvas Workspace (cloudtechgurus.com).
 
 ${agent.system_prompt}
+${modeBlock}
 
 ## Shared memory contract (non-negotiable)
 - Record every finding that matters via memory_write, one self-contained fact per entry.
@@ -105,7 +112,7 @@ async function executeRun(runId) {
 
   const system = buildSystemPrompt(agent, canvas, run);
   const { workspaceRole } = require('../auth');
-  const tools = toolsForRole(agent.role, { userRole: workspaceRole(run.initiated_by) });
+  const tools = toolsForRole(agent.role, { userRole: workspaceRole(run.initiated_by), mode: run.mode || 'act' });
   // Web search rides the Claude providers only in v1 (Google grounding has a
   // different result shape); Gemini research agents work from row data + memory.
   if (agent.role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0' && provider !== 'gemini') {
