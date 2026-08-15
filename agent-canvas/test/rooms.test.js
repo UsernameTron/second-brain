@@ -156,6 +156,33 @@ test('refresh dispatches one ask-mode run and records time + actor; view member 
   assert.equal(rows[0].run_id, refreshed.data.run.id);
 });
 
+test('export preview names what leaves and what stays; export is owner-only, audited, client-safe', async () => {
+  // An assumption and a private-surface ref must land in `excluded`.
+  memory.writeEntry({ canvasId, content: 'They probably churn without a discount', epistemic: 'assumption', authorType: 'user', authorId: OWNER, authorName: 'Pete', source: 'test' });
+  evidence.recordRef({ runId: 'run-room-1', sourceKind: 'web', sourceId: 'https://acme.example', title: 'Acme pricing page', uri: 'https://acme.example/pricing', directedBy: OWNER });
+
+  assert.equal((await call(viewerCookie, 'GET', `/api/rooms/${roomId}/export/preview`)).status, 403); // edit access required
+  const preview = (await call(editorCookie, 'GET', `/api/rooms/${roomId}/export/preview`)).data;
+  assert.equal(preview.included.decisions.length, 1);
+  assert.equal(preview.included.evidence.length, 1); // web ref only
+  assert.equal(preview.included.evidence[0].sourceKind, 'web');
+  assert.ok(preview.excluded.privateEvidence.some((r) => r.sourceKind === 'gmail'), 'gmail ref stays internal');
+  assert.ok(preview.excluded.assumptionsAndInferences.some((e) => e.epistemic === 'assumption'));
+  assert.ok(preview.excluded.openEscalations.length >= 1);
+  assert.equal(preview.excluded.auditChain, 'always excluded');
+
+  assert.equal((await call(editorCookie, 'POST', `/api/rooms/${roomId}/export`)).status, 403); // owner only
+  const res = await fetch(`${base}/api/rooms/${roomId}/export`, { method: 'POST', headers: { Cookie: ownerCookie } });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-disposition'), /attachment/);
+  const html = await res.text();
+  assert.match(html, /We will renew at flat pricing/);
+  assert.match(html, /Acme pricing page/);
+  assert.ok(!html.includes('probably churn'), 'assumptions never leave');
+  assert.ok(!html.includes('mail.example'), 'private URIs never leave');
+  assert.ok(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'room.export'").get().n >= 1);
+});
+
 test('archive is lossless and flips room + canvas together', async () => {
   assert.equal((await call(editorCookie, 'PATCH', `/api/rooms/${roomId}`, { lifecycle: 'archived' })).status, 403); // owner only
   const archived = await call(ownerCookie, 'PATCH', `/api/rooms/${roomId}`, { lifecycle: 'archived' });

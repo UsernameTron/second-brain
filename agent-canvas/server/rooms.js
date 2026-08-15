@@ -114,4 +114,87 @@ function buildRoom(roomId, { lens = 'now', viewer = {} } = {}) {
   return { room, lens, sections, refreshes, taintedCount: taintedIds.length, generatedAt: new Date().toISOString() };
 }
 
-module.exports = { getRoom, listRooms, buildRoom, ROOM_TYPES, LENSES };
+// ---------- client-safe export ----------
+// The disclosure contract: the export carries ONLY reviewed conclusions —
+// non-tainted decisions, verified facts, work status, and evidence titles
+// from non-private surfaces. Assumptions/inferences, tainted entries,
+// private-surface evidence (gmail/drive/sheet), open escalations, and the
+// raw audit chain are excluded BY NAME in the preview so the disclosure
+// review is explicit, never implied.
+const PRIVATE_KINDS = new Set(['gmail', 'drive', 'sheet']);
+
+function exportManifest(roomId) {
+  const room = getRoom(roomId);
+  if (!room) return null;
+  const canvasId = room.canvasId;
+  const taintedIds = memory.taintedSet(canvasId);
+
+  const allDecisions = memory.listEntries({ canvasId, kind: 'decision', limit: 200 });
+  const verifiedFacts = memory.listEntries({ canvasId, epistemic: 'verified', limit: 200 })
+    .filter((e) => e.kind !== 'decision');
+  const splitTainted = (list) => ({
+    clean: list.filter((e) => !e.tainted && !taintedIds.has(e.id)),
+    tainted: list.filter((e) => e.tainted || taintedIds.has(e.id)),
+  });
+  const decisions = splitTainted(allDecisions);
+  const facts = splitTainted(verifiedFacts);
+  const softMemory = memory.listEntries({ canvasId, limit: 200 })
+    .filter((e) => e.epistemic !== 'verified');
+
+  const refs = db.prepare(
+    `SELECT er.* FROM evidence_refs er JOIN runs r ON r.id = er.run_id
+     WHERE r.canvas_id = ? ORDER BY er.retrieved_at DESC LIMIT 200`
+  ).all(canvasId);
+  const publicRefs = refs.filter((r) => !PRIVATE_KINDS.has(r.source_kind));
+  const privateRefs = refs.filter((r) => PRIVATE_KINDS.has(r.source_kind));
+
+  const tasks = db.prepare("SELECT id, title, status, created_at FROM tasks WHERE canvas_id = ? ORDER BY created_at").all(canvasId);
+  const openEscalations = db.prepare("SELECT id, question, created_at FROM escalations WHERE canvas_id = ? AND status = 'open'").all(canvasId);
+
+  return {
+    room,
+    included: {
+      decisions: decisions.clean,
+      facts: facts.clean,
+      evidence: publicRefs.map((r) => ({ id: r.id, sourceKind: r.source_kind, title: r.display_title, uri: r.uri, retrievedAt: r.retrieved_at })),
+      tasks,
+    },
+    excluded: {
+      assumptionsAndInferences: softMemory.map((e) => ({ id: e.id, epistemic: e.epistemic, content: e.content })),
+      taintedEntries: [...decisions.tainted, ...facts.tainted].map((e) => ({ id: e.id, content: e.content })),
+      privateEvidence: privateRefs.map((r) => ({ id: r.id, sourceKind: r.source_kind, title: r.display_title })),
+      openEscalations,
+      auditChain: 'always excluded',
+    },
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Reviewed HTML output (PDF deferred until this contract is proven).
+function renderExportHtml(manifest, exportedBy) {
+  const { room, included } = manifest;
+  const section = (title, items, render) => (items.length
+    ? `<h2>${esc(title)}</h2><ul>${items.map(render).join('')}</ul>`
+    : `<h2>${esc(title)}</h2><p class="dim">None.</p>`);
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>${esc(room.name)} — recommendation</title>
+<style>
+body{font-family:Georgia,serif;max-width:760px;margin:40px auto;padding:0 20px;color:#1a1a1a;line-height:1.5}
+h1{font-size:26px;margin-bottom:4px} h2{font-size:16px;margin-top:28px;text-transform:uppercase;letter-spacing:.05em}
+.meta{color:#666;font-size:13px} .dim{color:#888} li{margin:6px 0} .src{color:#666;font-size:12px}
+</style></head><body>
+<h1>${esc(room.name)}</h1>
+<p class="meta">${esc(room.roomType)}${room.externalRef ? ` · ${esc(room.externalRef)}` : ''} · prepared ${esc(manifest.generatedAt)} by ${esc(exportedBy)}</p>
+<p class="meta">Contains reviewed conclusions only. Sources and retrieval dates are stated per item.</p>
+${section('Decisions', included.decisions, (d) => `<li>${esc(d.content)} <span class="src">— ${esc(d.author && d.author.name)}, ${esc(d.createdAt)}</span></li>`)}
+${section('Verified findings', included.facts, (f) => `<li>${esc(f.content)} <span class="src">— ${esc(f.createdAt)}</span></li>`)}
+${section('Evidence', included.evidence, (e) => `<li>${esc(e.title || e.uri || e.sourceKind)} <span class="src">— ${esc(e.sourceKind)}, retrieved ${esc(e.retrievedAt)}</span></li>`)}
+${section('Work status', included.tasks, (t) => `<li>${esc(t.title)} <span class="src">— ${esc(t.status.replace('_', ' '))}</span></li>`)}
+</body></html>`;
+}
+
+module.exports = { getRoom, listRooms, buildRoom, exportManifest, renderExportHtml, ROOM_TYPES, LENSES };

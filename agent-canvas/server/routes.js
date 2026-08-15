@@ -695,6 +695,30 @@ router.post('/rooms/:roomId/refresh', rateLimit('model'), (req, res) => {
   res.json({ room: rooms.getRoom(ctx.room.id), run: db.prepare('SELECT id, agent_id, canvas_id, status, mode, instruction, created_at FROM runs WHERE id = ?').get(run.id) });
 });
 
+// Disclosure preview: the export's exact included/excluded split, reviewed
+// BEFORE anything leaves. Reading it requires edit access; producing the
+// export itself is owner-only and audited. No anonymous links, ever.
+router.get('/rooms/:roomId/export/preview', (req, res) => {
+  const ctx = roomAccess(req, res, true);
+  if (!ctx) return;
+  res.json(rooms.exportManifest(ctx.room.id));
+});
+
+router.post('/rooms/:roomId/export', auth.requireOwner, (req, res) => {
+  const room = rooms.getRoom(req.params.roomId);
+  if (!room) return res.status(404).json({ error: 'room not found' });
+  const manifest = rooms.exportManifest(room.id);
+  const html = rooms.renderExportHtml(manifest, req.user.email);
+  audit('user', req.user.email, 'room.export', {
+    roomId: room.id, canvasId: room.canvasId,
+    included: { decisions: manifest.included.decisions.length, facts: manifest.included.facts.length, evidence: manifest.included.evidence.length, tasks: manifest.included.tasks.length },
+    excluded: { soft: manifest.excluded.assumptionsAndInferences.length, tainted: manifest.excluded.taintedEntries.length, privateEvidence: manifest.excluded.privateEvidence.length, openEscalations: manifest.excluded.openEscalations.length },
+  });
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="room-${room.id.slice(0, 8)}-recommendation.html"`);
+  res.send(html);
+});
+
 router.patch('/rooms/:roomId', auth.requireOwner, (req, res) => {
   const room = rooms.getRoom(req.params.roomId);
   if (!room) return res.status(404).json({ error: 'room not found' });

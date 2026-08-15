@@ -109,6 +109,7 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
   const [lens, setLens] = useState('now');
   const [activity, setActivity] = useState(null); // null = Brief tab
   const [busy, setBusy] = useState(false);
+  const [exportPreview, setExportPreview] = useState(null);
   const [name, setName] = useState('');
   const [roomType, setRoomType] = useState('deal');
   const [externalRef, setExternalRef] = useState('');
@@ -155,6 +156,27 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   };
 
+  const showExportPreview = () => {
+    api(`/api/rooms/${roomId}/export/preview`)
+      .then((d) => setExportPreview(d))
+      .catch((e) => toast(e.message));
+  };
+  const downloadExport = async () => {
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/export`, { method: 'POST', credentials: 'same-origin' });
+      if (!res.ok) throw new Error((await res.json()).error || 'export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `room-recommendation.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportPreview(null);
+      toast('Client-safe export downloaded', 'ok');
+    } catch (e) { toast(e.message); }
+  };
+
   const showActivity = () => {
     api(`/api/canvases/${built.room.canvasId}/activity`)
       .then((d) => setActivity(d.events || []))
@@ -191,7 +213,25 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
               {busy ? 'Refreshing…' : 'Refresh room'}
             </button>
           ) : <span className="chip">view only</span>}
+          {isOwner ? (
+            <button className="btn ghost small" onClick={() => (exportPreview ? setExportPreview(null) : showExportPreview())}>
+              {exportPreview ? 'Close export preview' : 'Export…'}
+            </button>
+          ) : null}
         </div>
+        {exportPreview ? (
+          <div className="room-export-preview">
+            <h3>Disclosure review — what leaves, what stays</h3>
+            <p><b>Included:</b> {exportPreview.included.decisions.length} decisions, {exportPreview.included.facts.length} verified findings, {exportPreview.included.evidence.length} evidence references, {exportPreview.included.tasks.length} work items.</p>
+            <p><b>Excluded:</b> {exportPreview.excluded.assumptionsAndInferences.length} assumptions/inferences, {exportPreview.excluded.taintedEntries.length} tainted entries, {exportPreview.excluded.privateEvidence.length} private-surface sources, {exportPreview.excluded.openEscalations.length} open escalations, and the audit chain (always).</p>
+            <ul className="room-list">
+              {exportPreview.excluded.privateEvidence.map((r) => (
+                <li key={r.id}><span className="chip">{r.sourceKind}</span> {r.title || '(untitled)'} <span className="dim">— stays internal</span></li>
+              ))}
+            </ul>
+            <button className="btn primary small" onClick={downloadExport}>Download client-safe HTML</button>
+          </div>
+        ) : null}
         {activity !== null ? (
           <ul className="room-list room-activity">
             {activity.length === 0 ? <li className="dim">No activity yet.</li> : activity.map((a) => (
