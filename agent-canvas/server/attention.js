@@ -27,8 +27,15 @@ function card({ type, decision, context = '', consequence = '', recommendation =
   };
 }
 
-function escalationCards(canvasId) {
-  const rows = db.prepare("SELECT * FROM escalations WHERE status = 'open' AND canvas_id = ? ORDER BY created_at DESC LIMIT 100").all(canvasId);
+function escalationCards(canvasId, { scope, email } = {}) {
+  // Ownership is filtered in SQL, BEFORE the limit — otherwise 100 newer
+  // escalations owned by others could push a mine-scoped row off the page
+  // (claude-review on #182).
+  let ownerClause = '';
+  const params = [canvasId];
+  if (scope === 'mine') { ownerClause = 'AND LOWER(owner_email) = LOWER(?)'; params.push(email); }
+  else if (scope === 'team') { ownerClause = 'AND (owner_email IS NULL OR LOWER(owner_email) != LOWER(?))'; params.push(email); }
+  const rows = db.prepare(`SELECT * FROM escalations WHERE status = 'open' AND canvas_id = ? ${ownerClause} ORDER BY created_at DESC LIMIT 100`).all(...params);
   return rows.map((e) => card({
     type: 'escalation',
     decision: e.question,
@@ -40,11 +47,33 @@ function escalationCards(canvasId) {
     actions: ['resolve', 'assign'],
     sourceRef: { kind: 'escalation', id: e.id, canvasId: e.canvas_id },
     createdAt: e.created_at,
+  })).map((c, i) => ({
+    ...c,
+    // The escalating agent's attached context (entry_ids, detail, item_key) is
+    // decision-critical; the view renders it since the inline tray is hidden
+    // behind the flag (codex P1 on #183).
+    contextData: (() => { try { return JSON.parse(rows[i].context || '{}'); } catch { return {}; } })(),
+    escalatingAgentId: rows[i].agent_id,
   }));
 }
 
 function conflictCards(canvasId) {
-  return memory.findConflicts(canvasId).map((c) => card({
+  // One card per subject, capped: N live versions of a subject would emit
+  // N(N-1)/2 pairs, and the workspace view multiplies that by every canvas
+  // (claude-review on #182). The memory endpoint still returns all pairs.
+  const bySubject = new Map();
+  for (const c of memory.findConflicts(canvasId)) {
+    const key = String(c.subject).toLowerCase();
+    if (!bySubject.has(key)) bySubject.set(key, c);
+  }
+  // Rank deterministically (newest conflicting entry first) BEFORE the cap —
+  // findConflicts has no ORDER BY, so slicing raw map order could hide new
+  // conflicts behind 20 stale ones indefinitely (codex on #183).
+  const newest = (c) => [c.entries[0].createdAt, c.entries[1].createdAt].sort().pop();
+  return [...bySubject.values()]
+    .sort((a, b) => String(newest(b)).localeCompare(String(newest(a))))
+    .slice(0, 20)
+    .map((c) => card({
     type: 'conflict',
     decision: `Two verified memory entries disagree about "${c.subject}".`,
     context: c.entries.map((e) => `"${String(e.content).slice(0, 120)}"`).join(' vs '),
@@ -52,14 +81,16 @@ function conflictCards(canvasId) {
     recommendation: 'Correct the entry that is wrong; supersession keeps the loser on record.',
     actions: ['correct'],
     sourceRef: { kind: 'memory_conflict', id: c.entries[0].id, secondId: c.entries[1].id, canvasId },
-    createdAt: c.entries[1].createdAt,
+    // The pair is id-ordered, not time-ordered: the newer entry is what
+    // CREATED the conflict, so the card sorts by it.
+    createdAt: [c.entries[0].createdAt, c.entries[1].createdAt].sort().pop(),
   }));
 }
 
 function overdueReviewCards(canvasId, nowIsoStr) {
   const rows = db.prepare(`
     SELECT id, canvas_id, content, epistemic, kind, review_at, created_at FROM memory_entries
-    WHERE canvas_id = ? AND review_at IS NOT NULL AND review_at <= ? AND superseded_by IS NULL
+    WHERE canvas_id = ? AND review_at IS NOT NULL AND datetime(review_at) <= datetime(?) AND superseded_by IS NULL
     ORDER BY review_at ASC LIMIT 100
   `).all(canvasId, nowIsoStr);
   return rows.map((m) => card({
@@ -76,15 +107,22 @@ function overdueReviewCards(canvasId, nowIsoStr) {
 }
 
 function failedRunCards(canvasId) {
-  // Any escalation referencing the run wins the card: haltAndEscalate already
-  // raised most of these, and a RESOLVED escalation means a human handled it —
-  // either way a second card would be a duplicate demand on the same problem.
+  // Dedupe against escalations that carry the same demand: any OPEN one, or a
+  // resolved one that was itself the terminal halt (haltAndEscalate kinds).
+  // A resolved mid-run QUESTION must not suppress a later unrelated failure —
+  // the escalate tool lets a run continue after asking (claude-review on #182).
+  // A run with a CHILD (retry or escalation resume) is handled — otherwise the
+  // Retry card would reappear forever after every retry (codex on #183).
   const rows = db.prepare(`
     SELECT r.id, r.canvas_id, r.agent_id, r.status, r.instruction, r.error, r.created_at
     FROM runs r
     WHERE r.canvas_id = ?
       AND (r.status IN ('failed','refused') OR (r.status LIKE 'halted_%' AND r.status != 'halted_paused'))
-      AND NOT EXISTS (SELECT 1 FROM escalations e WHERE e.run_id = r.id)
+      AND NOT EXISTS (
+        SELECT 1 FROM escalations e WHERE e.run_id = r.id
+          AND (e.status = 'open' OR e.kind != 'question')
+      )
+      AND NOT EXISTS (SELECT 1 FROM runs child WHERE child.parent_run_id = r.id)
     ORDER BY r.created_at DESC LIMIT 50
   `).all(canvasId);
   return rows.map((r) => card({
@@ -115,9 +153,9 @@ function changesetCards(canvasId) {
   }));
 }
 
-function canvasAttention(canvasId, nowIsoStr) {
+function canvasAttention(canvasId, nowIsoStr, scopeOpts) {
   return [
-    ...escalationCards(canvasId),
+    ...escalationCards(canvasId, scopeOpts),
     ...conflictCards(canvasId),
     ...overdueReviewCards(canvasId, nowIsoStr),
     ...failedRunCards(canvasId),
@@ -126,9 +164,11 @@ function canvasAttention(canvasId, nowIsoStr) {
 }
 
 // scope: 'mine' = owned by this email; 'team' = owned by someone/something
-// else, or unowned; 'all' = both.
+// else, or unowned; 'all' = both. Escalations scope in SQL (they are the only
+// source with a human owner today); the post-filter keeps the contract honest
+// for any source that grows one later.
 function listAttention({ email, scope = 'all', canvasIds, now = new Date().toISOString() }) {
-  let rows = canvasIds.flatMap((id) => canvasAttention(id, now));
+  let rows = canvasIds.flatMap((id) => canvasAttention(id, now, { scope, email }));
   const me = String(email || '').toLowerCase();
   if (scope === 'mine') rows = rows.filter((r) => r.owner.email && r.owner.email.toLowerCase() === me);
   else if (scope === 'team') rows = rows.filter((r) => !r.owner.email || r.owner.email.toLowerCase() !== me);

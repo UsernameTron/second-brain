@@ -99,19 +99,26 @@ function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign })
 }
 
 // Pinned to the top of the viewport, always visible, never inside the canvas layout.
-export default function Tray({ escalations, agentsById, agents, people = [], onResolve, onAssign }) {
+// P2: with the needs_you flag on, the tray collapses to its badge (count =
+// the full attention projection) and clicking opens the NEEDS YOU view.
+export default function Tray({ escalations, agentsById, agents, people = [], onResolve, onAssign, badgeOnly = false, badgeCount = null, onOpen }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mascotOk, setMascotOk] = useState(true);
-  const n = escalations.length;
+  const n = badgeOnly && badgeCount !== null ? badgeCount : escalations.length;
 
   return (
-    <div className={`tray ${n > 0 ? 'has-items' : 'clear'}`} role="region" aria-label={`Needs you: ${n} open escalation${n === 1 ? '' : 's'}`}>
-      <button className="tray-head" onClick={() => setCollapsed((v) => !v)} aria-expanded={!collapsed} title={collapsed ? 'Expand' : 'Collapse'}>
+    <div className={`tray ${n > 0 ? 'has-items' : 'clear'}`} role="region" aria-label={`Needs you: ${n} item${n === 1 ? '' : 's'}`}>
+      <button
+        className="tray-head"
+        onClick={() => (badgeOnly && onOpen ? onOpen() : setCollapsed((v) => !v))}
+        aria-expanded={badgeOnly ? undefined : !collapsed}
+        title={badgeOnly ? 'Open the Needs you view' : (collapsed ? 'Expand' : 'Collapse')}
+      >
         {n > 0 ? (
           <>
             <span className="tray-badge">{n}</span>
             Needs you
-            <span className="tray-caret">{collapsed ? '▾' : '▴'}</span>
+            {badgeOnly ? null : <span className="tray-caret">{collapsed ? '▾' : '▴'}</span>}
           </>
         ) : (
           <>
@@ -124,7 +131,7 @@ export default function Tray({ escalations, agentsById, agents, people = [], onR
           </>
         )}
       </button>
-      {!collapsed && n > 0 ? (
+      {!badgeOnly && !collapsed && n > 0 ? (
         <div className="tray-list">
           {escalations.map((e) => (
             <TrayItem key={e.id} esc={e} agentsById={agentsById} agents={agents} people={people} onResolve={onResolve} onAssign={onAssign} />

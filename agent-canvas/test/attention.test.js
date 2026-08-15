@@ -144,6 +144,30 @@ test('conflict cards agree with the /memory/conflicts endpoint', async () => {
   assert.deepEqual(cardPair, pair);
 });
 
+test('a resolved QUESTION escalation does not suppress a later failure card', async () => {
+  insertRun('run-attn-qfail', 'failed');
+  const esc = createEscalation({ canvasId, runId: 'run-attn-qfail', agentId, kind: 'question', question: 'Mid-run question?', context: {} });
+  // Open question → escalation card carries the demand, run card suppressed.
+  let res = await call('GET', `/api/attention?canvas_id=${canvasId}`);
+  assert.ok(!res.data.attention.some((r) => r.type === 'failed_run' && r.sourceRef.id === 'run-attn-qfail'));
+  // Resolved question → the failure is unhandled again and must resurface.
+  await call('POST', `/api/escalations/${esc.id}/resolve`, { action: 'dismiss' });
+  res = await call('GET', `/api/attention?canvas_id=${canvasId}`);
+  assert.ok(res.data.attention.some((r) => r.type === 'failed_run' && r.sourceRef.id === 'run-attn-qfail'));
+});
+
+test('mine scope survives 100+ newer escalations owned by others', async () => {
+  const mineEsc = createEscalation({ canvasId, runId: null, agentId, kind: 'question', question: 'Oldest, but mine.', context: {} });
+  await call('POST', `/api/escalations/${mineEsc.id}/assign`, { owner_email: 'pete@cloudtechgurus.com' });
+  for (let i = 0; i < 110; i += 1) {
+    const e = createEscalation({ canvasId, runId: null, agentId, kind: 'question', question: `Noise ${i}`, context: {} });
+    db.prepare('UPDATE escalations SET owner_email = ? WHERE id = ?').run('darren@cloudtechgurus.com', e.id);
+  }
+  const mine = await call('GET', `/api/attention?canvas_id=${canvasId}&scope=mine`);
+  assert.ok(mine.data.attention.some((r) => r.sourceRef.id === mineEsc.id),
+    'ownership must be applied before the row limit');
+});
+
 test('workspace-wide listing covers accessible canvases without canvas_id', async () => {
   const res = await call('GET', '/api/attention');
   assert.equal(res.status, 200);

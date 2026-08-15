@@ -9,6 +9,7 @@ import MemoryPanel from './MemoryPanel.jsx';
 import Workbook from './Workbook.jsx';
 import { AgentPanel, NotePanel, SpendPanel } from './Panels.jsx';
 import Home from './Home.jsx';
+import NeedsYouView from './NeedsYouView.jsx';
 import AdminModal from './AdminModal.jsx';
 import AddAgentModal from './AddAgentModal.jsx';
 import CapabilitiesModal from './CapabilitiesModal.jsx';
@@ -34,6 +35,7 @@ export default function Workspace() {
   const [showSuperseded, setShowSuperseded] = useState(false);
   const [activity, setActivity] = useState([]);
   const [escalations, setEscalations] = useState([]);
+  const [attention, setAttention] = useState(null); // P2 NEEDS YOU projection (current canvas)
   const [spend, setSpend] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [budget, setBudget] = useState(null);
@@ -47,6 +49,9 @@ export default function Workspace() {
   // inquiry_home flag (reversible exposure — flip the setting, no deploy).
   const { config } = useContext(AppCtx);
   const [view, setView] = useState(config && config.inquiryHome ? 'home' : 'canvas');
+  // P2 unified NEEDS YOU: view 'needsyou' + Tray collapsed to its badge.
+  // Reversible exposure: setSetting('needs_you','0') restores the inline tray.
+  const needsYouOn = !!(config && config.needsYou);
   const [runTick, setRunTick] = useState(0); // bumps on run_status → Home refetch
   const [ripple, setRipple] = useState(null); // {flash, ids:Set}
   const [amberAgents, setAmberAgents] = useState(() => new Set());
@@ -140,6 +145,17 @@ export default function Workspace() {
     setEscalations((d.escalations || []).map(normEsc).filter((e) => e.status === 'open'));
   }, []);
 
+  // P2: the attention projection for the current canvas (badge + NEEDS YOU
+  // view share this one fetch). Failure never blocks the escalation tray.
+  const loadAttention = useCallback(async () => {
+    const cid = canvasIdRef.current;
+    if (!cid) return;
+    try {
+      const d = await api(`/api/attention?canvas_id=${encodeURIComponent(cid)}`);
+      if (canvasIdRef.current === cid) setAttention(d.attention || []);
+    } catch { /* projection only — tray still works */ }
+  }, []);
+
   const refreshAll = useCallback(() => {
     const cid = canvasIdRef.current;
     if (!cid) return;
@@ -149,11 +165,12 @@ export default function Workspace() {
       loadActivity(cid),
       loadSpend(cid),
       loadEscalations(),
+      loadAttention(),
     ]).then((results) => {
       const failed = results.find((r) => r.status === 'rejected');
       if (failed) toast(failed.reason?.message || 'refresh failed');
     });
-  }, [loadState, loadMemory, loadActivity, loadSpend, loadEscalations, toast]);
+  }, [loadState, loadMemory, loadActivity, loadSpend, loadEscalations, loadAttention, toast]);
 
   const scheduleRefetch = useCallback(() => {
     clearTimeout(refetchTimerRef.current);
@@ -162,6 +179,14 @@ export default function Workspace() {
       if (cid) loadState(cid).catch((e) => toast(e.message));
     }, 450);
   }, [loadState, toast]);
+
+  // Attention rides its own debounce: run/memory/escalation/changeset events
+  // all feed the projection, and a burst should cost one refetch.
+  const attentionTimerRef = useRef(null);
+  const scheduleAttention = useCallback(() => {
+    clearTimeout(attentionTimerRef.current);
+    attentionTimerRef.current = setTimeout(() => { loadAttention(); }, 600);
+  }, [loadAttention]);
 
   const scheduleSpend = useCallback(() => {
     clearTimeout(spendTimerRef.current);
@@ -246,6 +271,7 @@ export default function Workspace() {
     if (!canvasId) return;
     canvasIdRef.current = canvasId;
     setState(null); setMemory([]); setActivity([]); setSpend(null);
+    setAttention(null); // stale cards carry old-canvas sourceRefs — never keep them across a switch
     setCursors({}); setSelections({}); setPanel(null); setMySelection(null);
     refreshAll();
     send({ type: 'join', canvasId });
@@ -310,6 +336,7 @@ export default function Workspace() {
           };
         });
         scheduleSpend();
+        scheduleAttention(); // terminal failures surface as attention cards
         break;
       case 'run_event':
         pushActivity({ agent_id: ev.agentId, run_id: ev.runId, type: ev.eventType, payload: ev.payload });
@@ -319,6 +346,7 @@ export default function Workspace() {
         if (!entry) break;
         setMemory((prev) => [entry, ...prev.filter((e) => e.id !== entry.id)]);
         pushActivity({ agent_id: entry.author?.type === 'agent' ? entry.author.id : null, type: 'memory', payload: entry, ts: entry.createdAt });
+        scheduleAttention(); // new conflicts / reviews can appear
         break;
       }
       case 'memory_ripple': {
@@ -341,6 +369,7 @@ export default function Workspace() {
         setAmberAgents(authors);
         setTimeout(() => { setRipple(null); setAmberAgents(new Set()); }, 2400);
         pushActivity({ agent_id: entry.author?.type === 'agent' ? entry.author.id : null, type: 'memory', payload: { ...entry, content: `CORRECTED: ${entry.content}` }, ts: entry.createdAt });
+        scheduleAttention(); // corrections resolve conflicts / overdue reviews
         break;
       }
       case 'handoff': {
@@ -353,15 +382,18 @@ export default function Workspace() {
         const e = normEsc(ev.escalation);
         setEscalations((prev) => [e, ...prev.filter((x) => x.id !== e.id)]);
         pushActivity({ agent_id: e.agent_id, type: 'escalation', payload: { kind: e.kind, question: e.question } });
+        scheduleAttention();
         break;
       }
       case 'escalation_resolved':
         markEscalationLeaving(ev.escalationId);
+        scheduleAttention();
         break;
       case 'rows_changed':
       case 'changeset':
       case 'canvas_structure':
         scheduleRefetch();
+        scheduleAttention();
         break;
       case 'note_update':
         setState((s) => {
@@ -457,11 +489,12 @@ export default function Workspace() {
     try {
       await api(`/api/escalations/${id}/assign`, { method: 'POST', body });
       loadEscalations().catch(() => {});
+      loadAttention();
       toast('Assigned', 'ok');
     } catch (e) {
       toast(e.message);
     }
-  }, [loadEscalations, toast]);
+  }, [loadEscalations, loadAttention, toast]);
 
   const assignTask = useCallback(async (taskId, body) => {
     try {
@@ -484,6 +517,30 @@ export default function Workspace() {
       return false;
     }
   }, [scheduleRefetch, toast]);
+
+  // P2 NEEDS YOU resolutions — each acts on the SOURCE record's endpoint.
+  const retryRun = useCallback(async (sourceRef) => {
+    try {
+      await api(`/api/canvases/${sourceRef.canvasId}/runs/${sourceRef.id}/retry`, { method: 'POST', body: {} });
+      toast('Retry dispatched', 'ok');
+      loadAttention();
+    } catch (e) {
+      toast(e.message);
+    }
+  }, [loadAttention, toast]);
+
+  const extendReview = useCallback(async (sourceRef) => {
+    // Re-affirm = append-only correction with a fresh date; 30 days is the
+    // "still true, check again" horizon, not a policy — correct it to change.
+    const reviewAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+    try {
+      await api(`/api/canvases/${sourceRef.canvasId}/memory/${sourceRef.id}/reaffirm`, { method: 'POST', body: { review_at: reviewAt } });
+      toast('Re-affirmed — review pushed 30 days', 'ok');
+      loadAttention();
+    } catch (e) {
+      toast(e.message);
+    }
+  }, [loadAttention, toast]);
 
   const resolveEscalation = useCallback(async (id, body) => {
     try {
@@ -865,6 +922,15 @@ export default function Workspace() {
         <button className={`btn ghost ${view === 'home' ? 'active' : ''}`} onClick={() => setView(view === 'home' ? 'canvas' : 'home')}>
           {view === 'home' ? 'Canvas' : 'Home'}
         </button>
+        {needsYouOn ? (
+          <button
+            className={`btn ghost ny-btn ${view === 'needsyou' ? 'active' : ''}`}
+            onClick={() => setView(view === 'needsyou' ? 'canvas' : 'needsyou')}
+            title="Everything waiting on a human — escalations, conflicts, overdue reviews, failed runs, pending changes"
+          >
+            Needs you{attention && attention.length ? <span className="tray-badge">{attention.length}</span> : null}
+          </button>
+        ) : null}
         <button className={`btn ghost ${panel?.type === 'memory' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'memory' ? null : { type: 'memory' })}>Memory</button>
         <button className={`btn ghost ${panel?.type === 'workbook' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'workbook' ? null : { type: 'workbook' })}>Workbook</button>
         <button
@@ -938,7 +1004,23 @@ export default function Workspace() {
               toast={toast}
             />
           ) : null}
-          {state && view !== 'home' ? (
+          {state && view === 'needsyou' ? (
+            <NeedsYouView
+              rows={attention}
+              userEmail={user.email}
+              agentsById={agentsById}
+              people={state.people || []}
+              agents={state.agents || []}
+              onResolveEscalation={(id, body) => resolveEscalation(id, body).then(() => loadAttention())}
+              onAssign={assignEscalation}
+              onOpenMemory={() => setPanel({ type: 'memory' })}
+              onOpenRun={(ref) => { setView('canvas'); openRun(ref.id); }}
+              onOpenWorkbook={() => setPanel({ type: 'workbook' })}
+              onRetryRun={retryRun}
+              onExtendReview={extendReview}
+            />
+          ) : null}
+          {state && view !== 'home' && view !== 'needsyou' ? (
             <Canvas
               agents={state.agents || []}
               notes={state.notes || []}
@@ -979,7 +1061,17 @@ export default function Workspace() {
             </div>
           ) : null}
 
-          <Tray escalations={openEscalations} agentsById={agentsById} agents={state?.agents || []} people={state?.people || []} onResolve={resolveEscalation} onAssign={assignEscalation} />
+          <Tray
+            escalations={openEscalations}
+            agentsById={agentsById}
+            agents={state?.agents || []}
+            people={state?.people || []}
+            onResolve={resolveEscalation}
+            onAssign={assignEscalation}
+            badgeOnly={needsYouOn}
+            badgeCount={needsYouOn ? (attention || []).length : null}
+            onOpen={() => setView('needsyou')}
+          />
 
           {sidePanel}
 
@@ -1026,7 +1118,9 @@ export default function Workspace() {
           </span>
           <span className="hud-cell">
             <span className="hud-label">Needs you</span>
-            <span className={`hud-val mono ${openEscalations.length > 0 ? 'hud-hot' : ''}`}>{openEscalations.length}</span>
+            <span className={`hud-val mono ${(needsYouOn ? (attention || []).length : openEscalations.length) > 0 ? 'hud-hot' : ''}`}>
+              {needsYouOn ? (attention || []).length : openEscalations.length}
+            </span>
           </span>
           <span className="hud-cell hud-gauge-cell" title="Daily spend against budget">
             <span className="hud-label">Spend</span>

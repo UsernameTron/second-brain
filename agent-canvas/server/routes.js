@@ -52,6 +52,9 @@ router.get('/config', (req, res) => {
     // P1 reversible exposure: Inquiry Home as the signed-in landing view.
     // setSetting('inquiry_home', '0') reverts sign-in to the canvas, no deploy.
     inquiryHome: getSetting('inquiry_home', '1') === '1',
+    // P2 reversible exposure: unified NEEDS YOU view (Tray collapses to the
+    // badge). setSetting('needs_you', '0') reverts to the inline tray list.
+    needsYou: getSetting('needs_you', '1') === '1',
   });
 });
 
@@ -670,6 +673,31 @@ router.post('/canvases/:canvasId/agents/:agentId/dispatch', rateLimit('model'), 
   }
 });
 
+// P2: retry a terminal run as a NEW run (append-only, like everything else).
+// parentRunId carries the failed run so mode and initiated_by inherit —
+// retrying an ask/rehearse run must not silently produce an act run.
+router.post('/canvases/:canvasId/runs/:runId/retry', rateLimit('model'), auth.requireCanvas, (req, res) => {
+  if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused — resume before dispatching' });
+  const run = db.prepare('SELECT * FROM runs WHERE id = ? AND canvas_id = ?').get(req.params.runId, req.params.canvasId);
+  if (!run) return res.status(404).json({ error: 'run not found' });
+  if (['queued', 'running'].includes(run.status)) return res.status(409).json({ error: 'run is still active — only terminal runs can be retried' });
+  if (!db.prepare('SELECT id FROM agents WHERE id = ? AND canvas_id = ?').get(run.agent_id, req.params.canvasId)) {
+    return res.status(400).json({ error: 'the run’s agent is no longer on this canvas' });
+  }
+  try {
+    const retry = dispatchRun({
+      agentId: run.agent_id, canvasId: req.params.canvasId, instruction: run.instruction,
+      // initiatedBy is the human clicking retry — workspace tools act as them,
+      // never as the original initiator. Mode still inherits via parentRunId.
+      triggerKind: 'user', actor: req.user.email, initiatedBy: req.user.email, parentRunId: run.id,
+    });
+    audit('user', req.user.email, 'run.retry', { runId: run.id, retryRunId: retry.id, canvasId: req.params.canvasId });
+    res.json({ run: retry });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
 router.get('/canvases/:canvasId/runs/:runId/events', auth.requireCanvas, (req, res) => {
   const events = db.prepare('SELECT * FROM run_events WHERE run_id = ? AND canvas_id = ? ORDER BY id').all(req.params.runId, req.params.canvasId)
     .map((e) => ({ ...e, payload: JSON.parse(e.payload) }));
@@ -794,11 +822,18 @@ router.post('/canvases/:canvasId/memory', auth.requireCanvas, (req, res) => {
 });
 
 router.post('/canvases/:canvasId/memory/:entryId/correct', auth.requireCanvas, (req, res) => {
-  const { content, epistemic, reason = '', source = '', cites = [] } = req.body;
+  const { content, epistemic, reason = '', source = '', cites = [], review_at: reviewAt } = req.body;
+  if (reviewAt !== undefined && reviewAt !== null && Number.isNaN(Date.parse(reviewAt))) {
+    return res.status(400).json({ error: 'review_at must be an ISO date or null' });
+  }
   try {
     const result = memory.correctEntry({
       entryId: req.params.entryId, content, epistemic, reason, source,
       authorType: 'user', authorId: req.user.email, authorName: req.user.name || req.user.email, cites,
+      // Omitted = inherit the old review date; null = clear it; a date replaces
+      // it — without this an overdue entry's correction was overdue at birth
+      // (claude-review P1 on #182).
+      ...(reviewAt !== undefined ? { reviewAt } : {}),
     });
     if (result.conflict) {
       const escalation = createEscalation({
@@ -810,6 +845,30 @@ router.post('/canvases/:canvasId/memory/:entryId/correct', auth.requireCanvas, (
     }
     bus.emit('event', { type: 'memory_ripple', canvasId: req.params.canvasId, entry: result.entry, supersededId: req.params.entryId, affected: result.affected });
     res.json({ entry: result.entry, affected: result.affected });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// P2: "still true — extend review". An append-only re-affirmation: the same
+// content corrected over itself with a fresh review date, so the timeline
+// records that a human looked. Nothing is edited in place, ever.
+router.post('/canvases/:canvasId/memory/:entryId/reaffirm', auth.requireCanvas, (req, res) => {
+  const old = db.prepare('SELECT * FROM memory_entries WHERE id = ? AND canvas_id = ?').get(req.params.entryId, req.params.canvasId);
+  if (!old) return res.status(404).json({ error: 'memory entry not found' });
+  const reviewAt = req.body.review_at;
+  if (!reviewAt || Number.isNaN(Date.parse(reviewAt))) return res.status(400).json({ error: 'review_at must be an ISO date' });
+  try {
+    const result = memory.correctEntry({
+      entryId: old.id, content: old.content, epistemic: old.epistemic,
+      reason: 'review re-affirmed — still true', reviewAt,
+      authorType: 'user', authorId: req.user.email, authorName: req.user.name || req.user.email,
+    });
+    if (result.conflict) return res.status(409).json({ conflict: true, current: result.current });
+    // affected is deliberately empty: unchanged content is not a correction,
+    // so dependents are neither tainted nor flashed (codex P1 on #183).
+    bus.emit('event', { type: 'memory_ripple', canvasId: req.params.canvasId, entry: result.entry, supersededId: old.id, affected: [] });
+    res.json({ entry: result.entry });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -1018,7 +1077,8 @@ router.get('/escalations', (req, res) => {
 // escalations, memory conflicts, overdue reviews, failed runs, proposed
 // changesets). Access is decided per canvas BEFORE reading rows.
 router.get('/attention', (req, res) => {
-  const scope = ['mine', 'team', 'all'].includes(req.query.scope) ? req.query.scope : 'all';
+  const scopeRaw = qstr(req.query.scope); // repeated ?scope= arrives as an array — normalize first
+  const scope = ['mine', 'team', 'all'].includes(scopeRaw) ? scopeRaw : 'all';
   const canvasId = qstr(req.query.canvas_id) || null;
   let canvasIds;
   if (canvasId) {
