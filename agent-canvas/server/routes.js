@@ -8,6 +8,7 @@ const { db, tx, nowIso } = require('./db');
 const roster = require('./roster');
 const { audit, queryAudit, verifyChain, verifyChainTail } = require('./audit');
 const memory = require('./memory');
+const evidence = require('./evidence');
 const bus = require('./bus');
 const auth = require('./auth');
 const control = require('./orchestrator/control');
@@ -696,12 +697,18 @@ router.get('/canvases/:canvasId/runs/:runId/receipt', auth.requireCanvas, (req, 
   }
   const feedback = db.prepare('SELECT verdict, note, by, ts FROM run_feedback WHERE run_id = ?').get(run.id) || null;
 
+  // P1 evidence spine: the external artifacts this run touched, plus per-entry
+  // links. Private-surface URIs (gmail/drive/sheet) are the directing user's
+  // own view — redacted for everyone else. Purely additive keys.
+  const redact = (ref) => evidence.redactRef(ref, req.user.email);
+  const evMaps = evidence.evidenceMapsFor(written);
   res.json({
     run,
     provided: providedIds.map(hydrate).filter(Boolean),
     searches,
-    cited: written.map(hydrate).filter(Boolean),
+    cited: written.map(hydrate).filter(Boolean).map((e) => ({ ...e, evidence: (evMaps.get(e.id) || []).map(redact) })),
     deliveredCount: delivered.length,
+    evidence: evidence.refsForRun(run.id).map(redact),
     feedback,
   });
 });

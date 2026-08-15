@@ -3,9 +3,10 @@
 // a dedicated tool so it can be validated, audited, broadcast, and traced.
 
 const crypto = require('node:crypto');
-const { db, nowIso } = require('../db');
+const { db, nowIso, tx } = require('../db');
 const { audit } = require('../audit');
 const memory = require('../memory');
+const evidence = require('../evidence');
 const bus = require('../bus');
 
 // An item may cross between the same pair of agents at most this many times;
@@ -65,6 +66,7 @@ const COMMON_TOOLS = [
         epistemic: { type: 'string', enum: ['verified', 'inference', 'assumption'] },
         source: { type: 'string', description: 'Where this came from, e.g. "workbook row 4", "intake rules note"' },
         cites: { type: 'array', items: { type: 'string' }, description: 'IDs of memory entries that fed this one' },
+        evidence: { type: 'array', items: { type: 'string' }, description: 'Evidence ref ids (from [evidence_ref: ...] markers on this run\'s tool results) for the external artifacts this entry rests on' },
         kind: { type: 'string', enum: ['fact', 'decision', 'preference', 'constraint', 'outcome', 'feedback'], description: 'What kind of entry this is. Use "decision" for choices made, "constraint" for hard limits, "outcome" for results observed.' },
         subject: { type: 'string', description: 'Short canonical subject this entry is about, e.g. "acme corp", "icp scoring"' },
       },
@@ -82,6 +84,7 @@ const COMMON_TOOLS = [
         epistemic: { type: 'string', enum: ['verified', 'inference', 'assumption'] },
         reason: { type: 'string', description: 'Why the original was wrong' },
         cites: { type: 'array', items: { type: 'string' } },
+        evidence: { type: 'array', items: { type: 'string' }, description: 'Evidence ref ids (from [evidence_ref: ...] markers on this run\'s tool results) supporting the correction' },
       },
       required: ['entry_id', 'content', 'epistemic', 'reason'],
     },
@@ -585,7 +588,14 @@ async function executeTool(name, input, ctx) {
     try {
       const out = await mcp.callTool({ server: target.server, tool: target.tool, args: input, actorEmail: run.initiated_by });
       bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
-      return { content: externalContent(`mcp:${target.server}`, out) };
+      // Evidence ref recorded server-side, marker appended OUTSIDE the
+      // external_content wrapper — a payload cannot forge one.
+      const refId = evidence.recordRef({
+        runId: run.id, sourceKind: 'mcp', sourceId: `${target.server}/${target.tool}`,
+        title: `${target.server}: ${target.tool}`, directedBy: run.initiated_by,
+        meta: { args: JSON.stringify(input || {}).slice(0, 300) },
+      });
+      return { content: externalContent(`mcp:${target.server}`, out) + evidence.refMarker(refId) };
     } catch (err) {
       // The message is attacker-authored too — mcp/client.js interpolates the
       // server's own error text. Wrapping only the happy path leaves an escape
@@ -613,35 +623,56 @@ async function executeTool(name, input, ctx) {
     }
 
     case 'memory_write': {
-      const entry = memory.writeEntry({
-        canvasId: canvas.id,
-        content: input.content,
-        epistemic: input.epistemic,
-        authorType: 'agent',
-        authorId: agent.id,
-        authorName: agent.name,
-        source: input.source || '',
-        runId: run.id,
-        cites: input.cites || [],
-        kind: input.kind || null,
-        subject: input.subject || null,
-      });
+      // Write + evidence links land atomically: tx() is re-entrant, so
+      // writeEntry's own transaction joins this one, and an invalid or
+      // foreign-run evidence ref rejects the whole write.
+      let entry;
+      try {
+        entry = tx(() => {
+          const e = memory.writeEntry({
+            canvasId: canvas.id,
+            content: input.content,
+            epistemic: input.epistemic,
+            authorType: 'agent',
+            authorId: agent.id,
+            authorName: agent.name,
+            source: input.source || '',
+            runId: run.id,
+            cites: input.cites || [],
+            kind: input.kind || null,
+            subject: input.subject || null,
+          });
+          evidence.citeEvidence(e.id, input.evidence || [], run.id);
+          return e;
+        });
+      } catch (err) {
+        return { content: String(err.message || err), isError: true };
+      }
       bus.emit('event', { type: 'memory_write', canvasId: canvas.id, entry });
       return { content: JSON.stringify({ ok: true, entry_id: entry.id }) };
     }
 
     case 'memory_correct': {
-      const result = memory.correctEntry({
-        entryId: input.entry_id,
-        content: input.content,
-        epistemic: input.epistemic,
-        reason: input.reason,
-        authorType: 'agent',
-        authorId: agent.id,
-        authorName: agent.name,
-        runId: run.id,
-        cites: input.cites || [],
-      });
+      let result;
+      try {
+        result = tx(() => {
+          const r = memory.correctEntry({
+            entryId: input.entry_id,
+            content: input.content,
+            epistemic: input.epistemic,
+            reason: input.reason,
+            authorType: 'agent',
+            authorId: agent.id,
+            authorName: agent.name,
+            runId: run.id,
+            cites: input.cites || [],
+          });
+          if (!r.conflict) evidence.citeEvidence(r.entry.id, input.evidence || [], run.id);
+          return r;
+        });
+      } catch (err) {
+        return { content: String(err.message || err), isError: true };
+      }
       if (result.conflict) {
         const escalation = createEscalation({
           canvasId: canvas.id, runId: run.id, agentId: agent.id, kind: 'conflict',
@@ -878,7 +909,18 @@ async function executeTool(name, input, ctx) {
           default: throw new Error('unreachable');
         }
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
-        return { content: externalContent(`workspace:${name.replace(/^ws_/, '')}`, out) };
+        // Evidence refs for artifact READS only — searches, lists, and writes
+        // are not evidence. URI/source_id are redacted at read time for anyone
+        // but the directing user (evidence.redactRef).
+        let refId = null;
+        if (name === 'ws_drive_read') {
+          refId = evidence.recordRef({ runId: run.id, sourceKind: 'drive', sourceId: input.file_id, title: (out && out.name) || '', uri: `https://drive.google.com/open?id=${encodeURIComponent(input.file_id)}`, directedBy: initiator, meta: { mimeType: out && out.mimeType } });
+        } else if (name === 'ws_sheets_read') {
+          refId = evidence.recordRef({ runId: run.id, sourceKind: 'sheet', sourceId: input.spreadsheet_id, title: input.range || '', uri: `https://docs.google.com/spreadsheets/d/${encodeURIComponent(input.spreadsheet_id)}`, directedBy: initiator });
+        } else if (name === 'ws_gmail_read') {
+          refId = evidence.recordRef({ runId: run.id, sourceKind: 'gmail', sourceId: input.message_id, title: (out && out.subject) || '', directedBy: initiator });
+        }
+        return { content: externalContent(`workspace:${name.replace(/^ws_/, '')}`, out) + (refId ? evidence.refMarker(refId) : '') };
       } catch (err) {
         // Google errors interpolate attacker-controllable strings — a Drive file
         // NAME, for one, and anyone who can share a file chooses that.
@@ -916,7 +958,16 @@ async function executeTool(name, input, ctx) {
           out = await opsrunner.runArgv({ argv, actorEmail: initiator });
         }
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
-        return { content: externalContent('hubspot', out) };
+        // CRM reads are evidence; preview/apply are actions, not sources.
+        let refId = null;
+        if (name !== 'hs_preview_change' && name !== 'hs_apply_change') {
+          refId = evidence.recordRef({
+            runId: run.id, sourceKind: 'hubspot',
+            sourceId: `${input.type || ''}${input.id ? ':' + input.id : ''}`,
+            title: name, directedBy: initiator, meta: { tool: name },
+          });
+        }
+        return { content: externalContent('hubspot', out) + (refId ? evidence.refMarker(refId) : '') };
       } catch (err) {
         return { content: externalContent('hubspot', String(err.message || err)), isError: true };
       }
@@ -952,7 +1003,12 @@ async function executeTool(name, input, ctx) {
       try {
         const out = await dispatch.run(name, { ...input, actorEmail: initiator });
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
-        return { content: externalContent('enrichment', out) };
+        const refId = evidence.recordRef({
+          runId: run.id, sourceKind: 'enrichment',
+          sourceId: String(input.record_key || input.email || input.domain || ''),
+          title: name, directedBy: initiator, meta: { tool: name },
+        });
+        return { content: externalContent('enrichment', out) + evidence.refMarker(refId) };
       } catch (err) {
         return { content: externalContent('enrichment', String(err.message || err)), isError: true };
       }
