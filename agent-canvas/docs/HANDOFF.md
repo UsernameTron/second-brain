@@ -1,9 +1,50 @@
-# Agent Canvas — Session Handoff (2026-08-14, evening)
+# Agent Canvas — Session Handoff (2026-08-15)
 
 Fresh-context orientation. Verify anything load-bearing with a probe before
 depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
+
+## P1 SHIPPED TO MASTER (2026-08-15 — PRs #171–#175 + S6)
+
+All six slices of the approved P1 roadmap (Inquiry Home / evidence receipts /
+Explain Map — plan file `cosmic-pondering-axolotl`) are merged; suite
+**199/199** + S6. **NOT YET DEPLOYED** — production still runs
+`agent-canvas-00045-gwg` (pre-P1). Deploy per DEPLOY.md when ready; the
+migrations are additive and self-apply on boot.
+
+- **S1 evidence spine** (#171): `evidence_refs` + `evidence_citations`
+  (entry→external artifact — the one missing edge); refs minted at the tool
+  funnels with `[evidence_ref:]` markers OUTSIDE the external_content wrapper;
+  `memory_write.evidence` validated per-run, atomic; receipt gains additive
+  evidence keys with gmail/drive/sheet URI redaction for non-directing users.
+- **S2 inquiries + run modes** (#173): `POST /canvases/:id/inquiries` parses
+  AND dispatches (fast-tier pick, deterministic role fallback, tx rollback on
+  429); `runs.mode` act|ask|rehearse — one MUTATING_TOOLS set enforced at
+  offer AND call time; paid enrichment blocked outside act; escalation resume
+  inherits the escalating run's mode via parentRunId.
+- **S3 Inquiry Home** (#175): Home view is the signed-in landing (flag
+  `inquiry_home`, default on; `setSetting('inquiry_home','0')` reverts with
+  zero deploy). Answer-first cards: evidence chips, epistemic mix, conflict
+  flags, "Not found:" lines, full receipt. Signed-out card carries the value
+  prop + three questions.
+- **S4 Explain Map** (#174): `server/explain.js` over existing records only;
+  flow/evidence/impact lenses; 12-node deterministic collapse; verbs incl.
+  `contradicted` on superseded cites; map==receipt evidence parity is
+  test-asserted; "Read as steps" a11y alternative; "Why? → Map" in run detail.
+- **S5 native XLSX** (#172): exceljs 4.4.0 exact-pinned (uuid overridden to
+  ^11.1.1, npm audit clean); zip-bomb gate on declared uncompressed size;
+  CSV-quoted cells; row/cell/sheet/time budgets with honest truncation
+  markers; `XLSX_READ=0` kill-switch.
+- **S6 command modes** (this branch): Ask/Act/Rehearse segmented control in
+  the CommandBar; mode rides intent→confirm→dispatch.
+- All 16 claude-review findings across the five PRs were fixed in-PR and
+  re-reviewed clean (zip-bomb gate, mode laundering via escalation resume,
+  paid enrichment in read-only modes, pause race in routing, etc.).
+
+**Next:** deploy + in-app probe (ask a canonical question on Home, open
+receipt + map, confirm evidence parity), then the P2 plan (people/NEEDS YOU)
+when Pete calls it.
 
 ## MEMORY-OBSERVABILITY ROADMAP SHIPPED (2026-08-14, late session — PRs #152–#158)
 
