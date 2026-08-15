@@ -5,6 +5,45 @@ depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
 
+## P4 AGENT BUILDER — BUILT ON `feat/p4-agent-builder` (2026-08-15)
+
+Describe the job → review the proposed agent → rehearse it → publish it.
+Backend **257/257**, frontend **15/15**, build green. One PR for the phase.
+Not deployed. Reversible: `setSetting('agent_builder','0')`.
+
+Blockbuster upgrades beyond the roadmap text, none of it dropped:
+- **Enforceable Authority Map:** `agents.tools_json` allowlist over governed
+  (external) tools — Workspace/HubSpot/MCP/enrichment/web_search —
+  intersected at offer time and re-checked at execute time. NULL = legacy
+  full surface (pre-P4 agents untouched); builder agents ALWAYS carry an
+  explicit list drawn from a server-supplied, registry-grounded menu, so
+  "no implicit connector authority" is a server invariant, not UI copy.
+- **agent_versions + rollback:** append-only history on publish AND owner
+  prompt/tier PATCH (baseline snapshot first), owner-only rollback route
+  restoring config (never identity), audited with `restoredFrom`.
+- **Real budgets:** per-agent step/wall budgets are dispatch defaults.
+- **Rehearse-before-publish is a 409,** not a convention: publish requires a
+  COMPLETED rehearsal of the exact current proposal; any edit resets the gate.
+- **Shadow agents:** drafts rehearse on `agents.lifecycle='draft'` rows via
+  the untouched narrate-only machinery; drafts are filtered from canvas
+  state, inquiry/intent lists, assignment targets, handoffs, and NEEDS YOU.
+- **Publish ceremony:** owner-only, exact field diff returned + audited,
+  optional save-as-template (roster row). Hallucinated authority is dropped
+  and reported at propose time; generation failures 502 with no half-draft.
+- **Tool-surface review (agent) findings folded in:** web_search grantable
+  to research under the runner's own gates; a pre-publish lint flags prompt
+  text that would undercut the data/instruction boundary (reviewer aid,
+  surfaced in responses + UI + publish audit, never a block).
+
+UI: "Describe the job" is the default AddAgent tab (roster + advanced form
+remain); every permission renders as a plain-language checked line; the
+rehearsal transcript and publish diff render inline; Versions + Rollback
+live on the agent panel via `GET .../versions`. Done-when walk: permission
+legibility ✓ (menu descriptions, one line each), rehearsal before creation ✓
+(server 409), no implicit connector authority ✓ (intersection + execute
+recheck, tested end-to-end), publish diff exactness ✓ (field-by-field,
+tested). In-app signed-in acceptance on production still owed post-deploy.
+
 ## P3 EVIDENCE ROOMS — BUILT ON `feat/p3-evidence-rooms` (2026-08-15)
 
 All four slices built and test-verified in one session; **one PR for the
