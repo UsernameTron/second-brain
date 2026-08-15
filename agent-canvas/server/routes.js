@@ -827,6 +827,221 @@ router.post('/canvases/:canvasId/agents/:agentId/rollback/:versionId', auth.requ
   res.json({ agent: updated, diff, versionId: newVersionId });
 });
 
+// ---------- agent builder (P4): describe -> review -> rehearse -> publish ----------
+// Access rides the draft's canvas. Members with edit access can propose and
+// rehearse; PUBLISHING an agent (or changing one) is owner-only, matching the
+// owner-only prompt rule above.
+function draftAccess(req, res, { edit = true } = {}) {
+  const draft = builder.draftRow(req.params.draftId);
+  if (!draft) { res.status(404).json({ error: 'draft not found' }); return null; }
+  const check = edit ? auth.canEditCanvas(req.user, draft.canvas_id) : auth.canAccessCanvas(req.user, draft.canvas_id);
+  if (!check.ok) { res.status(check.status).json({ error: check.error }); return null; }
+  return draft;
+}
+
+router.get('/canvases/:canvasId/agent-drafts', auth.requireCanvas, (req, res) => {
+  const drafts = db.prepare("SELECT * FROM agent_drafts WHERE canvas_id = ? AND state != 'abandoned' ORDER BY created_at DESC LIMIT 50")
+    .all(req.params.canvasId).map((d) => ({ ...d, proposal: JSON.parse(d.proposal_json) }));
+  res.json({ drafts, menu: builder.unionMenu(auth.workspaceRole(req.user.email)) });
+});
+
+router.get('/agent-drafts/:draftId', (req, res) => {
+  const draft = draftAccess(req, res, { edit: false });
+  if (!draft) return;
+  const run = draft.rehearsal_run_id
+    ? db.prepare('SELECT id, status, mode, summary, error, created_at, ended_at FROM runs WHERE id = ?').get(draft.rehearsal_run_id)
+    : null;
+  res.json({ draft: { ...draft, proposal: JSON.parse(draft.proposal_json) }, rehearsalRun: run });
+});
+
+// Generate (or regenerate) the 9-part proposal from a plain-language brief.
+// The authority menu is server-supplied and re-validated after parsing, so a
+// generated configuration can never hold authority the deployment cannot
+// honor — hallucinated tool names are dropped, and the caller is told.
+router.post('/agent-drafts/propose', rateLimit('model'), asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const draftId = body.draft_id || null;
+  let canvasId = body.canvas_id;
+  let existing = null;
+  if (draftId) {
+    existing = draftAccess({ ...req, params: { draftId } }, res);
+    if (!existing) return;
+    canvasId = existing.canvas_id;
+  } else {
+    const check = auth.canEditCanvas(req.user, canvasId);
+    if (!check.ok) return res.status(check.status).json({ error: check.error });
+  }
+  const brief = String(body.brief || '').trim();
+  if (!brief) return res.status(400).json({ error: 'brief required — describe the job in plain language' });
+  if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused' });
+  if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted' });
+  if (body.target_agent_id && !db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(body.target_agent_id, canvasId)) {
+    return res.status(400).json({ error: 'target_agent_id is not an active agent on this canvas' });
+  }
+
+  const userRole = auth.workspaceRole(req.user.email);
+  const menu = builder.unionMenu(userRole);
+  let parsed;
+  try {
+    const abort = new AbortController();
+    const abortId = `builder-${crypto.randomUUID()}`;
+    control.registerAbort(abortId, abort);
+    const fastTier = tierConfig('fast');
+    let response;
+    try {
+      // Resolved at call time so tests can stub the module's callModel.
+      response = await require('./orchestrator/anthropic').callModel({
+        provider: fastTier.provider, model: fastTier.model, signal: abort.signal,
+        system: builder.PROPOSAL_SYSTEM(menu),
+        messages: [{ role: 'user', content: brief }],
+        maxTokens: 1500,
+      });
+    } finally {
+      control.unregisterAbort(abortId);
+    }
+    control.addUsage(response.model || fastTier.model, response.usage || {});
+    const raw = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+  } catch {
+    return res.status(502).json({ error: 'proposal generation failed to produce valid JSON — try again or rephrase the brief' });
+  }
+  let validated;
+  try {
+    validated = builder.validateProposal(parsed, { userRole });
+  } catch (err) {
+    return res.status(502).json({ error: `generated proposal was invalid (${err.message}) — try again or rephrase the brief` });
+  }
+
+  const ts = nowIso();
+  let draft;
+  if (existing) {
+    db.prepare("UPDATE agent_drafts SET brief = ?, proposal_json = ?, state = 'draft', rehearsal_run_id = NULL, updated_at = ? WHERE id = ?")
+      .run(brief, JSON.stringify(validated.proposal), ts, existing.id);
+    draft = builder.draftRow(existing.id);
+  } else {
+    const id = crypto.randomUUID();
+    db.prepare('INSERT INTO agent_drafts (id, canvas_id, brief, proposal_json, target_agent_id, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, canvasId, brief, JSON.stringify(validated.proposal), body.target_agent_id || null, req.user.email, ts, ts);
+    draft = builder.draftRow(id);
+  }
+  audit('user', req.user.email, 'agent_draft.propose', { draftId: draft.id, canvasId, dropped: validated.dropped });
+  res.json({ draft: { ...draft, proposal: validated.proposal }, dropped: validated.dropped, menu });
+}));
+
+// Owner/creator edits of a reviewed proposal (trim authority, budgets, text).
+// Any edit resets the rehearsal gate — what publishes must be what rehearsed.
+router.patch('/agent-drafts/:draftId', (req, res) => {
+  const draft = draftAccess(req, res);
+  if (!draft) return;
+  if (['published', 'abandoned'].includes(draft.state)) return res.status(409).json({ error: `draft is ${draft.state}` });
+  let validated;
+  try {
+    validated = builder.validateProposal((req.body || {}).proposal, { userRole: auth.workspaceRole(req.user.email) });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+  db.prepare("UPDATE agent_drafts SET proposal_json = ?, state = 'draft', rehearsal_run_id = NULL, updated_at = ? WHERE id = ?")
+    .run(JSON.stringify(validated.proposal), nowIso(), draft.id);
+  res.json({ draft: { ...builder.draftRow(draft.id), proposal: validated.proposal }, dropped: validated.dropped });
+});
+
+// Rehearse: one narrate-only run on the shadow agent carrying EXACTLY the
+// proposed config. The entire proven rehearse machinery applies — mutating
+// tools absent and refused, mode inherited by any child.
+router.post('/agent-drafts/:draftId/rehearse', rateLimit('model'), (req, res) => {
+  const draft = draftAccess(req, res);
+  if (!draft) return;
+  if (['published', 'abandoned'].includes(draft.state)) return res.status(409).json({ error: `draft is ${draft.state}` });
+  if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused' });
+  if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted' });
+  const proposal = JSON.parse(draft.proposal_json);
+  const scenario = String((req.body || {}).scenario || '').trim()
+    || `Rehearse your job. A representative task has arrived: ${draft.brief}. Walk through exactly how you would handle it.`;
+  let run = null;
+  let shadowId = null;
+  try {
+    tx(() => {
+      shadowId = builder.syncShadowAgent(draft, proposal);
+      run = dispatchRun({
+        agentId: shadowId, canvasId: draft.canvas_id, instruction: scenario,
+        triggerKind: 'user', actor: req.user.email, initiatedBy: req.user.email, mode: 'rehearse',
+      });
+      db.prepare("UPDATE agent_drafts SET state = 'rehearsed', rehearsal_run_id = ?, updated_at = ? WHERE id = ?")
+        .run(run.id, nowIso(), draft.id);
+    });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+  audit('user', req.user.email, 'agent_draft.rehearse', { draftId: draft.id, canvasId: draft.canvas_id, runId: run.id, shadowAgentId: shadowId });
+  res.json({ draft: builder.draftRow(draft.id), run: db.prepare('SELECT id, status, mode FROM runs WHERE id = ?').get(run.id) });
+});
+
+// Publish: owner-only ceremony. Requires a COMPLETED rehearsal of the exact
+// current proposal (any edit resets the gate). Returns and audits the exact
+// diff of what becomes active; writes the version row; optionally saves the
+// config as a reusable roster template.
+router.post('/agent-drafts/:draftId/publish', auth.requireOwner, (req, res) => {
+  const draft = builder.draftRow(req.params.draftId);
+  if (!draft) return res.status(404).json({ error: 'draft not found' });
+  if (draft.state !== 'rehearsed') return res.status(409).json({ error: 'rehearse before publishing — the rehearsal is the review' });
+  const run = db.prepare('SELECT id, status FROM runs WHERE id = ?').get(draft.rehearsal_run_id);
+  if (!run || run.status !== 'completed') {
+    return res.status(409).json({ error: `rehearsal run is ${run ? run.status : 'missing'} — publish requires a completed rehearsal` });
+  }
+  const proposal = JSON.parse(draft.proposal_json);
+  const fields = builder.agentFields(proposal);
+  const target = draft.target_agent_id
+    ? db.prepare("SELECT * FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(draft.target_agent_id, draft.canvas_id)
+    : null;
+  if (draft.target_agent_id && !target) return res.status(409).json({ error: 'target agent no longer exists on this canvas' });
+
+  let agentId = null;
+  let diff = null;
+  let versionId = null;
+  tx(() => {
+    if (target) {
+      builder.ensureBaseline(target, req.user.email);
+      diff = builder.diffConfigs(target, fields);
+      db.prepare('UPDATE agents SET name = ?, model_tier = ?, system_prompt = ?, tools_json = ?, step_budget = ?, wall_ms_budget = ? WHERE id = ?')
+        .run(fields.name, fields.model_tier, fields.system_prompt, fields.tools_json, fields.step_budget, fields.wall_ms_budget, target.id);
+      agentId = target.id;
+    } else {
+      const shadowId = builder.syncShadowAgent(draft, proposal);
+      db.prepare("UPDATE agents SET lifecycle = 'active' WHERE id = ?").run(shadowId);
+      diff = builder.diffConfigs(null, fields);
+      agentId = shadowId;
+    }
+    versionId = builder.recordVersion(db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId), {
+      source: 'publish', actor: req.user.email, draftId: draft.id,
+    });
+    db.prepare("UPDATE agent_drafts SET state = 'published', published_agent_id = ?, updated_at = ? WHERE id = ?")
+      .run(agentId, nowIso(), draft.id);
+    if (req.body && req.body.save_as_template) {
+      db.prepare(`INSERT INTO roster_agents (id, name, role, color, model_tier, system_prompt, enabled, default_on, sort, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 0, 999, ?, ?)`)
+        .run(crypto.randomUUID(), fields.name, proposal.role, fields.color || proposal.color, fields.model_tier, fields.system_prompt, nowIso(), nowIso());
+    }
+  });
+  audit('user', req.user.email, 'agent.publish', {
+    draftId: draft.id, canvasId: draft.canvas_id, agentId, versionId,
+    changed: Object.keys(diff), authority: proposal.authority, template: !!(req.body && req.body.save_as_template),
+  });
+  bus.emit('event', { type: 'canvas_structure', canvasId: draft.canvas_id });
+  res.json({ agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId), diff, versionId, draft: builder.draftRow(draft.id) });
+});
+
+router.post('/agent-drafts/:draftId/abandon', (req, res) => {
+  const draft = draftAccess(req, res);
+  if (!draft) return;
+  if (draft.created_by !== req.user.email && auth.workspaceRole(req.user.email) !== 'owner') {
+    return res.status(403).json({ error: 'only the draft creator or the owner can abandon it' });
+  }
+  if (draft.state === 'published') return res.status(409).json({ error: 'draft is already published' });
+  db.prepare("UPDATE agent_drafts SET state = 'abandoned', updated_at = ? WHERE id = ?").run(nowIso(), draft.id);
+  audit('user', req.user.email, 'agent_draft.abandon', { draftId: draft.id, canvasId: draft.canvas_id });
+  res.json({ draft: builder.draftRow(draft.id) });
+});
+
 // Owner-only: re-copy prompt + tier from the source roster entry. Name and
 // color stay — they are per-canvas identity the owner may have customized.
 router.post('/canvases/:canvasId/agents/:agentId/resync', auth.requireOwner, (req, res) => {
