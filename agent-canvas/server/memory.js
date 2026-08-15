@@ -352,4 +352,4 @@ function lineage(entryId) {
   };
 }
 
-module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, recordRetrievals, retrievalEngine, EPISTEMIC, KINDS, APPLIES_TO };
+module.exports = { writeEntry, correctEntry, getEntry, listEntries, lineage, downstreamOf, taintedSet, recordRunReads, recordRetrievals, retrievalEngine, citeMapsFor, EPISTEMIC, KINDS, APPLIES_TO };

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fmtUSD, timeAgo, fmtClock, short } from './api.js';
+import ExplainMap from './ExplainMap.jsx';
 
 export function Panel({ title, wide, onClose, headerExtra, children }) {
   return (
@@ -21,12 +22,13 @@ const RUN_STATUS_CLASS = {
   halted_paused: 'run-halted', halted_budget: 'run-halted',
 };
 
-export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, onDispatch, fetchRunEvents, fetchRunReceipt, onFeedback, onClose }) {
+export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvasId, onDispatch, fetchRunEvents, fetchRunReceipt, onFeedback, onSelectEntry, onClose }) {
   const [instruction, setInstruction] = useState('');
   const [sending, setSending] = useState(false);
   const [runSel, setRunSel] = useState(initialRunId);
   const [events, setEvents] = useState(null);
   const [receipt, setReceipt] = useState(null);
+  const [showMap, setShowMap] = useState(false);
 
   useEffect(() => { setRunSel(initialRunId); }, [initialRunId, agent.id]);
 
@@ -101,6 +103,14 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, onDisp
           <div className="run-detail-instr">{short(selRun.instruction, 240)}</div>
           {selRun.summary ? <div className="run-summary">{selRun.summary}</div> : null}
           {selRun.error ? <div className="run-error">⚠ {selRun.error}</div> : null}
+          {canvasId ? (
+            <button className="btn ghost small" aria-pressed={showMap} onClick={() => setShowMap(!showMap)}>
+              {showMap ? 'Hide map' : 'Why? → Map'}
+            </button>
+          ) : null}
+          {showMap && canvasId ? (
+            <ExplainMap canvasId={canvasId} runId={selRun.id} onSelectEntry={onSelectEntry} onSelectRun={setRunSel} />
+          ) : null}
           {receipt ? (
             <ContextReceipt
               receipt={receipt}

@@ -9,6 +9,7 @@ const roster = require('./roster');
 const { audit, queryAudit, verifyChain, verifyChainTail } = require('./audit');
 const memory = require('./memory');
 const evidence = require('./evidence');
+const explain = require('./explain');
 const bus = require('./bus');
 const auth = require('./auth');
 const control = require('./orchestrator/control');
@@ -711,6 +712,30 @@ router.get('/canvases/:canvasId/runs/:runId/receipt', auth.requireCanvas, (req, 
     evidence: evidence.refsForRun(run.id).map(redact),
     feedback,
   });
+});
+
+// P1 Explain Map: run-centric graph over existing records; three lenses.
+// Cross-canvas impact entries are redacted with the lineage-route pattern —
+// present but stubbed, never silently dropped.
+router.get('/canvases/:canvasId/runs/:runId/explain-map', auth.requireCanvas, (req, res) => {
+  const run = db.prepare('SELECT id FROM runs WHERE id = ? AND canvas_id = ?').get(req.params.runId, req.params.canvasId);
+  if (!run) return res.status(404).json({ error: 'run not found' });
+  let map;
+  try {
+    map = explain.buildExplainMap(run.id, { lens: qstr(req.query.lens) || 'flow' });
+  } catch (err) {
+    return res.status(err.status || 500).json({ error: err.message });
+  }
+  const accessCache = new Map();
+  const canSee = (canvasId) => {
+    if (!canvasId || canvasId === req.params.canvasId) return true;
+    if (!accessCache.has(canvasId)) accessCache.set(canvasId, auth.canAccessCanvas(req.user, canvasId).ok);
+    return accessCache.get(canvasId);
+  };
+  map.nodes = map.nodes.map((n) => (n.meta && n.meta.canvasId && !canSee(n.meta.canvasId)
+    ? { ...n, label: '(restricted — on a canvas you cannot access)', meta: { redacted: true }, redacted: true }
+    : n));
+  res.json(map);
 });
 
 router.post('/canvases/:canvasId/runs/:runId/feedback', auth.requireCanvas, (req, res) => {
