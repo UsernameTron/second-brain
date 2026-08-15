@@ -239,6 +239,16 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
                 <li key={r.id}><span className="chip">{r.sourceKind}</span> {r.title || '(untitled)'} <span className="dim">— stays internal</span></li>
               ))}
             </ul>
+            {(exportPreview.contentWarnings || []).length > 0 ? (
+              <>
+                <p><b>Mentions internal sources — review wording:</b> these items ship as written, but their text names a private-surface source.</p>
+                <ul className="room-list">
+                  {exportPreview.contentWarnings.map((w) => (
+                    <li key={w.id}><span className="chip">{w.kind}</span> {w.content} <span className="dim">— names: {w.matchedTitles.join(', ')}</span></li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
             <button className="btn primary small" onClick={downloadExport}>Download client-safe HTML</button>
           </div>
         ) : null}
