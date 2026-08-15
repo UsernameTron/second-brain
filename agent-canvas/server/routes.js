@@ -924,8 +924,9 @@ router.post('/agent-drafts/propose', rateLimit('model'), asyncRoute(async (req, 
       .run(id, canvasId, brief, JSON.stringify(validated.proposal), body.target_agent_id || null, req.user.email, ts, ts);
     draft = builder.draftRow(id);
   }
-  audit('user', req.user.email, 'agent_draft.propose', { draftId: draft.id, canvasId, dropped: validated.dropped });
-  res.json({ draft: { ...draft, proposal: validated.proposal }, dropped: validated.dropped, menu });
+  const warnings = builder.lintProposal(validated.proposal);
+  audit('user', req.user.email, 'agent_draft.propose', { draftId: draft.id, canvasId, dropped: validated.dropped, warnings: warnings.length });
+  res.json({ draft: { ...draft, proposal: validated.proposal }, dropped: validated.dropped, warnings, menu });
 }));
 
 // Owner/creator edits of a reviewed proposal (trim authority, budgets, text).
@@ -942,7 +943,7 @@ router.patch('/agent-drafts/:draftId', (req, res) => {
   }
   db.prepare("UPDATE agent_drafts SET proposal_json = ?, state = 'draft', rehearsal_run_id = NULL, updated_at = ? WHERE id = ?")
     .run(JSON.stringify(validated.proposal), nowIso(), draft.id);
-  res.json({ draft: { ...builder.draftRow(draft.id), proposal: validated.proposal }, dropped: validated.dropped });
+  res.json({ draft: { ...builder.draftRow(draft.id), proposal: validated.proposal }, dropped: validated.dropped, warnings: builder.lintProposal(validated.proposal) });
 });
 
 // Rehearse: one narrate-only run on the shadow agent carrying EXACTLY the
@@ -1022,12 +1023,14 @@ router.post('/agent-drafts/:draftId/publish', auth.requireOwner, (req, res) => {
         .run(crypto.randomUUID(), fields.name, proposal.role, fields.color || proposal.color, fields.model_tier, fields.system_prompt, nowIso(), nowIso());
     }
   });
+  const warnings = builder.lintProposal(proposal);
   audit('user', req.user.email, 'agent.publish', {
     draftId: draft.id, canvasId: draft.canvas_id, agentId, versionId,
     changed: Object.keys(diff), authority: proposal.authority, template: !!(req.body && req.body.save_as_template),
+    promptWarnings: warnings.length,
   });
   bus.emit('event', { type: 'canvas_structure', canvasId: draft.canvas_id });
-  res.json({ agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId), diff, versionId, draft: builder.draftRow(draft.id) });
+  res.json({ agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId), diff, versionId, warnings, draft: builder.draftRow(draft.id) });
 });
 
 router.post('/agent-drafts/:draftId/abandon', (req, res) => {

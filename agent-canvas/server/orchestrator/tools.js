@@ -597,9 +597,17 @@ function toolsForRole(role, { userRole = 'member', mode = 'act', authority = nul
 // governed tool this deployment can actually honor right now, for this role.
 // Server-supplied, so generated configuration can never invent authority.
 function authorityMenu(role, { userRole = 'member' } = {}) {
-  return toolsForRole(role, { userRole, mode: 'act' })
+  const menu = toolsForRole(role, { userRole, mode: 'act' })
     .filter((t) => governedTool(t.name))
     .map((t) => ({ name: t.name, description: String(t.description || '').split('. ')[0] }));
+  // web_search rides outside the registry (runner.js pushes it per-run), so
+  // the menu adds it under the same gates the runner applies — otherwise a
+  // builder research agent could never be granted real web search.
+  if (role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0'
+    && require('./anthropic').currentProvider() !== 'gemini') {
+    menu.push({ name: 'web_search', description: 'Search the public web (Claude providers only)' });
+  }
+  return menu;
 }
 
 function getRowByIndex(canvasId, rowIndex) {

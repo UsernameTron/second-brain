@@ -31,6 +31,7 @@ export default function AgentBuilder({ canvasId, isOwner, onPublished, toast }) 
   const [menu, setMenu] = useState([]);
   const [rehearsal, setRehearsal] = useState(null); // run row or null
   const [publishResult, setPublishResult] = useState(null);
+  const [warnings, setWarnings] = useState([]);
   const [saveTemplate, setSaveTemplate] = useState(false);
   const pollRef = useRef(null);
 
@@ -45,6 +46,7 @@ export default function AgentBuilder({ canvasId, isOwner, onPublished, toast }) 
       setMenu(d.menu);
       setRehearsal(null);
       setPublishResult(null);
+      setWarnings(d.warnings || []);
       if (d.dropped.length) toast(`Dropped ungrantable authority: ${d.dropped.join(', ')}`, 'warn');
     } catch (e) { toast(e.message); } finally { setBusy(false); }
   };
@@ -53,6 +55,7 @@ export default function AgentBuilder({ canvasId, isOwner, onPublished, toast }) 
     try {
       const d = await api(`/api/agent-drafts/${draft.id}`, { method: 'PATCH', body: { proposal } });
       setDraft(d.draft);
+      setWarnings(d.warnings || []);
       setRehearsal(null); // any edit resets the rehearsal gate
     } catch (e) { toast(e.message); }
   };
@@ -138,6 +141,12 @@ export default function AgentBuilder({ canvasId, isOwner, onPublished, toast }) 
         <b>{p.name}</b> <span className="chip">{p.role}</span> <span className={`chip tier-${p.model_tier}`}>{p.model_tier} — {TIER_HINT[p.model_tier]}</span>
         <button className="btn ghost small" onClick={() => { setDraft(null); setRehearsal(null); }}>← start over</button>
       </div>
+      {warnings.length ? (
+        <div className="builder-warnings" role="alert">
+          <b>Review these lines before publishing:</b>
+          <ul>{warnings.map((w, i) => <li key={i}><span className="chip">{w.field.replace(/_/g, ' ')}</span> {w.warning}</li>)}</ul>
+        </div>
+      ) : null}
       <section><h4>Business purpose</h4><p>{p.business_purpose}</p></section>
       <section><h4>Inputs → outputs</h4><p>{p.inputs} → {p.outputs}</p></section>
       <section>

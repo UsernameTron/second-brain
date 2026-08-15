@@ -102,6 +102,28 @@ function validateProposal(raw, { userRole = 'member' } = {}) {
   return { proposal: p, dropped };
 }
 
+// Pre-publish lint (tool-surface review finding #2): generated prompt text
+// lands verbatim in a trusted system prompt, and the only reader is a human.
+// Flag phrases that textually undercut the runner's data/instruction
+// boundary so the owner's attention is pointed at them — a reviewer aid,
+// never an automatic block.
+const PROMPT_LINT_PATTERNS = [
+  [/treat\s+(retrieved|external|fetched)\s+.{0,30}(content|data|text)\s+.{0,20}as\s+instructions/i, 'tells the agent to treat external content as instructions'],
+  [/ignore\s+(previous|prior|the system|any system)\s+(instructions|prompt|rules)/i, 'tells the agent to ignore its system rules'],
+  [/follow\s+(any|all)\s+instructions\s+(found|embedded|contained)/i, 'tells the agent to follow embedded instructions'],
+  [/disregard\s+.{0,25}(guardrails|safety|rules|contract|boundary)/i, 'tells the agent to disregard guardrails'],
+];
+
+function lintProposal(p) {
+  const warnings = [];
+  for (const field of ['operating_instructions', 'escalation_conditions', 'business_purpose']) {
+    for (const [re, why] of PROMPT_LINT_PATTERNS) {
+      if (re.test(p[field] || '')) warnings.push({ field, warning: why });
+    }
+  }
+  return warnings;
+}
+
 // The system prompt a published agent runs with, assembled from the reviewed
 // proposal — so what the owner read IS what the agent becomes.
 function renderSystemPrompt(p) {
@@ -158,5 +180,5 @@ Principle of least authority: an agent that only reads should hold no write tool
 
 module.exports = {
   recordVersion, ensureBaseline, listVersions, getVersion, diffConfigs,
-  BUILDER_ROLES, draftRow, unionMenu, validateProposal, renderSystemPrompt, agentFields, syncShadowAgent, PROPOSAL_SYSTEM,
+  BUILDER_ROLES, draftRow, unionMenu, validateProposal, renderSystemPrompt, agentFields, syncShadowAgent, PROPOSAL_SYSTEM, lintProposal,
 };

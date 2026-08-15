@@ -1464,3 +1464,5 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .authority-desc { color: var(--dim, #888); }
 .rehearsal-block { border: 1px solid var(--line, #333); border-radius: 8px; padding: 10px; }
 .rehearsal-summary { white-space: pre-wrap; font-size: 13px; }
+.builder-warnings { border: 1px solid #b45309; border-radius: 8px; padding: 10px; font-size: 13px; }
+.builder-warnings ul { margin: 6px 0 0; padding-left: 18px; }
