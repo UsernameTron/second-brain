@@ -26,6 +26,8 @@ export default function Workspace() {
   const [roster, setRoster] = useState([]);
   const [rosterChecked, setRosterChecked] = useState(null); // null until roster loads
   const [addAgentOpen, setAddAgentOpen] = useState(false);
+  const [addPersonOpen, setAddPersonOpen] = useState(false);
+  const [newPersonEmail, setNewPersonEmail] = useState('');
   const [canvasId, setCanvasId] = useState(null);
   const [state, setState] = useState(null); // full GET /api/canvases/:id payload
   const [memory, setMemory] = useState([]);
@@ -384,7 +386,7 @@ export default function Workspace() {
   };
 
   function applyMove(kind, id, x, y) {
-    const key = { agent: 'agents', note: 'notes', task: 'tasks', file: 'files' }[kind];
+    const key = { agent: 'agents', note: 'notes', task: 'tasks', file: 'files', person: 'people' }[kind];
     if (!key) return;
     setState((s) => s && ({ ...s, [key]: s[key].map((n) => (n.id === id ? { ...n, x, y } : n)) }));
   }
@@ -450,6 +452,39 @@ export default function Workspace() {
     return d.run;
   }, []);
 
+  // P2: assignment routes attention, never resolves it.
+  const assignEscalation = useCallback(async (id, body) => {
+    try {
+      await api(`/api/escalations/${id}/assign`, { method: 'POST', body });
+      loadEscalations().catch(() => {});
+      toast('Assigned', 'ok');
+    } catch (e) {
+      toast(e.message);
+    }
+  }, [loadEscalations, toast]);
+
+  const assignTask = useCallback(async (taskId, body) => {
+    try {
+      await api(`/api/canvases/${canvasIdRef.current}/tasks/${taskId}`, { method: 'PATCH', body });
+      scheduleRefetch();
+      toast('Assigned', 'ok');
+    } catch (e) {
+      toast(e.message);
+    }
+  }, [scheduleRefetch, toast]);
+
+  const addPerson = useCallback(async (email) => {
+    try {
+      await api(`/api/canvases/${canvasIdRef.current}/people`, { method: 'POST', body: { email } });
+      scheduleRefetch();
+      toast('Person added to the canvas', 'ok');
+      return true;
+    } catch (e) {
+      toast(e.message);
+      return false;
+    }
+  }, [scheduleRefetch, toast]);
+
   const resolveEscalation = useCallback(async (id, body) => {
     try {
       await api(`/api/escalations/${id}/resolve`, { method: 'POST', body });
@@ -510,6 +545,7 @@ export default function Workspace() {
     (state.tasks || []).forEach((t, i) => moves.push({ kind: 'task', id: t.id, x: 150 + i * 250, y: 20 }));
     (state.notes || []).forEach((n, i) => moves.push({ kind: 'note', id: n.id, x: 150 + i * 260, y: 640 }));
     (state.files || []).forEach((f, i) => moves.push({ kind: 'file', id: f.id, x: 150 + i * 240, y: 840 }));
+    (state.people || []).forEach((p, i) => moves.push({ kind: 'person', id: p.id, x: 150 + i * 240, y: -140 }));
     for (const m of moves) applyMove(m.kind, m.id, m.x, m.y);
     setFitSignal((n) => n + 1);
     try {
@@ -674,7 +710,7 @@ export default function Workspace() {
     } else if (panel.type === 'note') {
       const note = (state.notes || []).find((n) => n.id === panel.id);
       const task = panel.taskId ? (state.tasks || []).find((t) => t.id === panel.taskId) : null;
-      sidePanel = <NotePanel note={note} task={task} onSave={saveNote} onClose={() => setPanel(null)} />;
+      sidePanel = <NotePanel note={note} task={task} people={state.people || []} agents={state.agents || []} onAssignTask={assignTask} onSave={saveNote} onClose={() => setPanel(null)} />;
     } else if (panel.type === 'memory') {
       sidePanel = (
         <MemoryPanel
@@ -773,6 +809,37 @@ export default function Workspace() {
         )}
         {canvasId && state ? (
           <button className="icon-btn agent-add-btn" title="Add an agent to this canvas" onClick={() => setAddAgentOpen(true)}>+ Agent</button>
+        ) : null}
+        {canvasId && state ? (
+          addPersonOpen ? (
+            <div className="canvas-new-pop">
+              <input
+                className="canvas-new-input"
+                autoFocus
+                placeholder="person@cloudtechgurus.com"
+                value={newPersonEmail}
+                onChange={(e) => setNewPersonEmail(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter' && newPersonEmail.trim()) {
+                    if (await addPerson(newPersonEmail.trim())) { setAddPersonOpen(false); setNewPersonEmail(''); }
+                  }
+                  if (e.key === 'Escape') { setAddPersonOpen(false); setNewPersonEmail(''); }
+                }}
+              />
+              <div className="canvas-new-actions">
+                <button className="btn ghost small" onClick={() => { setAddPersonOpen(false); setNewPersonEmail(''); }}>Cancel</button>
+                <button
+                  className="btn primary small"
+                  disabled={!newPersonEmail.trim()}
+                  onClick={async () => { if (await addPerson(newPersonEmail.trim())) { setAddPersonOpen(false); setNewPersonEmail(''); } }}
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button className="icon-btn" title="Add a person card — the email must be on the workspace allowlist" onClick={() => setAddPersonOpen(true)}>+ Person</button>
+          )
         ) : null}
         {isOwner && canvasId ? (
           <button
@@ -877,6 +944,7 @@ export default function Workspace() {
               notes={state.notes || []}
               tasks={state.tasks || []}
               files={state.files || []}
+              people={state.people || []}
               canvasId={canvasId}
               handoffs={handoffs}
               memoryMap={memoryMap}
@@ -911,7 +979,7 @@ export default function Workspace() {
             </div>
           ) : null}
 
-          <Tray escalations={openEscalations} agentsById={agentsById} agents={state?.agents || []} onResolve={resolveEscalation} />
+          <Tray escalations={openEscalations} agentsById={agentsById} agents={state?.agents || []} people={state?.people || []} onResolve={resolveEscalation} onAssign={assignEscalation} />
 
           {sidePanel}
 

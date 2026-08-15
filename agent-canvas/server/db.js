@@ -435,4 +435,28 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
 );
 `);
 
+// ===== P2 people: presentation-only human cards on the canvas =====
+// Identity stays in users/allowlist/canvas_members — a person row may only be
+// created for an email already allowlisted (validated in routes.js), and holds
+// nothing but display/position. Never a second identity store.
+db.exec(`
+CREATE TABLE IF NOT EXISTS canvas_people (
+  id TEXT PRIMARY KEY,
+  canvas_id TEXT NOT NULL REFERENCES canvases(id),
+  email TEXT NOT NULL COLLATE NOCASE,
+  display TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL DEFAULT '#8b5cf6',
+  x REAL NOT NULL DEFAULT 0,
+  y REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  UNIQUE (canvas_id, email)
+);
+`);
+// P2 human assignment: tasks/escalations assignable to a person OR an agent.
+// Enum/email validation lives in routes.js (SQLite can't retro-add CHECKs).
+try { db.exec('ALTER TABLE tasks ADD COLUMN assignee_email TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE escalations ADD COLUMN owner_email TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE escalations ADD COLUMN owner_agent_id TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE escalations ADD COLUMN due_at TEXT'); } catch { /* already present */ }
+
 module.exports = { db, tx, nowIso, getSetting, setSetting, DB_PATH };

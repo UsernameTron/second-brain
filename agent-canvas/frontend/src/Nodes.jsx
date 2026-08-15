@@ -1,11 +1,12 @@
 import React, { useRef } from 'react';
-import { fmtUSD, fmtBytes, short } from './api.js';
+import { fmtUSD, fmtBytes, short, initials } from './api.js';
 
 export const NODE_SIZES = {
   agent: { w: 232, h: 122 },
   note: { w: 222, h: 120 },
   task: { w: 210, h: 100 },
   file: { w: 200, h: 72 },
+  person: { w: 210, h: 84 },
 };
 
 // Shared draggable shell: distinguishes click from drag (4px threshold),
@@ -120,6 +121,28 @@ export function TaskNode({ task, ...shell }) {
       </div>
       <div className="node-body">{short(task.description, 90)}</div>
       <span className={`chip task-st tk-${task.status}`}>{task.status.replace('_', ' ')}</span>
+    </NodeShell>
+  );
+}
+
+// P2: presentation-only human card — identity lives in the allowlist.
+export function PersonNode({ person, ...shell }) {
+  return (
+    <NodeShell
+      kind="person"
+      id={person.id}
+      x={person.x}
+      y={person.y}
+      className="person-node"
+      style={{ '--c': person.color }}
+      {...shell}
+    >
+      <div className="agent-head">
+        <span className="person-avatar" aria-hidden="true">{initials(person.display || person.email)}</span>
+        <span className="agent-name">{person.display || person.email}</span>
+        <span className="chip role-chip">human</span>
+      </div>
+      <div className="node-body mono">{short(person.email, 34)}</div>
     </NodeShell>
   );
 }

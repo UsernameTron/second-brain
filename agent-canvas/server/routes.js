@@ -526,6 +526,7 @@ router.get('/canvases/:canvasId', auth.requireCanvas, (req, res) => {
   const agents = db.prepare('SELECT * FROM agents WHERE canvas_id = ?').all(canvasId);
   const notes = db.prepare('SELECT * FROM notes WHERE canvas_id = ?').all(canvasId);
   const tasks = db.prepare('SELECT * FROM tasks WHERE canvas_id = ?').all(canvasId);
+  const people = db.prepare('SELECT * FROM canvas_people WHERE canvas_id = ?').all(canvasId);
   const files = db.prepare('SELECT id, canvas_id, name, mime, size, x, y, uploaded_by, created_at FROM files WHERE canvas_id = ?').all(canvasId);
   const rows = db.prepare('SELECT id, row_index, data, status, notes FROM sheet_rows WHERE canvas_id = ? ORDER BY row_index').all(canvasId)
     .map((r) => ({ ...r, data: JSON.parse(r.data) }));
@@ -541,7 +542,7 @@ router.get('/canvases/:canvasId', auth.requireCanvas, (req, res) => {
         .map((c) => ({ ...c, cite_entry_ids: JSON.parse(c.cite_entry_ids) })),
     }));
   res.json({
-    canvas: req.canvas, agents, notes, tasks, files, rows, escalations, handoffs, runs, changesets,
+    canvas: req.canvas, agents, notes, tasks, people, files, rows, escalations, handoffs, runs, changesets,
     budget: control.getDailyUsage(), queue: queueState(),
   });
 });
@@ -902,6 +903,7 @@ router.post('/canvases/:canvasId/tasks', auth.requireCanvas, (req, res) => {
   const ts = nowIso();
   db.prepare('INSERT INTO tasks (id, canvas_id, title, description, status, assignee_agent_id, x, y, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .run(id, req.params.canvasId, req.body.title || 'Task', req.body.description || '', 'todo', req.body.assignee_agent_id || null, req.body.x || 0, req.body.y || 0, ts, ts);
+  audit('user', req.user.email, 'task.create', { taskId: id, canvasId: req.params.canvasId });
   bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
   res.json({ task: db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) });
 });
@@ -909,9 +911,52 @@ router.post('/canvases/:canvasId/tasks', auth.requireCanvas, (req, res) => {
 router.patch('/canvases/:canvasId/tasks/:taskId', auth.requireCanvas, (req, res) => {
   const task = db.prepare('SELECT * FROM tasks WHERE id = ? AND canvas_id = ?').get(req.params.taskId, req.params.canvasId);
   if (!task) return res.status(404).json({ error: 'task not found' });
-  db.prepare('UPDATE tasks SET title = ?, description = ?, status = ?, x = ?, y = ?, updated_at = ? WHERE id = ?')
+  // P2: assignable to a person OR an agent. null clears; undefined keeps.
+  let assigneeEmail = task.assignee_email;
+  let assigneeAgentId = task.assignee_agent_id;
+  if (req.body.assignee_email !== undefined) {
+    const email = req.body.assignee_email === null ? null : String(req.body.assignee_email).toLowerCase().trim();
+    if (email && !auth.allowlistEntry(email)) return res.status(400).json({ error: 'assignee_email is not on the workspace allowlist' });
+    assigneeEmail = email;
+  }
+  if (req.body.assignee_agent_id !== undefined) {
+    const agentId = req.body.assignee_agent_id;
+    if (agentId && !db.prepare('SELECT id FROM agents WHERE id = ? AND canvas_id = ?').get(agentId, req.params.canvasId)) {
+      return res.status(400).json({ error: 'assignee agent is not on this canvas' });
+    }
+    assigneeAgentId = agentId;
+  }
+  db.prepare('UPDATE tasks SET title = ?, description = ?, status = ?, assignee_email = ?, assignee_agent_id = ?, x = ?, y = ?, updated_at = ? WHERE id = ?')
     .run(req.body.title ?? task.title, req.body.description ?? task.description, req.body.status ?? task.status,
-      req.body.x ?? task.x, req.body.y ?? task.y, nowIso(), task.id);
+      assigneeEmail, assigneeAgentId, req.body.x ?? task.x, req.body.y ?? task.y, nowIso(), task.id);
+  audit('user', req.user.email, 'task.update', { taskId: task.id, canvasId: req.params.canvasId });
+  bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
+  res.json({ ok: true, task: db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id) });
+});
+
+// ---------- people (P2): presentation-only human cards ----------
+// Identity is the allowlist; a card is just where a person sits on the canvas.
+router.post('/canvases/:canvasId/people', auth.requireCanvas, (req, res) => {
+  const email = String(req.body.email || '').toLowerCase().trim();
+  if (!auth.allowlistEntry(email)) return res.status(400).json({ error: 'email is not on the workspace allowlist' });
+  const id = crypto.randomUUID();
+  try {
+    db.prepare('INSERT INTO canvas_people (id, canvas_id, email, display, color, x, y, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, req.params.canvasId, email, String(req.body.display || email.split('@')[0]).slice(0, 80),
+        String(req.body.color || '#8b5cf6').slice(0, 16), req.body.x || 0, req.body.y || 0, nowIso());
+  } catch {
+    return res.status(409).json({ error: 'that person already has a card on this canvas' });
+  }
+  audit('user', req.user.email, 'person.create', { canvasId: req.params.canvasId, email });
+  bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
+  res.json({ person: db.prepare('SELECT * FROM canvas_people WHERE id = ?').get(id) });
+});
+
+router.delete('/canvases/:canvasId/people/:personId', auth.requireCanvas, (req, res) => {
+  const person = db.prepare('SELECT * FROM canvas_people WHERE id = ? AND canvas_id = ?').get(req.params.personId, req.params.canvasId);
+  if (!person) return res.status(404).json({ error: 'person not found' });
+  db.prepare('DELETE FROM canvas_people WHERE id = ?').run(person.id);
+  audit('user', req.user.email, 'person.delete', { canvasId: req.params.canvasId, email: person.email });
   bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
   res.json({ ok: true });
 });
@@ -919,9 +964,9 @@ router.patch('/canvases/:canvasId/tasks/:taskId', auth.requireCanvas, (req, res)
 // ---------- node positions (notes/files/tasks share the same shape) ----------
 router.post('/canvases/:canvasId/positions', auth.requireCanvas, (req, res) => {
   const { kind, id, x, y } = req.body;
-  const tables = { agent: 'agents', note: 'notes', task: 'tasks', file: 'files' };
+  const tables = { agent: 'agents', note: 'notes', task: 'tasks', file: 'files', person: 'canvas_people' };
   const table = tables[kind];
-  if (!table) return res.status(400).json({ error: 'kind must be agent|note|task|file' });
+  if (!table) return res.status(400).json({ error: 'kind must be agent|note|task|file|person' });
   db.prepare(`UPDATE ${table} SET x = ?, y = ? WHERE id = ? AND canvas_id = ?`).run(x, y, id, req.params.canvasId);
   bus.emit('event', { type: 'node_move', canvasId: req.params.canvasId, kind, id, x, y, by: req.user.email });
   res.json({ ok: true });
@@ -966,6 +1011,44 @@ router.get('/escalations', (req, res) => {
     .map((e) => ({ ...e, context: JSON.parse(e.context) }));
   const visible = all.filter((e) => !e.canvas_id || auth.canAccessCanvas(req.user, e.canvas_id).ok);
   res.json({ escalations: visible });
+});
+
+// P2: assign an open escalation to a person (allowlisted email) or an agent,
+// with an optional due date. Assignment is attention routing, never resolution.
+router.post('/escalations/:id/assign', (req, res) => {
+  const escalation = db.prepare('SELECT * FROM escalations WHERE id = ?').get(req.params.id);
+  if (!escalation) return res.status(404).json({ error: 'escalation not found' });
+  if (escalation.status !== 'open') return res.status(409).json({ error: 'only open escalations can be assigned' });
+  if (escalation.canvas_id) {
+    const check = auth.canAccessCanvas(req.user, escalation.canvas_id);
+    if (!check.ok) return res.status(check.status).json({ error: check.error });
+  }
+  const { owner_email, owner_agent_id, due_at } = req.body;
+  if (owner_email && owner_agent_id) return res.status(400).json({ error: 'assign to a person OR an agent, not both' });
+  let email = escalation.owner_email;
+  let agentId = escalation.owner_agent_id;
+  if (owner_email !== undefined) {
+    email = owner_email === null ? null : String(owner_email).toLowerCase().trim();
+    if (email && !auth.allowlistEntry(email)) return res.status(400).json({ error: 'owner_email is not on the workspace allowlist' });
+    if (email) agentId = null;
+  }
+  if (owner_agent_id !== undefined) {
+    agentId = owner_agent_id;
+    if (agentId && !db.prepare('SELECT id FROM agents WHERE id = ? AND canvas_id = ?').get(agentId, escalation.canvas_id)) {
+      return res.status(400).json({ error: 'owner agent is not on this escalation’s canvas' });
+    }
+    if (agentId) email = null;
+  }
+  let due = escalation.due_at;
+  if (due_at !== undefined) {
+    if (due_at !== null && Number.isNaN(Date.parse(due_at))) return res.status(400).json({ error: 'due_at must be an ISO date or null' });
+    due = due_at;
+  }
+  db.prepare('UPDATE escalations SET owner_email = ?, owner_agent_id = ?, due_at = ? WHERE id = ?')
+    .run(email, agentId, due, escalation.id);
+  audit('user', req.user.email, 'escalation.assign', { escalationId: escalation.id, ownerEmail: email, ownerAgentId: agentId, dueAt: due });
+  bus.emit('event', { type: 'escalation', canvasId: escalation.canvas_id, escalation: { ...db.prepare('SELECT * FROM escalations WHERE id = ?').get(escalation.id), context: JSON.parse(escalation.context) } });
+  res.json({ ok: true, escalation: db.prepare('SELECT * FROM escalations WHERE id = ?').get(escalation.id) });
 });
 
 router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {

@@ -6,12 +6,14 @@ const KIND_COLORS = {
   conflict: 'k-conflict', steps: 'k-steps', refusal: 'k-refusal', error: 'k-refusal',
 };
 
-function TrayItem({ esc, agentsById, agents, onResolve }) {
+function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign }) {
   const [mode, setMode] = useState(null); // null | 'accept' | 'redirect'
   const [answer, setAnswer] = useState('');
   const [target, setTarget] = useState('');
   const [showCtx, setShowCtx] = useState(false);
   const agent = esc.agent_id ? agentsById[esc.agent_id] : null;
+  const ownerAgent = esc.owner_agent_id ? agentsById[esc.owner_agent_id] : null;
+  const ownerLabel = esc.owner_email || (ownerAgent ? ownerAgent.name : null);
 
   const contextStr = (() => {
     try { return JSON.stringify(esc.context, null, 1); } catch { return String(esc.context); }
@@ -25,6 +27,7 @@ function TrayItem({ esc, agentsById, agents, onResolve }) {
           : <span className="tray-agent system">system</span>}
         <span className={`chip esc-kind ${KIND_COLORS[esc.kind] || ''}`}>{esc.kind}</span>
         <span className="mono dim">{timeAgo(esc.created_at)}</span>
+        {ownerLabel ? <span className="chip owner-chip" title={esc.due_at ? `due ${esc.due_at.slice(0, 10)}` : 'assigned'}>→ {ownerLabel}</span> : null}
       </div>
       <div className="tray-question">{esc.question}</div>
       {esc.context && Object.keys(esc.context || {}).length > 0 ? (
@@ -39,6 +42,25 @@ function TrayItem({ esc, agentsById, agents, onResolve }) {
           <button className="btn ok small" onClick={() => setMode('accept')}>Accept</button>
           <button className="btn ghost small" onClick={() => setMode('redirect')}>Redirect</button>
           <button className="btn ghost small dim-btn" onClick={() => onResolve(esc.id, { action: 'dismiss' })}>Dismiss</button>
+          {onAssign ? (
+            <select
+              className="tray-assign"
+              value=""
+              title="Assign this to a person or an agent — routing only, resolution still happens here"
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                if (v.startsWith('p:')) onAssign(esc.id, { owner_email: v.slice(2) });
+                else if (v.startsWith('a:')) onAssign(esc.id, { owner_agent_id: v.slice(2) });
+                else if (v === 'clear') onAssign(esc.id, { owner_email: null, owner_agent_id: null });
+              }}
+            >
+              <option value="">assign…</option>
+              {people.map((p) => <option key={p.id} value={`p:${p.email}`}>{p.display || p.email}</option>)}
+              {agents.map((a) => <option key={a.id} value={`a:${a.id}`}>{a.name} (agent)</option>)}
+              {ownerLabel ? <option value="clear">clear assignment</option> : null}
+            </select>
+          ) : null}
         </div>
       ) : (
         <form
@@ -77,7 +99,7 @@ function TrayItem({ esc, agentsById, agents, onResolve }) {
 }
 
 // Pinned to the top of the viewport, always visible, never inside the canvas layout.
-export default function Tray({ escalations, agentsById, agents, onResolve }) {
+export default function Tray({ escalations, agentsById, agents, people = [], onResolve, onAssign }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mascotOk, setMascotOk] = useState(true);
   const n = escalations.length;
@@ -105,7 +127,7 @@ export default function Tray({ escalations, agentsById, agents, onResolve }) {
       {!collapsed && n > 0 ? (
         <div className="tray-list">
           {escalations.map((e) => (
-            <TrayItem key={e.id} esc={e} agentsById={agentsById} agents={agents} onResolve={onResolve} />
+            <TrayItem key={e.id} esc={e} agentsById={agentsById} agents={agents} people={people} onResolve={onResolve} onAssign={onAssign} />
           ))}
         </div>
       ) : null}
