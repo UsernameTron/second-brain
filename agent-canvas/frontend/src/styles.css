@@ -1321,13 +1321,16 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
   .modal { width: calc(100% - 16px); max-height: calc(100vh - 24px); overflow-y: auto; }
   .topbar { flex-wrap: wrap; row-gap: 4px; }
   .cmdbar { width: calc(100% - 16px); }
+  .cmd-row { flex-wrap: wrap; }
+  .cmd-row input { min-width: 0; flex: 1 1 140px; }
+  .cmd-modes { width: 100%; justify-content: flex-start; }
 }
 
 /* ===== Explain Map (P1/S4) ===== */
 .explain-map { margin: 10px 0; }
 .explain-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
 .lens-switch { display: flex; gap: 4px; }
-.lens-switch .lens-on { background: var(--ctg-blue, #2080D0); color: #fff; }
+.lens-switch .lens-on, .mode-switch .lens-on { background: var(--ctg-blue, #2080D0); color: #fff; }
 .explain-canvas { border: 1px solid rgba(16, 64, 128, 0.12); border-radius: 10px; background: rgba(16, 64, 128, 0.03); overflow-x: auto; }
 .explain-node { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 6px 8px; border-radius: 10px; border: 1px solid rgba(16, 64, 128, 0.25); background: #fff; cursor: pointer; font: inherit; }
 .explain-node .en-type { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; }

@@ -43,7 +43,9 @@ export default function CommandBar({ paused, onParse, onConfirm, toast }) {
     if (!pending || busy) return;
     setBusy(true);
     try {
-      await onConfirm(pending.intent);
+      // The CURRENT mode wins, not the snapshot captured at parse time — a
+      // user who flips to Ask while the confirm is open means Ask.
+      await onConfirm({ ...pending.intent, mode });
       setPending(null);
     } catch (e) {
       toast(e.message);
@@ -96,7 +98,7 @@ export default function CommandBar({ paused, onParse, onConfirm, toast }) {
             {!unknown && (pending.intent.agent_name || pending.intent.action !== 'dispatch') ? (
               <div className="intent-detail mono">
                 {pending.intent.action}
-                {pending.intent.mode && pending.intent.mode !== 'act' ? ` · ${pending.intent.mode.toUpperCase()}` : ''}
+                {` · ${mode.toUpperCase()}`}
                 {pending.intent.agent_name ? ` · ${pending.intent.agent_name}` : ''}
                 {pending.intent.instruction ? ` — ${pending.intent.instruction}` : ''}
               </div>
