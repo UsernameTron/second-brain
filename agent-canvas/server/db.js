@@ -388,6 +388,32 @@ CREATE TABLE IF NOT EXISTS evidence_citations (
 CREATE INDEX IF NOT EXISTS idx_evidence_citations_ref ON evidence_citations(evidence_ref_id);
 `);
 
+// ===== P1 inquiries: the Inquiry Home question log =====
+// One row per ask; a re-ask is a new row (append-only, like memory). run_id
+// is stamped in the same tx as the dispatch. status stores the last derived
+// value ('queued' until the run terminates); the live truth is the run row.
+db.exec(`
+CREATE TABLE IF NOT EXISTS inquiries (
+  id TEXT PRIMARY KEY,
+  canvas_id TEXT NOT NULL REFERENCES canvases(id),
+  question TEXT NOT NULL,
+  requested_by TEXT NOT NULL,
+  selected_agent_id TEXT,
+  selection_auto INTEGER NOT NULL DEFAULT 0,
+  run_id TEXT,
+  mode TEXT NOT NULL DEFAULT 'ask',
+  status TEXT NOT NULL DEFAULT 'queued',
+  saved INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_inquiries_canvas ON inquiries(canvas_id, created_at);
+`);
+// Run modes (P1): act = today's behavior; ask = no world mutation; rehearse =
+// ask + hs_preview_change + narrate-only prompt. Enum validated in JS
+// (SQLite can't retro-add CHECK constraints).
+try { db.exec("ALTER TABLE runs ADD COLUMN mode TEXT NOT NULL DEFAULT 'act'"); } catch { /* already present */ }
+
 // ===== MCP connectors: owner-managed external tool servers =====
 // The managed source for the MCP client (server/mcp/client.js). Header values
 // may be literal or ${ENV:NAME} references resolved at request time — GET

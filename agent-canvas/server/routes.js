@@ -12,7 +12,7 @@ const evidence = require('./evidence');
 const bus = require('./bus');
 const auth = require('./auth');
 const control = require('./orchestrator/control');
-const { dispatchRun, resumePump, queueState } = require('./orchestrator/queue');
+const { dispatchRun, resumePump, queueState, RUN_MODES } = require('./orchestrator/queue');
 const { createEscalation } = require('./orchestrator/tools');
 const { callModel, tierConfig, FAST_MODEL, STRONG_MODEL, currentProvider } = require('./orchestrator/anthropic');
 
@@ -1008,6 +1008,140 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
   bus.emit('event', { type: 'escalation_resolved', canvasId: escalation.canvas_id, escalationId: escalation.id, status, by: req.user.email });
   res.json({ ok: true, run });
 }));
+
+// ---------- P1 inquiries: ask the company without picking an agent ----------
+// POST parses AND dispatches server-side (unlike /intent, which echoes for a
+// client confirm) — that is the Inquiry Home contract. Selection: explicit
+// agent_id override wins; otherwise a fast-tier pick with a deterministic
+// role-priority fallback so an ask never dead-ends on a flaky parse.
+const INQUIRY_ROLE_ORDER = ['research', 'strategic', 'commercial', 'operational', 'review', 'coding', 'workspace'];
+
+function deriveInquiryStatus(runStatus) {
+  if (!runStatus || runStatus === 'queued' || runStatus === 'running') return 'pending';
+  return runStatus === 'completed' ? 'answered' : 'unanswered';
+}
+
+function inquiryWithRun(row) {
+  const run = row.run_id
+    ? db.prepare('SELECT id, agent_id, status, summary, error, cost_usd, started_at, ended_at FROM runs WHERE id = ?').get(row.run_id) || null
+    : null;
+  const status = deriveInquiryStatus(run && run.status);
+  // Lazy write-back: the stored status catches up once the run is terminal.
+  if (status !== 'pending' && row.status !== status) {
+    db.prepare('UPDATE inquiries SET status = ?, updated_at = ? WHERE id = ?').run(status, nowIso(), row.id);
+  }
+  const agent = row.selected_agent_id
+    ? db.prepare('SELECT id, name, role, color FROM agents WHERE id = ?').get(row.selected_agent_id) || null
+    : null;
+  return {
+    id: row.id, canvasId: row.canvas_id, question: row.question, requestedBy: row.requested_by,
+    agent, selectionAuto: !!row.selection_auto, runId: row.run_id, mode: row.mode,
+    status, saved: !!row.saved, createdAt: row.created_at, updatedAt: row.updated_at, run,
+  };
+}
+
+router.post('/canvases/:canvasId/inquiries', rateLimit('model'), auth.requireCanvas, asyncRoute(async (req, res) => {
+  const question = String(req.body.question || '').trim();
+  if (!question) return res.status(400).json({ error: 'question required' });
+  const mode = req.body.mode || 'ask';
+  if (!RUN_MODES.includes(mode)) return res.status(400).json({ error: `mode must be one of ${RUN_MODES.join(', ')}` });
+  if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused — resume before asking' });
+  if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted — raise it or wait for the reset' });
+  const agents = db.prepare('SELECT id, name, role FROM agents WHERE canvas_id = ?').all(req.params.canvasId);
+  if (!agents.length) return res.status(409).json({ error: 'this canvas has no agents to ask' });
+
+  let agentId = req.body.agent_id || null;
+  let auto = false;
+  let echo = '';
+  if (agentId) {
+    if (!agents.some((a) => a.id === agentId)) return res.status(400).json({ error: 'agent_id is not on this canvas' });
+  } else {
+    auto = true;
+    // Fast-tier selection, same gates as /intent. A parse failure falls
+    // through to the deterministic pick — never a dead end.
+    try {
+      const abort = new AbortController();
+      const abortId = `inquiry-${crypto.randomUUID()}`;
+      control.registerAbort(abortId, abort);
+      const fastTier = tierConfig('fast');
+      let response;
+      try {
+        // Resolved at call time (not the destructured import) so tests can
+        // stub the module's callModel — same seam idea as runner.setCallModel.
+        response = await require('./orchestrator/anthropic').callModel({
+          provider: fastTier.provider, model: fastTier.model, signal: abort.signal,
+          system: `You route a company question to the best agent. Available agents:\n${agents.map((a) => `- ${a.name} (${a.role}, id ${a.id})`).join('\n')}\nReturn ONLY JSON: {"agent_id": "<id>", "echo": "<short confirmation, e.g. 'Asking Scout (research)'>"}. Pick the agent whose role best fits the question.`,
+          messages: [{ role: 'user', content: question }],
+          maxTokens: 200,
+        });
+      } finally {
+        control.unregisterAbort(abortId);
+      }
+      control.addUsage(response.model || fastTier.model, response.usage || {});
+      const raw = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+      const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+      if (agents.some((a) => a.id === parsed.agent_id)) {
+        agentId = parsed.agent_id;
+        echo = String(parsed.echo || '');
+      }
+    } catch { /* fall through to the deterministic pick */ }
+    if (!agentId) {
+      const ranked = [...agents].sort((a, b) => {
+        const ia = INQUIRY_ROLE_ORDER.indexOf(a.role); const ib = INQUIRY_ROLE_ORDER.indexOf(b.role);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      });
+      agentId = ranked[0].id;
+      echo = `Asking ${ranked[0].name} (${ranked[0].role}) — picked automatically`;
+    }
+  }
+
+  // Both halves or neither, exactly like escalation resolve: the inquiry row
+  // and its dispatched run land in one tx; a 429/409 rolls both back.
+  const inquiryId = crypto.randomUUID();
+  let run = null;
+  tx(() => {
+    db.prepare(
+      `INSERT INTO inquiries (id, canvas_id, question, requested_by, selected_agent_id, selection_auto, run_id, mode, status, saved, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'queued', 0, ?, ?)`
+    ).run(inquiryId, req.params.canvasId, question, req.user.email, agentId, auto ? 1 : 0, mode, nowIso(), nowIso());
+    run = dispatchRun({
+      agentId, canvasId: req.params.canvasId, instruction: question,
+      triggerKind: 'user', actor: req.user.email, initiatedBy: req.user.email, mode,
+    });
+    db.prepare('UPDATE inquiries SET run_id = ? WHERE id = ?').run(run.id, inquiryId);
+  });
+  audit('user', req.user.email, 'inquiry.create', { inquiryId, canvasId: req.params.canvasId, agentId, auto, mode, runId: run.id });
+  const row = db.prepare('SELECT * FROM inquiries WHERE id = ?').get(inquiryId);
+  res.json({ inquiry: inquiryWithRun(row), selection: { agentId, auto, echo } });
+}));
+
+router.get('/canvases/:canvasId/inquiries', auth.requireCanvas, (req, res) => {
+  const limit = Math.min(Number(qstr(req.query.limit)) || 25, 100);
+  const savedOnly = qstr(req.query.saved) === '1';
+  const rows = db.prepare(
+    `SELECT * FROM inquiries WHERE canvas_id = ? ${savedOnly ? 'AND saved = 1' : ''} ORDER BY created_at DESC, id DESC LIMIT ?`
+  ).all(req.params.canvasId, limit);
+  res.json({ inquiries: rows.map(inquiryWithRun) });
+});
+
+router.get('/inquiries/:inquiryId', (req, res) => {
+  const row = db.prepare('SELECT * FROM inquiries WHERE id = ?').get(req.params.inquiryId);
+  if (!row) return res.status(404).json({ error: 'inquiry not found' });
+  const check = auth.canAccessCanvas(req.user, row.canvas_id);
+  if (!check.ok) return res.status(check.status).json({ error: check.error });
+  res.json({ inquiry: inquiryWithRun(row) });
+});
+
+router.patch('/inquiries/:inquiryId', (req, res) => {
+  const row = db.prepare('SELECT * FROM inquiries WHERE id = ?').get(req.params.inquiryId);
+  if (!row) return res.status(404).json({ error: 'inquiry not found' });
+  const check = auth.canAccessCanvas(req.user, row.canvas_id);
+  if (!check.ok) return res.status(check.status).json({ error: check.error });
+  if (typeof req.body.saved !== 'boolean') return res.status(400).json({ error: 'saved (boolean) required' });
+  db.prepare('UPDATE inquiries SET saved = ?, updated_at = ? WHERE id = ?').run(req.body.saved ? 1 : 0, nowIso(), row.id);
+  audit('user', req.user.email, 'inquiry.save', { inquiryId: row.id, saved: req.body.saved });
+  res.json({ inquiry: inquiryWithRun(db.prepare('SELECT * FROM inquiries WHERE id = ?').get(row.id)) });
+});
 
 // ---------- voice/text intent parsing (fast model; echo before dispatch) ----------
 router.post('/canvases/:canvasId/intent', rateLimit('model'), auth.requireCanvas, asyncRoute(async (req, res) => {

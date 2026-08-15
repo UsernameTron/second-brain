@@ -515,7 +515,23 @@ function readRegistry({ registry, query, limit }) {
   };
 }
 
-function toolsForRole(role, { userRole = 'member' } = {}) {
+// P1 run modes. ask/rehearse runs must not mutate the world; memory stays
+// writable (receipts require it). ONE set, enforced TWICE — filtered from the
+// OFFER in toolsForRole and refused at EXECUTE time in executeTool — matching
+// the existing offer/execute split for MCP and hs_apply_change.
+const MUTATING_TOOLS = new Set([
+  'ws_sheets_append', 'ws_sheets_update', 'ws_gmail_draft', 'ws_calendar_create', 'ws_docs_create',
+  'hs_preview_change', 'hs_apply_change',
+  'apply_row_fix', 'set_row_status', 'propose_changes', 'verify_changes', 'handoff',
+]);
+function blockedInMode(name, mode) {
+  if (!mode || mode === 'act') return false;
+  if (name.startsWith('mcp_')) return true; // connector side effects are unknowable — all blocked
+  if (mode === 'rehearse' && name === 'hs_preview_change') return false; // already a server-enforced dry run
+  return MUTATING_TOOLS.has(name);
+}
+
+function toolsForRole(role, { userRole = 'member', mode = 'act' } = {}) {
   // MCP defs are filtered per directing user + agent role: owner-only
   // connectors never reach a member-directed run's tool list, and role-scoped
   // connectors are offered only to the agent roles the owner named. Both are
@@ -543,7 +559,7 @@ function toolsForRole(role, { userRole = 'member' } = {}) {
     name: 'read_rows',
     description: 'Read rows of the conference-lead workbook on this canvas.',
     input_schema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer' } }, required: [] },
-  }])];
+  }])].filter((t) => !blockedInMode(t.name, mode));
 }
 
 function getRowByIndex(canvasId, rowIndex) {
@@ -561,6 +577,13 @@ async function executeTool(name, input, ctx) {
   const control = require('./control');
   if (ctx.runEpoch !== undefined ? control.epochStale(ctx.runEpoch) : control.isPaused()) {
     return { content: 'Workspace is paused (or was paused since this run started) — this action was rejected server-side.', isError: true };
+  }
+
+  // Run-mode gate (P1): ask/rehearse runs never mutate outside state. The
+  // offer filter in toolsForRole is the first layer; this is the call-time
+  // re-check, same defense-in-depth shape as the MCP owner gate below.
+  if (blockedInMode(name, run.mode)) {
+    return { content: `REFUSED: this is a ${run.mode} run — ${name} would change outside state and is unavailable. Describe what you WOULD do instead, and note it in your summary.`, isError: true };
   }
 
   // MCP tools are dynamically named (mcp_<server>_<tool>) — dispatch before the
@@ -1078,4 +1101,4 @@ function createEscalation({ canvasId, runId, agentId, kind, question, context })
   return escalation;
 }
 
-module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS };
+module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS, blockedInMode, MUTATING_TOOLS };
