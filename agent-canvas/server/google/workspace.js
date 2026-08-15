@@ -370,26 +370,30 @@ async function xlsxToText(buf, name) {
   const lines = [`Workbook "${name}" (formulas render their cached values):`];
   let cells = 0;
   let sheetsShown = 0;
+  let cellsOmitted = false;
   wb.eachSheet((sheet) => {
     if (sheetsShown >= XLSX_LIMITS.sheets || cells >= XLSX_LIMITS.totalCells) return;
     sheetsShown += 1;
     lines.push(`\n## Sheet: ${sheet.name}`);
     let rows = 0;
+    // Markers fire only when data was actually OMITTED — a sheet with exactly
+    // the limit must not claim truncation it didn't perform.
+    let rowsOmitted = false;
     sheet.eachRow({ includeEmpty: false }, (row) => {
-      if (rows >= XLSX_LIMITS.rowsPerSheet || cells >= XLSX_LIMITS.totalCells) return;
+      if (rows >= XLSX_LIMITS.rowsPerSheet || cells >= XLSX_LIMITS.totalCells) { rowsOmitted = true; return; }
       rows += 1;
       // Clamp the row to the REMAINING cell budget — a maximum-width row at
       // 49,999 cells must not blow past the advertised hard total.
       let vals = row.values.slice(1).map((v) => csvCell(xlsxCellText(v)));
       const remaining = XLSX_LIMITS.totalCells - cells;
-      if (vals.length > remaining) vals = vals.slice(0, remaining);
+      if (vals.length > remaining) { vals = vals.slice(0, remaining); cellsOmitted = true; }
       cells += vals.length;
       lines.push(vals.join(','));
     });
-    if (rows >= XLSX_LIMITS.rowsPerSheet) lines.push(`[...sheet truncated at ${XLSX_LIMITS.rowsPerSheet} rows]`);
+    if (rowsOmitted) { lines.push(`[...sheet truncated at ${XLSX_LIMITS.rowsPerSheet} rows]`); cellsOmitted = cellsOmitted || cells >= XLSX_LIMITS.totalCells; }
   });
   if (wb.worksheets.length > sheetsShown) lines.push(`\n[...${wb.worksheets.length - sheetsShown} more sheet(s) not shown]`);
-  if (cells >= XLSX_LIMITS.totalCells) lines.push(`[...workbook truncated at ${XLSX_LIMITS.totalCells} cells]`);
+  if (cellsOmitted && cells >= XLSX_LIMITS.totalCells) lines.push(`[...workbook truncated at ${XLSX_LIMITS.totalCells} cells]`);
   const text = lines.join('\n');
   if (text.length <= TEXT_CAP) return text;
   // Character-cap truncation must be visible, not a silent mid-cell cut.
