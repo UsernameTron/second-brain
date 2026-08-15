@@ -9,9 +9,12 @@ kept for the reasoning, not the status.**
 
 All six slices of the approved P1 roadmap (Inquiry Home / evidence receipts /
 Explain Map — plan file `cosmic-pondering-axolotl`) are merged; suite
-**199/199** + S6. **NOT YET DEPLOYED** — production still runs
-`agent-canvas-00045-gwg` (pre-P1). Deploy per DEPLOY.md when ready; the
-migrations are additive and self-apply on boot.
+**199/199**. **DEPLOYED 2026-08-15: revision `agent-canvas-00046-5zg`, 100%
+traffic** — env verified intact through the wholesale set (MODEL_PROVIDER,
+GOOGLE_CLIENT_ID, HS_OPS_RUNNER_URL, ED_DISPATCH_URL), `/api/config` 200 with
+`inquiryHome: true`, zero error logs post-boot. Migrations self-applied.
+Lamps AMBER until probed, by design — Pete probes in-app (ask a canonical
+question on Home, open receipt + map, confirm evidence parity).
 
 - **S1 evidence spine** (#171): `evidence_refs` + `evidence_citations`
   (entry→external artifact — the one missing edge); refs minted at the tool
