@@ -11,6 +11,7 @@ const memory = require('./memory');
 const evidence = require('./evidence');
 const explain = require('./explain');
 const attention = require('./attention');
+const rooms = require('./rooms');
 const bus = require('./bus');
 const auth = require('./auth');
 const control = require('./orchestrator/control');
@@ -55,6 +56,9 @@ router.get('/config', (req, res) => {
     // P2 reversible exposure: unified NEEDS YOU view (Tray collapses to the
     // badge). setSetting('needs_you', '0') reverts to the inline tray list.
     needsYou: getSetting('needs_you', '1') === '1',
+    // P3 reversible exposure: Evidence Rooms. setSetting('rooms', '0') hides
+    // the Rooms view, no deploy. Data stays; the flag gates the UI only.
+    rooms: getSetting('rooms', '1') === '1',
   });
 });
 
@@ -597,6 +601,137 @@ router.delete('/canvases/:canvasId/members/:email', auth.requireOwner, (req, res
     .run(req.params.canvasId, String(req.params.email).toLowerCase());
   audit('user', req.user.email, 'canvas.member_remove', { canvasId: req.params.canvasId, email: req.params.email });
   res.json({ ok: true });
+});
+
+// ---------- rooms (P3): metadata over a canvas, restricted by default ----------
+// Access is ALWAYS decided through the room's canvas (canAccessCanvas /
+// canEditCanvas) — a Room grants nothing its canvas doesn't.
+function roomAccess(req, res, edit = false) {
+  const room = rooms.getRoom(req.params.roomId);
+  if (!room) { res.status(404).json({ error: 'room not found' }); return null; }
+  const check = edit ? auth.canEditCanvas(req.user, room.canvasId) : auth.canAccessCanvas(req.user, room.canvasId);
+  if (!check.ok) { res.status(check.status).json({ error: check.error }); return null; }
+  return { room, access: check.access };
+}
+
+router.post('/rooms', auth.requireOwner, (req, res) => {
+  const name = String(req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const roomType = req.body.room_type;
+  if (!rooms.ROOM_TYPES.includes(roomType)) return res.status(400).json({ error: `room_type must be one of ${rooms.ROOM_TYPES.join(', ')}` });
+  const rosterIds = Array.isArray(req.body.roster_ids) ? req.body.roster_ids : [];
+  const canvasId = crypto.randomUUID();
+  const roomId = crypto.randomUUID();
+  try {
+    // Canvas (restricted by default), staffing, and the room record land
+    // atomically — a Room never exists without its canvas or vice versa.
+    tx(() => {
+      db.prepare('INSERT INTO canvases (id, name, description, access_mode, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(canvasId, name, req.body.description || '', 'restricted', req.user.email, nowIso());
+      for (const rosterId of rosterIds) {
+        roster.instantiateOnCanvas({ canvasId, rosterId, actor: req.user.email });
+      }
+      db.prepare('INSERT INTO rooms (id, canvas_id, room_type, external_ref, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(roomId, canvasId, roomType, String(req.body.external_ref || '').slice(0, 300), req.user.email, nowIso());
+    });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+  audit('user', req.user.email, 'room.create', { roomId, canvasId, roomType, roster: rosterIds.length });
+  bus.emit('event', { type: 'canvas_structure', canvasId });
+  res.json({ room: rooms.getRoom(roomId) });
+});
+
+router.get('/rooms', (req, res) => {
+  const visible = rooms.listRooms().filter((r) => auth.canAccessCanvas(req.user, r.canvasId).ok);
+  res.json({ rooms: visible.filter((r) => r.lifecycle === 'active'), archived: visible.filter((r) => r.lifecycle === 'archived') });
+});
+
+router.get('/rooms/:roomId', (req, res) => {
+  const ctx = roomAccess(req, res);
+  if (!ctx) return;
+  const built = rooms.buildRoom(ctx.room.id, { lens: qstr(req.query.lens) || 'now', viewer: req.user });
+  res.json({ ...built, access: ctx.access });
+});
+
+// Explicit Refresh Room: one directing-user-scoped ask-mode run. The run's
+// normal outputs (memory entries + evidence refs) ARE the stored result —
+// refresh never replicates a source system. Time + actor are recorded.
+router.post('/rooms/:roomId/refresh', rateLimit('model'), (req, res) => {
+  const ctx = roomAccess(req, res, true);
+  if (!ctx) return;
+  if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused — resume before refreshing' });
+  if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted — raise it or wait for the reset' });
+  const canvasId = ctx.room.canvasId;
+  const agents = db.prepare('SELECT id, name, role FROM agents WHERE canvas_id = ?').all(canvasId);
+  if (!agents.length) return res.status(409).json({ error: 'this room has no agents — staff it first' });
+  let agentId = req.body.agent_id || null;
+  if (agentId && !agents.some((a) => a.id === agentId)) return res.status(400).json({ error: 'agent_id is not on this room' });
+  if (!agentId) {
+    const ranked = [...agents].sort((a, b) => {
+      const ia = INQUIRY_ROLE_ORDER.indexOf(a.role); const ib = INQUIRY_ROLE_ORDER.indexOf(b.role);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+    agentId = ranked[0].id;
+  }
+  const instruction = `Refresh this ${ctx.room.roomType} room ("${ctx.room.name}"${ctx.room.externalRef ? `, external ref ${ctx.room.externalRef}` : ''}). Re-check the current state of what this room tracks, then record ONLY selected conclusions as memory entries with evidence references — never copies of whole source records. Flag anything that changed since the last refresh.`;
+  const refreshId = crypto.randomUUID();
+  let run = null;
+  try {
+    tx(() => {
+      run = dispatchRun({
+        agentId, canvasId, instruction,
+        triggerKind: 'user', actor: req.user.email, initiatedBy: req.user.email, mode: 'ask',
+      });
+      db.prepare('INSERT INTO room_refreshes (id, room_id, run_id, actor, note, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(refreshId, ctx.room.id, run.id, req.user.email, String(req.body.note || '').slice(0, 300), nowIso());
+      db.prepare('UPDATE rooms SET refreshed_at = ?, refreshed_by = ? WHERE id = ?').run(nowIso(), req.user.email, ctx.room.id);
+    });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+  audit('user', req.user.email, 'room.refresh', { roomId: ctx.room.id, canvasId, agentId, runId: run.id });
+  // dispatchRun returns only {id} — hand the caller the real row.
+  res.json({ room: rooms.getRoom(ctx.room.id), run: db.prepare('SELECT id, agent_id, canvas_id, status, mode, instruction, created_at FROM runs WHERE id = ?').get(run.id) });
+});
+
+// Disclosure preview: the export's exact included/excluded split, reviewed
+// BEFORE anything leaves. Reading it requires edit access; producing the
+// export itself is owner-only and audited. No anonymous links, ever.
+router.get('/rooms/:roomId/export/preview', (req, res) => {
+  const ctx = roomAccess(req, res, true);
+  if (!ctx) return;
+  res.json(rooms.exportManifest(ctx.room.id));
+});
+
+router.post('/rooms/:roomId/export', auth.requireOwner, (req, res) => {
+  const room = rooms.getRoom(req.params.roomId);
+  if (!room) return res.status(404).json({ error: 'room not found' });
+  const manifest = rooms.exportManifest(room.id);
+  const html = rooms.renderExportHtml(manifest, req.user.email);
+  audit('user', req.user.email, 'room.export', {
+    roomId: room.id, canvasId: room.canvasId,
+    included: { decisions: manifest.included.decisions.length, facts: manifest.included.facts.length, evidence: manifest.included.evidence.length, tasks: manifest.included.tasks.length },
+    excluded: { soft: manifest.excluded.assumptionsAndInferences.length, tainted: manifest.excluded.taintedEntries.length, privateEvidence: manifest.excluded.privateEvidence.length, openEscalations: manifest.excluded.openEscalations.length },
+  });
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="room-${room.id.slice(0, 8)}-recommendation.html"`);
+  res.send(html);
+});
+
+router.patch('/rooms/:roomId', auth.requireOwner, (req, res) => {
+  const room = rooms.getRoom(req.params.roomId);
+  if (!room) return res.status(404).json({ error: 'room not found' });
+  const { lifecycle } = req.body;
+  if (!['active', 'archived'].includes(lifecycle)) return res.status(400).json({ error: 'lifecycle must be active|archived' });
+  // Archive is tidiness, not destruction: room + canvas flip together and
+  // every underlying record stays put (lossless, same as canvas archive).
+  tx(() => {
+    db.prepare('UPDATE rooms SET lifecycle = ? WHERE id = ?').run(lifecycle, room.id);
+    db.prepare('UPDATE canvases SET archived = ? WHERE id = ?').run(lifecycle === 'archived' ? 1 : 0, room.canvasId);
+  });
+  audit('user', req.user.email, lifecycle === 'archived' ? 'room.archive' : 'room.unarchive', { roomId: room.id, canvasId: room.canvasId });
+  res.json({ room: rooms.getRoom(room.id) });
 });
 
 // ---------- agents ----------

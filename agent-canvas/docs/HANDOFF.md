@@ -5,7 +5,41 @@ depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
 
-## P2.1 HARDENING GATE — BUILT ON `fix/p2.1-hardening` (2026-08-15, pre-P3)
+## P3 EVIDENCE ROOMS — BUILT ON `feat/p3-evidence-rooms` (2026-08-15)
+
+All four slices built and test-verified in one session; **one PR for the
+whole phase** (operator directive: no per-slice PRs). Backend **243/243**,
+frontend **12/12**, production build green. Not deployed — deploy is owed.
+
+- **T1 schema + projection:** `rooms` (1:1 over a restricted canvas: type
+  deal/client/initiative/decision, external ref, lifecycle, refresh state)
+  + `room_refreshes`, both additive. `server/rooms.js` builds the six
+  sections (people, evidence, work, decisions, risks, open questions) as
+  read-time projections over existing records — no new business tables —
+  with per-viewer evidence redaction and now/history/risk lenses.
+- **T2 refresh:** `POST /api/rooms/:id/refresh` dispatches ONE ask-mode
+  run (deterministic agent pick or explicit agent_id) and records time +
+  actor in `room_refreshes`; the run's normal memory/evidence outputs ARE
+  the stored result — no source replication.
+- **T3 UI:** `RoomsView.jsx` is the fourth Workspace view, flag-gated
+  (`setSetting('rooms','0')` reverts, zero deploy). Brief/Map/Activity:
+  Map jumps to the room's canvas, Activity reuses the run-events feed;
+  every fact shows source + freshness; view members get no mutations.
+- **T4 export:** disclosure preview (`GET .../export/preview`, edit
+  access) names included (non-tainted decisions, verified findings,
+  non-private evidence, work status) vs excluded (assumptions/inferences,
+  tainted entries, gmail/drive/sheet sources, open escalations, audit
+  chain — always); the export (`POST`, owner-only, audited) is escaped
+  self-contained HTML, attachment-only. No anonymous links; PDF deferred.
+
+Done-when walk: create+staff in one form (<2 min) ✓; refresh stores only
+conclusions ✓ (test: run outputs only); every fact carries source +
+freshness ✓ (retrievedAt/createdAt on all sections); archive lossless ✓
+(test: unarchive restores projection whole); export passes explicit
+disclosure review ✓ (preview is the gate, verified excluded content never
+appears in the HTML).
+
+## P2.1 HARDENING GATE — MERGED (#189, 2026-08-15, pre-P3)
 
 Four-item gate the P2 review demanded before Evidence Rooms. Backend suite
 **234/234**; new frontend suite **7/7** (`npm run test:frontend`); production
