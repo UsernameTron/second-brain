@@ -9,7 +9,14 @@ kept for the reasoning, not the status.**
 
 All four slices built and test-verified in one session; **one PR for the
 whole phase** (operator directive: no per-slice PRs). Backend **243/243**,
-frontend **12/12**, production build green. Not deployed — deploy is owed.
+frontend **12/12**, production build green. **DEPLOYED 2026-08-15: revision
+`agent-canvas-00050-5ht`, 100% traffic** — carries P2.1 (#189) + P3 (#190/#191).
+Verified post-deploy: env vars intact through the wholesale set
+(MODEL_PROVIDER, GOOGLE_CLIENT_ID, HS_OPS_RUNNER_URL, ED_DISPATCH_URL),
+`/api/config` serves `rooms: true` (+ inquiryHome, needsYou), zero error-level
+logs in the first 15 minutes. Rollback: `setSetting('rooms','0')` hides the
+view with no deploy. In-app signed-in acceptance of the Rooms flow is still
+owed (create → refresh → export walk on production).
 
 - **T1 schema + projection:** `rooms` (1:1 over a restricted canvas: type
   deal/client/initiative/decision, external ref, lifecycle, refresh state)
