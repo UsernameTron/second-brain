@@ -458,5 +458,7 @@ try { db.exec('ALTER TABLE tasks ADD COLUMN assignee_email TEXT'); } catch { /* 
 try { db.exec('ALTER TABLE escalations ADD COLUMN owner_email TEXT'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE escalations ADD COLUMN owner_agent_id TEXT'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE escalations ADD COLUMN due_at TEXT'); } catch { /* already present */ }
+// P2 attention projection: overdue-review scans hit review_at directly.
+db.exec('CREATE INDEX IF NOT EXISTS idx_memory_review ON memory_entries(review_at)');
 
 module.exports = { db, tx, nowIso, getSetting, setSetting, DB_PATH };

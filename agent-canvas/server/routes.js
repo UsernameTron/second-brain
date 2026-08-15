@@ -10,6 +10,7 @@ const { audit, queryAudit, verifyChain, verifyChainTail } = require('./audit');
 const memory = require('./memory');
 const evidence = require('./evidence');
 const explain = require('./explain');
+const attention = require('./attention');
 const bus = require('./bus');
 const auth = require('./auth');
 const control = require('./orchestrator/control');
@@ -1013,6 +1014,25 @@ router.get('/escalations', (req, res) => {
   res.json({ escalations: visible });
 });
 
+// P2: unified NEEDS YOU — a projection over authoritative records (open
+// escalations, memory conflicts, overdue reviews, failed runs, proposed
+// changesets). Access is decided per canvas BEFORE reading rows.
+router.get('/attention', (req, res) => {
+  const scope = ['mine', 'team', 'all'].includes(req.query.scope) ? req.query.scope : 'all';
+  const canvasId = qstr(req.query.canvas_id) || null;
+  let canvasIds;
+  if (canvasId) {
+    const check = auth.canAccessCanvas(req.user, canvasId);
+    if (!check.ok) return res.status(check.status).json({ error: check.error });
+    canvasIds = [canvasId];
+  } else {
+    canvasIds = db.prepare('SELECT id FROM canvases WHERE archived = 0').all()
+      .map((c) => c.id)
+      .filter((id) => auth.canAccessCanvas(req.user, id).ok);
+  }
+  res.json({ attention: attention.listAttention({ email: req.user.email, scope, canvasIds }), scope });
+});
+
 // P2: assign an open escalation to a person (allowlisted email) or an agent,
 // with an optional due date. Assignment is attention routing, never resolution.
 router.post('/escalations/:id/assign', (req, res) => {
@@ -1382,19 +1402,7 @@ router.get('/canvases/:canvasId/analytics', auth.requireCanvas, (req, res) => {
 // normal correction path. ponytail: semantic detection when typed data
 // accumulates enough to need it.
 router.get('/canvases/:canvasId/memory/conflicts', auth.requireCanvas, (req, res) => {
-  const pairs = db.prepare(`
-    SELECT a.id AS a_id, b.id AS b_id, a.subject
-    FROM memory_entries a JOIN memory_entries b
-      ON LOWER(a.subject) = LOWER(b.subject) AND a.id < b.id
-    WHERE a.canvas_id = ? AND b.canvas_id = ?
-      AND a.subject IS NOT NULL AND a.subject != ''
-      AND a.superseded_by IS NULL AND b.superseded_by IS NULL
-      AND a.epistemic = 'verified' AND b.epistemic = 'verified'
-      AND a.content != b.content
-  `).all(req.params.canvasId, req.params.canvasId);
-  res.json({
-    conflicts: pairs.map((p) => ({ subject: p.subject, entries: [memory.getEntry(p.a_id), memory.getEntry(p.b_id)] })),
-  });
+  res.json({ conflicts: memory.findConflicts(req.params.canvasId) });
 });
 
 // ---------- audit (owner only) ----------
