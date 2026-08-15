@@ -1,12 +1,13 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppCtx } from './App.jsx';
-import { api, wsUrl, normEsc, normHandoff, fmtUSD, initials } from './api.js';
+import { api, rulesApi, wsUrl, normEsc, normHandoff, fmtUSD, initials } from './api.js';
 import Canvas from './Canvas.jsx';
 import Tray from './Tray.jsx';
 import ActivityDock from './ActivityDock.jsx';
 import CommandBar from './CommandBar.jsx';
 import MemoryPanel from './MemoryPanel.jsx';
 import RoomsView from './RoomsView.jsx';
+import RulesView from './RulesView.jsx';
 import Workbook from './Workbook.jsx';
 import { AgentPanel, NotePanel, SpendPanel } from './Panels.jsx';
 import { useDialog } from './useDialog.js';
@@ -55,6 +56,8 @@ export default function Workspace() {
   // Reversible exposure: setSetting('needs_you','0') restores the inline tray.
   const needsYouOn = !!(config && config.needsYou);
   const roomsOn = !!(config && config.rooms);
+  // P5 reversible exposure: setSetting('standing_rules','0') hides Rules & Briefs.
+  const rulesOn = !!(config && config.standingRules);
   const [runTick, setRunTick] = useState(0); // bumps on run_status → Home refetch
   const [ripple, setRipple] = useState(null); // {flash, ids:Set}
   const [amberAgents, setAmberAgents] = useState(() => new Set());
@@ -535,6 +538,17 @@ export default function Workspace() {
     }
   }, [loadAttention, toast]);
 
+  // P5: acknowledge a standing-rule run (rule_alert / brief_ready cards).
+  const acknowledgeRuleRun = useCallback(async (sourceRef) => {
+    try {
+      await rulesApi.acknowledge(sourceRef.id);
+      toast('Acknowledged', 'ok');
+      loadAttention();
+    } catch (e) {
+      toast(e.message);
+    }
+  }, [loadAttention, toast]);
+
   const extendReview = useCallback(async (sourceRef) => {
     // Re-affirm = append-only correction with a fresh date; 30 days is the
     // "still true, check again" horizon, not a policy — correct it to change.
@@ -944,6 +958,13 @@ export default function Workspace() {
             Rooms
           </button>
         ) : null}
+        {rulesOn ? (
+          <button className={`btn ghost ${view === 'rules' ? 'active' : ''}`}
+            onClick={() => setView(view === 'rules' ? 'canvas' : 'rules')}
+            title="Rules & Briefs — standing instructions that watch, alert, and brief on a cadence">
+            Rules
+          </button>
+        ) : null}
         <button className={`btn ghost ${panel?.type === 'memory' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'memory' ? null : { type: 'memory' })}>Memory</button>
         <button className={`btn ghost ${panel?.type === 'workbook' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'workbook' ? null : { type: 'workbook' })}>Workbook</button>
         <button
@@ -1031,6 +1052,7 @@ export default function Workspace() {
               onOpenWorkbook={() => setPanel({ type: 'workbook' })}
               onRetryRun={retryRun}
               onExtendReview={extendReview}
+              onAcknowledgeRuleRun={acknowledgeRuleRun}
             />
           ) : null}
           {view === 'rooms' ? (
@@ -1048,7 +1070,10 @@ export default function Workspace() {
               toast={toast}
             />
           ) : null}
-          {state && view !== 'home' && view !== 'needsyou' && view !== 'rooms' ? (
+          {state && view === 'rules' ? (
+            <RulesView user={user} canvasId={canvasId} agents={state.agents || []} toast={toast} />
+          ) : null}
+          {state && view !== 'home' && view !== 'needsyou' && view !== 'rooms' && view !== 'rules' ? (
             <Canvas
               agents={state.agents || []}
               notes={state.notes || []}

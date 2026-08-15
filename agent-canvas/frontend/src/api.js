@@ -37,6 +37,25 @@ export async function api(path, opts = {}) {
   return data;
 }
 
+// P5 standing rules — thin wrappers over api(). Factory form so tests can
+// rebuild the surface around a mocked fetcher.
+export function makeRulesApi(fetcher) {
+  return {
+    parse: (canvasId, instruction) => fetcher(`/api/canvases/${canvasId}/standing-rules/parse`, { method: 'POST', body: { instruction } }),
+    list: (canvasId) => fetcher(`/api/canvases/${canvasId}/standing-rules`),
+    get: (id) => fetcher(`/api/standing-rules/${id}`),
+    update: (id, body) => fetcher(`/api/standing-rules/${id}`, { method: 'PATCH', body }),
+    rehearse: (id) => fetcher(`/api/standing-rules/${id}/rehearse`, { method: 'POST', body: {} }),
+    activate: (id) => fetcher(`/api/standing-rules/${id}/activate`, { method: 'POST', body: {} }),
+    pause: (id) => fetcher(`/api/standing-rules/${id}/pause`, { method: 'POST', body: {} }),
+    resume: (id) => fetcher(`/api/standing-rules/${id}/resume`, { method: 'POST', body: {} }),
+    revoke: (id) => fetcher(`/api/standing-rules/${id}/revoke`, { method: 'POST', body: {} }),
+    runs: (id) => fetcher(`/api/standing-rules/${id}/runs`),
+    acknowledge: (runRowId) => fetcher(`/api/standing-rule-runs/${runRowId}/acknowledge`, { method: 'POST', body: {} }),
+  };
+}
+export const rulesApi = makeRulesApi(api);
+
 export function wsUrl() {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
   return `${proto}://${window.location.host}/ws`;

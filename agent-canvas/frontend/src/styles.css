@@ -570,6 +570,8 @@ a:hover { text-decoration: underline; }
 .nyt-overdue_review { color: var(--violet); }
 .nyt-failed_run { color: var(--red); }
 .nyt-pending_changeset { color: var(--blue); }
+.nyt-rule_alert { color: var(--amber); }
+.nyt-brief_ready { color: var(--blue); }
 .ny-btn .tray-badge { margin-left: 6px; }
 
 /* person nodes (P2) — presentation-only human cards */
