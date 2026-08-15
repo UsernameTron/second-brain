@@ -133,6 +133,38 @@ test('the correct route can replace or clear review_at (P1 fix from #182 review)
   assert.equal(bad.status, 400);
 });
 
+test('a retried run stops producing a failed_run attention card', async () => {
+  insertRun('run-ny-retryonce', 'failed');
+  const before = await call('GET', `/api/attention?canvas_id=${canvasId}`);
+  assert.ok(before.data.attention.some((r) => r.type === 'failed_run' && r.sourceRef.id === 'run-ny-retryonce'));
+  const retried = await call('POST', `/api/canvases/${canvasId}/runs/run-ny-retryonce/retry`, {});
+  assert.equal(retried.status, 200);
+  const after = await call('GET', `/api/attention?canvas_id=${canvasId}`);
+  assert.ok(!after.data.attention.some((r) => r.type === 'failed_run' && r.sourceRef.id === 'run-ny-retryonce'),
+    'a run with a retry child is handled — no duplicate Retry card');
+});
+
+test('reaffirming an entry does not taint its dependents', async () => {
+  const base = memory.writeEntry({
+    canvasId, content: 'Verified: Acme contract runs through 2027.', epistemic: 'verified',
+    authorType: 'user', authorId: 'pete@cloudtechgurus.com', reviewAt: '2020-01-01T00:00:00.000Z',
+  });
+  const dependent = memory.writeEntry({
+    canvasId, content: 'Renewal outreach can wait until 2027.', epistemic: 'inference',
+    authorType: 'user', authorId: 'pete@cloudtechgurus.com', cites: [base.id],
+  });
+  const res = await call('POST', `/api/canvases/${canvasId}/memory/${base.id}/reaffirm`, { review_at: '2099-01-01T00:00:00.000Z' });
+  assert.equal(res.status, 200);
+  assert.ok(!memory.taintedSet(canvasId).has(dependent.id),
+    'unchanged content is not a correction — dependents stay clean');
+
+  // A REAL correction still taints.
+  await call('POST', `/api/canvases/${canvasId}/memory/${res.data.entry.id}/correct`, {
+    content: 'Corrected: Acme contract ends 2026.', epistemic: 'verified', reason: 'misread the term',
+  });
+  assert.ok(memory.taintedSet(canvasId).has(dependent.id), 'content changes still propagate taint');
+});
+
 test('a reaffirmed entry leaves the overdue-review attention list', async () => {
   const entry = memory.writeEntry({
     canvasId, content: 'Assume Fred signs off by Friday.', epistemic: 'assumption',

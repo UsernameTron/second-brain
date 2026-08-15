@@ -16,9 +16,14 @@ const TYPE_LABELS = {
 
 function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onOpenWorkbook, onRetryRun, onExtendReview }) {
   const [answer, setAnswer] = useState('');
-  const [mode, setMode] = useState(null); // escalation: null | 'accept'
+  const [mode, setMode] = useState(null); // escalation: null | 'accept' | 'redirect'
+  const [target, setTarget] = useState('');
+  const [showCtx, setShowCtx] = useState(false);
   const ownerAgent = row.owner.agentId ? agentsById[row.owner.agentId] : null;
   const ownerLabel = row.owner.email || (ownerAgent ? ownerAgent.name : null);
+  // The escalating agent's attached context — decision-critical, and the
+  // inline tray that used to show it is hidden behind the needs_you flag.
+  const hasCtx = row.contextData && Object.keys(row.contextData).length > 0;
 
   return (
     <div className={`ny-card ny-${row.type}`}>
@@ -30,26 +35,57 @@ function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, o
       </div>
       <div className="ny-decision">{row.decision}</div>
       {row.context ? <div className="ny-context">{short(row.context, 220)}</div> : null}
+      {hasCtx ? (
+        <button className="link-btn" onClick={() => setShowCtx((v) => !v)}>
+          {showCtx ? 'hide context' : 'context'}
+        </button>
+      ) : null}
+      {showCtx ? (
+        <pre className="tray-context mono">
+          {short((() => { try { return JSON.stringify(row.contextData, null, 1); } catch { return String(row.contextData); } })(), 800)}
+        </pre>
+      ) : null}
       <div className="ny-meta">
         <span className="ny-consequence">{row.consequence}</span>
         {row.recommendation ? <span className="ny-recommendation">{row.recommendation}</span> : null}
       </div>
       <div className="ny-actions">
         {row.type === 'escalation' ? (
-          mode === 'accept' ? (
+          mode === 'accept' || mode === 'redirect' ? (
             <form
               className="tray-form"
-              onSubmit={(e) => { e.preventDefault(); onResolveEscalation(row.sourceRef.id, { action: 'accept', answer }); }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (mode === 'accept') onResolveEscalation(row.sourceRef.id, { action: 'accept', answer });
+                else onResolveEscalation(row.sourceRef.id, { action: 'redirect', target_agent_id: target, answer });
+              }}
             >
-              <textarea rows="2" autoFocus placeholder="Your decision — the agent resumes with this…" value={answer} onChange={(e) => setAnswer(e.target.value)} />
+              {mode === 'redirect' ? (
+                <select value={target} onChange={(e) => setTarget(e.target.value)} required>
+                  <option value="" disabled>redirect to…</option>
+                  {agents.filter((a) => a.id !== row.escalatingAgentId).map((a) => (
+                    <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
+                  ))}
+                </select>
+              ) : null}
+              <textarea
+                rows="2"
+                autoFocus
+                placeholder={mode === 'accept' ? 'Your decision — the agent resumes with this…' : 'Instructions for the redirected agent…'}
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+              />
               <div className="tray-actions">
-                <button className="btn ok small" type="submit" disabled={!answer.trim()}>Send decision</button>
+                <button className="btn ok small" type="submit" disabled={!answer.trim() || (mode === 'redirect' && !target)}>
+                  {mode === 'accept' ? 'Send decision' : 'Redirect'}
+                </button>
                 <button className="btn ghost small" type="button" onClick={() => setMode(null)}>Back</button>
               </div>
             </form>
           ) : (
             <>
               <button className="btn ok small" onClick={() => setMode('accept')}>Resolve</button>
+              <button className="btn ghost small" onClick={() => setMode('redirect')}>Redirect</button>
               <button className="btn ghost small dim-btn" onClick={() => onResolveEscalation(row.sourceRef.id, { action: 'dismiss' })}>Dismiss</button>
               {onAssign ? (
                 <select

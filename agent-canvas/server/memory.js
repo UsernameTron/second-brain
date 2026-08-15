@@ -163,6 +163,8 @@ function downstreamOf(entryId) {
 
 // All entries whose citation ancestry (transitively) includes a superseded
 // entry — i.e. entries built on information that has since been corrected.
+// A supersession whose content is UNCHANGED (re-affirmation or reclassify)
+// is not a truth correction and must not taint dependents (codex P1 on #183).
 function taintedSet(canvasId) {
   // No superseded entries → nothing can be tainted. Skips the recursive
   // citation-graph walk in the common no-corrections case (IMPROVE finding:
@@ -170,10 +172,28 @@ function taintedSet(canvasId) {
   const anySuperseded = db.prepare('SELECT 1 FROM memory_entries WHERE superseded_by IS NOT NULL LIMIT 1').get();
   if (!anySuperseded) return new Set();
   const rows = db.prepare(`
-    WITH RECURSIVE down(id) AS (
+    WITH RECURSIVE
+    -- Every (superseded entry, successor) pair along its supersession chain:
+    -- an entry is CORRECTED only if some successor changed the words, not
+    -- merely re-affirmed or reclassified them.
+    chain(orig, cur) AS (
+      SELECT id, superseded_by FROM memory_entries WHERE superseded_by IS NOT NULL
+      UNION
+      SELECT chain.orig, m.superseded_by FROM chain
+        JOIN memory_entries m ON m.id = chain.cur
+       WHERE m.superseded_by IS NOT NULL
+    ),
+    corrected(id) AS (
+      SELECT DISTINCT c.orig FROM chain c
+        JOIN memory_entries o ON o.id = c.orig
+        JOIN memory_entries n ON n.id = c.cur
+       WHERE n.content != o.content
+    ),
+    down(id) AS (
       SELECT c.entry_id FROM citations c
+        JOIN corrected x ON x.id = c.cites_entry_id
         JOIN memory_entries m ON m.id = c.cites_entry_id
-       WHERE m.superseded_by IS NOT NULL AND c.entry_id != m.superseded_by
+       WHERE c.entry_id != m.superseded_by
       UNION
       SELECT c.entry_id FROM citations c
         JOIN memory_entries t ON t.id = c.cites_entry_id

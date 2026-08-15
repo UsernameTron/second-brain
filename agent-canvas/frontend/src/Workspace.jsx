@@ -271,6 +271,7 @@ export default function Workspace() {
     if (!canvasId) return;
     canvasIdRef.current = canvasId;
     setState(null); setMemory([]); setActivity([]); setSpend(null);
+    setAttention(null); // stale cards carry old-canvas sourceRefs — never keep them across a switch
     setCursors({}); setSelections({}); setPanel(null); setMySelection(null);
     refreshAll();
     send({ type: 'join', canvasId });

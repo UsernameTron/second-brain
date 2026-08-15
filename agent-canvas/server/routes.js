@@ -865,7 +865,9 @@ router.post('/canvases/:canvasId/memory/:entryId/reaffirm', auth.requireCanvas, 
       authorType: 'user', authorId: req.user.email, authorName: req.user.name || req.user.email,
     });
     if (result.conflict) return res.status(409).json({ conflict: true, current: result.current });
-    bus.emit('event', { type: 'memory_ripple', canvasId: req.params.canvasId, entry: result.entry, supersededId: old.id, affected: result.affected });
+    // affected is deliberately empty: unchanged content is not a correction,
+    // so dependents are neither tainted nor flashed (codex P1 on #183).
+    bus.emit('event', { type: 'memory_ripple', canvasId: req.params.canvasId, entry: result.entry, supersededId: old.id, affected: [] });
     res.json({ entry: result.entry });
   } catch (err) {
     res.status(400).json({ error: err.message });

@@ -47,6 +47,13 @@ function escalationCards(canvasId, { scope, email } = {}) {
     actions: ['resolve', 'assign'],
     sourceRef: { kind: 'escalation', id: e.id, canvasId: e.canvas_id },
     createdAt: e.created_at,
+  })).map((c, i) => ({
+    ...c,
+    // The escalating agent's attached context (entry_ids, detail, item_key) is
+    // decision-critical; the view renders it since the inline tray is hidden
+    // behind the flag (codex P1 on #183).
+    contextData: (() => { try { return JSON.parse(rows[i].context || '{}'); } catch { return {}; } })(),
+    escalatingAgentId: rows[i].agent_id,
   }));
 }
 
@@ -59,7 +66,14 @@ function conflictCards(canvasId) {
     const key = String(c.subject).toLowerCase();
     if (!bySubject.has(key)) bySubject.set(key, c);
   }
-  return [...bySubject.values()].slice(0, 20).map((c) => card({
+  // Rank deterministically (newest conflicting entry first) BEFORE the cap —
+  // findConflicts has no ORDER BY, so slicing raw map order could hide new
+  // conflicts behind 20 stale ones indefinitely (codex on #183).
+  const newest = (c) => [c.entries[0].createdAt, c.entries[1].createdAt].sort().pop();
+  return [...bySubject.values()]
+    .sort((a, b) => String(newest(b)).localeCompare(String(newest(a))))
+    .slice(0, 20)
+    .map((c) => card({
     type: 'conflict',
     decision: `Two verified memory entries disagree about "${c.subject}".`,
     context: c.entries.map((e) => `"${String(e.content).slice(0, 120)}"`).join(' vs '),
@@ -97,6 +111,8 @@ function failedRunCards(canvasId) {
   // resolved one that was itself the terminal halt (haltAndEscalate kinds).
   // A resolved mid-run QUESTION must not suppress a later unrelated failure —
   // the escalate tool lets a run continue after asking (claude-review on #182).
+  // A run with a CHILD (retry or escalation resume) is handled — otherwise the
+  // Retry card would reappear forever after every retry (codex on #183).
   const rows = db.prepare(`
     SELECT r.id, r.canvas_id, r.agent_id, r.status, r.instruction, r.error, r.created_at
     FROM runs r
@@ -106,6 +122,7 @@ function failedRunCards(canvasId) {
         SELECT 1 FROM escalations e WHERE e.run_id = r.id
           AND (e.status = 'open' OR e.kind != 'question')
       )
+      AND NOT EXISTS (SELECT 1 FROM runs child WHERE child.parent_run_id = r.id)
     ORDER BY r.created_at DESC LIMIT 50
   `).all(canvasId);
   return rows.map((r) => card({
