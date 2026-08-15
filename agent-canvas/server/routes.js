@@ -660,6 +660,7 @@ router.post('/canvases/:canvasId/agents/:agentId/dispatch', rateLimit('model'), 
       agentId: req.params.agentId, canvasId: req.params.canvasId, instruction,
       triggerKind: 'user', actor: req.user.email, initiatedBy: req.user.email,
       stepBudget: req.body.step_budget, wallMs: req.body.wall_ms,
+      mode: req.body.mode || null, // act|ask|rehearse; validated in dispatchRun
     });
     res.json({ run });
   } catch (err) {
