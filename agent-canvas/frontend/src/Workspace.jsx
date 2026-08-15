@@ -645,6 +645,8 @@ export default function Workspace() {
           spendRow={spendByAgent[panel.id]}
           initialRunId={panel.runId || null}
           paused={pause.paused}
+          canvasId={canvasId}
+          onSelectEntry={() => setPanel({ type: 'memory' })}
           onDispatch={async (instruction) => {
             try { await dispatchToAgent(panel.id, instruction); toast(`Sent to ${agentsById[panel.id].name}`, 'ok'); }
             catch (e) { toast(e.message); }
