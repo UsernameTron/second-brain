@@ -15,8 +15,19 @@ Verified post-deploy: env vars intact through the wholesale set
 (MODEL_PROVIDER, GOOGLE_CLIENT_ID, HS_OPS_RUNNER_URL, ED_DISPATCH_URL),
 `/api/config` serves `rooms: true` (+ inquiryHome, needsYou), zero error-level
 logs in the first 15 minutes. Rollback: `setSetting('rooms','0')` hides the
-view with no deploy. In-app signed-in acceptance of the Rooms flow is still
-owed (create → refresh → export walk on production).
+view with no deploy. **LIVE ACCEPTANCE PASSED 2026-08-15** (Pete's Chrome,
+driven headlessly): room "P3 Acceptance — Rooms walk" created + staffed in
+~30s; all six sections populated with real data (9 evidence refs with
+freshness, risks showed 2 escalations + a memory conflict); refresh
+dispatched real ask-mode runs and stamped time + actor; the disclosure
+preview named 3 private Drive sources "stays internal"; and the export's
+content-addressed gate FIRED in production — two downloads 409'd because the
+refresh run wrote evidence between preview and export — then returned 200
+with a fresh hash, exporting hubspot-only evidence, no private URIs, and the
+disclosure note. One refinement noted, not a bypass: an agent-written
+verified fact can QUOTE private Drive doc titles in its text and pass the
+reference-level filter (the preview does show the text for review) —
+content-level screening is queued as a follow-up task.
 
 - **T1 schema + projection:** `rooms` (1:1 over a restricted canvas: type
   deal/client/initiative/decision, external ref, lifecycle, refresh state)
