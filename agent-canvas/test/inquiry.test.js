@@ -141,6 +141,12 @@ test('status derives from the run; saved toggle persists; list and detail endpoi
   } finally { restore(); }
 });
 
+test('config exposes the inquiry_home flag (default on)', async () => {
+  const res = await fetch(`${base}/api/config`);
+  const data = await res.json();
+  assert.equal(data.inquiryHome, true);
+});
+
 test('invalid mode and empty question 400; refused/halted runs read unanswered', async () => {
   const badMode = await call('POST', `/api/canvases/${canvasId}/inquiries`, { question: 'q', agent_id: SCOUT, mode: 'yolo' });
   assert.equal(badMode.status, 400);

@@ -8,6 +8,7 @@ import CommandBar from './CommandBar.jsx';
 import MemoryPanel from './MemoryPanel.jsx';
 import Workbook from './Workbook.jsx';
 import { AgentPanel, NotePanel, SpendPanel } from './Panels.jsx';
+import Home from './Home.jsx';
 import AdminModal from './AdminModal.jsx';
 import AddAgentModal from './AddAgentModal.jsx';
 import CapabilitiesModal from './CapabilitiesModal.jsx';
@@ -40,6 +41,11 @@ export default function Workspace() {
   const [selections, setSelections] = useState({});
   const [mySelection, setMySelection] = useState(null);
   const [panel, setPanel] = useState(null); // {type, ...}
+  // P1 Inquiry Home: 'home' | 'canvas'. Default comes from the server's
+  // inquiry_home flag (reversible exposure — flip the setting, no deploy).
+  const { config } = useContext(AppCtx);
+  const [view, setView] = useState(config && config.inquiryHome ? 'home' : 'canvas');
+  const [runTick, setRunTick] = useState(0); // bumps on run_status → Home refetch
   const [ripple, setRipple] = useState(null); // {flash, ids:Set}
   const [amberAgents, setAmberAgents] = useState(() => new Set());
   const [hoverHandoffId, setHoverHandoffId] = useState(null);
@@ -290,6 +296,7 @@ export default function Workspace() {
         setState((s) => s && ({ ...s, agents: s.agents.map((a) => (a.id === ev.agentId ? { ...a, status: ev.status } : a)) }));
         break;
       case 'run_status':
+        setRunTick((t) => t + 1);
         setState((s) => {
           if (!s) return s;
           if (!s.runs.some((r) => r.id === ev.runId)) { scheduleRefetch(); return s; }
@@ -784,6 +791,9 @@ export default function Workspace() {
             {budget ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '$ — / —'}
           </span>
         </button>
+        <button className={`btn ghost ${view === 'home' ? 'active' : ''}`} onClick={() => setView(view === 'home' ? 'canvas' : 'home')}>
+          {view === 'home' ? 'Canvas' : 'Home'}
+        </button>
         <button className={`btn ghost ${panel?.type === 'memory' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'memory' ? null : { type: 'memory' })}>Memory</button>
         <button className={`btn ghost ${panel?.type === 'workbook' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'workbook' ? null : { type: 'workbook' })}>Workbook</button>
         <button
@@ -846,7 +856,18 @@ export default function Workspace() {
 
       <div className="stage">
         <div className="canvas-wrap">
-          {state ? (
+          {state && view === 'home' ? (
+            <Home
+              canvasId={canvasId}
+              agents={state.agents || []}
+              agentsById={agentsById}
+              paused={pause.paused}
+              runTick={runTick}
+              onOpenRun={(agentId, runId) => { setView('canvas'); openRun(runId); }}
+              toast={toast}
+            />
+          ) : null}
+          {state && view !== 'home' ? (
             <Canvas
               agents={state.agents || []}
               notes={state.notes || []}
@@ -871,12 +892,13 @@ export default function Workspace() {
               onCursor={sendCursor}
               onSelect={selectNode}
             />
-          ) : (
+          ) : null}
+          {!state ? (
             <div className="stage-loading">
               <div className="boot-glyph" />
               {canvases.length === 0 ? 'No canvases visible to you yet.' : 'Loading canvas…'}
             </div>
-          )}
+          ) : null}
 
           {state && (state.agents || []).length === 0 ? (
             <div className="empty-canvas-cta">

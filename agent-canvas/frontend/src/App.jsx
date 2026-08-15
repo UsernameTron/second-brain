@@ -132,9 +132,14 @@ function SignIn() {
         )}
         <h1>Agent Canvas</h1>
         <p className="signin-sub">
-          A shared workspace where your agents work in the open.
+          Ask the company. See the evidence. Assign the work. Approve the action.
           {config?.domain ? <span className="mono"> @{config.domain}</span> : null}
         </p>
+        <ul className="signin-examples" aria-label="Example questions">
+          <li>“What do we know about this account, and how fresh is it?”</li>
+          <li>“Which deals have gone quiet in the last two weeks?”</li>
+          <li>“What renewals are coming up, and what risks do we know about?”</li>
+        </ul>
         {config?.googleClientId ? (
           <div className="gsi-slot" ref={gsiRef} />
         ) : (

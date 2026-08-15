@@ -155,7 +155,7 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
 // "provided" = attached before start (handoff payload, escalation lineage);
 // "searches" = what it asked memory and what came back (rank + score);
 // "cited" = what it wrote to memory. Retrieved ≠ used — only cites prove use.
-function ContextReceipt({ receipt, onFeedback }) {
+export function ContextReceipt({ receipt, onFeedback }) {
   const [note, setNote] = useState('');
   const fb = receipt.feedback;
   const entryLine = (e, extra) => (
