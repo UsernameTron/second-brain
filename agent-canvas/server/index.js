@@ -44,7 +44,7 @@ app.use('/api', routes);
 app.post('/api/canvases/:canvasId/demo/run', rateLimit('demo'), auth.requireAuth, (req, res) => {
   const check = auth.canEditCanvas(req.user, req.params.canvasId);
   if (!check.ok) return res.status(check.status).json({ error: check.error });
-  const research = db.prepare("SELECT * FROM agents WHERE canvas_id = ? AND role = 'research' LIMIT 1").get(req.params.canvasId);
+  const research = db.prepare("SELECT * FROM agents WHERE canvas_id = ? AND role = 'research' AND lifecycle = 'active' LIMIT 1").get(req.params.canvasId);
   if (!research) return res.status(400).json({ error: 'no research agent on this canvas' });
   try {
     const run = dispatchRun({

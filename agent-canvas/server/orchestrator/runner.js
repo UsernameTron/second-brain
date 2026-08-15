@@ -112,10 +112,13 @@ async function executeRun(runId) {
 
   const system = buildSystemPrompt(agent, canvas, run);
   const { workspaceRole } = require('../auth');
-  const tools = toolsForRole(agent.role, { userRole: workspaceRole(run.initiated_by), mode: run.mode || 'act' });
+  const authority = require('./tools').parseAuthority(agent.tools_json);
+  const tools = toolsForRole(agent.role, { userRole: workspaceRole(run.initiated_by), mode: run.mode || 'act', authority });
   // Web search rides the Claude providers only in v1 (Google grounding has a
   // different result shape); Gemini research agents work from row data + memory.
-  if (agent.role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0' && provider !== 'gemini') {
+  // An explicit authority map governs it like every external surface.
+  if (agent.role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0' && provider !== 'gemini'
+    && (!authority || authority.includes('web_search'))) {
     tools.push(webSearchToolFor(model, provider));
   }
   const messages = [{ role: 'user', content: run.instruction }];

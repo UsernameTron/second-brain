@@ -1451,3 +1451,18 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .room-activity { max-height: 60vh; overflow-y: auto; }
 .room-export-preview { border: 1px solid var(--line, #333); border-radius: 8px; padding: 14px; margin-bottom: 16px; }
 .room-export-preview h3 { margin: 0 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* ===== P4 agent builder ===== */
+.builder-flow { display: flex; flex-direction: column; gap: 14px; }
+.builder-flow textarea, .builder-flow input[type="number"] { width: 100%; }
+.builder-flow input[type="number"] { width: 70px; }
+.builder-flow section h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.builder-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.authority-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; }
+.authority-line { display: flex; align-items: baseline; gap: 8px; font-size: 13px; cursor: pointer; }
+.authority-name { flex: 0 0 auto; }
+.authority-desc { color: var(--dim, #888); }
+.rehearsal-block { border: 1px solid var(--line, #333); border-radius: 8px; padding: 10px; }
+.rehearsal-summary { white-space: pre-wrap; font-size: 13px; }
+.builder-warnings { border: 1px solid #b45309; border-radius: 8px; padding: 10px; font-size: 13px; }
+.builder-warnings ul { margin: 6px 0 0; padding-left: 18px; }

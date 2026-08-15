@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { api } from './api.js';
 import { useDialog } from './useDialog.js';
+import AgentBuilder from './AgentBuilder.jsx';
 
 // Staff a canvas: instantiate a vetted roster template (the normal path) or
 // hand-build a custom agent. Roster instantiation copies the template
 // server-side and pins its companion note; the copy is editable per-canvas
 // and only changes on an owner resync.
-export default function AddAgentModal({ canvasId, roster, onClose, onAdded, toast }) {
+export default function AddAgentModal({ canvasId, roster, builderOn, isOwner, onClose, onAdded, toast }) {
   const dialogRef = useDialog(onClose);
-  const [tab, setTab] = useState(roster.length ? 'roster' : 'custom');
+  const [tab, setTab] = useState(builderOn ? 'builder' : (roster.length ? 'roster' : 'custom'));
   const [busy, setBusy] = useState(false);
 
   // custom form
@@ -48,11 +49,17 @@ export default function AddAgentModal({ canvasId, roster, onClose, onAdded, toas
         <header className="modal-head">
           <h2>Add agent</h2>
           <nav className="modal-tabs">
+            {builderOn ? <button className={tab === 'builder' ? 'active' : ''} onClick={() => setTab('builder')}>Describe the job</button> : null}
             <button className={tab === 'roster' ? 'active' : ''} onClick={() => setTab('roster')}>From roster</button>
-            <button className={tab === 'custom' ? 'active' : ''} onClick={() => setTab('custom')}>Custom</button>
+            <button className={tab === 'custom' ? 'active' : ''} onClick={() => setTab('custom')}>Advanced</button>
           </nav>
           <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">✕</button>
         </header>
+        {tab === 'builder' ? (
+          <div className="modal-body">
+            <AgentBuilder canvasId={canvasId} isOwner={isOwner} onPublished={onAdded} toast={toast} />
+          </div>
+        ) : null}
         {tab === 'roster' ? (
           <div className="modal-body">
             {roster.length === 0 ? <p className="empty-hint">No roster entries are enabled. The owner manages the roster in Admin.</p> : null}
@@ -69,7 +76,8 @@ export default function AddAgentModal({ canvasId, roster, onClose, onAdded, toas
               ))}
             </ul>
           </div>
-        ) : (
+        ) : null}
+        {tab === 'custom' ? (
           <form className="modal-body add-agent-form" onSubmit={addCustom}>
             <div className="add-agent-row">
               <input required placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -86,7 +94,7 @@ export default function AddAgentModal({ canvasId, roster, onClose, onAdded, toas
               <button type="submit" className="btn primary small" disabled={busy || !name.trim()}>Add agent</button>
             </div>
           </form>
-        )}
+        ) : null}
       </div>
     </div>
   );

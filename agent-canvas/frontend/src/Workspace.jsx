@@ -1169,6 +1169,8 @@ export default function Workspace() {
       {addAgentOpen && canvasId ? (
         <AddAgentModal
           canvasId={canvasId}
+          builderOn={!!(config && config.agentBuilder)}
+          isOwner={isOwner}
           roster={roster.filter((r) => r.enabled)}
           onClose={() => setAddAgentOpen(false)}
           onAdded={() => { setAddAgentOpen(false); loadState(canvasId); }}

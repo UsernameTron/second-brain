@@ -534,7 +534,35 @@ function blockedInMode(name, mode) {
   return MUTATING_TOOLS.has(name);
 }
 
-function toolsForRole(role, { userRole = 'member', mode = 'act' } = {}) {
+// P4 Authority Map. "Governed" tools are the ones that reach an external
+// surface (Workspace, HubSpot, MCP, enrichment, web search) — the connector
+// authority the roadmap says must never be implicit. Cognition and canvas
+// tools (memory, notes, escalate, handoff, rows…) are never governed: an
+// agent stripped to zero authority still thinks, remembers, and escalates.
+function governedTool(name) {
+  return name.startsWith('ws_') || name.startsWith('hs_') || name.startsWith('mcp_')
+    || name.startsWith('enrich_') || name === 'verify_email' || name === 'get_enriched_contact'
+    || name === 'web_search';
+}
+
+// authority: null = legacy full role surface; an array = the explicit
+// allowlist. Filtering is intersection-only — an allowlist can never ADD a
+// tool the role/mode/deployment gates would not have offered.
+function allowedByAuthority(name, authority) {
+  if (!authority) return true;
+  if (!governedTool(name)) return true;
+  return authority.includes(name);
+}
+
+function parseAuthority(toolsJson) {
+  if (toolsJson === null || toolsJson === undefined) return null;
+  try {
+    const arr = JSON.parse(toolsJson);
+    return Array.isArray(arr) ? arr.map(String) : null;
+  } catch { return null; }
+}
+
+function toolsForRole(role, { userRole = 'member', mode = 'act', authority = null } = {}) {
   // MCP defs are filtered per directing user + agent role: owner-only
   // connectors never reach a member-directed run's tool list, and role-scoped
   // connectors are offered only to the agent roles the owner named. Both are
@@ -562,7 +590,25 @@ function toolsForRole(role, { userRole = 'member', mode = 'act' } = {}) {
     name: 'read_rows',
     description: 'Read rows of the conference-lead workbook on this canvas.',
     input_schema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer' } }, required: [] },
-  }])].filter((t) => !blockedInMode(t.name, mode));
+  }])].filter((t) => !blockedInMode(t.name, mode) && allowedByAuthority(t.name, authority));
+}
+
+// The plain-language authority menu a draft proposal may pick from: every
+// governed tool this deployment can actually honor right now, for this role.
+// Server-supplied, so generated configuration can never invent authority.
+function authorityMenu(role, { userRole = 'member' } = {}) {
+  const menu = toolsForRole(role, { userRole, mode: 'act' })
+    .filter((t) => governedTool(t.name))
+    .map((t) => ({ name: t.name, description: String(t.description || '').split('. ')[0] }));
+  // web_search rides outside the registry (runner.js pushes it per-run), so
+  // the menu adds it under the same gates the runner applies — otherwise a
+  // builder research agent could never be granted real web search.
+  const tierProviders = [require('./anthropic').tierConfig('fast').provider, require('./anthropic').tierConfig('strong').provider];
+  if (role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0'
+    && tierProviders.some((p) => p !== 'gemini')) {
+    menu.push({ name: 'web_search', description: 'Search the public web (Claude providers only)' });
+  }
+  return menu;
 }
 
 function getRowByIndex(canvasId, rowIndex) {
@@ -587,6 +633,18 @@ async function executeTool(name, input, ctx) {
   // re-check, same defense-in-depth shape as the MCP owner gate below.
   if (blockedInMode(name, run.mode)) {
     return { content: `REFUSED: this is a ${run.mode} run — ${name} would change outside state and is unavailable. Describe what you WOULD do instead, and note it in your summary.`, isError: true };
+  }
+
+  // P4 Authority Map call-time re-check: an agent with an explicit allowlist
+  // may never execute a governed tool outside it, even if a def leaked into
+  // the offer. Same defense-in-depth shape as the mode gate above.
+  // Authority is re-read from the DB, not the run-start snapshot — an owner
+  // narrowing an agent mid-run takes effect on the very next tool call.
+  const liveAuthority = agent && agent.id
+    ? (db.prepare('SELECT tools_json FROM agents WHERE id = ?').get(agent.id) || agent).tools_json
+    : agent && agent.tools_json;
+  if (!allowedByAuthority(name, parseAuthority(liveAuthority))) {
+    return { content: `REFUSED: this agent's authority map does not include ${name}. Work within your granted tools, or escalate if the task requires this authority.`, isError: true };
   }
 
   // MCP tools are dynamically named (mcp_<server>_<tool>) — dispatch before the
@@ -717,12 +775,12 @@ async function executeTool(name, input, ctx) {
     }
 
     case 'list_agents': {
-      const agents = db.prepare('SELECT name, role, status FROM agents WHERE canvas_id = ? AND id != ?').all(canvas.id, agent.id);
+      const agents = db.prepare("SELECT name, role, status FROM agents WHERE canvas_id = ? AND id != ? AND lifecycle = 'active'").all(canvas.id, agent.id);
       return { content: JSON.stringify(agents) };
     }
 
     case 'handoff': {
-      const target = db.prepare('SELECT * FROM agents WHERE canvas_id = ? AND name = ?').get(canvas.id, input.to_agent_name);
+      const target = db.prepare("SELECT * FROM agents WHERE canvas_id = ? AND name = ? AND lifecycle = 'active'").get(canvas.id, input.to_agent_name);
       if (!target) return { content: `No agent named "${input.to_agent_name}" on this canvas. Use list_agents.`, isError: true };
       if (target.id === agent.id) return { content: 'Cannot hand off to yourself.', isError: true };
       const itemKey = input.item_key || 'general';
@@ -1104,4 +1162,4 @@ function createEscalation({ canvasId, runId, agentId, kind, question, context })
   return escalation;
 }
 
-module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS, blockedInMode, MUTATING_TOOLS };
+module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS, blockedInMode, MUTATING_TOOLS, governedTool, allowedByAuthority, parseAuthority, authorityMenu };

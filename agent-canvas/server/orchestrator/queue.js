@@ -43,10 +43,19 @@ function dispatchRun({ agentId, canvasId, instruction, triggerKind = 'user', par
     if (!runMode) runMode = parent?.mode || null;
   }
   runMode = runMode || 'act';
+  // P4: a draft shadow agent exists only to rehearse. Any other mode through
+  // ANY dispatch path (route, handoff, retry, resume) is refused server-side.
+  if (agent.lifecycle === 'draft' && runMode !== 'rehearse') {
+    throw Object.assign(new Error('this agent is an unpublished draft — it can only rehearse'), { status: 403 });
+  }
   db.prepare(
     `INSERT INTO runs (id, agent_id, canvas_id, parent_run_id, trigger_kind, instruction, status, step_budget, wall_ms_budget, created_at, initiated_by, mode)
      VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?)`
-  ).run(id, agentId, canvasId, parentRunId, triggerKind, instruction, stepBudget || DEFAULT_STEP_BUDGET, wallMs || DEFAULT_WALL_MS, nowIso(), initiator, runMode);
+  ).run(id, agentId, canvasId, parentRunId, triggerKind, instruction,
+    // Per-agent budgets (P4 builder proposals) are the dispatch default;
+    // an explicit caller budget still wins, the env default is the floor.
+    stepBudget || agent.step_budget || DEFAULT_STEP_BUDGET, wallMs || agent.wall_ms_budget || DEFAULT_WALL_MS,
+    nowIso(), initiator, runMode);
   if (initialReads.length) memory.recordRunReads(id, initialReads);
   audit(triggerKind === 'user' ? 'user' : 'system', actor, 'run.dispatch', { runId: id, agentId, canvasId, triggerKind });
   bus.emit('event', { type: 'run_status', canvasId, runId: id, agentId, status: 'queued' });
