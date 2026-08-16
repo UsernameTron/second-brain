@@ -168,15 +168,18 @@ function exportManifest(roomId) {
   // matching on tiny titles sprays false positives.
   const privateTitles = [...new Set(privateRefs.map((r) => String(r.display_title || '').trim()).filter((t) => t.length >= 4))];
   const mentionsPrivate = (list, kind) => list.flatMap((e) => {
-    const matched = privateTitles.filter((t) => e.content.toLowerCase().includes(t.toLowerCase()));
+    const matched = privateTitles.filter((t) => String(e.content || '').toLowerCase().includes(t.toLowerCase()));
     return matched.length ? [{ id: e.id, kind, content: e.content, matchedTitles: matched }] : [];
   });
+  const tasks = db.prepare("SELECT id, title, status, created_at FROM tasks WHERE canvas_id = ? ORDER BY created_at").all(canvasId);
   const contentWarnings = [
     ...mentionsPrivate(decisions.clean, 'decision'),
     ...mentionsPrivate(facts.clean, 'fact'),
+    // Tasks ship in `included` too, and a task title naming a private Drive
+    // doc leaves exactly as unscreened as a fact would.
+    ...mentionsPrivate(tasks.map((t) => ({ id: t.id, content: t.title })), 'task'),
   ];
 
-  const tasks = db.prepare("SELECT id, title, status, created_at FROM tasks WHERE canvas_id = ? ORDER BY created_at").all(canvasId);
   const openEscalations = db.prepare("SELECT id, question, created_at FROM escalations WHERE canvas_id = ? AND status = 'open'").all(canvasId);
 
   const manifest = {
@@ -204,13 +207,19 @@ function exportManifest(roomId) {
   return manifest;
 }
 
+// Content-addressed means addressed by CONTENT. An id projection was not
+// enough: the export renders text (task titles, evidence titles, entry
+// bodies), and a task title is mutable after the preview with its id and
+// status unchanged — so a renamed task shipped under a hash the owner
+// reviewed before the rename (codex P1 on #197). The same gap left
+// contentWarnings unhashed, so a private ref recorded after the preview could
+// raise a NEW warning against an already-included entry without invalidating
+// the review. Hash what the review actually shows leaving — `included` in
+// full, plus the warnings raised against it. `excluded` stays out (it never
+// reaches the HTML, so hashing it would force re-reviews that cannot change
+// the disclosure) and so does `generatedAt`, which differs on every call.
 function manifestHash(manifest) {
-  const stable = {
-    decisions: manifest.included.decisions.map((d) => d.id),
-    facts: manifest.included.facts.map((f) => f.id),
-    evidence: manifest.included.evidence.map((e) => e.id),
-    tasks: manifest.included.tasks.map((t) => `${t.id}:${t.status}`),
-  };
+  const stable = { included: manifest.included, contentWarnings: manifest.contentWarnings };
   return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex');
 }
 

@@ -16,9 +16,10 @@ process.env.ANTHROPIC_API_KEY = 'test';
 
 const { server } = require('../server/index');
 const { db, nowIso } = require('../server/db');
-const { toolsForRole, executeTool, governedTool, authorityMenu } = require('../server/orchestrator/tools');
+const { toolsForRole, executeTool, governedTool, authorityMenu, parseAuthority, createEscalation } = require('../server/orchestrator/tools');
 const { dispatchRun } = require('../server/orchestrator/queue');
 const runner = require('../server/orchestrator/runner');
+const builder = require('../server/builder');
 
 const OWNER = 'pete@cloudtechgurus.com';
 let base;
@@ -203,7 +204,32 @@ test('web_search authority is re-checked between model calls, not only at run st
   db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
 });
 
-test('draft-lifecycle agents are invisible on canvas and inquiry surfaces', async () => {
+test('rollback restores authority faithfully — including a legacy NULL (see routes.js)', async () => {
+  // The pre-P4 shape: an agent with no allowlist, i.e. the full role surface.
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const legacy = builder.recordVersion(db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId),
+    { source: 'baseline', actor: OWNER });
+  assert.equal(builder.getVersion(legacy).tools_json, null, 'the snapshot preserves NULL, not "[]"');
+
+  // A P4 publish narrows it to an explicit grant.
+  db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(['hs_search']), agentId);
+  assert.ok(!toolsForRole('research', { authority: ['hs_search'] }).some((t) => t.name === 'ws_gmail_draft'));
+
+  const rolled = await call(ownerCookie, 'POST', `/api/canvases/${canvasId}/agents/${agentId}/rollback/${legacy}`);
+  assert.equal(rolled.status, 200);
+  assert.equal(rolled.data.agent.tools_json, null, 'the pre-P4 config comes back as it was');
+  // DELIBERATE, DOCUMENTED WIDENING: NULL means "no allowlist", so the role
+  // surface returns. The owner must be able to see it happen.
+  assert.ok(rolled.data.diff.tools_json, 'the diff names tools_json — the widening is never silent');
+  assert.equal(rolled.data.diff.tools_json.to, null);
+  const restored = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId);
+  assert.equal(parseAuthority(restored.tools_json), null, 'NULL parses as legacy full role surface');
+  assert.ok(toolsForRole('research', { authority: parseAuthority(restored.tools_json) })
+    .some((t) => t.name === 'ws_gmail_draft'), 'the legacy surface is genuinely back');
+  assert.ok(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'agent.rollback'").get().n >= 1, 'audited');
+});
+
+test('draft-lifecycle agents are invisible on canvas, inquiry, handoff and NEEDS YOU surfaces', async () => {
   const draftId = crypto.randomUUID();
   db.prepare(`INSERT INTO agents (id, canvas_id, name, role, model_tier, system_prompt, created_at, lifecycle)
     VALUES (?, ?, 'Shadow', 'research', 'fast', 'draft prompt', ?, 'draft')`).run(draftId, canvasId, nowIso());
@@ -213,4 +239,37 @@ test('draft-lifecycle agents are invisible on canvas and inquiry surfaces', asyn
 
   const inq = await call(ownerCookie, 'POST', `/api/canvases/${canvasId}/inquiries`, { question: 'test?', agent_id: draftId });
   assert.equal(inq.status, 400, 'draft not selectable for inquiries');
+
+  // Reachability: a LIVE agent must not be able to route work into a shadow
+  // draft, so name resolution has to exclude it too — not just the UI.
+  const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId);
+  const canvas = db.prepare('SELECT * FROM canvases WHERE id = ?').get(canvasId);
+  const run = { id: 'run-auth-draft', mode: 'act', canvas_id: canvasId, agent_id: agentId, initiated_by: OWNER };
+  const listed = JSON.parse((await executeTool('list_agents', {}, { run, agent, canvas })).content);
+  assert.ok(!listed.some((a) => a.name === 'Shadow'), 'draft absent from list_agents');
+  const handed = await executeTool('handoff', { to_agent_name: 'Shadow', message: 'take this' }, { run, agent, canvas });
+  assert.equal(handed.isError, true);
+  assert.match(handed.content, /No agent named/);
+
+  // NEEDS YOU: a draft's escalation and its rehearsal failure belong to the
+  // builder flow, not the human tray.
+  createEscalation({
+    canvasId, runId: null, agentId: draftId, kind: 'question',
+    question: 'Should the shadow do this?', context: {},
+  });
+  db.prepare(`INSERT INTO runs (id, agent_id, canvas_id, trigger_kind, instruction, status, step_budget, wall_ms_budget, created_at, mode)
+    VALUES ('run-auth-shadow-failed', ?, ?, 'user', 'rehearse me', 'failed', 8, 60000, ?, 'rehearse')`)
+    .run(draftId, canvasId, nowIso());
+
+  const tray = (await call(ownerCookie, 'GET', `/api/attention?canvas_id=${canvasId}`)).data.attention;
+  assert.ok(!tray.some((c) => c.escalatingAgentId === draftId), 'draft escalation absent from NEEDS YOU');
+  assert.ok(!tray.some((c) => c.sourceRef.id === 'run-auth-shadow-failed'), 'draft rehearsal failure absent from NEEDS YOU');
+
+  // The same two records on a LIVE agent DO reach the tray — proving the
+  // filter is lifecycle-scoped, not just an empty query.
+  db.prepare(`INSERT INTO runs (id, agent_id, canvas_id, trigger_kind, instruction, status, step_budget, wall_ms_budget, created_at, mode)
+    VALUES ('run-auth-live-failed', ?, ?, 'user', 'do the thing', 'failed', 8, 60000, ?, 'act')`)
+    .run(agentId, canvasId, nowIso());
+  const tray2 = (await call(ownerCookie, 'GET', `/api/attention?canvas_id=${canvasId}`)).data.attention;
+  assert.ok(tray2.some((c) => c.sourceRef.id === 'run-auth-live-failed'), 'a live agent\'s failed run still demands a human');
 });
