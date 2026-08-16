@@ -12,6 +12,10 @@ const path = require('node:path');
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-modes-'));
 process.env.DEV_AUTH = '1';
 process.env.ANTHROPIC_API_KEY = 'test'; // placeholder, never called
+// The hs_* tools are disabled-by-absence (tools.js gates them on
+// opsrunner.configured()), and these tests exercise them — so this deployment
+// has the lane wired, exactly as hubspot-opsrunner.test.js does.
+process.env.HS_OPS_RUNNER_URL = 'https://ops-runner.test.example';
 
 const { db, nowIso } = require('../server/db');
 const { toolsForRole, executeTool, blockedInMode, MUTATING_TOOLS } = require('../server/orchestrator/tools');

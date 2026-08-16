@@ -14,6 +14,10 @@ const path = require('node:path');
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-srules-'));
 process.env.DEV_AUTH = '1';
 process.env.ANTHROPIC_API_KEY = 'test';
+// The hs_* tools are disabled-by-absence (tools.js gates them on
+// opsrunner.configured()), and these tests exercise them — so this deployment
+// has the lane wired, exactly as hubspot-opsrunner.test.js does.
+process.env.HS_OPS_RUNNER_URL = 'https://ops-runner.test.example';
 
 const { server } = require('../server/index');
 const { db, nowIso } = require('../server/db');
@@ -126,13 +130,31 @@ test.after(() => new Promise((resolve) => server.close(resolve)));
 // ---------- T1: occurrence-key + next_run_at math ----------
 
 test('occurrence keys derive deterministically from the due time per cadence', () => {
-  assert.equal(standingRules.occurrenceKey({ cadence: 'hourly' }, '2026-08-15T14:05:00.000Z'), '2026-08-15T14');
-  assert.equal(standingRules.occurrenceKey({ cadence: 'daily' }, '2026-08-15T08:00:00.000Z'), '2026-08-15');
-  assert.equal(standingRules.occurrenceKey({ cadence: 'weekly' }, '2026-08-15T08:00:00.000Z'), '2026-W33');
+  assert.equal(standingRules.occurrenceKey({ cadence: 'hourly', version: 1 }, '2026-08-15T14:05:00.000Z'), '2026-08-15T14#v1');
+  assert.equal(standingRules.occurrenceKey({ cadence: 'daily', version: 1 }, '2026-08-15T08:00:00.000Z'), '2026-08-15#v1');
+  assert.equal(standingRules.occurrenceKey({ cadence: 'weekly', version: 1 }, '2026-08-15T08:00:00.000Z'), '2026-W33#v1');
   // Sunday belongs to the SAME ISO week as the preceding Monday.
-  assert.equal(standingRules.occurrenceKey({ cadence: 'weekly' }, '2026-08-16T08:00:00.000Z'), '2026-W33');
+  assert.equal(standingRules.occurrenceKey({ cadence: 'weekly', version: 1 }, '2026-08-16T08:00:00.000Z'), '2026-W33#v1');
   // Year boundary: 2027-01-01 falls in ISO week 2026-W53.
-  assert.equal(standingRules.occurrenceKey({ cadence: 'weekly' }, '2027-01-01T08:00:00.000Z'), '2026-W53');
+  assert.equal(standingRules.occurrenceKey({ cadence: 'weekly', version: 1 }, '2027-01-01T08:00:00.000Z'), '2026-W53#v1');
+  // Duplicate delivery of the SAME occurrence still derives the same key —
+  // the version comes off the rule row, not the clock.
+  assert.equal(standingRules.occurrenceKey({ cadence: 'daily', version: 3 }, '2026-08-15T08:00:00.000Z'),
+    standingRules.occurrenceKey({ cadence: 'daily', version: 3 }, '2026-08-15T08:00:00.000Z'));
+});
+
+// A rule edited and re-activated onto a new slot INSIDE the same period is a
+// new occurrence, not a duplicate delivery of the spent one. Without the
+// version in the key, moving a daily brief from 08:00 to 20:00 collides, the
+// INSERT OR IGNORE no-ops, and claimAndDispatch reads that as a duplicate:
+// it advances next_run_at and silently loses the period.
+test('an edit that moves the slot inside the same period is a NEW occurrence key', () => {
+  const morning = standingRules.occurrenceKey({ cadence: 'daily', version: 1 }, '2026-08-15T08:00:00.000Z');
+  const evening = standingRules.occurrenceKey({ cadence: 'daily', version: 2 }, '2026-08-15T20:00:00.000Z');
+  assert.notEqual(evening, morning, 'the re-activated slot must not collide with the spent key');
+  // Weekly is the same shape: Monday → Friday inside one ISO week.
+  assert.notEqual(standingRules.occurrenceKey({ cadence: 'weekly', version: 2 }, '2026-08-21T08:00:00.000Z'),
+    standingRules.occurrenceKey({ cadence: 'weekly', version: 1 }, '2026-08-17T08:00:00.000Z'));
 });
 
 test('next_run_at math: hourly tops of hours, daily/weekly UTC slots', () => {
@@ -635,4 +657,183 @@ test('activation refuses a rule whose reviewed source grants no readable tool', 
   assert.ok(JSON.parse(activated.data.authorization.allowed_tools_json).some((n) => n.startsWith('ws_gmail_')));
   db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(gmailRuleId);
   disconnectGoogle(OWNER);
+});
+
+// ---------- audit follow-ups ----------
+
+// Building these rules through the service rather than POST .../parse: the
+// parse and rehearse routes share the scarce 'model' rate bucket, and these
+// tests are about the ceremonies AFTER the review, not about the review.
+function mkDraft(instruction, overrides = {}) {
+  const interp = standingRules.validateInterpretation(INTERP(agentId, overrides), { agents: [{ id: agentId }] });
+  return standingRules.upsertDraft({ canvasId, instruction, interp, actor: OWNER });
+}
+
+// A rule sitting at the gate with a rehearsal run in the given state, as the
+// rehearse route would have left it.
+function mkRehearsed(instruction, { runStatus = 'completed', overrides = {} } = {}) {
+  const rule = mkDraft(instruction, overrides);
+  const runId = `run-${rule.id}`;
+  db.prepare(`INSERT INTO runs (id, agent_id, canvas_id, trigger_kind, instruction, status, step_budget, wall_ms_budget,
+      mode, initiated_by, summary, created_at, ended_at) VALUES (?, ?, ?, 'user', ?, ?, 8, 120000, 'rehearse', ?, 'would have matched 2', ?, ?)`)
+    .run(runId, agentId, canvasId, 'rehearsal', runStatus, OWNER, nowIso(), runStatus === 'completed' ? nowIso() : null);
+  db.prepare("UPDATE standing_rules SET state = 'rehearsed', rehearsal_run_id = ? WHERE id = ?").run(runId, rule.id);
+  return { rule: standingRules.getRule(rule.id), runId };
+}
+
+// haltRuleRuns sweeps standing_rule_runs, and a rehearsal run is never a row
+// there — so an edit stopped every scheduled attempt except the one run the
+// owner was actually watching. It also NULLed rehearsal_run_id, which is the
+// only thing the concurrent-rehearsal 409 keys on: edit→rehearse repeated for
+// N live rehearsals on one agent.
+test('editing mid-rehearsal aborts the rehearsal run it is about to forget', async () => {
+  const { rule, runId } = mkRehearsed('watch the deals', { runStatus: 'running' });
+  const edited = await call(ownerCookie, 'PATCH', `/api/standing-rules/${rule.id}`, { instruction: 'watch the deals over $50k' });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.data.rule.state, 'draft');
+  assert.equal(edited.data.rule.rehearsal_run_id, null, 'the gate reset');
+  assert.equal(db.prepare('SELECT status FROM runs WHERE id = ?').get(runId).status, 'failed',
+    'the orphaned rehearsal is stopped, not left running under a rule that no longer exists in that form');
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+// The UI renders next_run_at on truthiness alone, and the fatal-invalidation
+// path already clears it — so two paused rules rendered differently purely by
+// how they got there, one of them promising a run that will never come.
+test('pause and revoke clear the schedule they will never keep, and revoke returns the killed grant', async () => {
+  const { rule } = mkRehearsed('watch and pause me');
+  const activated = await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`);
+  assert.equal(activated.status, 200);
+  assert.ok(activated.data.rule.next_run_at, 'precondition: an active rule is scheduled');
+
+  const paused = await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/pause`);
+  assert.equal(paused.data.rule.state, 'paused');
+  assert.equal(paused.data.rule.next_run_at, null, 'a paused rule advertises no next run');
+
+  const resumed = await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/resume`);
+  assert.ok(resumed.data.rule.next_run_at, 'resume recomputes it');
+
+  const revoked = await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/revoke`);
+  assert.equal(revoked.data.rule.state, 'revoked');
+  assert.equal(revoked.data.rule.next_run_at, null, 'a revoked rule advertises no next run');
+
+  // The revoked authorization comes back with it, and survives a reload —
+  // filtering revoked rows out of every payload left the page rendering a
+  // grant that no longer exists, with no path to learn otherwise.
+  assert.ok(revoked.data.authorization, 'revoke returns the authorization it just killed');
+  assert.ok(revoked.data.authorization.revoked_at);
+  assert.equal(revoked.data.authorization.revoked_by, OWNER);
+  const detail = await call(ownerCookie, 'GET', `/api/standing-rules/${rule.id}`);
+  assert.ok(detail.data.authorization, 'and the detail payload still carries it after a reload');
+  assert.ok(detail.data.authorization.revoked_at, 'marked revoked, so the block can render the truth');
+});
+
+// "Brief me weekly on the migration until Friday", said on a Monday: the rule
+// sits active for six days, is never selected by the due query, and the first
+// tick that reaches it flips it straight to expired having dispatched nothing.
+test('activation refuses a rule that would expire before its first run', async () => {
+  const day = (new Date().getUTCDay() + 3) % 7; // always 3-4 days out
+  const { rule } = mkRehearsed('brief me weekly until tomorrow', {
+    overrides: { cadence: 'weekly', cadence_day: day, expires_days: 1 },
+  });
+  const refused = await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`);
+  assert.equal(refused.status, 409, 'a rule that can never run once must not activate');
+  assert.match(refused.data.error, /never run once/i);
+  assert.equal(standingRules.getRule(rule.id).state, 'rehearsed', 'refusal leaves the rule where it was');
+  assert.equal(standingRules.currentAuthorization(rule.id), undefined, 'no grant was minted');
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+// PATCH is the ONLY route that accepts a structured { interpretation }, and the
+// branch had no test at all — every other PATCH case here sends { instruction }.
+// It is also the only way to change cadence_hour, cadence_day, the budgets or
+// the expiry WITHOUT re-parsing the prose, which re-derives all ten fields from
+// the model and silently defaults whatever it omits (cadence_hour → 8,
+// step_budget → 12, wall_ms_budget → 300000, expires_days → 90). "Move the
+// Monday brief to Friday" through a re-parse can therefore move the hour too.
+test('a structured edit changes what the prose cannot, and re-gates the rule', async () => {
+  const { rule, runId } = mkRehearsed('brief me weekly on the migration', {
+    overrides: { cadence: 'weekly', cadence_day: 1, cadence_hour: 20, output_type: 'brief' },
+  });
+  const activated = await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`);
+  assert.equal(activated.status, 200);
+  const grantBefore = activated.data.authorization.allowed_tools_json;
+
+  const stored = JSON.parse(standingRules.getRule(rule.id).interpretation_json);
+  const edited = await call(ownerCookie, 'PATCH', `/api/standing-rules/${rule.id}`, {
+    interpretation: { ...stored, cadence_day: 5, step_budget: 30, expires_days: 120 },
+  });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.data.rule.instruction, 'brief me weekly on the migration', 'the prose is untouched — no model ran');
+  assert.equal(edited.data.rule.cadence_day, 5, 'Monday → Friday without rewriting a word');
+  assert.equal(edited.data.rule.cadence_hour, 20, 'and the hour a re-parse could have defaulted to 8 survives');
+  assert.equal(edited.data.rule.step_budget, 30, 'a budget with no plain-language vocabulary at all');
+  assert.equal(edited.data.rule.interpretation.expires_days, 120);
+  assert.deepEqual(edited.data.rule.interpretation.can, stored.can, 'model-written consent prose carries through');
+
+  // The rehearsal gate resets exactly as an instruction edit's does.
+  assert.equal(edited.data.rule.state, 'draft');
+  assert.equal(edited.data.rule.version, rule.version + 1);
+  assert.equal(edited.data.rule.rehearsal_run_id, null);
+  assert.equal(edited.data.rule.next_run_at, null);
+  // closeRun only kills a non-terminal attempt: the rehearsal here already
+  // finished, so the gate resets by forgetting it, not by rewriting history.
+  assert.equal(db.prepare('SELECT status FROM runs WHERE id = ?').get(runId).status, 'completed');
+
+  // Nothing widened without re-consent: the frozen grant is untouched and the
+  // rule cannot go live again without a fresh rehearsal.
+  assert.equal(standingRules.currentAuthorization(rule.id).allowed_tools_json, grantBefore);
+  assert.equal((await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`)).status, 409);
+
+  // The model is out of the loop; the trust boundary is not.
+  const clamped = await call(ownerCookie, 'PATCH', `/api/standing-rules/${rule.id}`, {
+    interpretation: { ...stored, step_budget: 9999 },
+  });
+  assert.equal(clamped.data.rule.step_budget, 12, 'an out-of-range budget clamps to the default, never stores');
+  const hallucinated = await call(ownerCookie, 'PATCH', `/api/standing-rules/${rule.id}`, {
+    interpretation: { ...stored, agent_id: 'not-on-this-canvas' },
+  });
+  assert.equal(hallucinated.status, 400);
+  assert.match(hallucinated.data.error, /active agent on this canvas/);
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+// The card joins the LIVE rule while its body comes from the occurrence, and
+// rule_version — recorded at claim time for exactly this — was read by nothing.
+// An unacknowledged card from a prior version resurfaced the moment the edited
+// rule left draft, labelled with the NEW instruction over the OLD result, and a
+// re-parse can reassign agent_id so it named an agent that never produced it.
+test('a card from a prior rule version never wears the new instruction', async () => {
+  const rule = mkDraft('alert me about invoices');
+  db.prepare("UPDATE standing_rules SET state = 'active' WHERE id = ?").run(rule.id);
+  insertRuleRun('rr-stale-1', rule.id, { matched: 3, summary: 'Three invoices are overdue. MATCHED: 3' });
+
+  // The creator edits it into a different rule and rehearses again; the old
+  // card was never acknowledged.
+  db.prepare("UPDATE standing_rules SET version = 4, instruction = 'alert me about contract renewals', state = 'rehearsed' WHERE id = ?").run(rule.id);
+  const attn = await call(ownerCookie, 'GET', `/api/attention?canvas_id=${canvasId}`);
+  const stale = attn.data.attention.find((c) => c.sourceRef.id === 'rr-stale-1');
+  assert.ok(stale, 'the unacknowledged result still needs a human');
+  assert.ok(!/contract renewals/.test(stale.decision), 'it must not be labelled with an instruction that never produced it');
+  assert.match(stale.decision, /earlier version/i, 'the card says the result predates the edit');
+  assert.match(stale.decision, /v1.*v4/, 'and which versions');
+  assert.equal(stale.owner.agentId, null, 'and does not name an agent that may never have run it');
+  assert.match(stale.context, /invoices/, 'the result itself is unchanged');
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+// The unparseable-MATCHED path stores NULL deliberately — the count is unknown,
+// not zero — and the card whose whole purpose is to say so printed a raw JS
+// null to a non-technical owner.
+test('the honest-unknown alert card never renders a raw null', async () => {
+  const rule = mkDraft('alert me about anything odd');
+  db.prepare("UPDATE standing_rules SET state = 'active' WHERE id = ?").run(rule.id);
+  insertRuleRun('rr-unknown-1', rule.id, { matched: null, summary: 'Something odd happened but I lost count.' });
+
+  const attn = await call(ownerCookie, 'GET', `/api/attention?canvas_id=${canvasId}`);
+  const card = attn.data.attention.find((c) => c.sourceRef.id === 'rr-unknown-1');
+  assert.ok(card, 'an unknown count surfaces for review');
+  assert.ok(!/null/.test(card.decision), `the owner never reads a raw null, got: ${card.decision}`);
+  assert.match(card.decision, /unreadable match count/i);
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
 });

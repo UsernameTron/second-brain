@@ -1477,3 +1477,13 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .chip.rule-paused { background: color-mix(in srgb, var(--amber) 14%, transparent); }
 .chip.rule-revoked { background: color-mix(in srgb, var(--red) 14%, transparent); }
 .chip.rule-expired { color: var(--text-faint); text-decoration: line-through; }
+/* Structured-field editor. Collapsed by default: the plain-language card is the
+   primary view, and these are the dials behind it. Same box idiom as
+   .rehearsal-block; .builder-flow already sizes the textarea and number inputs. */
+.rule-settings { border: 1px solid var(--line, #333); border-radius: 8px; padding: 10px; }
+.rule-settings > summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.rule-settings form { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; align-items: flex-start; }
+.rule-settings label { font-size: 12px; color: var(--text-faint); }
+.rule-settings fieldset { border: 1px solid var(--line, #333); border-radius: 6px; display: flex; flex-wrap: wrap; gap: 10px; }
+.rule-settings fieldset legend { font-size: 12px; color: var(--text-faint); }
+.rule-settings fieldset label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }

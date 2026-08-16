@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { rulesApi, timeAgo, short } from './api.js';
 
 // P5 Rules & Briefs: a standing rule is a stored instruction + a persisted
@@ -7,6 +7,9 @@ import { rulesApi, timeAgo, short } from './api.js';
 // owner activates. Runs land here as history; briefs render their markdown.
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+// Mirrors server/standing-rules.js SOURCES — the only values validateInterpretation
+// keeps (anything else is silently dropped, so offering more would be a lie).
+const SOURCES = ['gmail', 'drive', 'sheets', 'calendar', 'hubspot', 'enrichment', 'memory', 'web'];
 const WEEKLY_BRIEF_TEMPLATE = 'Prepare my weekly operating brief every Monday morning: what moved, what is stuck, what needs attention, and what to expect this week — with sources for every claim and explicit uncertainty where the evidence is thin.';
 
 // Server rows may carry JSON columns as strings or already-parsed objects.
@@ -39,6 +42,25 @@ function nextRunLabel(rule) {
   return Date.parse(rule.next_run_at) <= Date.now()
     ? `due ${fmtWhen(rule.next_run_at)} — overdue, nothing has run it`
     : `next ${fmtWhen(rule.next_run_at)}`;
+}
+
+// The consent card's "Next run" field. Same rule as above — the STATE decides
+// what may be claimed, never the column's truthiness — but a stopped rule needs
+// more than silence here: "computed at activation" on a revoked rule promises a
+// future activation that can never happen.
+const STOPPED_NEXT_RUN = {
+  paused: 'paused — nothing runs until it is resumed',
+  revoked: 'never — the authorization is revoked',
+  expired: 'never — the authorization expired',
+};
+
+function nextRunText(rule) {
+  if (STOPPED_NEXT_RUN[rule.state]) return STOPPED_NEXT_RUN[rule.state];
+  if (rule.state !== 'active') return 'computed at activation'; // draft / rehearsed
+  if (!rule.next_run_at) return 'not scheduled — activation recorded no next run';
+  return Date.parse(rule.next_run_at) <= Date.now()
+    ? `${fmtWhen(rule.next_run_at)} — overdue, nothing has run it. Check STANDING RULES · TICK on the systems board.`
+    : fmtWhen(rule.next_run_at);
 }
 
 // ponytail: headings, bullets, bold, paragraphs — the subset briefs actually
@@ -114,12 +136,139 @@ function InterpretationCard({ rule, agentsById, readsAs }) {
         <li><b>Budget</b> — <span>{`${rule.step_budget != null ? `${rule.step_budget} steps` : 'default steps'} · ${rule.wall_ms_budget != null ? `${Math.round(rule.wall_ms_budget / 60000)} min` : 'default time'} per run`}</span></li>
         <li><b>Expires</b> — <span>{rule.expires_at ? fmtWhen(rule.expires_at) : `${expiryDays} days after activation`}</span></li>
         <li><b>Can</b> — <span>{can.join('; ') || '—'}</span> · <b>Cannot</b> — <span>{cannot.join('; ') || '—'}</span></li>
-        <li><b>Next run</b> — <span>{nextRunLabel(rule) ? fmtWhen(rule.next_run_at) : 'computed at activation'}
-          {nextRunLabel(rule) && Date.parse(rule.next_run_at) <= Date.now()
-            ? ' — overdue, nothing has run it. Check STANDING RULES · TICK on the systems board.'
-            : ''}</span></li>
+        <li><b>Next run</b> — <span>{nextRunText(rule)}</span></li>
       </ul>
     </section>
+  );
+}
+
+// Structured-field editing. Re-parsing the prose was the ONLY way to change any
+// of these, and it re-derives all ten fields from the model every time: a rule
+// running daily at 20:00 whose owner reworded a clause got cadence_hour back
+// from validateInterpretation's silent default (8), and step_budget/
+// wall_ms_budget/expires_days have no plain-language vocabulary to express at
+// all — the parse prompt asks the model to pick them and the owner never gets a
+// say. So "move the Monday brief to Friday" or "give it more steps" had no
+// honest path. PATCH is that path: same validate-and-clamp, same rehearsal-gate
+// reset, no model in the loop, so nothing drifts that the owner did not type.
+//
+// Native inputs and native constraint validation on purpose — min/max on a
+// number input is the whole client-side check, and the server clamps anyway.
+// Keyed on `${id}#${version}` by the caller so a server response remounts this
+// with fresh defaults instead of a useEffect sync dance.
+function RuleSettings({ rule, agents, busy, onSave }) {
+  // Rendered only while the disclosure is open. `<details>` keeps its children
+  // in the DOM when closed, and this form repeats every source name and the
+  // scope verbatim — a second copy of half the consent card, findable by
+  // screen readers and by text queries, on a panel nobody opened.
+  const [open, setOpen] = useState(false);
+  const interp = fromJson(rule.interpretation ?? rule.interpretation_json, {});
+  const [f, setF] = useState(() => ({
+    agent_id: interp.agent_id || rule.agent_id || '',
+    cadence: rule.cadence || 'daily',
+    cadence_hour: rule.cadence_hour ?? 8,
+    cadence_day: rule.cadence_day ?? 1,
+    output_type: rule.output_type || 'alert',
+    sources: Array.isArray(interp.sources) ? interp.sources : [],
+    scope: interp.scope || '',
+    step_budget: rule.step_budget ?? 12,
+    wall_min: Math.max(1, Math.round((rule.wall_ms_budget ?? 300_000) / 60_000)),
+    expires_days: Number.isInteger(interp.expires_days) ? interp.expires_days : 90,
+  }));
+  const set = (k) => (e) => setF((c) => ({ ...c, [k]: e.target.value }));
+  const toggleSource = (s) => (e) => setF((c) => ({
+    ...c, sources: e.target.checked ? [...new Set([...c.sources, s])] : c.sources.filter((x) => x !== s),
+  }));
+  const submit = (e) => {
+    e.preventDefault();
+    // Spread the STORED interpretation first: summary/category/can/cannot are
+    // model-written prose this form deliberately does not touch, and blanking
+    // them would empty two consent-card fields. cadence_day is null off weekly
+    // — validateInterpretation rejects a weekly rule without one and ignores it
+    // otherwise.
+    onSave({
+      ...interp,
+      agent_id: f.agent_id,
+      cadence: f.cadence,
+      cadence_hour: Number(f.cadence_hour),
+      cadence_day: f.cadence === 'weekly' ? Number(f.cadence_day) : null,
+      output_type: f.output_type,
+      sources: f.sources,
+      scope: String(f.scope).trim(),
+      step_budget: Number(f.step_budget),
+      wall_ms_budget: Number(f.wall_min) * 60_000,
+      expires_days: Number(f.expires_days),
+    });
+  };
+  return (
+    <details className="rule-settings" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>Settings — cadence, sources, budget, expiry</summary>
+      {!open ? null : (
+      <form onSubmit={submit}>
+        <label htmlFor="rs-agent">Run by</label>
+        <select id="rs-agent" value={f.agent_id} onChange={set('agent_id')}>
+          {(agents || []).map((a) => <option key={a.id} value={a.id}>{`${a.name} (${a.role})`}</option>)}
+        </select>
+
+        <label htmlFor="rs-cadence">Cadence</label>
+        <select id="rs-cadence" value={f.cadence} onChange={set('cadence')}>
+          <option value="hourly">every hour</option>
+          <option value="daily">daily</option>
+          <option value="weekly">weekly</option>
+        </select>
+
+        {f.cadence === 'weekly' ? (
+          <>
+            <label htmlFor="rs-day">Day</label>
+            <select id="rs-day" value={f.cadence_day} onChange={set('cadence_day')}>
+              {DAY_NAMES.map((d, i) => <option key={d} value={i}>{d}</option>)}
+            </select>
+          </>
+        ) : null}
+
+        {f.cadence === 'hourly' ? null : (
+          <>
+            <label htmlFor="rs-hour">Hour (UTC)</label>
+            <input id="rs-hour" type="number" min="0" max="23" step="1" value={f.cadence_hour} onChange={set('cadence_hour')} />
+          </>
+        )}
+
+        <label htmlFor="rs-output">Output</label>
+        <select id="rs-output" value={f.output_type} onChange={set('output_type')}>
+          <option value="alert">alert — only when something matches</option>
+          <option value="brief">brief — a written brief every run</option>
+        </select>
+
+        <fieldset>
+          <legend>Sources</legend>
+          {SOURCES.map((s) => (
+            <label key={s} htmlFor={`rs-src-${s}`}>
+              <input id={`rs-src-${s}`} type="checkbox" checked={f.sources.includes(s)} onChange={toggleSource(s)} />
+              {s}
+            </label>
+          ))}
+        </fieldset>
+
+        <label htmlFor="rs-scope">Scope</label>
+        <textarea id="rs-scope" rows="2" required value={f.scope} onChange={set('scope')} />
+
+        <label htmlFor="rs-steps">Step budget</label>
+        <input id="rs-steps" type="number" min="1" max="64" step="1" value={f.step_budget} onChange={set('step_budget')} />
+
+        <label htmlFor="rs-wall">Time budget (minutes)</label>
+        <input id="rs-wall" type="number" min="1" max="30" step="1" value={f.wall_min} onChange={set('wall_min')} />
+
+        <label htmlFor="rs-expiry">Expires (days after activation)</label>
+        <input id="rs-expiry" type="number" min="1" max="365" step="1" value={f.expires_days} onChange={set('expires_days')} />
+
+        <p className="dim">
+          Saving resets the rule to draft — rehearse again before it can activate. The plain-language
+          Can/Cannot lines are carried over unchanged; only editing the instruction rewrites those.
+        </p>
+        <button className="btn primary small" type="submit" disabled={busy}>Save settings</button>
+      </form>
+      )}
+    </details>
   );
 }
 
@@ -165,8 +314,22 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   const [instruction, setInstruction] = useState('');
   const [parseError, setParseError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [detail, setDetail] = useState(null); // { rule, authorization, runs, rehearsalRun }
-  const savedInstructionRef = useRef('');
+  // { rule, savedInstruction, editError, authorization, runs, rehearsalRun }
+  const [detail, setDetail] = useState(null);
+
+  // Every async response writes back through here, and only when the pane is
+  // still showing the rule that request was for. `setDetail((cur) => ({ ...cur,
+  // … }))` spread a null `cur` when the owner had already clicked "← Rules":
+  // the rule reopened itself with its runs and authorization missing. Two
+  // things ride inside the same state rather than beside it, so a late response
+  // cannot desync them either: `savedInstruction` (the server's copy of the
+  // prose — the textarea edits `rule.instruction` live, so that is the only
+  // record of what is actually stored) and `editError`.
+  const mergeDetail = useCallback((id, patch) => {
+    setDetail((cur) => (cur && cur.rule.id === id
+      ? { ...cur, ...(typeof patch === 'function' ? patch(cur) : patch) }
+      : cur));
+  }, []);
 
   // Dispatching a rehearsal returns as soon as the run is queued — the run
   // itself is still in flight, and the server has already flipped the rule to
@@ -181,13 +344,12 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
       try {
         const full = await rulesApi.get(ruleId);
         if (!['queued', 'running'].includes(full.rehearsalRun?.status)) {
-          savedInstructionRef.current = full.rule.instruction;
-          setDetail((cur) => ({ ...cur, ...full }));
+          mergeDetail(ruleId, { ...full, savedInstruction: full.rule.instruction });
         }
       } catch { /* keep polling */ }
     }, 1500);
     return () => clearInterval(t);
-  }, [ruleId, rehearsalPending]);
+  }, [ruleId, rehearsalPending, mergeDetail]);
 
   const agentsById = useMemo(() => {
     const m = {};
@@ -201,8 +363,11 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   useEffect(() => { loadList(); }, [loadList]);
 
   const showDetail = useCallback((d) => {
-    savedInstructionRef.current = d.rule.instruction;
-    setDetail({ runs: [], authorization: null, rehearsalRun: null, ...d });
+    setParseError(null);
+    setDetail({
+      runs: [], authorization: null, rehearsalRun: null, ...d,
+      savedInstruction: d.rule.instruction, editError: null,
+    });
   }, []);
 
   const openRule = useCallback((id) => {
@@ -230,32 +395,68 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   };
 
   // Any real edit resets the rehearsal gate server-side; a no-op blur must not.
+  // The edit RE-INTERPRETS: PATCH reuses the stored interpretation verbatim, so
+  // rewriting "watch HubSpot deals over $25k" into "summarize my Gmail inbox"
+  // left nine of the card's ten fields — sources, scope, cadence, can/cannot —
+  // describing the old rule, and activation would freeze a grant built from it.
+  // Re-parse against this rule id (routes.js `body.rule_id`): same rule, same
+  // rehearsal-gate reset, every field re-derived from the new words.
   const saveInstruction = async () => {
-    const r = detail.rule;
-    if (r.instruction === savedInstructionRef.current) return;
+    const { id, instruction: edited } = detail.rule;
+    if (edited === detail.savedInstruction || busy) return;
+    setBusy(true);
+    mergeDetail(id, { editError: null });
     try {
-      const d = await rulesApi.update(r.id, { instruction: r.instruction });
-      savedInstructionRef.current = d.rule.instruction;
-      setDetail((cur) => ({ ...cur, rule: d.rule, rehearsalRun: null }));
+      const d = await rulesApi.parse(canvasId, edited, id);
+      mergeDetail(id, { rule: d.rule, rehearsalRun: null, savedInstruction: d.rule.instruction });
       loadList();
-    } catch (e) { toast(e.message); }
+    } catch (e) {
+      // A failed re-interpretation wrote NOTHING: every error path in the parse
+      // route returns before upsertDraft. So the server still holds the old
+      // instruction — and, on a rehearsed rule, a completed rehearsal of it,
+      // which leaves Activate enabled the moment `busy` clears. Leaving the
+      // edited words in the textarea and the heading pointed the consent
+      // surface at an instruction that was never interpreted and is not what
+      // Activate would authorize. Put the saved prose back, so the screen and
+      // the ceremony describe the same rule; the alert below is what keeps the
+      // restore from being silent. Restoring beats refetching here: the fetch
+      // that just failed is the same lane a refetch would use, and a refetch
+      // that also fails leaves exactly the ambiguity this is closing.
+      mergeDetail(id, (cur) => ({ rule: { ...cur.rule, instruction: cur.savedInstruction }, editError: e.message }));
+    } finally { setBusy(false); }
+  };
+
+  // Structured edit: PATCH, not re-parse. The prose is untouched, so putting it
+  // through the model could only re-derive fields the owner did not ask to
+  // change. Same server-side ceremony either way (validate → clamp → draft →
+  // version++ → rehearsal cleared), so the button below has to say so.
+  const saveSettings = async (interpretation) => {
+    if (busy) return;
+    const id = detail.rule.id;
+    setBusy(true);
+    try {
+      const d = await rulesApi.update(id, { interpretation });
+      mergeDetail(id, { rule: d.rule, rehearsalRun: null, savedInstruction: d.rule.instruction, editError: null });
+      loadList();
+      toast('Settings saved — rehearse again before it can activate', 'ok');
+    } catch (e) { toast(e.message); } finally { setBusy(false); }
   };
 
   const rehearse = async () => {
     if (busy || rehearsalPending) return;
     setBusy(true);
+    const id = detail.rule.id;
     try {
-      const id = detail.rule.id;
       const d = await rulesApi.rehearse(id);
       // Marking the run pending is what starts the poll and holds the button;
       // the poll replaces this optimistic marker with the server's real run.
-      setDetail((cur) => ({ ...cur, rule: d.rule, rehearsalRun: { status: 'running' } }));
+      mergeDetail(id, { rule: d.rule, rehearsalRun: { status: 'running' } });
     } catch (e) {
       // 409 = the server's backstop: a rehearsal is already in flight and this
       // client didn't know. Re-read the run so the button reflects reality.
       if (e.status === 409) {
-        rulesApi.get(detail.rule.id)
-          .then((full) => setDetail((cur) => ({ ...cur, rehearsalRun: full.rehearsalRun })))
+        rulesApi.get(id)
+          .then((full) => mergeDetail(id, { rehearsalRun: full.rehearsalRun }))
           .catch(() => {});
       }
       toast(e.status === 409 ? 'A rehearsal is already running — wait for it to finish' : e.message);
@@ -265,9 +466,10 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   const activate = async () => {
     if (busy) return;
     setBusy(true);
+    const id = detail.rule.id;
     try {
-      const d = await rulesApi.activate(detail.rule.id);
-      setDetail((cur) => ({ ...cur, rule: d.rule, authorization: d.authorization || cur.authorization }));
+      const d = await rulesApi.activate(id);
+      mergeDetail(id, (cur) => ({ rule: d.rule, authorization: d.authorization || cur.authorization }));
       loadList();
       toast('Rule is active — it runs on its cadence from here', 'ok');
     } catch (e) {
@@ -275,12 +477,19 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
     } finally { setBusy(false); }
   };
 
+  // A ceremony can change the AUTHORIZATION too, not just the rule: /revoke
+  // returns the now-revoked grant. Merging only { rule } left the block above
+  // rendering "Authorized by … · expires …" from the pre-revoke fetch, with no
+  // refetch path to correct it (the only poll is gated on rehearsalPending).
+  // Same merge activate does; `|| cur.authorization` keeps pause/resume, which
+  // return no authorization, from blanking it.
   const ceremony = (action, okMsg) => async () => {
     if (busy) return;
     setBusy(true);
+    const id = detail.rule.id;
     try {
-      const d = await rulesApi[action](detail.rule.id);
-      setDetail((cur) => ({ ...cur, rule: d.rule }));
+      const d = await rulesApi[action](id);
+      mergeDetail(id, (cur) => ({ rule: d.rule, authorization: d.authorization || cur.authorization }));
       loadList();
       toast(okMsg, 'ok');
     } catch (e) { toast(e.message); } finally { setBusy(false); }
@@ -294,17 +503,20 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
     return (
       <div className="rooms-view">
         <div className="room-head">
-          <button className="btn ghost small" onClick={() => { setDetail(null); loadList(); }}>← Rules</button>
+          <button className="btn ghost small" onClick={() => { setDetail(null); setParseError(null); loadList(); }}>← Rules</button>
           <h1>{short(rule.instruction, 60)}</h1>
           <span className={`chip rule-${rule.state}`}>{rule.state}</span>
           <span className="chip">{rule.output_type}</span>
           <span className="dim mono">{cadenceLabel(rule)}</span>
         </div>
+        {/* A revoked grant has no expiry left to promise — the revocation is
+            the whole state of it. */}
         {detail.authorization ? (
           <p className="dim">
             Authorized by <span className="mono">{detail.authorization.authorized_by}</span>
-            {detail.authorization.expires_at ? ` · expires ${fmtWhen(detail.authorization.expires_at)}` : ''}
-            {detail.authorization.revoked_at ? ' · revoked' : ''}
+            {detail.authorization.revoked_at
+              ? ` · revoked ${fmtWhen(detail.authorization.revoked_at)} — nothing runs under it again`
+              : (detail.authorization.expires_at ? ` · expires ${fmtWhen(detail.authorization.expires_at)}` : '')}
           </p>
         ) : null}
         <div className="builder-flow">
@@ -314,14 +526,35 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
               <textarea rows="3" value={rule.instruction} aria-label="Rule instruction"
                 onChange={(e) => setDetail((cur) => ({ ...cur, rule: { ...cur.rule, instruction: e.target.value } }))}
                 onBlur={saveInstruction} />
-              <p className="dim">Editing resets the rule to draft — rehearse again before it can activate.</p>
+              <p className="dim">Editing re-interprets the whole rule and resets it to draft — rehearse again before it can activate.</p>
+              {/* A re-interpretation that failed changed nothing, and the edit
+                  above it has been put back — say both, or the restore is just
+                  a second way to mislead. */}
+              {detail.editError ? (
+                <p className="answer-fail" role="alert">
+                  Couldn&rsquo;t re-interpret that edit — {detail.editError}. The rule is unchanged, and your edited
+                  text has been restored to the saved instruction — nothing on this screen describes anything other
+                  than the rule the server holds.
+                </p>
+              ) : null}
             </section>
+          ) : null}
+          {/* Same gate as the instruction textarea (and the same server check:
+              PATCH's ruleAccess admits the creator or the owner). A revoked or
+              expired rule has nothing left to edit. */}
+          {editable ? (
+            <RuleSettings key={`${rule.id}#${rule.version}`} rule={rule} agents={agents || []}
+              busy={busy} onSave={saveSettings} />
           ) : null}
           {/* The live grant wins once it exists; before activation the
               rehearsal's own identity is what the owner is being asked to
-              accept as the review. */}
+              accept as the review. The payload now carries REVOKED grants too
+              (it has to, or the block above cannot say it was revoked), and a
+              revoked grantor is nobody's access to spend. */}
           <InterpretationCard rule={rule} agentsById={agentsById}
-            readsAs={detail.authorization?.authorized_by || rehearsal?.initiated_by || null} />
+            readsAs={detail.authorization?.revoked_at
+              ? `nobody — the grant from ${detail.authorization.authorized_by} was revoked`
+              : (detail.authorization?.authorized_by || rehearsal?.initiated_by || null)} />
           {rehearsal ? (
             <section className="rehearsal-block">
               <h4>Rehearsal {rehearsal.status === 'running' ? '— running…' : `— ${rehearsal.status}`}</h4>

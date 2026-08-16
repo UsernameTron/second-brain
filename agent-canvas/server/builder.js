@@ -57,13 +57,22 @@ function draftRow(id) {
   return db.prepare('SELECT * FROM agent_drafts WHERE id = ?').get(id);
 }
 
-// The full governed menu across builder roles — what the generator may pick
-// from. Per-role intersection happens in validateProposal.
+// The full governed menu across builder roles AND both model tiers — what the
+// generator may pick from. Per-role, per-tier intersection happens in
+// validateProposal, which is the only gate that matters; this side must not
+// narrow ahead of it. Omitting modelTier here took authorityMenu's 'strong'
+// default, so on a mixed fleet (STRONG_PROVIDER=gemini, FAST_PROVIDER=anthropic)
+// the menu hid web_search while validateProposal would have kept it on a
+// fast-tier proposal — the menu under-offering a tool the validator accepts.
+// One shared eligibility definition means unioning the tiers the same way the
+// roles are unioned, not guessing one.
 function unionMenu(userRole) {
   const seen = new Map();
   for (const role of BUILDER_ROLES) {
-    for (const item of authorityMenu(role, { userRole })) {
-      if (!seen.has(item.name)) seen.set(item.name, item);
+    for (const modelTier of ['fast', 'strong']) {
+      for (const item of authorityMenu(role, { userRole, modelTier })) {
+        if (!seen.has(item.name)) seen.set(item.name, item);
+      }
     }
   }
   return [...seen.values()];
@@ -94,7 +103,9 @@ function validateProposal(raw, { userRole = 'member' } = {}) {
   p.step_budget = Number.isInteger(step) && step >= STEP_BUDGET_RANGE[0] && step <= STEP_BUDGET_RANGE[1] ? step : 12;
   const wall = Number(raw.wall_ms_budget);
   p.wall_ms_budget = Number.isInteger(wall) && wall >= WALL_MS_RANGE[0] && wall <= WALL_MS_RANGE[1] ? wall : 300_000;
-  const menuNames = new Set(authorityMenu(p.role, { userRole }).map((m) => m.name));
+  // The tier decides whether web_search is real on this deployment, so the
+  // menu that validates the proposal is the one the published agent will run.
+  const menuNames = new Set(authorityMenu(p.role, { userRole, modelTier: p.model_tier }).map((m) => m.name));
   const requested = Array.isArray(raw.authority) ? raw.authority.map(String) : [];
   p.authority = [...new Set(requested)].filter((n) => menuNames.has(n));
   const dropped = [...new Set(requested)].filter((n) => !menuNames.has(n));

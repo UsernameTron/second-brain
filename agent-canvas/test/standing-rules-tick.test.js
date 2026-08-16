@@ -15,6 +15,10 @@ const path = require('node:path');
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-srtick-'));
 process.env.DEV_AUTH = '1';
 process.env.ANTHROPIC_API_KEY = 'test';
+// The hs_* tools are disabled-by-absence (tools.js gates them on
+// opsrunner.configured()), and these tests exercise them — so this deployment
+// has the lane wired, exactly as hubspot-opsrunner.test.js does.
+process.env.HS_OPS_RUNNER_URL = 'https://ops-runner.test.example';
 delete process.env.TICK_AUDIENCE;
 delete process.env.TICK_INVOKER_SA;
 
@@ -75,10 +79,10 @@ const PAST = () => new Date(Date.now() - 3_600_000).toISOString();
 const FUTURE = () => new Date(Date.now() + 30 * 86_400_000).toISOString();
 
 // An active, due rule with a live authorization — the tick's normal input.
-function mkActiveRule({ sources = ['hubspot', 'memory'], outputType = 'alert', authorizedBy = OWNER, due = PAST(), expiresAt = FUTURE() } = {}) {
+function mkActiveRule({ sources = ['hubspot', 'memory'], outputType = 'alert', authorizedBy = OWNER, due = PAST(), expiresAt = FUTURE(), cadence = 'daily' } = {}) {
   const interp = standingRules.validateInterpretation({
     summary: 'Watch things and alert.', sources, scope: 'the watched things',
-    category: 'watch', output_type: outputType, cadence: 'daily', cadence_hour: 8,
+    category: 'watch', output_type: outputType, cadence, cadence_hour: 8,
     agent_id: agentId, step_budget: 8, wall_ms_budget: 120000, expires_days: 30,
     can: ['read'], cannot: ['write'],
   }, { agents: [{ id: agentId }] });
@@ -181,7 +185,8 @@ test('a due rule dispatches ONE ask-mode system run as the grantor; finalize cap
   assert.equal(rr.state, 'running');
   assert.equal(rr.attempt, 1);
   assert.ok(rr.lease_until > nowIso(), 'lease held');
-  assert.equal(rr.occurrence_key, String(rule.next_run_at).slice(0, 10), 'occurrence key from the due time');
+  assert.equal(rr.occurrence_key, `${String(rule.next_run_at).slice(0, 10)}#v${rule.version}`,
+    'occurrence key from the due time AND the rule version');
 
   const run = db.prepare('SELECT * FROM runs WHERE id = ?').get(rr.run_id);
   assert.equal(run.mode, 'ask', 'tick hard-codes ask mode');
@@ -851,8 +856,14 @@ test('a rule that reviewed the enrichment source is granted the enrichment tools
     const { rule, authz } = mkActiveRule({ sources: ['enrichment', 'memory'] });
     assert.deepEqual(standingRules.ruleSources(rule), ['enrichment', 'memory'], 'the validator keeps it');
     const granted = JSON.parse(authz.allowed_tools_json);
-    for (const name of ['enrich_contact', 'enrich_company', 'verify_email', 'get_enriched_contact']) {
-      assert.ok(granted.includes(name), `${name} is granted to a rule that reviewed enrichment`);
+    // The free cached re-read, and ONLY that: enrich_contact/enrich_company/
+    // verify_email spend credits, so they are MUTATING_TOOLS and a rule run —
+    // always ask mode — is never offered them. Granting them anyway made an
+    // empty ask-mode surface look like a readable source to every check built
+    // on this grant (unreadableSources, unreadableNow, the activation refusal).
+    assert.ok(granted.includes('get_enriched_contact'), 'the ask-mode enrichment read is granted');
+    for (const name of ['enrich_contact', 'enrich_company', 'verify_email']) {
+      assert.ok(!granted.includes(name), `${name} is blocked in ask mode — granting it would fake a readable lane`);
     }
     assert.ok(granted.every((n) => standingRules.SOURCE_TOOLS.enrichment(n)),
       `the enrichment source grants enrichment tools and nothing else, got ${granted.join(', ')}`);
@@ -1295,5 +1306,312 @@ test('the scheduling lane has a systems-board lamp that never fakes green', asyn
   } finally {
     if (prevAudience === undefined) delete process.env.TICK_AUDIENCE; else process.env.TICK_AUDIENCE = prevAudience;
     if (prevInvoker === undefined) delete process.env.TICK_INVOKER_SA; else process.env.TICK_INVOKER_SA = prevInvoker;
+  }
+});
+
+// ---------- audit follow-ups: the tick's own stop paths ----------
+
+// Occurrences overlap by construction — nextRunAt returns the next wall-clock
+// boundary from NOW, so a tick that fires late for one slot leaves a run leased
+// for tens of minutes while the next tick stops the rule. Both of the tick's
+// own stop paths wrote the rule row and audited without calling haltRuleRuns,
+// so the server recorded standing_rule.invalidated while that run kept reading
+// as the removed grantor and writing shared memory.
+test('a fatal invalidation halts the occurrence already in flight, not just the new one', async () => {
+  const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000).toISOString();
+  const { rule } = mkActiveRule({ cadence: 'hourly', due: twoHoursAgo });
+  standingRules.tick({ source: 'owner', actor: OWNER });
+  const [inFlight] = ruleRuns(rule.id);
+  assert.equal(inFlight.state, 'running');
+  await waitForRun(inFlight.run_id);
+  // Put it back in flight: a real run of this size is still working when the
+  // next hour's tick arrives.
+  db.prepare("UPDATE runs SET status = 'running', ended_at = NULL WHERE id = ?").run(inFlight.run_id);
+
+  // The grantor comes off the allowlist, and the next hour falls due.
+  db.prepare("UPDATE standing_authorizations SET authorized_by = 'ghost@cloudtechgurus.com' WHERE rule_id = ?").run(rule.id);
+  db.prepare('UPDATE standing_rules SET next_run_at = ? WHERE id = ?').run(new Date(Date.now() - 60_000).toISOString(), rule.id);
+  standingRules.tick({ source: 'owner', actor: OWNER });
+
+  assert.equal(standingRules.getRule(rule.id).state, 'paused', 'the rule is invalidated');
+  const after = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(inFlight.id);
+  assert.equal(after.state, 'skipped', 'the in-flight occurrence is stopped with the rule');
+  assert.match(after.skip_reason, /invalidated/);
+  assert.equal(db.prepare('SELECT status FROM runs WHERE id = ?').get(inFlight.run_id).status, 'failed',
+    'its run is closed — no reads or memory writes under a grant the server just called dead');
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+test('expiry halts the in-flight occurrence and clears the schedule it will never keep', async () => {
+  const { rule } = mkActiveRule();
+  standingRules.tick({ source: 'owner', actor: OWNER });
+  const [inFlight] = ruleRuns(rule.id);
+  await waitForRun(inFlight.run_id);
+  db.prepare("UPDATE runs SET status = 'running', ended_at = NULL WHERE id = ?").run(inFlight.run_id);
+
+  db.prepare('UPDATE standing_rules SET expires_at = ?, next_run_at = ? WHERE id = ?').run(PAST(), PAST(), rule.id);
+  standingRules.tick({ source: 'owner', actor: OWNER });
+
+  const expired = standingRules.getRule(rule.id);
+  assert.equal(expired.state, 'expired');
+  assert.equal(expired.next_run_at, null, 'a stopped rule must not advertise a next run');
+  const after = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(inFlight.id);
+  assert.equal(after.state, 'skipped');
+  assert.equal(after.skip_reason, 'rule expired');
+  assert.equal(db.prepare('SELECT status FROM runs WHERE id = ?').get(inFlight.run_id).status, 'failed');
+});
+
+// Moving a brief from morning to evening is the most ordinary edit a rule
+// gets. With a period-granular occurrence key the re-activated slot derived the
+// SPENT key, INSERT OR IGNORE returned 0 changes, and claimAndDispatch read
+// that as a duplicate scheduler delivery: it advanced next_run_at and lost the
+// period silently — no row, no card, no bus event.
+test('re-activating onto a new slot inside the same period claims a NEW occurrence', async () => {
+  const { rule } = mkActiveRule({ due: '2026-08-15T08:00:00.000Z' });
+  try {
+    const morning = standingRules._internal.claimAndDispatch(standingRules.getRule(rule.id), new Date('2026-08-15T09:00:00.000Z'));
+    assert.equal(morning.claimed, true, 'the 08:00 slot ran');
+
+    // The owner edits the rule (version++) and re-activates it onto 20:00 the
+    // same day — a different slot inside the same daily period.
+    db.prepare("UPDATE standing_rules SET version = version + 1, cadence_hour = 20, next_run_at = '2026-08-15T20:00:00.000Z' WHERE id = ?").run(rule.id);
+    const evening = standingRules._internal.claimAndDispatch(standingRules.getRule(rule.id), new Date('2026-08-15T20:30:00.000Z'));
+    assert.equal(evening.claimed, true, 'the re-activated slot is a new occurrence, not a duplicate delivery');
+    assert.equal(ruleRuns(rule.id).length, 2, 'both periods produced an occurrence row');
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// ---------- disabled-by-absence: the HubSpot lane ----------
+
+function withoutHubspot(fn) {
+  const prev = process.env.HS_OPS_RUNNER_URL;
+  delete process.env.HS_OPS_RUNNER_URL;
+  try { return fn(); } finally {
+    if (prev === undefined) delete process.env.HS_OPS_RUNNER_URL; else process.env.HS_OPS_RUNNER_URL = prev;
+  }
+}
+
+// HUBSPOT_TOOLS were spliced into every role's tool list unconditionally, so
+// with HS_OPS_RUNNER_URL unset the menu still offered hs_* and a hubspot rule
+// minted a NON-EMPTY grant — which is exactly why the empty-source guard could
+// not catch it. Every call then returned isError, the model wrote NOTHING
+// MATCHED, and the rule read active and clean forever without reaching the CRM.
+test('with the ops runner unwired the hubspot tools are ABSENT, so a hubspot rule can never be granted', async () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const agentRow = db.prepare('SELECT id, role, tools_json, model_tier FROM agents WHERE id = ?').get(agentId);
+  const made = [];
+  try {
+    withoutHubspot(() => {
+      assert.ok(!toolsForRole('research', { mode: 'ask' }).some((t) => t.name.startsWith('hs_')),
+        'an unconfigured lane offers no tool at all — absent, not inert');
+      const { rule, authz } = mkActiveRule({ sources: ['hubspot', 'memory'] });
+      made.push(rule);
+      assert.deepEqual(JSON.parse(authz.allowed_tools_json), [], 'a dark lane resolves to a concrete empty grant');
+      assert.deepEqual(standingRules.unreadableSources(rule, standingRules.grantedTools(rule, agentRow, OWNER)), ['hubspot'],
+        'and the one definition of "no readable tool" names it, so activation refuses to mint it');
+    });
+
+    // Wired at grant time, unwired by the time it runs: the same went-dark skip
+    // every other source already gets.
+    const wentDark = mkActiveRule({ sources: ['hubspot', 'memory'] });
+    made.push(wentDark.rule);
+    assert.ok(JSON.parse(wentDark.authz.allowed_tools_json).length > 0, 'granted while the lane was lit');
+    withoutHubspot(() => standingRules.tick({ source: 'owner', actor: OWNER }));
+    const [rr] = ruleRuns(wentDark.rule.id);
+    assert.equal(rr.state, 'skipped');
+    assert.match(rr.skip_reason, /^source_unreadable: hubspot\b/, 'the alert names the source');
+    assert.equal(rr.needs_attention, 1);
+    assert.equal(rr.run_id, null, 'nothing dispatched at a CRM it cannot reach');
+    assert.ok((await attentionCards()).some((c) => c.type === 'rule_alert' && c.sourceRef.id === rr.id));
+  } finally {
+    for (const r of made) db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(r.id);
+  }
+});
+
+// ---------- one eligibility definition for web_search ----------
+
+// The menu admitted web_search whenever EITHER tier ran a non-Gemini provider
+// and never received the agent's tier at all, while the runner gates on the
+// agent's own tier. With STRONG_PROVIDER=gemini a strong research agent got a
+// web grant the run could never be offered: zero read tools, NOTHING MATCHED,
+// no card, forever.
+test('web_search is granted on the tier the agent actually runs, never a deployment-wide guess', () => {
+  const { authorityMenu, webSearchEligible } = require('../server/orchestrator/tools');
+  const prev = process.env.STRONG_PROVIDER;
+  process.env.STRONG_PROVIDER = 'gemini';
+  try {
+    assert.equal(webSearchEligible('research', 'strong'), false, 'the strong tier runs Gemini — no web tool exists there');
+    assert.equal(webSearchEligible('research', 'fast'), true, 'the fast tier still runs a Claude provider');
+    assert.ok(!authorityMenu('research', { userRole: 'owner', modelTier: 'strong' }).some((m) => m.name === 'web_search'),
+      'the grant side must not offer what the offer side would refuse');
+    assert.ok(authorityMenu('research', { userRole: 'owner', modelTier: 'fast' }).some((m) => m.name === 'web_search'));
+
+    // The bite: the agent is strong-tier out of the box, so a web rule on it
+    // would have been activated with a grant that reads nothing.
+    db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+    const agentRow = db.prepare('SELECT id, role, tools_json, model_tier FROM agents WHERE id = ?').get(agentId);
+    assert.equal(agentRow.model_tier, 'strong');
+    const { rule } = mkActiveRule({ sources: ['web', 'memory'] });
+    assert.deepEqual(standingRules.unreadableSources(rule, standingRules.grantedTools(rule, agentRow, OWNER)), ['web'],
+      'activation refuses rather than minting a web grant this agent can never spend');
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  } finally {
+    if (prev === undefined) delete process.env.STRONG_PROVIDER; else process.env.STRONG_PROVIDER = prev;
+  }
+});
+
+// The grant was built from an act-mode menu while every rule run is ask mode,
+// so tools ask mode strips counted as proof a source was readable — the guard
+// reported live on exactly the configuration it exists to catch.
+test('ask-mode-blocked tools never count as proof a source is readable', () => {
+  const prev = db.prepare('SELECT tools_json FROM agents WHERE id = ?').get(agentId).tools_json;
+  db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(['enrich_contact', 'verify_email']), agentId);
+  try {
+    withEnrichment(true, () => {
+      const agentRow = db.prepare('SELECT id, role, tools_json, model_tier FROM agents WHERE id = ?').get(agentId);
+      const { rule } = mkActiveRule({ sources: ['enrichment', 'memory'] });
+      const granted = standingRules.grantedTools(rule, agentRow, OWNER);
+      assert.deepEqual(granted, [], 'both granted tools spend credits — an ask run is never offered them');
+      assert.deepEqual(standingRules.unreadableSources(rule, granted), ['enrichment'],
+        'so the lane is unreadable, and every check built on the grant says so');
+      db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+    });
+  } finally {
+    db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(prev, agentId);
+  }
+});
+
+// ---------- a retry whose dispatch throws ----------
+
+// closeRun + dispatchRun + the attempt increment sat in one tx(). dispatchRun
+// throws before any DB write on 429/404/403, the ROLLBACK undid the increment,
+// MAX_ATTEMPTS was never reached, and the only writer of needs_attention on
+// failure was unreachable: the occurrence sat 'running' with no card anywhere
+// behind a blinking in-flight lamp, while abortRun — which no ROLLBACK can
+// undo — had already killed the attempt.
+test('a retry whose dispatch is refused fails the occurrence loudly instead of blinking forever', async () => {
+  const { rule } = mkActiveRule();
+  const prevBudget = require('../server/orchestrator/control').getDailyBudget();
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    let [rr] = ruleRuns(rule.id);
+    await waitForRun(rr.run_id);
+    db.prepare("UPDATE runs SET status = 'failed', error = 'model exploded' WHERE id = ?").run(rr.run_id);
+
+    control.setDailyBudget(0, OWNER); // every new dispatch now 429s
+    standingRules.finalizeRuleRuns();
+
+    rr = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+    assert.equal(rr.state, 'failed', 'a dead occurrence never keeps reading as in flight');
+    assert.equal(rr.needs_attention, 1);
+    assert.match(rr.error, /retry dispatch failed/);
+    assert.ok((await attentionCards()).some((c) => c.type === 'rule_alert' && c.sourceRef.id === rr.id),
+      'the owner gets a card rather than a permanently running lamp');
+  } finally {
+    control.setDailyBudget(prevBudget, OWNER);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// ---------- a run that read nothing is not a clean success ----------
+
+// The finalizer branched solely on run.status === 'completed'. isError was
+// recorded per tool result and read by nothing, so a run whose every governed
+// call failed still wrote NOTHING MATCHED, raised no card and advanced. The
+// persistent causes keep token refresh working — Google granular consent, a
+// scopes flip on existing tokens, admin context-aware-access, a watched sheet
+// the grantor lost — so nothing self-heals.
+test('a run whose every source read failed raises a card instead of reporting silence', async () => {
+  const { rule } = mkActiveRule();
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    const [rr] = ruleRuns(rule.id);
+    const run = await waitForRun(rr.run_id);
+    db.prepare("UPDATE runs SET summary = 'Checked the CRM. NOTHING MATCHED' WHERE id = ?").run(run.id);
+    for (const [name, isError] of [['hs_search', true], ['hs_get', true]]) {
+      db.prepare("INSERT INTO run_events (run_id, canvas_id, agent_id, type, payload, ts) VALUES (?, ?, ?, 'tool_result', ?, ?)")
+        .run(run.id, canvasId, agentId, JSON.stringify({ name, isError, preview: 'HTTP 403' }), nowIso());
+    }
+    standingRules.finalizeRuleRuns();
+
+    const done = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+    assert.equal(done.state, 'completed');
+    assert.equal(done.matched_count, 0, 'the model still said nothing matched');
+    assert.equal(done.needs_attention, 1, 'but nothing was read, so this is not a clean zero');
+    assert.match(done.error, /every source read/i);
+    const card = (await attentionCards()).find((c) => c.sourceRef.id === rr.id);
+    assert.ok(card, 'the owner learns the rule read nothing');
+    assert.match(card.decision, /could not read its sources/i);
+    assert.match(card.context, /every source read/i);
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// ---------- one dark source among several is still a dark source ----------
+
+// The run-wide check above ("did EVERY governed read fail?") is source-blind, so
+// a rule watching hubspot + web whose every CRM call 403s while one web_search
+// succeeds finalized as {completed, matched 0, needs_attention 0, no card}. The
+// audit's own persistent trigger — Google granular consent, Drive accepted and
+// Gmail declined — is multi-source BY CONSTRUCTION, so the real-world case lands
+// exactly in that gap.
+// Runs the occurrence for real, then plants the tool_result events the stubbed
+// model never produces.
+async function finalizeWithToolResults(rule, calls, summary = 'Checked everything. NOTHING MATCHED') {
+  standingRules.tick({ source: 'owner', actor: OWNER });
+  const [rr] = ruleRuns(rule.id);
+  const run = await waitForRun(rr.run_id);
+  db.prepare('UPDATE runs SET summary = ? WHERE id = ?').run(summary, run.id);
+  for (const [name, isError] of calls) {
+    db.prepare("INSERT INTO run_events (run_id, canvas_id, agent_id, type, payload, ts) VALUES (?, ?, ?, 'tool_result', ?, ?)")
+      .run(run.id, canvasId, agentId, JSON.stringify({ name, isError, preview: isError ? 'HTTP 403' : 'ok' }), nowIso());
+  }
+  standingRules.finalizeRuleRuns();
+  return db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+}
+
+test('a rule whose hubspot reads all failed raises a card even though its web reads succeeded', async () => {
+  const { rule } = mkActiveRule({ sources: ['hubspot', 'web', 'memory'] });
+  try {
+    const done = await finalizeWithToolResults(rule, [['hs_search', true], ['hs_get', true], ['web_search', false]]);
+    assert.equal(done.state, 'completed');
+    assert.equal(done.matched_count, 0, 'the model still said nothing matched');
+    assert.equal(done.needs_attention, 1, 'a source that went entirely dark is never a clean zero');
+    assert.match(done.error, /hubspot/, 'the error names the source that went dark, not just "something"');
+    assert.ok(!/web/.test(done.error), 'and never blames the source that answered');
+    const card = (await attentionCards()).find((c) => c.sourceRef.id === done.id);
+    assert.ok(card, 'the owner gets a card naming the dark source');
+    assert.match(card.context, /hubspot/);
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+test('a multi-source run where every reviewed source answered stays a clean zero', async () => {
+  const { rule } = mkActiveRule({ sources: ['hubspot', 'web', 'memory'] });
+  try {
+    const done = await finalizeWithToolResults(rule, [['hs_search', true], ['hs_get', false], ['web_search', false]]);
+    assert.equal(done.state, 'completed');
+    assert.equal(done.needs_attention, 0, 'one failed call among several is not a dark source');
+    assert.equal(done.error, null);
+    assert.ok(!(await attentionCards()).some((c) => c.sourceRef.id === done.id), 'no card for a rule that actually read');
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+test('a reviewed source the run never called is not counted as failed', async () => {
+  const { rule } = mkActiveRule({ sources: ['hubspot', 'web', 'memory'] });
+  try {
+    // web was reviewed but the agent never needed it — absence of calls is not
+    // evidence of failure, only all-failed calls are.
+    const done = await finalizeWithToolResults(rule, [['hs_search', false]]);
+    assert.equal(done.needs_attention, 0);
+    assert.equal(done.error, null, 'a source with zero governed calls this run says nothing either way');
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
   }
 });

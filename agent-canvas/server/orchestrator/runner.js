@@ -12,7 +12,7 @@ const { callModel, tierConfig, webSearchToolFor } = require('./anthropic');
 // reachable without a way to script the model's replies. Production always
 // runs the real callModel.
 let callModelImpl = callModel;
-const { toolsForRole, executeTool, createEscalation, parseAuthority, intersectAuthority, allowedByAuthority, effectiveAuthority } = require('./tools');
+const { toolsForRole, executeTool, createEscalation, parseAuthority, intersectAuthority, allowedByAuthority, effectiveAuthority, webSearchEligible } = require('./tools');
 const evidence = require('../evidence');
 const control = require('./control');
 
@@ -120,7 +120,9 @@ async function executeRun(runId) {
   // Web search rides the Claude providers only in v1 (Google grounding has a
   // different result shape); Gemini research agents work from row data + memory.
   // An explicit authority map governs it like every external surface.
-  const webSearchEligible = agent.role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0' && provider !== 'gemini';
+  // Same predicate the authority menu grants from — one definition, so a grant
+  // can never name a tool this run could never be offered.
+  const webSearchOffered = webSearchEligible(agent.role, agent.model_tier);
   // web_search is executed by the PROVIDER, so it never reaches executeTool —
   // the one place every other governed tool gets its live-authority re-check.
   // Offered once at run start, it would stay in the array for every later model
@@ -128,7 +130,7 @@ async function executeRun(runId) {
   // the authority mid-run. Re-derive it per call against the same
   // live ∩ dispatch-snapshot authority executeTool uses.
   const toolsForCall = () => (
-    webSearchEligible && allowedByAuthority('web_search', effectiveAuthority(run, agent))
+    webSearchOffered && allowedByAuthority('web_search', effectiveAuthority(run, agent))
       ? [...tools, webSearchToolFor(model, provider)]
       : tools
   );

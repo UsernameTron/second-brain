@@ -175,27 +175,51 @@ function changesetCards(canvasId) {
 // cards with it. Resolution is source-record style: POST .../acknowledge.
 function standingRuleCards(canvasId) {
   const rows = db.prepare(`
-    SELECT rr.id, rr.rule_id, rr.state, rr.skip_reason, rr.matched_count, rr.result_summary, rr.error, rr.created_at,
-           r.canvas_id, r.instruction, r.output_type, r.agent_id
+    SELECT rr.id, rr.rule_id, rr.rule_version, rr.state, rr.skip_reason, rr.matched_count, rr.result_summary, rr.error, rr.created_at,
+           r.canvas_id, r.instruction, r.output_type, r.agent_id, r.version
     FROM standing_rule_runs rr JOIN standing_rules r ON r.id = rr.rule_id
     WHERE r.canvas_id = ? AND rr.needs_attention = 1 AND rr.acknowledged_at IS NULL AND r.state != 'draft'
     ORDER BY rr.created_at DESC LIMIT 50
   `).all(canvasId);
   return rows.map((rr) => {
-    const brief = rr.output_type === 'brief' && rr.state === 'completed';
+    // The row joins the LIVE rule, but the body came from the occurrence. An
+    // unacknowledged card from an earlier version resurfaces the moment the
+    // edited rule leaves draft, labelled with the NEW instruction over the OLD
+    // result — and a re-parse can reassign agent_id, so it would name an agent
+    // that never produced it. rule_version was recorded for exactly this and
+    // read by nothing: quote neither the instruction nor the agent when they
+    // no longer belong to this result.
+    const stale = Number(rr.rule_version) !== Number(rr.version);
+    // A completed occurrence carrying an error is one whose every governed
+    // read failed (completeFromRun) — it is not a brief anyone should read and
+    // not a match count anyone should believe.
+    const readsFailed = rr.state === 'completed' && !!rr.error;
+    const brief = rr.output_type === 'brief' && rr.state === 'completed' && !readsFailed;
+    const quoted = `"${String(rr.instruction).slice(0, 120)}"`;
+    const matchedLine = rr.matched_count == null
+      // The unparseable-MATCHED path stores NULL deliberately: the count is
+      // unknown, not zero. Interpolating it printed a raw JS null to the owner.
+      ? 'Standing rule finished with an unreadable match count'
+      : `Standing rule matched ${rr.matched_count} item(s)`;
+    const decision = readsFailed
+      ? `Standing rule could not read its sources: ${stale ? 'an earlier version of this rule' : quoted}`
+      : brief
+        ? `A new brief is ready: ${stale ? 'from an earlier version of this rule' : quoted}`
+        : rr.state === 'completed'
+          ? `${matchedLine}: ${stale ? 'an earlier version of this rule' : quoted}`
+          : `Standing rule run ${rr.state}: ${stale ? 'an earlier version of this rule' : quoted}`;
     return card({
       type: brief ? 'brief_ready' : 'rule_alert',
-      decision: brief
-        ? `A new brief is ready: "${String(rr.instruction).slice(0, 120)}"`
+      decision: stale ? `${decision} (result from v${rr.rule_version}; the rule has since been edited to v${rr.version})` : decision,
+      context: readsFailed
+        ? String(rr.error).slice(0, 300)
         : rr.state === 'completed'
-          ? `Standing rule matched ${rr.matched_count} item(s): "${String(rr.instruction).slice(0, 120)}"`
-          : `Standing rule run ${rr.state}: "${String(rr.instruction).slice(0, 120)}"`,
-      context: rr.state === 'completed'
-        ? String(rr.result_summary || '').slice(0, 300)
-        : String(rr.skip_reason || rr.error || rr.state).slice(0, 300),
+          ? String(rr.result_summary || '').slice(0, 300)
+          : String(rr.skip_reason || rr.error || rr.state).slice(0, 300),
       consequence: brief ? 'The brief goes unread until someone opens it.' : 'Whatever this rule watches may need action.',
       recommendation: brief ? 'Read the brief, then acknowledge.' : 'Review the result, act on it, then acknowledge.',
-      owner: { agentId: rr.agent_id },
+      // The current agent_id did not necessarily produce a stale result.
+      owner: stale ? {} : { agentId: rr.agent_id },
       actions: ['acknowledge', 'open_rule'],
       sourceRef: { kind: 'standing_rule_run', id: rr.id, ruleId: rr.rule_id, canvasId: rr.canvas_id },
       createdAt: rr.created_at,

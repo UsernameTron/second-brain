@@ -4,7 +4,7 @@
 // and NEEDS YOU rule_alert / brief_ready labels + Acknowledge.
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../src/api.js', async (importOriginal) => {
@@ -111,12 +111,12 @@ describe('Rules & Briefs view', () => {
   it('activate stays disabled until a completed rehearsal, and an edit re-disables it', async () => {
     api.mockImplementation((path, opts) => {
       if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [] });
-      if (path === '/api/canvases/c1/standing-rules/parse') return Promise.resolve({ rule: DRAFT_RULE });
+      if (path === '/api/canvases/c1/standing-rules/parse') {
+        const body = (opts && opts.body) || {};
+        return Promise.resolve({ rule: { ...DRAFT_RULE, instruction: body.instruction, state: 'draft' } });
+      }
       if (path === '/api/standing-rules/sr1/rehearse') {
         return Promise.resolve({ rule: { ...DRAFT_RULE, state: 'rehearsed' }, run: { id: 'r1', status: 'queued' } });
-      }
-      if (path === '/api/standing-rules/sr1' && opts && opts.method === 'PATCH') {
-        return Promise.resolve({ rule: { ...DRAFT_RULE, instruction: opts.body.instruction, state: 'draft' } });
       }
       if (path === '/api/standing-rules/sr1') {
         return Promise.resolve({ rule: { ...DRAFT_RULE, state: 'rehearsed' }, authorization: null, runs: [], rehearsalRun: REHEARSAL_DONE });
@@ -137,9 +137,203 @@ describe('Rules & Briefs view', () => {
     await userEvent.type(screen.getByLabelText('Rule instruction'), ' and flag renewals');
     fireEvent.blur(screen.getByLabelText('Rule instruction'));
     await waitFor(() => {
-      expect(api).toHaveBeenCalledWith('/api/standing-rules/sr1', expect.objectContaining({ method: 'PATCH' }));
+      expect(api).toHaveBeenCalledWith('/api/canvases/c1/standing-rules/parse',
+        expect.objectContaining({ body: expect.objectContaining({ rule_id: 'sr1' }) }));
     });
     expect(screen.getByRole('button', { name: 'Activate' })).toBeDisabled();
+  });
+
+  // PATCH reuses the stored interpretation verbatim, so an instruction edit used
+  // to leave nine of the ten card fields describing the pre-edit rule — and the
+  // dispatched instruction contradicting itself ("daily watch … summarize my
+  // Gmail inbox. Sources: hubspot"). Activation would then freeze a grant built
+  // from the stale scope. An edit has to re-interpret.
+  it('re-interprets the whole rule on an instruction edit, not just the free text', async () => {
+    const REPARSED = {
+      summary: 'Gmail inbox digest', sources: ['gmail'], scope: 'unread mail from the last day',
+      category: 'brief', output_type: 'brief', cadence: 'hourly', cadence_hour: null, cadence_day: null,
+      agent_id: 'a1', step_budget: 8, wall_ms_budget: 120000, expires_days: 30,
+      can: ['read mail'], cannot: ['send email'],
+    };
+    const active = { ...DRAFT_RULE, state: 'active', next_run_at: '2026-08-16T08:00:00Z' };
+    api.mockImplementation((path, opts) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [active] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/canvases/c1/standing-rules/parse') {
+        return Promise.resolve({
+          rule: {
+            ...DRAFT_RULE, instruction: opts.body.instruction, state: 'draft', version: 2,
+            interpretation: REPARSED, interpretation_json: JSON.stringify(REPARSED),
+            source_scope: { sources: REPARSED.sources, scope: REPARSED.scope },
+            cadence: 'hourly', output_type: 'brief', next_run_at: null,
+          },
+        });
+      }
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({ rule: active, authorization: null, runs: [], rehearsalRun: REHEARSAL_DONE });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    expect(await screen.findByText('deals over $25k')).toBeInTheDocument();
+
+    await userEvent.clear(screen.getByLabelText('Rule instruction'));
+    await userEvent.type(screen.getByLabelText('Rule instruction'), 'Every hour, summarize my Gmail inbox');
+    fireEvent.blur(screen.getByLabelText('Rule instruction'));
+
+    // It went through the re-interpret endpoint carrying the rule id — not PATCH.
+    await waitFor(() => {
+      expect(api).toHaveBeenCalledWith('/api/canvases/c1/standing-rules/parse', {
+        method: 'POST', body: { instruction: 'Every hour, summarize my Gmail inbox', rule_id: 'sr1' },
+      });
+    });
+    expect(api.mock.calls.some(([, o]) => o && o.method === 'PATCH')).toBe(false);
+    // Every field re-derived: no HubSpot scope, no daily cadence, left over.
+    expect(await screen.findByText('Gmail inbox digest')).toBeInTheDocument();
+    expect(screen.getByText('gmail')).toBeInTheDocument();
+    expect(screen.getByText('unread mail from the last day')).toBeInTheDocument();
+    expect(screen.getAllByText('every hour').length).toBeGreaterThan(0);
+    expect(screen.queryByText('deals over $25k')).toBeNull();
+    expect(screen.queryByText('hubspot')).toBeNull();
+    expect(screen.getByText('a written brief with sources')).toBeInTheDocument();
+  });
+
+  // Re-parsing the prose re-derives all ten fields from the model, and
+  // validateInterpretation silently defaults cadence_hour to 8, step_budget to
+  // 12 and expires_days to 90 when the model omits them — so "move this brief
+  // from Monday to Friday" or "give it more steps" had no honest path, and
+  // step/time budget have no plain-language vocabulary at all. The structured
+  // form goes through PATCH: no model, nothing drifts that wasn't typed.
+  it('edits structured fields through PATCH without re-parsing the instruction', async () => {
+    const weekly = {
+      ...DRAFT_RULE, state: 'active', cadence: 'weekly', cadence_day: 1, cadence_hour: 8,
+      next_run_at: '2026-08-17T08:00:00Z',
+      interpretation: { ...INTERP, cadence: 'weekly', cadence_day: 1 },
+    };
+    api.mockImplementation((path, opts) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [weekly] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/standing-rules/sr1' && opts && opts.method === 'PATCH') {
+        const i = opts.body.interpretation;
+        return Promise.resolve({
+          rule: {
+            ...weekly, state: 'draft', version: 2, rehearsal_run_id: null, next_run_at: null,
+            cadence: i.cadence, cadence_day: i.cadence_day, cadence_hour: i.cadence_hour,
+            step_budget: i.step_budget, wall_ms_budget: i.wall_ms_budget,
+            interpretation: i, interpretation_json: JSON.stringify(i),
+          },
+        });
+      }
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({ rule: weekly, authorization: null, runs: [], rehearsalRun: null });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    expect((await screen.findAllByText('weekly on Monday at 08:00 UTC')).length).toBeGreaterThan(0);
+
+    // Collapsed by default — the plain-language card stays the primary view,
+    // and a closed panel renders no controls at all.
+    expect(screen.queryByLabelText('Step budget')).toBeNull();
+    await userEvent.click(screen.getByText('Settings — cadence, sources, budget, expiry'));
+
+    await userEvent.selectOptions(await screen.findByLabelText('Day'), '5');
+    await userEvent.clear(screen.getByLabelText('Step budget'));
+    await userEvent.type(screen.getByLabelText('Step budget'), '20');
+    await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+
+    await waitFor(() => {
+      expect(api).toHaveBeenCalledWith('/api/standing-rules/sr1', expect.objectContaining({
+        method: 'PATCH',
+        body: {
+          interpretation: expect.objectContaining({
+            cadence: 'weekly', cadence_day: 5, cadence_hour: 8, step_budget: 20,
+            wall_ms_budget: 120000, expires_days: 30, output_type: 'alert',
+            agent_id: 'a1', sources: ['hubspot'], scope: 'deals over $25k',
+            // Model-written prose the form never touches — blanking it would
+            // empty two consent-card fields.
+            summary: 'inbound deals', can: ['read CRM records'],
+            cannot: ['send email', 'change records'],
+          }),
+        },
+      }));
+    });
+    // The prose was untouched, so it must NOT have gone through the model.
+    expect(api.mock.calls.some(([p]) => p === '/api/canvases/c1/standing-rules/parse')).toBe(false);
+    // And the gate reset: back to draft, Activate held until a fresh rehearsal.
+    expect((await screen.findAllByText('weekly on Friday at 08:00 UTC')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Activate' })).toBeDisabled();
+  });
+
+  // A re-interpretation that failed changed nothing server-side — the parse
+  // route returns before upsertDraft on every error path. But the edited words
+  // stayed in the textarea and the heading while the server still held the old
+  // rule AND its completed rehearsal, so Activate came back enabled: the owner
+  // could authorize an instruction that was never interpreted, reading a screen
+  // that described it. The screen has to go back to what the server holds, and
+  // has to say that it did.
+  it('restores the saved instruction when a re-interpretation fails, so Activate cannot authorize an invisible rule', async () => {
+    const rehearsed = { ...DRAFT_RULE, state: 'rehearsed' };
+    api.mockImplementation((path) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [rehearsed] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/canvases/c1/standing-rules/parse') {
+        return Promise.reject(Object.assign(new Error('rule interpretation failed to produce valid JSON'), { status: 502 }));
+      }
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({ rule: rehearsed, authorization: null, runs: [], rehearsalRun: REHEARSAL_DONE });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    await userEvent.type(await screen.findByLabelText('Rule instruction'), ' and flag renewals');
+    fireEvent.blur(screen.getByLabelText('Rule instruction'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('rule interpretation failed to produce valid JSON');
+    expect(screen.getByRole('alert')).toHaveTextContent(/rule is unchanged/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/restored to the saved instruction/i);
+
+    // The edit is gone from every surface that describes what Activate would
+    // authorize — textarea and heading both back to the stored prose.
+    await waitFor(() => expect(screen.getByLabelText('Rule instruction').value).toBe(DRAFT_RULE.instruction));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(DRAFT_RULE.instruction);
+    // Activate is live again (the server's rehearsal survived) — and now it
+    // grants exactly the rule on screen.
+    expect(screen.getByRole('button', { name: 'Activate' })).toBeEnabled();
+  });
+
+  // Blur fires the re-parse; "← Rules" clears the detail before it lands. The
+  // updater then spread a null `cur` and set detail again — reopening the rule
+  // with its runs and authorization gone. Every async response in this view now
+  // writes through one guard keyed on the rule it was issued for.
+  it('a late edit response cannot reopen a rule the owner already left', async () => {
+    const rehearsed = { ...DRAFT_RULE, state: 'rehearsed' };
+    let landParse;
+    api.mockImplementation((path, opts) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [rehearsed] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/canvases/c1/standing-rules/parse') {
+        return new Promise((res) => {
+          landParse = () => res({ rule: { ...rehearsed, instruction: opts.body.instruction, state: 'draft', version: 2 } });
+        });
+      }
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({ rule: rehearsed, authorization: null, runs: [], rehearsalRun: REHEARSAL_DONE });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    await userEvent.type(await screen.findByLabelText('Rule instruction'), ' and flag renewals');
+    fireEvent.blur(screen.getByLabelText('Rule instruction'));
+    await userEvent.click(screen.getByRole('button', { name: '← Rules' }));
+    expect(screen.queryByText('What this rule means')).toBeNull();
+
+    await act(async () => { landParse(); });
+    expect(screen.queryByText('What this rule means')).toBeNull();
+    expect(screen.getByLabelText('Describe the standing rule')).toBeInTheDocument();
   });
 
   // The server marks the rule `rehearsed` the moment a rehearsal is dispatched,
@@ -333,6 +527,97 @@ describe('Rules & Briefs view', () => {
     // And the same honesty on the consent card.
     await userEvent.click(screen.getByText('overdue rule'));
     expect(await screen.findByText(/Check STANDING RULES · TICK/)).toBeInTheDocument();
+  });
+
+  // The server now NULLs next_run_at on pause/revoke/expire, but rows written
+  // before that still carry a stale future value — so the card has to read the
+  // STATE, not the column. "computed at activation" is its own false promise on
+  // a revoked rule: there is no activation left to compute one.
+  it('the consent card states why a stopped rule has no next run, whatever the column holds', async () => {
+    const stale = '2099-01-01T08:00:00Z';
+    const paused = { ...DRAFT_RULE, instruction: 'paused rule', state: 'paused', next_run_at: stale };
+    const revoked = { ...DRAFT_RULE, id: 'sr9', instruction: 'revoked rule', state: 'revoked', next_run_at: stale };
+    let current = paused;
+    api.mockImplementation((path) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [paused, revoked] });
+      if (path === '/api/standing-rules/sr1/runs' || path === '/api/standing-rules/sr9/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/standing-rules/sr1' || path === '/api/standing-rules/sr9') {
+        return Promise.resolve({ rule: current, authorization: null, runs: [], rehearsalRun: null });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText('paused rule'));
+    expect(await screen.findByText('paused — nothing runs until it is resumed')).toBeInTheDocument();
+    expect(screen.queryByText(/2099-01-01/)).toBeNull();
+    expect(screen.queryByText('computed at activation')).toBeNull();
+
+    current = revoked;
+    await userEvent.click(screen.getByRole('button', { name: '← Rules' }));
+    await userEvent.click(await screen.findByText('revoked rule'));
+    expect(await screen.findByText('never — the authorization is revoked')).toBeInTheDocument();
+    expect(screen.queryByText(/2099-01-01/)).toBeNull();
+    expect(screen.queryByText('computed at activation')).toBeNull();
+  });
+
+  // Revoke returned only { rule }, ceremony merged only { rule }, and no refetch
+  // path exists — so the block kept rendering the pre-revoke grant, expiry date
+  // and all. The `· revoked` marker was dead on every path.
+  it('replaces the authorization block on revoke instead of leaving the pre-revoke grant on screen', async () => {
+    const active = { ...DRAFT_RULE, state: 'active', next_run_at: '2026-08-16T08:00:00Z' };
+    const live = { authorized_by: 'pete@cloudtechgurus.com', expires_at: '2026-11-14T08:00:00Z', revoked_at: null };
+    const dead = { ...live, revoked_at: '2026-08-15T09:30:00Z', revoked_by: 'pete@cloudtechgurus.com' };
+    api.mockImplementation((path) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [active] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      // The revoked grant comes back with the ceremony — there is nothing to
+      // re-poll, so a response that omits it can only leave a stale block.
+      if (path === '/api/standing-rules/sr1/revoke') {
+        return Promise.resolve({ rule: { ...active, state: 'revoked' }, authorization: dead });
+      }
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({ rule: active, authorization: live, runs: [], rehearsalRun: null });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    expect(await screen.findByText(/expires 2026-11-14 08:00 UTC/)).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Revoke' }));
+    expect(await screen.findByText(/revoked 2026-08-15 09:30 UTC/)).toBeInTheDocument();
+    // The expiry is not a fact about a revoked grant any more.
+    expect(screen.queryByText(/expires 2026-11-14/)).toBeNull();
+    expect(screen.getByText(/Authorized by/)).toBeInTheDocument();
+    // …and the revoked row must not keep the card claiming whose access the
+    // (now impossible) runs would spend.
+    expect(screen.getByText('nobody — the grant from pete@cloudtechgurus.com was revoked')).toBeInTheDocument();
+    expect(screen.getByText('never — the authorization is revoked')).toBeInTheDocument();
+  });
+
+  // pause/resume return no authorization; merging d.authorization must not blank
+  // the block they never spoke about.
+  it('keeps the authorization block through pause and resume', async () => {
+    const active = { ...DRAFT_RULE, state: 'active', next_run_at: '2026-08-16T08:00:00Z' };
+    const live = { authorized_by: 'pete@cloudtechgurus.com', expires_at: '2026-11-14T08:00:00Z', revoked_at: null };
+    api.mockImplementation((path) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [active] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/standing-rules/sr1/pause') return Promise.resolve({ rule: { ...active, state: 'paused', next_run_at: null } });
+      if (path === '/api/standing-rules/sr1/resume') return Promise.resolve({ rule: active });
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({ rule: active, authorization: live, runs: [], rehearsalRun: null });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    await userEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    expect(await screen.findByText('paused — nothing runs until it is resumed')).toBeInTheDocument();
+    expect(screen.getByText(/expires 2026-11-14 08:00 UTC/)).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Resume' }));
+    expect(await screen.findByText('2026-08-16 08:00 UTC')).toBeInTheDocument();
+    expect(screen.getByText(/expires 2026-11-14 08:00 UTC/)).toBeInTheDocument();
   });
 
   it('owner can pause, resume, and revoke', async () => {

@@ -41,10 +41,20 @@ export async function api(path, opts = {}) {
 // rebuild the surface around a mocked fetcher.
 export function makeRulesApi(fetcher) {
   return {
-    parse: (canvasId, instruction) => fetcher(`/api/canvases/${canvasId}/standing-rules/parse`, { method: 'POST', body: { instruction } }),
+    // ruleId re-interprets an existing rule in place (server: routes.js
+    // `body.rule_id`) instead of creating a second draft — what an instruction
+    // edit needs, since PATCH keeps the stored interpretation verbatim.
+    parse: (canvasId, instruction, ruleId = null) => fetcher(`/api/canvases/${canvasId}/standing-rules/parse`, {
+      method: 'POST', body: ruleId ? { instruction, rule_id: ruleId } : { instruction },
+    }),
+    // Structured-field edits: the ONLY path that changes cadence, budgets,
+    // expiry, sources, scope, output type or agent without rewriting the prose
+    // and hoping the model re-derives the other nine fields identically. The
+    // server re-validates and re-clamps the whole interpretation and resets the
+    // rehearsal gate, same as parse — this grants nothing on its own.
+    update: (id, body) => fetcher(`/api/standing-rules/${id}`, { method: 'PATCH', body }),
     list: (canvasId) => fetcher(`/api/canvases/${canvasId}/standing-rules`),
     get: (id) => fetcher(`/api/standing-rules/${id}`),
-    update: (id, body) => fetcher(`/api/standing-rules/${id}`, { method: 'PATCH', body }),
     rehearse: (id) => fetcher(`/api/standing-rules/${id}/rehearse`, { method: 'POST', body: {} }),
     activate: (id) => fetcher(`/api/standing-rules/${id}/activate`, { method: 'POST', body: {} }),
     pause: (id) => fetcher(`/api/standing-rules/${id}/pause`, { method: 'POST', body: {} }),

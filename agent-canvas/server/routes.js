@@ -845,7 +845,7 @@ router.post('/canvases/:canvasId/agents', auth.requireCanvas, (req, res) => {
     let requested;
     try { requested = Array.isArray(tools_json) ? tools_json : JSON.parse(tools_json); } catch { requested = null; }
     if (!Array.isArray(requested)) return res.status(400).json({ error: 'tools_json must be an array of tool names' });
-    const menu = new Set(require('./orchestrator/tools').authorityMenu(role, { userRole: auth.workspaceRole(req.user.email) }).map((m) => m.name));
+    const menu = new Set(require('./orchestrator/tools').authorityMenu(role, { userRole: auth.workspaceRole(req.user.email), modelTier: model_tier }).map((m) => m.name));
     authorityJson = JSON.stringify([...new Set(requested.map(String))].filter((n) => menu.has(n)));
   }
   db.prepare('INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at, tools_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -1246,7 +1246,11 @@ router.get('/canvases/:canvasId/standing-rules', auth.requireCanvas, (req, res) 
 router.get('/standing-rules/:ruleId', (req, res) => {
   const rule = ruleAccess(req, res, { edit: false });
   if (!rule) return;
-  const authz = standingRules.currentAuthorization(rule.id) || null;
+  // The LATEST authorization, revoked or not: filtering revoked rows out meant
+  // a revoked rule's page had no authorization block at all after a reload,
+  // and the pre-revoke one stayed on screen before it. The row carries
+  // revoked_at/revoked_by — the client renders the true state from it.
+  const authz = standingRules.latestAuthorization(rule.id) || null;
   const runs = db.prepare('SELECT * FROM standing_rule_runs WHERE rule_id = ? ORDER BY created_at DESC LIMIT 10').all(rule.id)
     .map((r) => ruleRunView(r, req.user.email));
   // initiated_by is the identity the rehearsal's reads ACTED AS — the consent
@@ -1303,7 +1307,7 @@ router.post('/standing-rules/:ruleId/rehearse', rateLimit('model'), (req, res) =
   }
   if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused' });
   if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted' });
-  const rehearsalAgent = db.prepare("SELECT id, role, tools_json FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id);
+  const rehearsalAgent = db.prepare("SELECT id, role, tools_json, model_tier FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id);
   if (!rehearsalAgent) {
     return res.status(409).json({ error: 'the rule’s agent is no longer active on this canvas — re-parse or edit the rule' });
   }
@@ -1377,7 +1381,7 @@ router.post('/standing-rules/:ruleId/activate', auth.requireOwner, (req, res) =>
       error: `this rehearsal ran as ${run.initiated_by || 'nobody'}, but the rule would run as you — it read ${run.initiated_by ? 'their' : 'no one’s'} mail, files and CRM access, not yours. Rehearse it yourself, then activate.`,
     });
   }
-  const ruleAgent = db.prepare("SELECT id, role, tools_json FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id);
+  const ruleAgent = db.prepare("SELECT id, role, tools_json, model_tier FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id);
   if (!ruleAgent) {
     return res.status(409).json({ error: 'the rule’s agent is no longer active on this canvas' });
   }
@@ -1395,11 +1399,22 @@ router.post('/standing-rules/:ruleId/activate', auth.requireOwner, (req, res) =>
   }
   const interp = JSON.parse(rule.interpretation_json || '{}');
   const expiresAt = new Date(Date.now() + (interp.expires_days || 90) * 86_400_000).toISOString();
+  const firstRunAt = standingRules.nextRunAt(rule);
+  // "Brief me weekly on the migration until Friday", said on a Monday: the
+  // rule sits active for six days, is never selected by the due query, and the
+  // first tick that reaches it flips it straight to expired having dispatched
+  // nothing — silently, no card, no bus event. Refuse the grant instead, and
+  // name both dates so the owner can see which one to change.
+  if (expiresAt <= firstRunAt) {
+    return res.status(409).json({
+      error: `this rule would expire on ${expiresAt.slice(0, 10)}, before its first ${rule.cadence} run on ${firstRunAt.slice(0, 10)} — it would never run once. Give it a longer horizon or a sooner cadence, then rehearse again.`,
+    });
+  }
   let authz = null;
   tx(() => {
     authz = standingRules.createAuthorization({ rule, authorizedBy: req.user.email, expiresAt });
     db.prepare("UPDATE standing_rules SET state = 'active', expires_at = ?, next_run_at = ?, updated_at = ? WHERE id = ?")
-      .run(expiresAt, standingRules.nextRunAt(rule), nowIso(), rule.id);
+      .run(expiresAt, firstRunAt, nowIso(), rule.id);
   });
   const updated = standingRules.getRule(rule.id);
   audit('user', req.user.email, 'standing_rule.activate', {
@@ -1414,9 +1429,14 @@ router.post('/standing-rules/:ruleId/pause', auth.requireOwner, (req, res) => {
   if (rule.state !== 'active') return res.status(409).json({ error: `only active rules can be paused (rule is ${rule.state})` });
   // Pausing stops the rule, including the occurrence already in flight — an
   // unhalted run would keep reading and writing memory after the owner paused.
+  // next_run_at cleared with the state: the UI renders the column on
+  // truthiness alone, so a paused rule kept advertising a next run that will
+  // never arrive — and the fatal-invalidation path already clears it, making
+  // two paused rules render differently purely by how they got there. Resume
+  // recomputes it from nextRunAt.
   let halted = 0;
   tx(() => {
-    db.prepare("UPDATE standing_rules SET state = 'paused', updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
+    db.prepare("UPDATE standing_rules SET state = 'paused', next_run_at = NULL, updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
     halted = standingRules.haltRuleRuns(rule.id, 'rule paused');
   });
   audit('user', req.user.email, 'standing_rule.pause', { ruleId: rule.id, canvasId: rule.canvas_id, haltedRuns: halted });
@@ -1448,11 +1468,15 @@ router.post('/standing-rules/:ruleId/revoke', auth.requireOwner, (req, res) => {
   let halted = 0;
   tx(() => {
     standingRules.revokeAuthorization(rule.id, req.user.email);
-    db.prepare("UPDATE standing_rules SET state = 'revoked', updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
+    // next_run_at cleared with the state, same reason as pause.
+    db.prepare("UPDATE standing_rules SET state = 'revoked', next_run_at = NULL, updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
     halted = standingRules.haltRuleRuns(rule.id, 'rule revoked');
   });
   audit('user', req.user.email, 'standing_rule.revoke', { ruleId: rule.id, canvasId: rule.canvas_id, haltedRuns: halted });
-  res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)) });
+  // The revoked authorization rides back with the rule (the activate response's
+  // shape), so the client can render "revoked by … " instead of keeping the
+  // pre-revoke grant on screen — there is no refetch path behind this button.
+  res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)), authorization: standingRules.latestAuthorization(rule.id) || null });
 });
 
 router.get('/standing-rules/:ruleId/runs', (req, res) => {
