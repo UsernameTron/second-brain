@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { timeAgo, short } from './api.js';
-import { formatContractTail, plainPreview, humanizePayload } from './format.jsx';
+import { formatContractTail, plainPreview, humanizeDetail } from './format.jsx';
 
 // P2 unified NEEDS YOU: a full-stage view over the attention projection.
 // Workspace owns the fetch (one source of truth for the badge and this view);
@@ -37,14 +37,14 @@ function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, o
         <span className="mono dim">{timeAgo(row.created_at)}</span>
       </div>
       <div className="ny-decision">{row.decision}</div>
-      {/* Only rule cards have known standing-rule provenance, and the server
-          slices context to ~300 chars — a cut mid-token stays as-is, which the
-          tail matcher tolerates by leaving ambiguity unchanged. Everything
-          else keeps its meaning via humanize. */}
+      {/* Strip ONLY where the count is already on the card: a rule_alert's
+          decision reads "Standing rule matched N item(s)" (server/attention.js).
+          A brief_ready decision carries no count, so stripping there would
+          delete the only statement of what matched — humanize instead. */}
       {row.context ? (
         <div className="ny-context">
           {short(plainPreview(formatContractTail(row.context,
-            row.type === 'rule_alert' || row.type === 'brief_ready' ? 'strip' : 'humanize')), 220)}
+            row.type === 'rule_alert' ? 'strip' : 'humanize')), 220)}
         </div>
       ) : null}
       {hasCtx ? (
@@ -54,7 +54,7 @@ function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, o
       ) : null}
       {showCtx ? (
         <pre className="tray-context mono">
-          {short((() => { try { return humanizePayload(row.contextData, { full: true }).join('\n'); } catch { return String(row.contextData); } })(), 800)}
+          {(() => { try { return humanizeDetail(row.contextData); } catch { return String(row.contextData); } })()}
         </pre>
       ) : null}
       <div className="ny-meta">

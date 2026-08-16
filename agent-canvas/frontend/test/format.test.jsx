@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 import {
-  SummaryMarkdown, formatContractTail, plainPreview, humanizePayload, formatRunEventPreview,
+  SummaryMarkdown, formatContractTail, plainPreview, humanizePayload, humanizeDetail, formatRunEventPreview,
 } from '../src/format.jsx';
 import ActivityDock from '../src/ActivityDock.jsx';
 import Tray from '../src/Tray.jsx';
@@ -94,6 +94,11 @@ describe('plainPreview', () => {
   it('collapses markdown to one line of prose', () => {
     expect(plainPreview('## Head\n- **x** moved\n2. item two\n\nplain')).toBe('Head · x moved · item two · plain');
   });
+
+  it('keeps a literal unmatched ** instead of deleting it', () => {
+    expect(plainPreview('a stray ** delimiter')).toBe('a stray ** delimiter');
+    expect(plainPreview('the **rate** is 2**8')).toBe('the rate is 2**8');
+  });
 });
 
 describe('humanizePayload', () => {
@@ -131,6 +136,37 @@ describe('humanizePayload', () => {
     expect(lines).toContain('amount: 5000');
     expect(lines[lines.length - 1]).toBe('… (result truncated)');
     expect(lines.join('\n')).not.toContain('{');
+  });
+
+  it('recovers a value cut mid-string, and never returns raw broken syntax', () => {
+    const midValue = humanizePayload('{"deal_name":"Acme Cor');
+    expect(midValue).toContain('deal name: Acme Cor');
+    expect(midValue.join('\n')).not.toContain('{');
+    // Nothing structured survived at all — still no braces or quotes.
+    const shredded = humanizePayload('[{"a":').join('\n');
+    expect(shredded).not.toMatch(/[{}[\]"]/);
+    expect(shredded).toContain('(result truncated)');
+  });
+
+  it('renders empty collections as (none), never as blank', () => {
+    expect(humanizePayload([])).toEqual(['(none)']);
+    expect(humanizePayload({ tags: [], meta: {} })).toEqual(['tags: (none)', 'meta: (none)']);
+    expect(humanizePayload({ tags: [] }, { full: true })).toEqual(['tags: (none)']);
+  });
+});
+
+describe('humanizeDetail', () => {
+  it('returns every field uncapped for ordinary payloads', () => {
+    const text = humanizeDetail({ a: 'x'.repeat(900), b: { c: 'y'.repeat(900) } });
+    expect(text).toContain('x'.repeat(900)); // the old 800-char cap would have cut here
+    expect(text).toContain('b / c:');
+    expect(text).not.toContain('not shown');
+  });
+
+  it('says so explicitly when a pathological payload is bounded', () => {
+    const huge = Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`field_${i}`, 'v'.repeat(100)]));
+    const text = humanizeDetail(huge);
+    expect(text).toMatch(/… \d+ more field\(s\) not shown/);
   });
 
   it('parses JSON-encoded strings and preserves ordinary ones', () => {
@@ -204,9 +240,28 @@ describe('component surfaces', () => {
         onOpenWorkbook={vi.fn()} onRetryRun={vi.fn()} onExtendReview={vi.fn()}
         onAcknowledgeRuleRun={vi.fn()} onOpenRule={vi.fn()} />,
     );
-    expect(screen.getByText('Brief · All quiet.')).toBeInTheDocument();
     expect(screen.getByText('Scan done. 2 items matched.')).toBeInTheDocument();
+    // brief_ready carries no count on the card, so its result is humanized —
+    // stripping would delete the only statement of what matched.
+    expect(screen.getByText('Brief · All quiet. · Nothing matched.')).toBeInTheDocument();
     expect(container.textContent).not.toContain('NOTHING MATCHED');
+    expect(container.textContent).not.toContain('MATCHED: 2');
+  });
+
+  it('Needs You strips a rule_alert result, whose count is on the card', () => {
+    const row = {
+      owner: {}, created_at: new Date().toISOString(), consequence: '', recommendation: null,
+      contextData: null, type: 'rule_alert', decision: 'Standing rule matched 2 item(s)',
+      context: 'Two deals went quiet.\nMATCHED: 2', sourceRef: { id: 'r1', ruleId: 'sr1' },
+    };
+    const { container } = render(
+      <NeedsYouView rows={[row]} userEmail="pete@x.com" agentsById={{}} people={[]} agents={[]}
+        onResolveEscalation={vi.fn()} onAssign={vi.fn()} onOpenMemory={vi.fn()} onOpenRun={vi.fn()}
+        onOpenWorkbook={vi.fn()} onRetryRun={vi.fn()} onExtendReview={vi.fn()}
+        onAcknowledgeRuleRun={vi.fn()} onOpenRule={vi.fn()} />,
+    );
+    expect(screen.getByText('Two deals went quiet.')).toBeInTheDocument();
+    expect(screen.getByText('Standing rule matched 2 item(s)')).toBeInTheDocument();
     expect(container.textContent).not.toContain('MATCHED: 2');
   });
 });

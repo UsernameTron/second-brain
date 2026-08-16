@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { timeAgo, short } from './api.js';
-import { humanizePayload } from './format.jsx';
+import { timeAgo } from './api.js';
+import { humanizeDetail } from './format.jsx';
 
 const KIND_COLORS = {
   question: 'k-question', livelock: 'k-livelock', budget: 'k-budget', timeout: 'k-timeout',
@@ -17,7 +17,7 @@ function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign })
   const ownerLabel = esc.owner_email || (ownerAgent ? ownerAgent.name : null);
 
   const contextStr = (() => {
-    try { return humanizePayload(esc.context, { full: true }).join('\n'); } catch { return String(esc.context); }
+    try { return humanizeDetail(esc.context); } catch { return String(esc.context); }
   })();
 
   return (
@@ -36,7 +36,7 @@ function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign })
           {showCtx ? 'hide context' : 'context'}
         </button>
       ) : null}
-      {showCtx ? <pre className="tray-context mono">{short(contextStr, 800)}</pre> : null}
+      {showCtx ? <pre className="tray-context mono">{contextStr}</pre> : null}
 
       {mode === null ? (
         <div className="tray-actions">

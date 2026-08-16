@@ -279,7 +279,12 @@ function RunHistory({ runs }) {
               {r.skip_reason ? <span className="dim"> skipped: {r.skip_reason}</span> : null}
               {r.error ? <span className="answer-fail"> {r.error}</span> : null}
               <span className="dim mono"> · {timeAgo(r.created_at)}</span>
-              {r.result_summary ? <RuleNarrative text={r.result_summary} /> : null}
+              {/* Strip only when the count chip above actually rendered;
+                  a NULL matched_count means the count is unknown, so the
+                  contract line is the only thing that says what matched. */}
+              {r.result_summary ? (
+                <RuleNarrative text={r.result_summary} mode={r.matched_count != null ? 'strip' : 'humanize'} />
+              ) : null}
               <RefsFooter refs={r.output_refs ?? r.output_refs_json} />
             </li>
           ))}

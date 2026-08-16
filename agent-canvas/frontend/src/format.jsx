@@ -101,7 +101,8 @@ export function plainPreview(text) {
     .map((l) => l
       .replace(/^\s*#{1,4}\s+/, '')
       .replace(/^\s*(?:[-*]|\d{1,3}[.)])\s+/, '')
-      .replace(/\*\*/g, '')
+      // Balanced pairs only — a lone ** is content, same rule as boldSpans.
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
       .trim())
     .filter(Boolean)
     .join(' · ');
@@ -125,10 +126,12 @@ function fieldLabel(key) {
 }
 function boundedDesc(v) {
   const n = Array.isArray(v) ? v.length : Object.keys(v).length;
+  if (!n) return '(none)';
   const noun = Array.isArray(v) ? 'item' : 'field';
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
 function arrayLabel(v) {
+  if (!v.length) return '(none)'; // an empty array rendered as blank read as "missing"
   return v.every(isScalar) ? short(v.map(scalarLabel).join(', '), 80) : boundedDesc(v);
 }
 
@@ -136,16 +139,25 @@ function arrayLabel(v) {
 // browser (server/orchestrator/runner.js recordEvent), so a structured result
 // can arrive as a cut-off JSON prefix that will never parse. Salvage the
 // complete "key": scalar pairs instead of showing broken braces.
+const TRUNCATED_MARK = '… (result truncated)';
 function salvageJsonish(s) {
-  const pairs = [...s.matchAll(/"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)/g)];
-  if (!pairs.length) return null;
-  const lines = pairs.slice(0, MAX_FIELDS).map(([, k, raw]) => {
-    let v = raw;
-    try { v = JSON.parse(raw); } catch { /* keep raw */ }
-    return `${fieldLabel(k)}: ${scalarLabel(v)}`;
-  });
-  lines.push('… (result truncated)');
-  return lines;
+  const lines = [...s.matchAll(/"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)/g)]
+    .slice(0, MAX_FIELDS)
+    .map(([, k, raw]) => {
+      let v = raw;
+      try { v = JSON.parse(raw); } catch { /* keep raw */ }
+      return `${fieldLabel(k)}: ${scalarLabel(v)}`;
+    });
+  // The cut can land mid-value ('"deal_name":"Acme Cor'), which the complete-
+  // pair pattern above skips. Recover that trailing fragment too.
+  // (A complete pair ends in a quote or brace, so it never matches this.)
+  const partial = s.match(/"([^"]+)"\s*:\s*"?([^",}\]]*)$/);
+  if (partial && partial[2].trim()) lines.push(`${fieldLabel(partial[1])}: ${partial[2].trim()}`);
+  if (lines.length) { lines.push(TRUNCATED_MARK); return lines; }
+  // Nothing structured survived the cut. Never hand back the broken syntax —
+  // strip the punctuation and show whatever text is left.
+  const bare = s.replace(/[{}[\]"]/g, ' ').replace(/[:,]/g, ': ').replace(/\s{2,}/g, ' ').trim();
+  return [bare ? `${bare} ${TRUNCATED_MARK}` : TRUNCATED_MARK];
 }
 
 // Structured payload → readable "label: value" lines, no JSON punctuation.
@@ -165,14 +177,16 @@ export function humanizePayload(value, opts = {}) {
         const parsed = JSON.parse(t);
         if (parsed && typeof parsed === 'object') v = parsed;
       } catch {
-        const salvaged = salvageJsonish(t);
-        if (salvaged) return salvaged;
+        // Only salvage when it really is cut-off JSON — a quoted key proves
+        // that. Prose that merely opens with a brace stays untouched.
+        if (/"[^"]+"\s*:/.test(t)) return salvageJsonish(t);
       }
     }
     if (typeof v === 'string') return [v];
   }
   const scalar = full ? (x) => (x == null ? '—' : typeof x === 'boolean' ? (x ? 'yes' : 'no') : String(x)) : scalarLabel;
   if (isScalar(v)) return [scalar(v)];
+  if (Array.isArray(v) && !v.length) return ['(none)'];
   if (Array.isArray(v) && v.every(isScalar)) return [full ? v.map(scalar).join(', ') : arrayLabel(v)];
   if (Array.isArray(v) && !full) return [arrayLabel(v)];
 
@@ -183,6 +197,7 @@ export function humanizePayload(value, opts = {}) {
     const walk = (node, path) => {
       if (isScalar(node)) { lines.push(`${path}: ${scalar(node)}`); return; }
       if (Array.isArray(node)) {
+        if (!node.length) { lines.push(`${path}: (none)`); return; }
         if (node.every(isScalar)) { lines.push(`${path}: ${node.map(scalar).join(', ')}`); return; }
         node.forEach((item, i) => walk(item, `${path} / ${i + 1}`));
         return;
@@ -202,6 +217,7 @@ export function humanizePayload(value, opts = {}) {
     if (isScalar(val)) { lines.push(`${fieldLabel(k)}: ${scalarLabel(val)}`); continue; }
     if (Array.isArray(val)) { lines.push(`${fieldLabel(k)}: ${arrayLabel(val)}`); continue; }
     const sub = Object.entries(val);
+    if (!sub.length) { lines.push(`${fieldLabel(k)}: (none)`); continue; }
     for (const [sk, sv] of sub.slice(0, MAX_SUBFIELDS)) {
       lines.push(`${fieldLabel(k)} / ${fieldLabel(sk)}: ${isScalar(sv) ? scalarLabel(sv) : boundedDesc(sv)}`);
     }
@@ -209,6 +225,24 @@ export function humanizePayload(value, opts = {}) {
   }
   if (entries.length > MAX_FIELDS) lines.push(`+${entries.length - MAX_FIELDS} more fields`);
   return lines.length ? lines : ['(empty)'];
+}
+
+// Expanded detail views (escalation / attention context) render this. The
+// container scrolls, so the only reason to bound it is pathological payloads —
+// and when that bound bites it SAYS so, because a silent cut on the context a
+// human is approving from is the failure this whole pass exists to stop.
+const DETAIL_CHAR_CAP = 20_000;
+export function humanizeDetail(value) {
+  const lines = humanizePayload(value, { full: true });
+  const text = lines.join('\n');
+  if (text.length <= DETAIL_CHAR_CAP) return text;
+  const kept = [];
+  let used = 0;
+  for (const l of lines) {
+    if (used + l.length > DETAIL_CHAR_CAP) break;
+    kept.push(l); used += l.length + 1;
+  }
+  return `${kept.join('\n')}\n… ${lines.length - kept.length} more field(s) not shown — open the source record`;
 }
 
 // Shared run-event preview text. Bucket/icon selection stays with the caller
