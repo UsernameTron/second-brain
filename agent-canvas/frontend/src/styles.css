@@ -570,6 +570,8 @@ a:hover { text-decoration: underline; }
 .nyt-overdue_review { color: var(--violet); }
 .nyt-failed_run { color: var(--red); }
 .nyt-pending_changeset { color: var(--blue); }
+.nyt-rule_alert { color: var(--amber); }
+.nyt-brief_ready { color: var(--blue); }
 .ny-btn .tray-badge { margin-left: 6px; }
 
 /* person nodes (P2) — presentation-only human cards */
@@ -1466,3 +1468,12 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .rehearsal-summary { white-space: pre-wrap; font-size: 13px; }
 .builder-warnings { border: 1px solid #b45309; border-radius: 8px; padding: 10px; font-size: 13px; }
 .builder-warnings ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* ===== P5 rules & briefs ===== */
+/* standing_rules.state — same tinted-background idiom as the inquiry chips. */
+.chip.rule-draft { color: var(--text-faint); }
+.chip.rule-rehearsed { background: color-mix(in srgb, var(--blue) 14%, transparent); }
+.chip.rule-active { background: color-mix(in srgb, var(--green) 14%, transparent); }
+.chip.rule-paused { background: color-mix(in srgb, var(--amber) 14%, transparent); }
+.chip.rule-revoked { background: color-mix(in srgb, var(--red) 14%, transparent); }
+.chip.rule-expired { color: var(--text-faint); text-decoration: line-through; }

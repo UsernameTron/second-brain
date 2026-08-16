@@ -13,6 +13,7 @@ const explain = require('./explain');
 const attention = require('./attention');
 const rooms = require('./rooms');
 const builder = require('./builder');
+const standingRules = require('./standing-rules');
 const bus = require('./bus');
 const auth = require('./auth');
 const control = require('./orchestrator/control');
@@ -63,6 +64,10 @@ router.get('/config', (req, res) => {
     // P4 reversible exposure: plain-language agent builder as the default
     // AddAgent tab. setSetting('agent_builder', '0') reverts, no deploy.
     agentBuilder: getSetting('agent_builder', '1') === '1',
+    // P5 reversible exposure: standing rules & briefs. setSetting(
+    // 'standing_rules', '0') hides the UI AND no-ops the scheduler tick
+    // before any rule is read — scheduled execution stops, no deploy.
+    standingRules: getSetting('standing_rules', '1') === '1',
   });
 });
 
@@ -90,6 +95,42 @@ router.get('/me', auth.requireAuth, (req, res) => {
 function publicUser(u) {
   return { id: u.id, email: u.email, name: u.name, picture: u.picture, role: u.role, theme: u.theme || 'light' };
 }
+
+// ---------- P5 standing rules: the scheduler tick ----------
+// Registered ABOVE requireAuth (the /auth/google placement pattern). Two
+// lanes into one handler: a signed-in OWNER session (manual/dev/recovery
+// ticks), else a Google-signed OIDC ID token from Cloud Scheduler — verified
+// with the same google-auth-library machinery sign-in uses, against
+// TICK_AUDIENCE, and the caller must BE the configured invoker SA. Either
+// env var unset → the OIDC lane is disabled (503), never open by default.
+router.post('/standing-rules/tick', rateLimit('auth'), asyncRoute(async (req, res) => {
+  const sessionToken = auth.tokenFromReq(req);
+  if (sessionToken) {
+    let user = null;
+    try { user = auth.verifySessionToken(sessionToken); } catch { /* stale cookie — fall through to OIDC */ }
+    if (user) {
+      if (user.role !== 'owner') return res.status(403).json({ error: 'owner only' });
+      return res.json(standingRules.tick({ source: 'owner', actor: user.email }));
+    }
+  }
+  const audience = process.env.TICK_AUDIENCE;
+  const invoker = process.env.TICK_INVOKER_SA;
+  if (!audience || !invoker) {
+    return res.status(503).json({ error: 'scheduled tick lane disabled (TICK_AUDIENCE / TICK_INVOKER_SA unset)' });
+  }
+  const header = String(req.headers.authorization || '');
+  if (!header.startsWith('Bearer ')) return res.status(401).json({ error: 'missing bearer token' });
+  let payload;
+  try {
+    payload = await standingRules.verifyTickOidc(header.slice(7), audience);
+  } catch {
+    return res.status(401).json({ error: 'OIDC token verification failed' });
+  }
+  if (!payload || payload.email !== invoker || !payload.email_verified) {
+    return res.status(403).json({ error: 'caller is not the tick invoker service account' });
+  }
+  res.json(standingRules.tick({ source: 'scheduler', actor: invoker }));
+}));
 
 // Everything below requires a signed-in allowlisted user.
 router.use(auth.requireAuth);
@@ -267,6 +308,36 @@ router.get('/health/integrations', (req, res) => {
         ? `Wired to enrichment-dispatch (IAM client, keyless). Reads free (get_enriched_contact); paid enrichment spends real credits, research/targeting/commercial agents only, never on system-triggered runs.${provenStatus('enrichment').note}`
         : 'Not wired — ED_DISPATCH_URL unset (held dark until the owner lights it; see HANDOFF).',
     },
+    // P5: the scheduling lane. Without it a rule can be written, rehearsed,
+    // activated and displayed as "active · next 08:00" while NOTHING will ever
+    // run it — the loudest possible fake green, and the documented state of the
+    // current production revision. Never green from env presence: two set
+    // strings prove nothing about whether a Cloud Scheduler job exists. Green
+    // is earned from an OIDC-verified tick that actually arrived, the same way
+    // provenStatus earns it from a probe.
+    (() => {
+      const id = 'standing_rules';
+      const label = 'STANDING RULES · TICK';
+      if (!standingRules.flagOn()) {
+        return { id, label, status: 'planned', detail: 'Switched off: setSetting(\'standing_rules\',\'0\'). The nav is hidden and the tick no-ops before a rule row is read — the no-deploy rollback.' };
+      }
+      if (!process.env.TICK_AUDIENCE || !process.env.TICK_INVOKER_SA) {
+        return {
+          id, label, status: 'planned',
+          detail: 'Declared, NOT wired: TICK_AUDIENCE / TICK_INVOKER_SA unset on this revision, so POST /api/standing-rules/tick 503s every scheduled caller. Rules can still be written, rehearsed and activated — and none of them will ever run. Set both vars (deploy/deploy.sh passes them through) and create the Cloud Scheduler job.',
+        };
+      }
+      const last = standingRules.lastSchedulerTick();
+      // ponytail: 6h staleness bound — hourly is the fastest cadence, so a lane
+      // silent for six hours is not delivering. Tighten if cadences get finer.
+      const stale = !last || Date.now() - Date.parse(last) > 6 * 3_600_000;
+      return {
+        id, label, status: stale ? 'attention' : 'ready',
+        detail: last
+          ? `Last scheduler-signed tick ${last}.${stale ? ' NO TICK IN OVER 6 HOURS — check the Cloud Scheduler job; nothing has been dispatched since.' : ''}`
+          : 'Configured, but no scheduler-signed tick has ever reached this deployment — the Cloud Scheduler job may not exist. Env presence is not evidence; a manual owner tick does not count.',
+      };
+    })(),
     ...(mcp.configError() ? [{
       id: 'mcp', label: 'MCP CONFIG',
       status: 'down',
@@ -1065,6 +1136,339 @@ router.post('/agent-drafts/:draftId/abandon', (req, res) => {
   res.json({ draft: builder.draftRow(draft.id) });
 });
 
+// ---------- standing rules (P5): parse -> review -> rehearse -> activate ----------
+// Access rides the rule's canvas (the draftAccess pattern). Members with edit
+// access parse and rehearse; ACTIVATING a rule (granting a standing
+// authorization), pausing, resuming, and revoking are owner-only ceremonies.
+function ruleAccess(req, res, { edit = true, mutate = false } = {}) {
+  const rule = standingRules.getRule(req.params.ruleId);
+  if (!rule) { res.status(404).json({ error: 'standing rule not found' }); return null; }
+  const check = edit ? auth.canEditCanvas(req.user, rule.canvas_id) : auth.canAccessCanvas(req.user, rule.canvas_id);
+  if (!check.ok) { res.status(check.status).json({ error: check.error }); return null; }
+  if (mutate && rule.created_by !== req.user.email && auth.workspaceRole(req.user.email) !== 'owner') {
+    res.status(403).json({ error: 'only the rule creator or the owner can change this rule' });
+    return null;
+  }
+  return rule;
+}
+
+// Rule history is canvas-readable by every member, and a scheduled run's
+// output refs can name a private Drive file or a mailbox message. Same
+// read-time redaction the run receipt applies: only the directing user (the
+// grantor whose Google identity the reads acted as) sees the raw id + URI.
+// The raw output_refs_json column is dropped from the payload — spreading it
+// would hand back exactly what the redaction just removed.
+function ruleRunView(r, viewerEmail) {
+  const parse = (j) => { try { const a = JSON.parse(j || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } };
+  const { output_refs_json: refsJson, retry_run_ids_json: retryJson, ...rest } = r;
+  return {
+    ...rest,
+    output_refs: parse(refsJson).map((ref) => evidence.redactRef(ref, viewerEmail)),
+    retry_run_ids: parse(retryJson),
+  };
+}
+
+// Parse: plain language → validated interpretation (D9, the P4 propose
+// pattern). Creates a draft rule, or re-interprets an existing one — either
+// way the rehearsal gate resets. The model proposes; the server re-validates
+// everything (agent on canvas, cadence enum, budget clamps) — it grants nothing.
+router.post('/canvases/:canvasId/standing-rules/parse', rateLimit('model'), auth.requireCanvas, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const instruction = String(body.instruction || '').trim();
+  if (!instruction) return res.status(400).json({ error: 'instruction required — describe the standing rule in plain language' });
+  if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused' });
+  if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted' });
+  let existing = null;
+  if (body.rule_id) {
+    existing = db.prepare('SELECT * FROM standing_rules WHERE id = ? AND canvas_id = ?').get(body.rule_id, req.params.canvasId);
+    if (!existing) return res.status(404).json({ error: 'standing rule not found on this canvas' });
+    if (existing.created_by !== req.user.email && auth.workspaceRole(req.user.email) !== 'owner') {
+      return res.status(403).json({ error: 'only the rule creator or the owner can change this rule' });
+    }
+    if (existing.state === 'revoked') return res.status(409).json({ error: 'rule is revoked' });
+  }
+  const agents = db.prepare("SELECT id, name, role FROM agents WHERE canvas_id = ? AND lifecycle = 'active'").all(req.params.canvasId);
+  if (!agents.length) return res.status(409).json({ error: 'this canvas has no agents — staff it first' });
+  let parsed;
+  try {
+    const abort = new AbortController();
+    const abortId = `standing-rule-${crypto.randomUUID()}`;
+    control.registerAbort(abortId, abort);
+    const fastTier = tierConfig('fast');
+    let response;
+    try {
+      // Resolved at call time so tests can stub the module's callModel.
+      response = await require('./orchestrator/anthropic').callModel({
+        provider: fastTier.provider, model: fastTier.model, signal: abort.signal,
+        system: standingRules.PARSE_SYSTEM(agents),
+        messages: [{ role: 'user', content: instruction }],
+        maxTokens: 1000,
+      });
+    } finally {
+      control.unregisterAbort(abortId);
+    }
+    control.addUsage(response.model || fastTier.model, response.usage || {});
+    const raw = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+  } catch {
+    return res.status(502).json({ error: 'rule interpretation failed to produce valid JSON — try again or rephrase' });
+  }
+  let interp;
+  try {
+    interp = standingRules.validateInterpretation(parsed, { agents });
+  } catch (err) {
+    return res.status(502).json({ error: `generated interpretation was invalid (${err.message}) — try again or rephrase` });
+  }
+  const rule = standingRules.upsertDraft({
+    canvasId: req.params.canvasId, ruleId: existing ? existing.id : null, instruction, interp, actor: req.user.email,
+  });
+  audit('user', req.user.email, existing ? 'standing_rule.parse' : 'standing_rule.create',
+    { ruleId: rule.id, canvasId: req.params.canvasId, version: rule.version, agentId: rule.agent_id });
+  res.json({ rule: standingRules.ruleView(rule) });
+}));
+
+router.get('/canvases/:canvasId/standing-rules', auth.requireCanvas, (req, res) => {
+  const rules = db.prepare('SELECT * FROM standing_rules WHERE canvas_id = ? ORDER BY created_at DESC LIMIT 100')
+    .all(req.params.canvasId).map(standingRules.ruleView);
+  res.json({ rules });
+});
+
+router.get('/standing-rules/:ruleId', (req, res) => {
+  const rule = ruleAccess(req, res, { edit: false });
+  if (!rule) return;
+  const authz = standingRules.currentAuthorization(rule.id) || null;
+  const runs = db.prepare('SELECT * FROM standing_rule_runs WHERE rule_id = ? ORDER BY created_at DESC LIMIT 10').all(rule.id)
+    .map((r) => ruleRunView(r, req.user.email));
+  // initiated_by is the identity the rehearsal's reads ACTED AS — the consent
+  // card's "Reads as" field, and what activation must match.
+  const rehearsalRun = rule.rehearsal_run_id
+    ? db.prepare('SELECT id, status, mode, initiated_by, summary, error, created_at, ended_at FROM runs WHERE id = ?').get(rule.rehearsal_run_id)
+    : null;
+  res.json({ rule: standingRules.ruleView(rule), authorization: authz, runs, rehearsalRun });
+});
+
+// Edits reset the rehearsal gate: state→draft, version++, rehearsal cleared —
+// what activates must be what rehearsed (D8).
+router.patch('/standing-rules/:ruleId', (req, res) => {
+  const rule = ruleAccess(req, res, { mutate: true });
+  if (!rule) return;
+  if (rule.state === 'revoked') return res.status(409).json({ error: 'rule is revoked' });
+  const body = req.body || {};
+  const instruction = body.instruction === undefined ? rule.instruction : String(body.instruction || '').trim();
+  if (!instruction) return res.status(400).json({ error: 'instruction cannot be empty' });
+  let interp;
+  if (body.interpretation !== undefined) {
+    const agents = db.prepare("SELECT id, name, role FROM agents WHERE canvas_id = ? AND lifecycle = 'active'").all(rule.canvas_id);
+    try {
+      interp = standingRules.validateInterpretation(body.interpretation, { agents });
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.message });
+    }
+  } else if (body.instruction !== undefined) {
+    interp = JSON.parse(rule.interpretation_json || '{}');
+  } else {
+    return res.status(400).json({ error: 'nothing to update — provide instruction and/or interpretation' });
+  }
+  const updated = standingRules.upsertDraft({ canvasId: rule.canvas_id, ruleId: rule.id, instruction, interp, actor: req.user.email });
+  audit('user', req.user.email, 'standing_rule.edit', { ruleId: rule.id, canvasId: rule.canvas_id, version: updated.version });
+  res.json({ rule: standingRules.ruleView(updated) });
+});
+
+// Rehearse: one rehearse-mode run on the rule's agent — "report what WOULD
+// have matched; change nothing". The proven rehearse machinery applies:
+// mutating tools absent and refused.
+router.post('/standing-rules/:ruleId/rehearse', rateLimit('model'), (req, res) => {
+  const rule = ruleAccess(req, res, { mutate: true });
+  if (!rule) return;
+  if (!['draft', 'rehearsed'].includes(rule.state)) return res.status(409).json({ error: `rule is ${rule.state} — edit it back to draft first` });
+  // State flips to 'rehearsed' the moment the run is DISPATCHED, so the state
+  // check above still admits a second rehearsal while the first is queued or
+  // running: two runs burning budget, and rehearsal_run_id pointing at whichever
+  // landed last. Terminal-or-nothing, like the run-retry gate.
+  const inFlight = rule.rehearsal_run_id
+    ? db.prepare('SELECT status FROM runs WHERE id = ?').get(rule.rehearsal_run_id)
+    : null;
+  if (inFlight && ['queued', 'running'].includes(inFlight.status)) {
+    return res.status(409).json({ error: `a rehearsal is already ${inFlight.status} — wait for it to finish before rehearsing again` });
+  }
+  if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused' });
+  if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted' });
+  const rehearsalAgent = db.prepare("SELECT id, role, tools_json FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id);
+  if (!rehearsalAgent) {
+    return res.status(409).json({ error: 'the rule’s agent is no longer active on this canvas — re-parse or edit the rule' });
+  }
+  // The SAME reachability checks verifyAuthorization applies per dispatch, now
+  // against the REHEARSER — because "the rehearsal is the review", and a
+  // rehearsal that read nothing reviews nothing. Without them a rehearser with
+  // no Google connection gets isError on every call, the model writes prose
+  // over an empty result, the run finishes `completed`, and Activate lights up
+  // on a review that never reached a single source.
+  const rehearsalGrant = standingRules.grantedTools(rule, rehearsalAgent, req.user.email);
+  if (standingRules.touchesWorkspace(rule) && !workspace.isConnected(req.user.email)) {
+    return res.status(409).json({
+      error: 'this rule reads Google Workspace as whoever runs it, and your Google account is not connected — the rehearsal would read nothing and prove nothing. Connect it under Capabilities, then rehearse.',
+    });
+  }
+  const rehearsalDark = standingRules.unreadableSources(rule, rehearsalGrant);
+  if (rehearsalDark.length) {
+    return res.status(409).json({
+      error: `this rule reviewed ${rehearsalDark.join(', ')}, but ${rehearsalDark.length > 1 ? 'those sources grant' : 'that source grants'} no readable tool to ${rehearsalAgent.role} agents on this deployment — the rehearsal could never look. Remove the source, widen the agent’s authority, or enable the connector.`,
+    });
+  }
+  let run = null;
+  try {
+    tx(() => {
+      run = dispatchRun({
+        agentId: rule.agent_id, canvasId: rule.canvas_id, instruction: standingRules.rehearsalInstruction(rule),
+        triggerKind: 'user', actor: req.user.email, initiatedBy: req.user.email, mode: 'rehearse',
+        stepBudget: rule.step_budget || undefined, wallMs: rule.wall_ms_budget || undefined,
+        // The rehearsal runs against the SAME source-limited surface the
+        // eventual scheduled run gets — the identical grantedTools resolution
+        // activation uses. Without it the rehearsal offers the agent's full
+        // live authority: it reads sources the owner never reviewed, and it
+        // stops demonstrating what the restricted run will actually do, which
+        // is the entire point of a rehearse gate. The prompt's "and nothing
+        // else" is a request, not a boundary.
+        authorityJson: JSON.stringify(rehearsalGrant),
+      });
+      db.prepare("UPDATE standing_rules SET state = 'rehearsed', rehearsal_run_id = ?, updated_at = ? WHERE id = ?")
+        .run(run.id, nowIso(), rule.id);
+    });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
+  }
+  audit('user', req.user.email, 'standing_rule.rehearse', { ruleId: rule.id, canvasId: rule.canvas_id, runId: run.id });
+  res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)), run: db.prepare('SELECT id, status, mode FROM runs WHERE id = ?').get(run.id) });
+});
+
+// Activate: owner-only ceremony. Requires a COMPLETED rehearsal of the exact
+// current version (any edit resets the gate — the P4 publish 409 pattern).
+// Creates the standing authorization snapshot and computes next_run_at.
+router.post('/standing-rules/:ruleId/activate', auth.requireOwner, (req, res) => {
+  const rule = standingRules.getRule(req.params.ruleId);
+  if (!rule) return res.status(404).json({ error: 'standing rule not found' });
+  if (rule.state !== 'rehearsed') return res.status(409).json({ error: 'rehearse before activating — the rehearsal is the review' });
+  const run = db.prepare('SELECT id, status, initiated_by FROM runs WHERE id = ?').get(rule.rehearsal_run_id);
+  if (!run || run.status !== 'completed') {
+    return res.status(409).json({ error: `rehearsal run is ${run ? run.status : 'missing'} — activation requires a completed rehearsal` });
+  }
+  // The grant is spent as the ACTIVATOR: every scheduled run is dispatched with
+  // initiatedBy = authorized_by, and tools.js resolves Google/HubSpot/enrichment
+  // calls from run.initiated_by while grantedTools resolves the menu from the
+  // grantor's workspace role. A rehearsal run by someone else therefore read a
+  // DIFFERENT mailbox under a DIFFERENT authority — a member rehearses "flag
+  // mail about the comp plan" against his own inbox, it comes back clean, and
+  // every scheduled run then reads the owner's. Identity is the half of "what
+  // activates must be what rehearsed" that version alone never covered.
+  // Deliberately NOT fixed by dispatching the rehearsal as the grantor: that
+  // would let any member read the owner's mailbox with one click.
+  if (String(run.initiated_by || '').toLowerCase() !== String(req.user.email).toLowerCase()) {
+    return res.status(409).json({
+      error: `this rehearsal ran as ${run.initiated_by || 'nobody'}, but the rule would run as you — it read ${run.initiated_by ? 'their' : 'no one’s'} mail, files and CRM access, not yours. Rehearse it yourself, then activate.`,
+    });
+  }
+  const ruleAgent = db.prepare("SELECT id, role, tools_json FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id);
+  if (!ruleAgent) {
+    return res.status(409).json({ error: 'the rule’s agent is no longer active on this canvas' });
+  }
+  // A reviewed source that resolves to no readable tool is a lamp faking
+  // green: the card says the rule watches Gmail, the grant is empty, the run
+  // cannot look, and it finalizes NOTHING MATCHED with no alert forever.
+  // Refuse the grant instead — naming the source, because the fix (turn on
+  // full Google scopes / widen the agent's authority / drop the source) is
+  // different per source and the owner is the only one who can pick.
+  const unreadable = standingRules.unreadableSources(rule, standingRules.grantedTools(rule, ruleAgent, req.user.email));
+  if (unreadable.length) {
+    return res.status(409).json({
+      error: `this rule reviewed ${unreadable.join(', ')}, but ${unreadable.length > 1 ? 'those sources grant' : 'that source grants'} no readable tool to ${ruleAgent.role} agents on this deployment — the scheduled run could never look. Remove the source, widen the agent’s authority, or enable the connector, then rehearse again.`,
+    });
+  }
+  const interp = JSON.parse(rule.interpretation_json || '{}');
+  const expiresAt = new Date(Date.now() + (interp.expires_days || 90) * 86_400_000).toISOString();
+  let authz = null;
+  tx(() => {
+    authz = standingRules.createAuthorization({ rule, authorizedBy: req.user.email, expiresAt });
+    db.prepare("UPDATE standing_rules SET state = 'active', expires_at = ?, next_run_at = ?, updated_at = ? WHERE id = ?")
+      .run(expiresAt, standingRules.nextRunAt(rule), nowIso(), rule.id);
+  });
+  const updated = standingRules.getRule(rule.id);
+  audit('user', req.user.email, 'standing_rule.activate', {
+    ruleId: rule.id, canvasId: rule.canvas_id, authorizationId: authz.id, expiresAt, nextRunAt: updated.next_run_at,
+  });
+  res.json({ rule: standingRules.ruleView(updated), authorization: authz });
+});
+
+router.post('/standing-rules/:ruleId/pause', auth.requireOwner, (req, res) => {
+  const rule = standingRules.getRule(req.params.ruleId);
+  if (!rule) return res.status(404).json({ error: 'standing rule not found' });
+  if (rule.state !== 'active') return res.status(409).json({ error: `only active rules can be paused (rule is ${rule.state})` });
+  // Pausing stops the rule, including the occurrence already in flight — an
+  // unhalted run would keep reading and writing memory after the owner paused.
+  let halted = 0;
+  tx(() => {
+    db.prepare("UPDATE standing_rules SET state = 'paused', updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
+    halted = standingRules.haltRuleRuns(rule.id, 'rule paused');
+  });
+  audit('user', req.user.email, 'standing_rule.pause', { ruleId: rule.id, canvasId: rule.canvas_id, haltedRuns: halted });
+  res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)) });
+});
+
+// Resume re-checks authorization validity — a rule whose grantor lost access
+// (or whose authorization expired) does not come back to life.
+router.post('/standing-rules/:ruleId/resume', auth.requireOwner, (req, res) => {
+  const rule = standingRules.getRule(req.params.ruleId);
+  if (!rule) return res.status(404).json({ error: 'standing rule not found' });
+  if (rule.state !== 'paused') return res.status(409).json({ error: `only paused rules can resume (rule is ${rule.state})` });
+  const authz = standingRules.currentAuthorization(rule.id);
+  const check = standingRules.verifyAuthorization({ ...rule, state: 'active' }, authz, new Date(), { checkWorkspace: false });
+  if (!check.ok) return res.status(409).json({ error: `cannot resume: ${check.reason} — revoke and re-activate instead` });
+  db.prepare("UPDATE standing_rules SET state = 'active', next_run_at = ?, updated_at = ? WHERE id = ?")
+    .run(standingRules.nextRunAt(rule), nowIso(), rule.id);
+  audit('user', req.user.email, 'standing_rule.resume', { ruleId: rule.id, canvasId: rule.canvas_id });
+  res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)) });
+});
+
+router.post('/standing-rules/:ruleId/revoke', auth.requireOwner, (req, res) => {
+  const rule = standingRules.getRule(req.params.ruleId);
+  if (!rule) return res.status(404).json({ error: 'standing rule not found' });
+  if (rule.state === 'revoked') return res.status(409).json({ error: 'rule is already revoked' });
+  // Revoking the authorization rows is not enough: an occurrence already
+  // queued or running would finish its reads and memory writes under an
+  // authorization that no longer exists. Halt it in the same transaction.
+  let halted = 0;
+  tx(() => {
+    standingRules.revokeAuthorization(rule.id, req.user.email);
+    db.prepare("UPDATE standing_rules SET state = 'revoked', updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
+    halted = standingRules.haltRuleRuns(rule.id, 'rule revoked');
+  });
+  audit('user', req.user.email, 'standing_rule.revoke', { ruleId: rule.id, canvasId: rule.canvas_id, haltedRuns: halted });
+  res.json({ rule: standingRules.ruleView(standingRules.getRule(rule.id)) });
+});
+
+router.get('/standing-rules/:ruleId/runs', (req, res) => {
+  const rule = ruleAccess(req, res, { edit: false });
+  if (!rule) return;
+  const runs = db.prepare('SELECT * FROM standing_rule_runs WHERE rule_id = ? ORDER BY created_at DESC LIMIT 50').all(rule.id)
+    .map((r) => ruleRunView(r, req.user.email));
+  res.json({ runs });
+});
+
+// Acknowledge resolves the NEEDS YOU card (source-record style, like every
+// other attention producer). Idempotent: acknowledging twice is a no-op.
+router.post('/standing-rule-runs/:ruleRunId/acknowledge', (req, res) => {
+  const rr = db.prepare(`SELECT rr.*, r.canvas_id FROM standing_rule_runs rr
+    JOIN standing_rules r ON r.id = rr.rule_id WHERE rr.id = ?`).get(req.params.ruleRunId);
+  if (!rr) return res.status(404).json({ error: 'standing rule run not found' });
+  const check = auth.canEditCanvas(req.user, rr.canvas_id);
+  if (!check.ok) return res.status(check.status).json({ error: check.error });
+  if (!rr.acknowledged_at) {
+    db.prepare('UPDATE standing_rule_runs SET acknowledged_at = ?, acknowledged_by = ? WHERE id = ?')
+      .run(nowIso(), req.user.email, rr.id);
+    audit('user', req.user.email, 'standing_rule_run.acknowledge', { ruleRunId: rr.id, ruleId: rr.rule_id, canvasId: rr.canvas_id });
+  }
+  res.json({ run: ruleRunView(db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id), req.user.email) });
+});
+
 // Owner-only: re-copy prompt + tier from the source roster entry. Name and
 // color stay — they are per-canvas identity the owner may have customized.
 router.post('/canvases/:canvasId/agents/:agentId/resync', auth.requireOwner, (req, res) => {
@@ -1107,6 +1511,18 @@ router.post('/canvases/:canvasId/runs/:runId/retry', rateLimit('model'), auth.re
   const run = db.prepare('SELECT * FROM runs WHERE id = ? AND canvas_id = ?').get(req.params.runId, req.params.canvasId);
   if (!run) return res.status(404).json({ error: 'run not found' });
   if (['queued', 'running'].includes(run.status)) return res.status(409).json({ error: 'run is still active — only terminal runs can be retried' });
+  // Standing-rule attempts belong to the occurrence lifecycle, not here. The
+  // attention projection already hides their cards, but every attempt's run id
+  // is readable from GET /standing-rules/:id/runs, so the endpoint itself has
+  // to refuse. Rejecting beats re-validating the grant: a generic retry
+  // produces a run with no occurrence row, so it is outside the lease, the
+  // attempt budget, the needs_attention card AND — the decisive one —
+  // haltRuleRuns, which finds attempts only through run_id/retry_run_ids_json.
+  // Revoke and pause could not stop it. There is no version of "re-validate
+  // and let it through" that the standing-rule stop path can see.
+  if (standingRules.isStandingRuleRun(run.id)) {
+    return res.status(409).json({ error: 'this run belongs to a standing rule — the rule dispatches its own retries. Open the rule to review, resume, or re-activate it.' });
+  }
   if (!db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(run.agent_id, req.params.canvasId)) {
     return res.status(400).json({ error: 'the run’s agent is no longer on this canvas' });
   }
@@ -1641,6 +2057,13 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
         parentRunId: escalation.run_id || null,
         initialReads: [...new Set([decisionEntry.id, ...contextIds])],
       });
+      // P5: if the escalating run belonged to a standing-rule occurrence, this
+      // resume is another attempt of it — it inherits the rule's frozen grant
+      // (queue.js) and keeps reading. Unrecorded, pause/revoke/edit cannot see
+      // it: haltRuleRuns finds attempts only through run_id/retry_run_ids_json,
+      // so revoking the rule would halt every tracked attempt while this one
+      // ran on. Covers `redirect` too — it re-targets the same dispatch.
+      standingRules.adoptChildRun(escalation.run_id, run.id);
     }
   });
   audit('user', req.user.email, 'escalation.resolve', { escalationId: escalation.id, action });

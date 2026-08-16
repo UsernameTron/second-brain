@@ -17,6 +17,8 @@ process.env.ANTHROPIC_API_KEY = 'test';
 const { server } = require('../server/index');
 const { db, nowIso } = require('../server/db');
 const { toolsForRole, executeTool, governedTool, authorityMenu } = require('../server/orchestrator/tools');
+const { dispatchRun } = require('../server/orchestrator/queue');
+const runner = require('../server/orchestrator/runner');
 
 const OWNER = 'pete@cloudtechgurus.com';
 let base;
@@ -123,6 +125,82 @@ test('prompt/tier changes write versions (baseline first); rollback restores con
   assert.equal(after.length, 3, 'rollback appended, never rewrote');
   assert.equal(after[0].source, 'rollback');
   assert.equal(after[0].restored_from, baseline.id);
+});
+
+// ---------- web_search: a PROVIDER-executed tool, so executeTool's call-time
+// re-check never sees it. Its authority gate lives in the runner's per-call
+// tool list, and both ends of that gate are covered here.
+
+function waitForRun(runId, tries = 100) {
+  return new Promise((resolve, reject) => {
+    const tick = () => {
+      const run = db.prepare('SELECT * FROM runs WHERE id = ?').get(runId);
+      if (run && !['queued', 'running'].includes(run.status)) return resolve(run);
+      if (--tries <= 0) return reject(new Error('run never finished'));
+      setTimeout(tick, 20);
+    };
+    tick();
+  });
+}
+
+// Runs the loop with a scripted model, capturing the tool list offered on each
+// model call. `between` runs after the first call, before the second.
+async function captureOfferedTools({ authorityJson = null, between = null } = {}) {
+  const offered = [];
+  let nth = 0;
+  const restore = runner._internal.setCallModel(async ({ tools }) => {
+    offered.push(tools.map((t) => t.name));
+    nth += 1;
+    if (nth === 1 && between) {
+      between();
+      return {
+        content: [{ type: 'tool_use', id: 'tu-1', name: 'read_rows', input: {} }],
+        stop_reason: 'tool_use', usage: {},
+      };
+    }
+    return { content: [{ type: 'text', text: 'done' }], stop_reason: 'end_turn', usage: {} };
+  });
+  try {
+    const run = dispatchRun({
+      agentId, canvasId, instruction: 'look something up', initiatedBy: OWNER, authorityJson,
+    });
+    await waitForRun(run.id);
+  } finally { restore(); }
+  return offered;
+}
+
+test('web_search is never offered to a research agent whose authority map omits it', async () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const legacy = await captureOfferedTools();
+  assert.ok(legacy[0].includes('web_search'), 'legacy (no allowlist) agent still gets web search');
+
+  db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(['hs_search']), agentId);
+  const trimmed = await captureOfferedTools();
+  assert.ok(!trimmed[0].includes('web_search'), 'ungranted web_search must never be offered');
+
+  db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(['web_search']), agentId);
+  const granted = await captureOfferedTools();
+  assert.ok(granted[0].includes('web_search'), 'granted web_search is offered');
+
+  // The standing-grant dimension: the run's dispatch snapshot is intersected
+  // with live authority, so a snapshot without web_search wins over an agent
+  // that has it.
+  const snapshotted = await captureOfferedTools({ authorityJson: JSON.stringify(['hs_search']) });
+  assert.ok(!snapshotted[0].includes('web_search'), 'dispatch snapshot narrows the live grant');
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+});
+
+test('web_search authority is re-checked between model calls, not only at run start', async () => {
+  db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(['web_search', 'hs_search']), agentId);
+  const offered = await captureOfferedTools({
+    // The owner narrows the agent mid-run, exactly as the executeTool re-check
+    // already honours for ordinary governed tools.
+    between: () => db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(['hs_search']), agentId),
+  });
+  assert.equal(offered.length, 2, 'the loop made a second model call');
+  assert.ok(offered[0].includes('web_search'), 'offered while the authority held');
+  assert.ok(!offered[1].includes('web_search'), 'withdrawn authority removes it from the next model call');
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
 });
 
 test('draft-lifecycle agents are invisible on canvas and inquiry surfaces', async () => {

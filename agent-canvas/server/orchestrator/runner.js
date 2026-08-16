@@ -12,7 +12,7 @@ const { callModel, tierConfig, webSearchToolFor } = require('./anthropic');
 // reachable without a way to script the model's replies. Production always
 // runs the real callModel.
 let callModelImpl = callModel;
-const { toolsForRole, executeTool, createEscalation } = require('./tools');
+const { toolsForRole, executeTool, createEscalation, parseAuthority, intersectAuthority, allowedByAuthority, effectiveAuthority } = require('./tools');
 const evidence = require('../evidence');
 const control = require('./control');
 
@@ -51,7 +51,7 @@ function buildSystemPrompt(agent, canvas, run) {
   const modeBlock = mode === 'ask'
     ? '\n## Run mode: ASK (read-only toward the world)\nThis run answers a question. Tools that change anything outside this workspace are unavailable (the server refuses them). Read, search, and write your findings to memory with evidence — do not attempt drafts, writes, or handoffs.\n'
     : mode === 'rehearse'
-      ? '\n## Run mode: REHEARSE (dry run)\nThis run rehearses a task without performing it. Mutating tools are unavailable (the server refuses them); hs_preview_change is allowed because it is already a dry run. NARRATE each step you WOULD take, with the exact tool and arguments, then summarize the full plan and what evidence supports it.\n'
+      ? '\n## Run mode: REHEARSE (dry run)\nThis run rehearses a task without performing it. Mutating tools are unavailable (the server refuses them); hs_preview_change is allowed because it is already a dry run. Shared memory is READ-ONLY here — memory_write and memory_correct are refused, because a rehearsal\'s findings are hypothetical and must not become records. This overrides the shared memory contract below for this run: put your findings in your summary instead. NARRATE each step you WOULD take, with the exact tool and arguments, then summarize the full plan and what evidence supports it.\n'
       : '';
   return `You are "${agent.name}", the ${agent.role} agent on the shared canvas "${canvas.name}" in the Agent Canvas Workspace (cloudtechgurus.com).
 
@@ -112,15 +112,26 @@ async function executeRun(runId) {
 
   const system = buildSystemPrompt(agent, canvas, run);
   const { workspaceRole } = require('../auth');
-  const authority = require('./tools').parseAuthority(agent.tools_json);
+  // The agent's LIVE authority, intersected with whatever snapshot this run was
+  // dispatched under (a standing authorization). Widening the agent after the
+  // grant must not widen the run; narrowing it must still narrow the run.
+  const authority = intersectAuthority(parseAuthority(run.authority_json), parseAuthority(agent.tools_json));
   const tools = toolsForRole(agent.role, { userRole: workspaceRole(run.initiated_by), mode: run.mode || 'act', authority });
   // Web search rides the Claude providers only in v1 (Google grounding has a
   // different result shape); Gemini research agents work from row data + memory.
   // An explicit authority map governs it like every external surface.
-  if (agent.role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0' && provider !== 'gemini'
-    && (!authority || authority.includes('web_search'))) {
-    tools.push(webSearchToolFor(model, provider));
-  }
+  const webSearchEligible = agent.role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0' && provider !== 'gemini';
+  // web_search is executed by the PROVIDER, so it never reaches executeTool —
+  // the one place every other governed tool gets its live-authority re-check.
+  // Offered once at run start, it would stay in the array for every later model
+  // call, and a run could keep searching (and billing) after the owner removed
+  // the authority mid-run. Re-derive it per call against the same
+  // live ∩ dispatch-snapshot authority executeTool uses.
+  const toolsForCall = () => (
+    webSearchEligible && allowedByAuthority('web_search', effectiveAuthority(run, agent))
+      ? [...tools, webSearchToolFor(model, provider)]
+      : tools
+  );
   const messages = [{ role: 'user', content: run.instruction }];
   // startedAt and the run's abort signal reach tools via ctx: the `wait` tool
   // needs the signal to be interruptible by a global pause, and startedAt is
@@ -201,7 +212,7 @@ async function executeRun(runId) {
       const deadline = AbortSignal.timeout(Math.max(remaining, 1));
       try {
         response = await callModelImpl({
-          provider, model, system, messages, tools,
+          provider, model, system, messages, tools: toolsForCall(),
           signal: AbortSignal.any([controller.signal, deadline]),
         });
       } catch (err) {

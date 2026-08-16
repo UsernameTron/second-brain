@@ -45,6 +45,17 @@ function epochStale(epoch) {
 function registerAbort(runId, controller) { abortControllers.set(runId, controller); }
 function unregisterAbort(runId) { abortControllers.delete(runId); }
 
+// Cancel ONE run: the same machinery the global pause uses, aimed at a single
+// id. Kills the in-flight model call and, via ctx.signal, the run's remaining
+// tool calls. Returns false when the run has no live controller (it either
+// finished or never started) — the caller still has to close the row.
+function abortRun(runId, reason = 'cancelled') {
+  const controller = abortControllers.get(runId);
+  if (!controller) return false;
+  controller.abort(new Error(reason));
+  return true;
+}
+
 function today() { return new Date().toISOString().slice(0, 10); }
 
 function addUsage(model, usage) {
@@ -94,6 +105,6 @@ function budgetExceeded() {
 }
 
 module.exports = {
-  isPaused, setPaused, currentEpoch, epochStale, registerAbort, unregisterAbort,
+  isPaused, setPaused, currentEpoch, epochStale, registerAbort, unregisterAbort, abortRun,
   addUsage, getDailyUsage, getMonthlyUsage, getDailyBudget, setDailyBudget, budgetExceeded, nowIso,
 };

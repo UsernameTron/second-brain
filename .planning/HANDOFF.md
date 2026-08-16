@@ -1,11 +1,11 @@
 # Session handoff (auto-written by Stop hook)
 
-- When: 2026-07-31 14:38 CDT
-- Branch: chore/docs-sync-brain-map-2607
-- Dirty at stop: 20 files
+- When: 2026-08-15 19:28 CDT
+- Branch: feat/agent-canvas-p5-standing-rules
+- Dirty at stop: 1 files
 - Recent commits:
-  - 161e9f0 Audit & improvement pass: workflow reliability fixes, vault graph restructure, audit report (#96)
-  - db7ec10 fix: correct the config inventory claim in STACK.md (Codex P2, PR #94) (#95)
-  - 3ad4618 Docs sync, codebase-map refresh, and vault-triage agent (post-restructure) (#94)
-  - 94782e1 Vault restructure, plus the two guard gaps the move exposed (#93)
-  - d0b41b1 Audit re-verify pass: lint zero-warning, doc drift fixes (2026-07-21b) (#92)
+  - 8c364d4 agent-canvas P5: fold in Codex round-2 — 8 of 9 findings, incl. two holes in the first round
+  - 0d8f67f chore(session): auto-commit session work (2026-08-15)
+  - f1e7777 chore(session): auto-commit session work (2026-08-15)
+  - 5e6b1ab agent-canvas docs: HANDOFF — Codex review round on #196 (97f9bcb)
+  - 97f9bcb agent-canvas P5: fold in all 9 Codex review findings on #196

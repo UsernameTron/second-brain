@@ -5,11 +5,232 @@ depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
 
+## WHERE THINGS STAND (2026-08-15 — tests, build, audit and PR state re-verified at branch head `88cb87c`)
+
+**Production is still `agent-canvas-00050-5ht`, 100% traffic, created
+2026-08-15T20:19:14Z** (Cloud Run API, probed earlier this session; **not
+re-probed at this update** — `gcloud` auth has expired and cannot refresh
+non-interactively, so `gcloud auth login` then re-describe before acting on this
+line or on the "neither tick var is set" claim below). It carries P2.1 +
+P3 and **nothing after**. Master is AHEAD of production by two merges, both cut
+after that revision: the room-export content screen **#194** (21:10:38Z) and
+**P4 #195** (21:58:43Z). Neither is running. **P5 is not on master at all** —
+PR [#196](https://github.com/UsernameTron/second-brain/pull/196) is **OPEN, not
+merged, not deployed**, on `feat/agent-canvas-p5-standing-rules`.
+
+Branch state, re-run at branch head `88cb87c` (also the PR head):
+backend `npm test` **318 pass / 0 fail**; frontend `npm test --prefix frontend`
+**27 pass across 6 files**; frontend production build clean; `npm audit
+--omit=dev` **0 vulnerabilities** (root and `frontend/`). The +33 backend / +4
+frontend over the pre-review counts (285 / 23) are the Codex regression tests —
+see the P5 block. **5 of 6 CI checks pass on `88cb87c`** (CodeQL, Analyze,
+GitGuardian, agent-canvas-test, test (22)); **`claude-review` is still
+pending**, not failed — re-check `gh pr checks 196` before merging. Codex
+reviewed the branch **three times** and all **23 inline threads are replied to
+and resolved, 0 unresolved** (`reviewThreads` via GraphQL).
+
+### Operator-gated, in this order
+
+1. **Deploy master** — lands P4 (#195) + #194 in production, then run the
+   signed-in P4 acceptance walk that #195 still owes.
+2. **Create the Cloud Scheduler invoker SA + job** targeting
+   `POST /api/standing-rules/tick`.
+3. **Add `TICK_AUDIENCE` and `TICK_INVOKER_SA` to the deploy export block** in
+   the redeploy procedure below. Env vars are set WHOLESALE — a var you do not
+   export is DROPPED from the new revision, and dropping these two silently
+   disables the scheduled tick lane. Neither was on `00050-5ht` when last
+   probed — re-confirm once `gcloud` auth is restored.
+4. **Deploy P5, then run the P5 acceptance walk** (in the P5 block below).
+   **P5 has had NO live acceptance of any kind.**
+
+## P5 STANDING RULES — BUILT ON `feat/agent-canvas-p5-standing-rules` (2026-08-15)
+
+"Watch X and alert me." "Brief me weekly on Y." A standing rule is a stored
+instruction **plus a persisted, server-verifiable authorization** — nothing
+more. A rule run **IS a normal ask-mode run**, dispatched by a tick route
+instead of a human click: **no new execution engine, no cron parser** (3-value
+cadence enum + slot, occurrence keys derived from the due time, a
+conditional-claim lease on the occurrence row). Reversible:
+`setSetting('standing_rules','0')`.
+
+**Consent path.** Plain-language instruction → `POST .../standing-rules/parse`
+→ a **10-field interpretation card** (Watched, Sources, Scope, Cadence, Run by,
+Output, Budget, Expires, Can/Cannot, Next run) → **rehearse** against the last 7
+days → **owner** activates. Activate is a **409** unless the rule is `rehearsed`
+with a COMPLETED rehearsal run, and **any edit resets the gate** (state→draft,
+version++, rehearsal cleared) — the P4 publish-gate pattern. The model proposes;
+the server validates and clamps everything: `agent_id` must come from the
+server-supplied active-agent list, cadence/output from enums, budgets from
+clamped ranges.
+
+**Authorization, re-verified per dispatch** inside the tick transaction
+(`verifyAuthorization`, `server/standing-rules.js`): not revoked, not expired,
+**grantor still on the workspace allowlist AND still holding edit access to the
+canvas**, rule still `active` and unexpired, global pause off, flag on. A rule
+reading gmail/drive/sheets/calendar whose grantor's Google connection is gone
+**skips with an alert**, never silently — as does a rule any of whose reviewed
+sources this deployment can no longer read (the runtime readability guard in the
+review notes below). Runs carry **`initiatedBy` = the
+grantor** — no invented interactive user. Scheduled dispatch is hard-coded
+`mode: 'ask'`, so mutating tools are **double-gated out** (mode gate + authority
+map).
+
+**Tick lane + env contract.** Cloud Scheduler → `POST /api/standing-rules/tick`,
+registered above `requireAuth`. Two lanes into one handler: a signed-in **owner**
+session (manual/recovery ticks), else a **Google-signed OIDC ID token** verified
+with the same `google-auth-library` machinery sign-in uses, against
+**`TICK_AUDIENCE`**, where the caller must BE **`TICK_INVOKER_SA`**. **EITHER
+var unset → 503 and the scheduled lane is off** — never open by default. The
+owner-session lane is checked **before** the env gate, so a manual owner tick
+still works on a revision missing both vars: that is the recovery path, and it
+is also why a green manual tick proves nothing about the scheduled lane. Both
+vars **MUST** be added to the wholesale deploy export block (see the redeploy
+procedure below) or they are dropped and the lane dies quietly.
+
+**Rollback needs no deploy.** `setSetting('standing_rules','0')` hides the nav
+**and** no-ops the tick before a single rule row is read — scheduled execution
+stops immediately. (It does NOT retract already-produced attention cards; see
+the gaps below.) The Scheduler job pauses independently of that. The new
+tables (`standing_rules`, `standing_authorizations`, `standing_rule_runs`) and
+the `runs.authority_json` column are additive and inert on revert.
+
+**Review: three Codex rounds + one cross-PR seam, all folded in
+(`8fa8bdd` → `97f9bcb` → `0425fba` → `88cb87c`).** 9 + 9 + 5 = **23 inline
+threads, every one checked against source before anything changed, all 23
+replied to and resolved**. Each fix carries a regression test confirmed to fail
+with the fix reverted. The load-bearing ones:
+
+- **Authority, and the ceiling that was not there.** The authorization always
+  snapshotted the grant, but **nothing carried it to dispatch** — the runner
+  derived its surface from the agent's LIVE `tools_json`, so widening an agent
+  after activation silently widened every rule on it. Runs now carry
+  `authority_json` (additive column, NULL = live authority governs alone),
+  intersected with live authority at **both** the offer filter (`runner.js`) and
+  the call-time recheck (`tools.js executeTool`): later widenings never apply,
+  later reductions do. Round 2 found the deeper half — the grant stored
+  `agent.tools_json ?? null`, and **NULL reads as unrestricted**, so a legacy
+  agent pinned no ceiling at all and the rule's surface floated with the
+  **deployment**: flipping a scope flag or setting an env var silently granted
+  new tools with no re-consent. `grantedTools()` now resolves a **concrete
+  array** at grant time — role menu ∩ agent authority ∩ source-permitted.
+- **Runtime source-readability guard (round 3).** Activation can only see the
+  deployment as it was that day. `verifyAuthorization` re-resolves the frozen
+  grant ∩ what this deployment and the agent's live authority would grant today,
+  and **skips with an alert naming every dark source**. The intersection can only
+  ever NARROW — that is the invariant: re-lighting an env var cannot widen a
+  snapshot nobody re-consented to (a grant frozen empty stays empty and stays
+  skipped), while a lane going dark is caught on the very next tick. Semantics
+  are **reachability, not a dead grant**: skip + alert, the rule stays active and
+  reschedules, and it resumes on its own. `enrichmentDark` was **deleted and
+  subsumed** — one predicate (`unreadableSources`) now serves both the activate
+  route (refusing to mint an empty grant) and the tick (refusing to spend one).
+  Two predicates answering one question is how a green lamp survives.
+- **Activation refuses a rule whose reviewed source grants no readable tool**,
+  naming the source. Otherwise the card advertises a watch the run can never
+  perform, and it finalizes NOTHING MATCHED forever.
+- **The generic retry endpoint REJECTS standing-rule attempts** — current and
+  superseded — rather than re-authorizing them. Attempt ids are reachable: the
+  runs history hands `run_id` and `retry_run_ids` to any canvas viewer.
+  Re-authorizing would fix only the tool ceiling; a generic retry produces a run
+  with **no occurrence row**, so it sits outside the lease, the attempt budget,
+  the attention card and — decisively — `haltRuleRuns`, which finds attempts only
+  through `run_id`/`retry_run_ids_json`. Revoke and pause could not stop it.
+- **Rehearsals dispatch under `grantedTools()`** — the same resolution activation
+  uses, asserted byte-equal by test. They previously ran on the agent's full live
+  authority, which both read past what the consent card showed and stopped the
+  rehearsal demonstrating what the real run would do.
+- **Rehearse-mode `memory_write` / `memory_correct` are blocked at the TOOL
+  layer** (`REHEARSAL_BLOCKED_TOOLS`), not by the prompt. **This also closes the
+  same exposure in P4 builder rehearsals** — a root-cause fix with blast radius
+  beyond P5.
+- **`web_search` is re-checked per model call.** It is provider-executed, so it
+  never reaches `executeTool`'s call-time recheck; the run-scoped tool array
+  meant a mid-run revocation did not stop it searching — or billing. Only the
+  server-tool half is per-call (the ~40 ordinary tools keep the run-scoped list
+  and their `executeTool` recheck). Same commit: a second rehearsal 409s while
+  the first is nonterminal.
+- **Evidence refs are redacted via `ruleRunView()` on history, detail AND
+  acknowledge** — and the raw `output_refs_json` / `retry_run_ids_json` columns
+  are **dropped** from the payload, not merely re-parsed alongside it.
+- **Permanent authorization failures pause the rule**, clear `next_run_at`,
+  audit, and raise a card. An active rule whose grantor lost allowlist or canvas
+  access previously recorded a non-attention skip and advanced its schedule —
+  silently skipping forever while displaying as active.
+- **Revoke, pause and edit halt every nonterminal run for the rule**
+  (`haltRuleRuns()`, same transaction) — **every attempt**, not just the current
+  one, since a lease-expiry retry can leave an earlier one live.
+- **Round-1 remainder, still in force:** the occurrence lease derives from the
+  rule's wall budget plus slack (a flat 10 minutes let the finalizer dispatch a
+  second attempt alongside a live run); a paused workspace consumes no retry
+  attempt and expires no occurrence; `mcp` is not an offerable source (ask mode
+  strips every `mcp_*` tool); an unparseable `MATCHED:` line surfaces for review
+  with `matched_count` NULL rather than a silent 0; finalization emits a canvas
+  bus event so a connected client refetches attention; `brief_ready` cards
+  deep-link to the rule; halted runs are excluded from "retry it" cards.
+- **The NULL-authority seam with #197 (`88cb87c`).** `intersectAuthority` treats
+  NULL as "no allowlist", and #197's agent rollback can restore `tools_json =
+  NULL`. If a run already carries a concrete grant and its agent is rolled back
+  mid-flight, the intersection resolves to **the snapshot** — verified by reading,
+  then pinned by a test rather than left resting on the identity rule, because
+  neither PR owns that seam alone.
+
+**Cross-PR behaviour: #196 + #197 will 409 an in-flight room export.** This
+emerges only when BOTH are merged, and neither PR documents it alone. #197
+tightens room-export `manifestHash()` from an id projection to `included` in
+full plus `contentWarnings`. P5 rules run on a schedule **with no human
+present** and can write memory entries and evidence refs on any canvas —
+including a room canvas — and `included` is built from exactly those (decisions,
+facts, public evidence refs, tasks). So a standing-rules tick landing between an
+owner's export **preview** and their **export** changes the hash and 409s the
+export. **That is the intended outcome** — a scheduled run that changes what
+leaves the workspace should force a re-review — but it is new operator-visible
+behaviour with no other explanation on screen. **Remedy: re-preview, then
+export.**
+
+**Acceptance walk still owed (signed-in, on production):** create rule →
+interpretation card → rehearse → activate → manual owner tick → run → NEEDS YOU
+alert → acknowledge → weekly-brief rule → brief renders with refs. **Not run.**
+
+**Known gaps — deliberate or filed, not hidden:**
+- **Editing a rule reuses the stored interpretation.** `PATCH
+  /standing-rules/:id` with only `instruction` reuses `interpretation_json`, so
+  the review card can show a **stale summary** until rehearsal. The server's
+  re-parse path exists (`POST .../standing-rules/parse` accepts `rule_id`) but
+  the UI never calls it — `frontend/src/api.js` `standingRules.parse` takes only
+  `(canvasId, instruction)`. The gate still resets on edit and the rehearsal
+  runs the NEW text, so nothing activates unrehearsed; only the card's prose
+  lags.
+- **`standingRuleCards` is not gated by the `standing_rules` flag.**
+  `server/attention.js` folds rule-run cards into NEEDS YOU without consulting
+  the flag, so flipping it off hides the nav but leaves already-produced cards
+  acknowledgeable. Deliberate — don't strand unacknowledged work — but the flag
+  comment in `routes.js` says it "hides the UI", which overstates the sweep.
+- **An invalidated rule reads "paused", not "broken".** A permanent
+  authorization failure parks the rule in `paused` — the existing
+  not-running-but-visible state — so the UI cannot distinguish "the owner paused
+  this" from "the grant died". `standing_rules.state` is a SQLite `CHECK
+  (state IN (...))` constraint, and SQLite cannot ALTER one, so a dedicated
+  state costs a table rebuild. Resume re-verifies and refuses until the grant is
+  redone, so the behaviour is correct — only the label is coarse.
+- **Grant snapshots list act-mode mutating tools the ask-mode run can never
+  fire.** `grantedTools()` filters `authorityMenu()`, which resolves under
+  `mode: 'act'`, so a snapshot can contain e.g. `ws_gmail_draft` or
+  `hs_apply_change`. Harmless — scheduled dispatch is hard-coded `mode: 'ask'`
+  and `blockedInMode` strips them twice over — but the stored grant reads wider
+  than the rule's real surface to anyone auditing the row.
+- **The `enrichment` source means "watch already-enriched records" only.**
+  `enrich_contact`, `enrich_company` and `verify_email` are in `MUTATING_TOOLS`,
+  so ask mode strips them: **a scheduled rule can never spend enrichment
+  credits.** Only `get_enriched_contact` — the free cached re-read — survives
+  into a rule run. An owner reading "Sources — enrichment" would reasonably
+  assume the opposite, so the consent card states it outright.
+
 ## P4 AGENT BUILDER — BUILT ON `feat/p4-agent-builder` (2026-08-15)
 
 Describe the job → review the proposed agent → rehearse it → publish it.
 Backend **257/257**, frontend **15/15**, build green. One PR for the phase.
-Not deployed. Reversible: `setSetting('agent_builder','0')`.
+**Merged to master as #195; NOT in production** — `00050-5ht` predates it.
+Reversible: `setSetting('agent_builder','0')`.
 
 Blockbuster upgrades beyond the roadmap text, none of it dropped:
 - **Enforceable Authority Map:** `agents.tools_json` allowlist over governed
@@ -43,6 +264,30 @@ legibility ✓ (menu descriptions, one line each), rehearsal before creation ✓
 (server 409), no implicit connector authority ✓ (intersection + execute
 recheck, tested end-to-end), publish diff exactness ✓ (field-by-field,
 tested). In-app signed-in acceptance on production still owed post-deploy.
+
+**Five invariants re-verified this session as genuinely test-covered, not just
+asserted:** intersection-only authority and the offer + **execute-time** recheck
+(`test/agent-authority.test.js` — `allowedByAuthority` is called both in
+`toolsForRole` and in `executeTool` against authority re-read from the DB);
+rehearse-gated publish 409 and no NL-derived authority (`test/agent-builder.test.js`
+— hallucinated authority dropped at propose time); versions + rollback
+(baseline-first, owner-only, `test/agent-authority.test.js`).
+
+**An adversarial pass then found seven uncovered edges in P4. They are filed as
+follow-up work and are NOT fixed here.** Two re-verified directly this session:
+- **`web_search` is offer-gated only.** It is attached at run setup
+  (`runner.js`, `authority.includes('web_search')`) and, being an Anthropic-side
+  server tool, never routes through `executeTool` — so it gets **no
+  execute-time recheck**, unlike every registry-governed tool. **No test covers
+  that gate**: the one web_search authority test asserts it is *grantable* at
+  propose time, not that it is *withheld* at dispatch.
+- **The `target_agent_id` publish path is entirely untested.** Publishing a
+  draft with `target_agent_id` set REWRITES A LIVE AGENT'S authority
+  (`routes.js`), and nothing in `test/` exercises it — the sole `target_agent_id`
+  hit in the suite is the unrelated escalation-redirect field.
+
+The other five findings come from that pass's report and were **not
+independently re-verified here**.
 
 ## P3 EVIDENCE ROOMS — BUILT ON `feat/p3-evidence-rooms` (2026-08-15)
 
@@ -759,7 +1004,10 @@ and `HS_OPS_RUNNER_URL` from the running revision, so the paste incident below
 cannot recur, and deploy.sh's shape guards (`sk-ant-*` / `GOCSPX-*`) still
 validate before anything is stored. Env vars are set WHOLESALE: a var you do
 not export is DROPPED from the new revision — that is why the HubSpot URL is
-read back from the live service rather than omitted. Verify after deploying:
+read back from the live service rather than omitted. **When P5 deploys, this
+block must also export `TICK_AUDIENCE` and `TICK_INVOKER_SA`** (real values
+only, same no-placeholder rule); without both, the scheduled tick lane 503s and
+standing rules never fire. Verify after deploying:
 
 ```bash
 gcloud run services describe agent-canvas --region us-central1 --project agent-canvas-ctg-0811 \
