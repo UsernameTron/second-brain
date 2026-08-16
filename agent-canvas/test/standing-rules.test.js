@@ -780,9 +780,14 @@ test('a structured edit changes what the prose cannot, and re-gates the rule', a
   // finished, so the gate resets by forgetting it, not by rewriting history.
   assert.equal(db.prepare('SELECT status FROM runs WHERE id = ?').get(runId).status, 'completed');
 
-  // Nothing widened without re-consent: the frozen grant is untouched and the
-  // rule cannot go live again without a fresh rehearsal.
-  assert.equal(standingRules.currentAuthorization(rule.id).allowed_tools_json, grantBefore);
+  // Nothing widened without re-consent, and nothing stayed live either: the
+  // edit retired the grant it was consented to, so there is no current
+  // authorization at all — while the row survives with its frozen snapshot
+  // untouched, because retiring is history, not deletion.
+  assert.equal(standingRules.currentAuthorization(rule.id), undefined, 'an edited rule holds no live grant');
+  const retired = standingRules.latestAuthorization(rule.id);
+  assert.equal(retired.allowed_tools_json, grantBefore, 'the retired row keeps the snapshot it was granted');
+  assert.ok(retired.revoked_at, 'stamped retired, never widened, never dropped');
   assert.equal((await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`)).status, 409);
 
   // The model is out of the loop; the trust boundary is not.
@@ -835,5 +840,140 @@ test('the honest-unknown alert card never renders a raw null', async () => {
   assert.ok(card, 'an unknown count surfaces for review');
   assert.ok(!/null/.test(card.decision), `the owner never reads a raw null, got: ${card.decision}`);
   assert.match(card.decision, /unreadable match count/i);
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+// ---------- the edited rule's stale grant ----------
+
+// Re-open the gate on an EXISTING rule the way the rehearse route would, without
+// spending the scarce shared 'model' rate bucket — these tests are about what an
+// edit does to the grant, not about the review. mkRehearsed only ever builds a
+// new rule, and its run id collides on a second call for the same one.
+function attachRehearsal(ruleId) {
+  const runId = `run-${ruleId}-${db.prepare('SELECT COUNT(*) AS n FROM runs').get().n}`;
+  db.prepare(`INSERT INTO runs (id, agent_id, canvas_id, trigger_kind, instruction, status, step_budget, wall_ms_budget,
+      mode, initiated_by, summary, created_at, ended_at) VALUES (?, ?, ?, 'user', ?, 'completed', 8, 120000, 'rehearse', ?, 'would have matched 2', ?, ?)`)
+    .run(runId, agentId, canvasId, 'rehearsal', OWNER, nowIso(), nowIso());
+  db.prepare("UPDATE standing_rules SET state = 'rehearsed', rehearsal_run_id = ? WHERE id = ?").run(runId, ruleId);
+  return runId;
+}
+
+// Editing an active rule flips it to draft, and a draft rule is never selected
+// by the tick's due query — enforcement is fail-closed. But upsertDraft left the
+// standing_authorizations row unrevoked, so currentAuthorization kept returning
+// it and every payload kept reporting a live grant on a rule that cannot run.
+// Fail-closed enforcement plus a screen asserting the opposite is still a lie
+// about authority; the grant has to be retired WITH the edit.
+test('editing an active rule retires its standing authorization with the flip to draft', async () => {
+  const { rule } = mkRehearsed('watch the deals and alert me');
+  const activated = await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`);
+  assert.equal(activated.status, 200);
+  const granted = activated.data.authorization;
+  assert.equal(granted.revoked_at, null, 'precondition: an active rule holds a live grant');
+
+  const edited = await call(ownerCookie, 'PATCH', `/api/standing-rules/${rule.id}`, { instruction: 'watch the deals over $75k and alert me' });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.data.rule.state, 'draft', 'precondition: the edit re-gated the rule');
+
+  // Retired, not deleted: the row survives with its history, and nothing
+  // enforcement reads reports it as current any more.
+  assert.equal(standingRules.currentAuthorization(rule.id), undefined, 'no live grant survives the edit');
+  const retired = db.prepare('SELECT * FROM standing_authorizations WHERE id = ?').get(granted.id);
+  assert.ok(retired, 'the grant is retained as history, never deleted');
+  assert.ok(retired.revoked_at, 'retired_at stamped');
+  assert.equal(retired.revoked_by, OWNER, 'and by whom');
+  assert.equal(retired.allowed_tools_json, granted.allowed_tools_json, 'the frozen snapshot is untouched — retired, not rewritten');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM standing_authorizations WHERE rule_id = ?').get(rule.id).n, 1,
+    'one grant, one row — retiring adds no ghost');
+
+  // And a reader that arrives later cannot render it as live either.
+  const detail = await call(ownerCookie, 'GET', `/api/standing-rules/${rule.id}`);
+  assert.ok(detail.data.authorization.revoked_at, 'the detail payload reports the retired grant as retired');
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+// The retirement is part of the edit, so an edit that never happened must not
+// retire anything: a rejected interpretation and a model that returns garbage
+// both leave the rule active and its grant live. Otherwise a typo in a budget
+// field, or one bad model response, silently stops a running rule.
+test('a refused edit and a failed re-interpretation retire nothing', async () => {
+  const { rule } = mkRehearsed('watch renewals and alert me');
+  const activated = await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`);
+  assert.equal(activated.status, 200);
+  const granted = activated.data.authorization;
+  const stored = JSON.parse(standingRules.getRule(rule.id).interpretation_json);
+
+  // Validation refusal: an agent that is not on this canvas.
+  const bad = await call(ownerCookie, 'PATCH', `/api/standing-rules/${rule.id}`, {
+    interpretation: { ...stored, agent_id: 'not-on-this-canvas' },
+  });
+  assert.equal(bad.status, 400);
+  // A model that produces no usable JSON at all.
+  const restore = stubParse('not json');
+  try {
+    const failed = await call(ownerCookie, 'POST', `/api/canvases/${canvasId}/standing-rules/parse`, {
+      instruction: 'rewrite this rule entirely', rule_id: rule.id,
+    });
+    assert.equal(failed.status, 502);
+  } finally { restore(); }
+
+  const live = standingRules.currentAuthorization(rule.id);
+  assert.ok(live, 'a refused edit leaves the grant live');
+  assert.equal(live.id, granted.id, 'the same grant, not a re-minted one');
+  assert.equal(live.revoked_at, null);
+  assert.equal(standingRules.getRule(rule.id).state, 'active', 'and the rule is still running');
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+// Re-activation is a fresh grant, never a resurrection: the retired row stays
+// retired (its snapshot is what the old rule was consented to) and the rule runs
+// under a new authorization id resolved against the rule as it is NOW.
+test('re-activating an edited rule mints a NEW grant and leaves the retired one retired', async () => {
+  const { rule } = mkRehearsed('watch inbound deals and alert me');
+  const first = (await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`)).data.authorization;
+  assert.equal((await call(ownerCookie, 'PATCH', `/api/standing-rules/${rule.id}`, { instruction: 'watch inbound deals over $100k and alert me' })).status, 200);
+
+  // Rehearse again — the gate the edit reset — then activate.
+  attachRehearsal(rule.id);
+  const second = (await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`)).data.authorization;
+
+  assert.notEqual(second.id, first.id, 're-activation is a new grant, not the old one revived');
+  assert.equal(second.revoked_at, null, 'the new grant is live');
+  assert.equal(standingRules.currentAuthorization(rule.id).id, second.id, 'and it is the one enforcement spends');
+  const old = db.prepare('SELECT * FROM standing_authorizations WHERE id = ?').get(first.id);
+  assert.ok(old.revoked_at, 'the retired grant stays retired');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM standing_authorizations WHERE rule_id = ?').get(rule.id).n, 2,
+    'both are on the record — the history is the point');
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+// There is no refetch path behind an edit: the client merges the response and
+// renders. If the response omits the authorization, a browser holding the
+// pre-edit state keeps painting "Authorized by … · expires …" over a rule that
+// can no longer run, and nothing will ever correct it. Both edit routes carry
+// the retired grant back, the same shape /revoke uses.
+test('the edit and re-parse responses carry the retired authorization', async () => {
+  const { rule } = mkRehearsed('watch support tickets and alert me');
+  assert.equal((await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`)).status, 200);
+
+  const patched = await call(ownerCookie, 'PATCH', `/api/standing-rules/${rule.id}`, { instruction: 'watch urgent support tickets and alert me' });
+  assert.equal(patched.status, 200);
+  assert.ok(patched.data.authorization, 'PATCH returns the grant it just retired');
+  assert.ok(patched.data.authorization.revoked_at, 'marked retired, so the client cannot render it as live');
+  assert.equal(patched.data.authorization.authorized_by, OWNER);
+
+  // The re-parse route lands in the same upsertDraft, so it owes the same.
+  attachRehearsal(rule.id);
+  assert.equal((await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`)).status, 200);
+  const restore = stubParse(INTERP(agentId));
+  try {
+    const reparsed = await call(ownerCookie, 'POST', `/api/canvases/${canvasId}/standing-rules/parse`, {
+      instruction: 'watch every support ticket and alert me', rule_id: rule.id,
+    });
+    assert.equal(reparsed.status, 200);
+    assert.equal(reparsed.data.rule.state, 'draft');
+    assert.ok(reparsed.data.authorization, 're-parse returns the grant it just retired');
+    assert.ok(reparsed.data.authorization.revoked_at);
+  } finally { restore(); }
   db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
 });

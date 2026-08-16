@@ -620,6 +620,116 @@ describe('Rules & Briefs view', () => {
     expect(screen.getByText(/expires 2026-11-14 08:00 UTC/)).toBeInTheDocument();
   });
 
+  // A draft or rehearsed rule cannot run — the tick's due query only selects
+  // `active` — but the authorization block kept rendering "Authorized by … ·
+  // expires …" from before the edit, asserting a live grant on a rule
+  // enforcement had already stopped honouring. The claim has to go the moment
+  // the edit lands, with no reload: the edit response carries the retired grant
+  // and the rule's STATE decides what may be claimed.
+  it('drops the live-grant claim the moment an edit lands, with no reload', async () => {
+    const active = { ...DRAFT_RULE, state: 'active', next_run_at: '2026-08-16T08:00:00Z' };
+    const live = { authorized_by: 'pete@cloudtechgurus.com', expires_at: '2026-11-14T08:00:00Z', revoked_at: null };
+    const retired = { ...live, revoked_at: '2026-08-16T09:30:00Z', revoked_by: 'pete@cloudtechgurus.com' };
+    api.mockImplementation((path, opts) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [active] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/canvases/c1/standing-rules/parse') {
+        return Promise.resolve({
+          rule: { ...active, instruction: opts.body.instruction, state: 'draft', version: 2, next_run_at: null },
+          authorization: retired,
+        });
+      }
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({ rule: active, authorization: live, runs: [], rehearsalRun: null });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    expect(await screen.findByText(/Authorized by/)).toBeInTheDocument();
+    expect(screen.getByText(/expires 2026-11-14 08:00 UTC/)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Rule instruction'), ' over $75k');
+    fireEvent.blur(screen.getByLabelText('Rule instruction'));
+
+    // No live authorization is claimed anywhere on the screen any more — and
+    // the block renders the RETIRED row the edit response carried, timestamp
+    // included, not the pre-edit one relabelled.
+    expect(await screen.findByText(/Previously authorized by/)).toBeInTheDocument();
+    expect(screen.getByText(/retired 2026-08-16 09:30 UTC when the rule changed/)).toBeInTheDocument();
+    expect(screen.getByText(/not a live authorization/)).toBeInTheDocument();
+    expect(screen.queryByText(/expires 2026-11-14/)).toBeNull();
+    // "Authorized by" without the "Previously" prefix is the claim being fixed.
+    expect(screen.queryByText((_, el) => el?.tagName === 'P' && /^Authorized by/.test(el.textContent))).toBeNull();
+    // And the retired grantor is not who the rule would read as next.
+    expect(screen.getByText(/not yet established/)).toBeInTheDocument();
+  });
+
+  // The rehearsal is the review, and after an edit it is the only identity the
+  // owner is being asked to accept. Falling back to the retired grant named an
+  // identity the next run has no claim on — the grantor may not even rehearse it.
+  it('a rehearsed rule reads as its rehearser, never as the retired grantor', async () => {
+    const rehearsed = { ...DRAFT_RULE, state: 'rehearsed', version: 2 };
+    const retired = {
+      authorized_by: 'pete@cloudtechgurus.com', expires_at: '2026-11-14T08:00:00Z',
+      revoked_at: '2026-08-16T09:30:00Z', revoked_by: 'pete@cloudtechgurus.com',
+    };
+    api.mockImplementation((path) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [rehearsed] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({
+          rule: rehearsed, authorization: retired, runs: [],
+          rehearsalRun: { ...REHEARSAL_DONE, initiated_by: 'darren@cloudtechgurus.com' },
+        });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    expect(await screen.findByText('Reads as')).toBeInTheDocument();
+    expect(screen.getByText('darren@cloudtechgurus.com')).toBeInTheDocument();
+    // The retired grantor is named only as history, never as the acting identity.
+    expect(screen.getByText(/Previously authorized by/)).toBeInTheDocument();
+    expect(screen.queryByText(/nobody — the grant from/)).toBeNull();
+  });
+
+  // Re-activation is what makes a grant live again; the historical line has to
+  // give way to the new one rather than sit beside it.
+  it('replaces the retired grant with the new live one on re-activation', async () => {
+    const rehearsed = { ...DRAFT_RULE, state: 'rehearsed', version: 2 };
+    const retired = {
+      authorized_by: 'pete@cloudtechgurus.com', expires_at: '2026-09-01T08:00:00Z',
+      revoked_at: '2026-08-16T09:30:00Z', revoked_by: 'pete@cloudtechgurus.com',
+    };
+    const fresh = { authorized_by: 'pete@cloudtechgurus.com', expires_at: '2026-12-01T08:00:00Z', revoked_at: null };
+    api.mockImplementation((path, opts) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [rehearsed] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/standing-rules/sr1/activate' && opts && opts.method === 'POST') {
+        return Promise.resolve({
+          rule: { ...rehearsed, state: 'active', next_run_at: '2026-08-17T08:00:00Z' },
+          authorization: fresh,
+        });
+      }
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({ rule: rehearsed, authorization: retired, runs: [], rehearsalRun: REHEARSAL_DONE });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    expect(await screen.findByText(/Previously authorized by/)).toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Activate' }));
+    expect(await screen.findByText(/expires 2026-12-01 08:00 UTC/)).toBeInTheDocument();
+    expect(screen.queryByText(/Previously authorized by/)).toBeNull();
+    expect(screen.queryByText(/when the rule changed/)).toBeNull();
+    // …and the live grantor is now who the rule reads as.
+    expect(screen.getByText('Reads as').closest('li')).toHaveTextContent('pete@cloudtechgurus.com');
+    expect(screen.queryByText(/not yet established/)).toBeNull();
+  });
+
   it('owner can pause, resume, and revoke', async () => {
     const active = { ...DRAFT_RULE, state: 'active', next_run_at: '2026-08-16T08:00:00Z' };
     api.mockImplementation((path, opts) => {
