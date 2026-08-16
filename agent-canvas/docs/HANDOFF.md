@@ -68,15 +68,6 @@ value and requires `DEPLOY_PROVIDER_CHANGE=1` to depart from it. Note the deploy
 script's first-deploy default (`vertex`) differs from what production actually
 runs; inheritance is what keeps that difference harmless.
 
-Deploy provenance, recorded as evidence rather than certainty: a concurrent
-documentation truth-up left files uncommitted while the build ran. The live
-frontend bundle contains the committed string `Export workspace JSON` and not the
-uncommitted `Export operational ledger (JSON)`, which proves that edit did not
-enter the build context. `cloudscheduler.googleapis.com` remains disabled, which
-supports the same timing conclusion for the deploy-script edit. The only
-uncommitted server edit is comment-only, so there is no behavioural ambiguity —
-but this is not a byte-for-byte claim about every server file.
-
 | Phase | Repository state | Deployment/acceptance state |
 |---|---|---|
 | Gate 0, P1, P2 | Implemented, merged | Recorded as deployed and live-accepted in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); not replayed since |
