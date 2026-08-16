@@ -259,6 +259,19 @@ describe('truncated-JSON scanner', () => {
     expect(escaped).toContain('note: say "hi" via C:\\tmp');
   });
 
+  it('stores a __proto__ key as data, scalar and nested, without polluting', () => {
+    const scalar = humanizePayload('{"__proto__":"polluted","x');
+    expect(scalar.join('\n')).toContain('polluted');
+    expect({}.polluted).toBeUndefined();
+    expect(Object.prototype.polluted).toBeUndefined();
+
+    const nested = humanizePayload('{"outer":{"__proto__":{"admin":true}},"x');
+    expect(nested.join('\n')).toMatch(/proto/);
+    expect({}.admin).toBeUndefined();
+    expect(Object.prototype.admin).toBeUndefined();
+    expect(({}).constructor).toBe(Object);
+  });
+
   it('leaves JSON-lookalike prose exactly as written', () => {
     expect(humanizePayload('[note] hello')).toEqual(['[note] hello']);
     expect(humanizePayload('{"example": prose}')).toEqual(['{"example": prose}']);
@@ -277,6 +290,16 @@ describe('arrays of objects', () => {
       ],
     };
     expect(humanizePayload(payload)).toEqual(['deals: Acme Corp, Globex, Initech, +1 more']);
+  });
+
+  it('keeps "+N more" visible even when the identifiers are long', () => {
+    const long = (c) => c.repeat(60);
+    const [line] = humanizePayload({
+      rows: [{ name: long('A') }, { name: long('B') }, { name: long('C') }, { name: 'D' }, { name: 'E' }],
+    });
+    expect(line.endsWith(', +2 more')).toBe(true); // suffix survives the cut
+    expect(line).toContain('…'); // the identifiers, not the suffix, were trimmed
+    expect(line.length).toBeLessThanOrEqual('rows: '.length + 80);
   });
 
   it('counts unidentifiable records in the remainder, and falls back when none are', () => {

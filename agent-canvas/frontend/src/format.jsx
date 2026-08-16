@@ -167,7 +167,11 @@ function arrayLabel(v) {
   }
   if (!ids.length) return boundedDesc(v); // nothing identifiable — "N items" is the honest answer
   const rest = v.length - ids.length;
-  return short(rest > 0 ? `${ids.join(', ')}, +${rest} more` : ids.join(', '), 80);
+  // Reserve the suffix's width and truncate only the identifiers. Capping the
+  // joined string instead let long names eat "+N more", so a bounded preview
+  // silently claimed to list everything.
+  const suffix = rest > 0 ? `, +${rest} more` : '';
+  return `${short(ids.join(', '), Math.max(8, 80 - suffix.length))}${suffix}`;
 }
 
 // Run-event previews slice tool results to 600 chars BEFORE they reach the
@@ -265,7 +269,10 @@ function scanJsonPrefix(src) {
 
   const parseObject = () => {
     i += 1;
-    const obj = {};
+    // Null prototype: `obj["__proto__"] = v` on a normal object mutates the
+    // prototype instead of storing a field — the value would vanish from the
+    // display and, for an object value, pollute every object in the page.
+    const obj = Object.create(null);
     ws();
     if (i >= src.length) return cut() || obj;
     if (src[i] === '}') { i += 1; return obj; }
