@@ -207,13 +207,19 @@ function exportManifest(roomId) {
   return manifest;
 }
 
+// Content-addressed means addressed by CONTENT. An id projection was not
+// enough: the export renders text (task titles, evidence titles, entry
+// bodies), and a task title is mutable after the preview with its id and
+// status unchanged — so a renamed task shipped under a hash the owner
+// reviewed before the rename (codex P1 on #197). The same gap left
+// contentWarnings unhashed, so a private ref recorded after the preview could
+// raise a NEW warning against an already-included entry without invalidating
+// the review. Hash what the review actually shows leaving — `included` in
+// full, plus the warnings raised against it. `excluded` stays out (it never
+// reaches the HTML, so hashing it would force re-reviews that cannot change
+// the disclosure) and so does `generatedAt`, which differs on every call.
 function manifestHash(manifest) {
-  const stable = {
-    decisions: manifest.included.decisions.map((d) => d.id),
-    facts: manifest.included.facts.map((f) => f.id),
-    evidence: manifest.included.evidence.map((e) => e.id),
-    tasks: manifest.included.tasks.map((t) => `${t.id}:${t.status}`),
-  };
+  const stable = { included: manifest.included, contentWarnings: manifest.contentWarnings };
   return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex');
 }
 
