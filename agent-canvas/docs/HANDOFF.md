@@ -22,7 +22,7 @@ represented on `master`. This truth-up sits on the branch
 `fix/agent-canvas-truth-up`, cut from `92fb427`; the canonical checkout was left
 dirty and untouched so the pre-integration state stays inspectable.
 
-**Verification after this truth-up (`npm run verify`, 2026-08-16):** **354
+**Verification after this truth-up (`npm run verify`, 2026-08-16):** **362
 backend tests / 0 failures**, **39 frontend tests / 0 failures**, a clean
 frontend production build, valid deploy-script shell syntax, a passing deploy
 preflight self-test, and **0 production-dependency vulnerabilities** in both npm
@@ -48,22 +48,21 @@ carries #194 through #198. All 11 env vars survived the wholesale set;
 `TICK_AUDIENCE` and `TICK_INVOKER_SA` were **deliberately absent**, so the OIDC
 scheduler lane is off. Zero error-severity log entries after deploy.
 
-**Re-probing is currently BLOCKED (observed 2026-08-16).** `gcloud` returns
-`Reauthentication failed. cannot prompt during non-interactive execution`, so no
-live claim in this file could be refreshed during the truth-up. Restoring it
-requires an interactive `gcloud auth login` by the operator. Until that happens,
-every production statement here is **historical observation, not current fact** —
-including the revision, the traffic split, and the env-var inventory.
+**Live probe (live-proven, observed 2026-08-16 after `gcloud auth login` was
+restored):** serving URL `https://agent-canvas-mqqftm2ora-uc.a.run.app`, revision
+**`agent-canvas-00051-94w` at 100% traffic** — unchanged from the earlier
+observation. Eleven env-var names present (NODE_ENV, OWNER_EMAIL,
+LITESTREAM_REPLICA_URL, MODEL_PROVIDER, GOOGLE_CLIENT_ID, HS_OPS_RUNNER_URL,
+ED_DISPATCH_URL, ANTHROPIC_API_KEY, JWT_SECRET, GOOGLE_CLIENT_SECRET,
+RAPIDAPI_KEY); `TICK_AUDIENCE` / `TICK_INVOKER_SA` absent, scheduler lane dark
+as intended. `/api/config` answered 200 anonymously with the expected payload.
 
-**Unverified: the live `MODEL_PROVIDER` value.** Before this truth-up the deploy
-script defaulted `MODEL_PROVIDER` to `vertex` whenever the variable was unset and
-then wrote the environment wholesale, so a redeploy that forgot to export it
-would have moved the whole fleet between providers with nothing in the output to
-say so. History records `anthropic` as a previously deployed value and a planned
-switch to `vertex`; which one `00051-94w` actually runs was not readable while
-auth was down. The script no longer permits this class of change — it inherits
-the live value and requires `DEPLOY_PROVIDER_CHANGE=1` to depart from it — but
-the *current* value remains an open question to answer with the first probe.
+**Resolved: the live `MODEL_PROVIDER` is `anthropic` (live-proven 2026-08-16).**
+The wholesale-set hazard did NOT fire on the last deploy — the value survived.
+The hazard itself is retired on this branch: the script now inherits the live
+value and requires `DEPLOY_PROVIDER_CHANGE=1` to depart from it. Note the deploy
+script's first-deploy default (`vertex`) differs from what production actually
+runs; inheritance is what keeps that difference harmless.
 
 Deploy provenance, recorded as evidence rather than certainty: a concurrent
 documentation truth-up left files uncommitted while the build ran. The live
@@ -126,55 +125,44 @@ The full run-by-run transcript is preserved verbatim in
 4. **`npm run verify` is the gate.** Backend, frontend, frontend build, deploy
    syntax, deploy preflight self-test. `npm test` is backend-only and was never
    sufficient.
+5. **`/api/healthz`** — the GFE-reachable liveness alias (next section), with
+   `test/healthz.test.js` covering both paths unauthenticated.
 
 Feature flags default on in source for Inquiry Home, Needs You, Rooms, Agent
 Builder, and Standing Rules. A default is not proof of a live setting. P5's UI
 can be visible while its scheduler lane is dark; only a recent scheduler-signed
 tick earns a green capability status.
 
-### Open, evidenced release blocker: `/healthz` answered 404
+### Resolved: the `/healthz` 404 — the platform, not the app (live-proven 2026-08-16)
 
-A probe reported 404 from `/healthz` on the live service. The route **exists and
-is correctly ordered in source** (git-proven): `server/index.js:39` registers it
-before the `/api` router, and the SPA catch-all at `:66` explicitly excludes it.
-So this is **not** an application-routing defect unless a probe proves the
-request reached Express and was refused there. **No application routing has been
-changed, and none should be, until the failing layer is identified.**
+The discriminating probe settled it. On the exact serving hostname,
+`/api/config` returned **200 anonymously** with the real config payload — so
+Express is reachable and there is no IAM gate — while `/healthz` returned
+**Google's own GFE error page** (the branded "Error 404 (Not Found)!!1" HTML),
+identically on both hostnames and identically with and without an identity
+token. A request the app had refused would carry Express's response; this one
+never reached the container. **Cloud Run's Google Frontend reserves the
+`/healthz` path and answers it itself.**
 
-Two candidate explanations, both of which have precedent in this project's
-history and neither of which is an app bug:
-
-- **The IAM gate.** An IAM-gated Cloud Run service in this organization answers
-  unauthorized callers **GFE 404, not 403** — a 404 is the gate working. If the
-  `--allow-unauthenticated` binding did not take (organization policy on
-  `allUsers` is the usual cause), every unauthenticated path 404s.
-- **The wrong hostname.** Cloud Run issues two hostnames per service
-  (`service-projectnumber.region.run.app` and a legacy `service-hash.a.run.app`);
-  `deploy.sh` documents this and computes both. A probe against the non-serving
-  one 404s regardless of the app.
-
-The discriminating probe, once `gcloud auth login` is restored — run it against
-the exact serving hostname:
-
-```bash
-curl -s -o /dev/null -w 'anon:%{http_code}\n' https://<serving-host>/healthz
-curl -s -o /dev/null -w 'auth:%{http_code}\n' -H "Authorization: Bearer $(gcloud auth print-identity-token)" https://<serving-host>/healthz
-```
-
-`anon:404` + `auth:200` ⇒ IAM gate. Both 404 ⇒ hostname. `anon:200` ⇒ the
-original probe hit something else and the blocker closes. Only if the request
-demonstrably reaches Express and still 404s is there anything to fix in code.
+The route in `server/index.js` was always correct, and per the rule above no
+routing was touched until this was proven. The fix on this branch is one alias:
+the same handler now also answers at **`/api/healthz`**, which rides the `/api`
+prefix the GFE forwards untouched, registered before the `/api` router so it
+stays unauthenticated. `/healthz` is kept for local runs. Covered by
+`test/healthz.test.js`, including a guard that both paths share one handler.
+**Source-fixed and test-proven; the alias reaches production on the next
+deploy** — until then the live service has no externally reachable liveness
+path, which is the state it has been in since the first deploy, not a
+regression.
 
 ### Release gates, in order
 
-0. **Restore Cloud SDK access.** `gcloud auth login`, interactively, by the
-   operator. Every gate below needs it, and no live claim in this file can be
-   refreshed without it.
-1. ~~**Probe before changing anything.**~~ **DONE 2026-08-16, and now stale.**
-   At observation the active revision was `agent-canvas-00051-94w` at 100%
-   traffic, carrying #194–#198, with all 11 env vars intact and no
-   error-severity logs. Re-probe before relying on any of it; also capture the
-   live `MODEL_PROVIDER`, which is currently unverified.
+0. ~~**Restore Cloud SDK access.**~~ **DONE 2026-08-16** — `gcloud auth login`
+   run interactively; the probes in this file are from the restored session.
+1. ~~**Probe before changing anything.**~~ **DONE and REFRESHED 2026-08-16.**
+   Revision `agent-canvas-00051-94w` at 100% traffic, eleven env-var names
+   confirmed, `MODEL_PROVIDER=anthropic` live-proven, `/api/config` 200, and the
+   `/healthz` question closed (platform-reserved path — section above).
 2. **Wire P5 scheduling. STILL OUTSTANDING and deliberately not done.** Create
    the dedicated tick service account and Cloud Scheduler job, and set both
    `TICK_AUDIENCE` and `TICK_INVOKER_SA`; one without the other deliberately
