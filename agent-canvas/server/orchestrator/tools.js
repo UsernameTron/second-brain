@@ -618,7 +618,13 @@ function toolsForRole(role, { userRole = 'member', mode = 'act', authority = nul
   const enrichment = require('../enrichment/dispatch').configured() && ENRICHMENT_ROLES.includes(role)
     ? ENRICHMENT_TOOLS
     : [];
-  return [...COMMON_TOOLS, REGISTRY_TOOL, ...wsRead, ...wsWrite, ...HUBSPOT_TOOLS, ...enrichment, ...mcpDefs, ...(ROLE_TOOLS[role] || [{
+  // Same rule for HubSpot, and for the same reason. With HS_OPS_RUNNER_URL
+  // unset every hs_* call returns isError, so OFFERING them lets a standing
+  // rule mint a non-empty grant over a lane it can never reach, run forever,
+  // and report "nothing matched" over a CRM nobody is watching. Absent, not
+  // inert — the systems board already shows the lamp dark.
+  const hubspot = require('../hubspot/opsrunner').configured() ? HUBSPOT_TOOLS : [];
+  return [...COMMON_TOOLS, REGISTRY_TOOL, ...wsRead, ...wsWrite, ...hubspot, ...enrichment, ...mcpDefs, ...(ROLE_TOOLS[role] || [{
     name: 'read_rows',
     description: 'Read rows of the conference-lead workbook on this canvas.',
     input_schema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer' } }, required: [] },
@@ -628,19 +634,29 @@ function toolsForRole(role, { userRole = 'member', mode = 'act', authority = nul
 // The plain-language authority menu a draft proposal may pick from: every
 // governed tool this deployment can actually honor right now, for this role.
 // Server-supplied, so generated configuration can never invent authority.
-function authorityMenu(role, { userRole = 'member' } = {}) {
+function authorityMenu(role, { userRole = 'member', modelTier = 'strong' } = {}) {
   const menu = toolsForRole(role, { userRole, mode: 'act' })
     .filter((t) => governedTool(t.name))
     .map((t) => ({ name: t.name, description: String(t.description || '').split('. ')[0] }));
   // web_search rides outside the registry (runner.js pushes it per-run), so
-  // the menu adds it under the same gates the runner applies — otherwise a
-  // builder research agent could never be granted real web search.
-  const tierProviders = [require('./anthropic').tierConfig('fast').provider, require('./anthropic').tierConfig('strong').provider];
-  if (role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0'
-    && tierProviders.some((p) => p !== 'gemini')) {
+  // the menu adds it under the same gate the runner applies — the SAME
+  // function, not a second copy of the predicate.
+  if (webSearchEligible(role, modelTier)) {
     menu.push({ name: 'web_search', description: 'Search the public web (Claude providers only)' });
   }
   return menu;
+}
+
+// THE definition of web-search eligibility, shared by the offer side (runner)
+// and the grant side (authorityMenu → grantedTools). The provider is per TIER
+// and mixed fleets are supported (FAST_PROVIDER/STRONG_PROVIDER are read
+// independently), so a menu computed without the agent's tier hands out a
+// grant the run can never be offered: with STRONG_PROVIDER=gemini a strong
+// research agent got web_search in its grant, zero read tools at run time, and
+// reported NOTHING MATCHED forever.
+function webSearchEligible(role, modelTier) {
+  return role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0'
+    && require('./anthropic').tierConfig(modelTier).provider !== 'gemini';
 }
 
 function getRowByIndex(canvasId, rowIndex) {
@@ -1201,4 +1217,4 @@ function createEscalation({ canvasId, runId, agentId, kind, question, context })
   return escalation;
 }
 
-module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS, blockedInMode, MUTATING_TOOLS, REHEARSAL_BLOCKED_TOOLS, governedTool, allowedByAuthority, parseAuthority, intersectAuthority, effectiveAuthority, authorityMenu };
+module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS, blockedInMode, MUTATING_TOOLS, REHEARSAL_BLOCKED_TOOLS, governedTool, allowedByAuthority, parseAuthority, intersectAuthority, effectiveAuthority, authorityMenu, webSearchEligible };

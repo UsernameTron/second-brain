@@ -121,10 +121,17 @@ function isoWeekKey(date) {
 
 // Deterministic from the DUE time (never "now"): duplicate scheduler delivery
 // of the same occurrence derives the same key and hits the UNIQUE constraint.
+// VERSIONED, because the period alone is not the occurrence: moving a daily
+// brief from 08:00 to 20:00 (the most ordinary edit a rule gets) re-activates
+// onto a new slot inside the SAME period, derives the spent key, and
+// INSERT OR IGNORE returns 0 changes — which claimAndDispatch reads as a
+// duplicate scheduler delivery, advances next_run_at, and silently loses the
+// period. An edit bumps version, so the new slot is a new occurrence.
 function occurrenceKey(rule, dueIso) {
-  if (rule.cadence === 'hourly') return String(dueIso).slice(0, 13); // 2026-08-15T14
-  if (rule.cadence === 'daily') return String(dueIso).slice(0, 10); // 2026-08-15
-  return isoWeekKey(new Date(dueIso)); // 2026-W33
+  const period = rule.cadence === 'hourly' ? String(dueIso).slice(0, 13) // 2026-08-15T14
+    : rule.cadence === 'daily' ? String(dueIso).slice(0, 10) // 2026-08-15
+      : isoWeekKey(new Date(dueIso)); // 2026-W33
+  return `${period}#v${Number(rule.version) || 1}`;
 }
 
 function nextRunAt(rule, from = new Date()) {
@@ -184,6 +191,14 @@ function upsertDraft({ canvasId, ruleId = null, instruction, interp, actor }) {
       // its card would be invisible to the person who just edited it. Same
       // stop as pause/revoke. Covers PATCH and re-parse: both land here.
       haltRuleRuns(ruleId, 'rule edited');
+      // haltRuleRuns sweeps standing_rule_runs, and a REHEARSAL run is never a
+      // row there — so the one run the owner is actually watching was the only
+      // in-flight run the edit did not stop. It also defeated the
+      // concurrent-rehearsal 409, which keys on rehearsal_run_id: NULLing that
+      // without aborting the run let edit→rehearse repeat for N live
+      // rehearsals on one agent. Close it before the column forgets it.
+      const prior = getRule(ruleId);
+      if (prior && prior.rehearsal_run_id) closeRun(prior.rehearsal_run_id, 'rule edited');
       db.prepare(`UPDATE standing_rules SET agent_id = ?, instruction = ?, interpretation_json = ?, category = ?,
           source_scope_json = ?, output_type = ?, cadence = ?, cadence_hour = ?, cadence_day = ?,
           step_budget = ?, wall_ms_budget = ?, state = 'draft', rehearsal_run_id = NULL, next_run_at = NULL,
@@ -236,12 +251,20 @@ function ruleSources(rule) {
 // the deployment — every connector enabled or authority published afterwards
 // silently widening a rule nobody re-consented to.
 function grantedTools(rule, agent, grantor) {
-  const { authorityMenu, parseAuthority } = require('./orchestrator/tools');
-  const menu = authorityMenu(agent.role || 'research', { userRole: auth.workspaceRole(grantor) }).map((m) => m.name);
+  const { authorityMenu, parseAuthority, blockedInMode } = require('./orchestrator/tools');
+  // The agent's TIER decides whether web_search is real on this deployment
+  // (mixed fleets), and the menu is computed in act mode — but a rule run is
+  // ALWAYS an ask-mode run, so every tool ask mode strips would count as proof
+  // a source is readable while the run gets nothing. An authority map of
+  // ["enrich_contact","verify_email"] (both mutating) satisfied every
+  // emptiness check built on this while the run had zero tools.
+  const menu = authorityMenu(agent.role || 'research', {
+    userRole: auth.workspaceRole(grantor), modelTier: agent.model_tier,
+  }).map((m) => m.name);
   const agentAuthority = parseAuthority(agent.tools_json);
   const sources = ruleSources(rule);
   const bySource = (n) => sources.some((s) => (SOURCE_TOOLS[s] || (() => false))(n));
-  return menu.filter((n) => bySource(n) && (!agentAuthority || agentAuthority.includes(n)));
+  return menu.filter((n) => !blockedInMode(n, 'ask') && bySource(n) && (!agentAuthority || agentAuthority.includes(n)));
 }
 
 // The reviewed EXTERNAL sources that `granted` cannot actually read. THE one
@@ -270,7 +293,7 @@ function isStandingRuleRun(runId) {
 }
 
 function createAuthorization({ rule, authorizedBy, expiresAt }) {
-  const agent = db.prepare('SELECT role, tools_json FROM agents WHERE id = ?').get(rule.agent_id) || {};
+  const agent = db.prepare('SELECT role, tools_json, model_tier FROM agents WHERE id = ?').get(rule.agent_id) || {};
   const id = crypto.randomUUID();
   db.prepare(`INSERT INTO standing_authorizations (id, rule_id, canvas_id, authorized_by, workspace_role_at_grant,
       allowed_tools_json, mode, granted_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, 'ask', ?, ?)`)
@@ -281,6 +304,15 @@ function createAuthorization({ rule, authorizedBy, expiresAt }) {
 
 function currentAuthorization(ruleId) {
   return db.prepare('SELECT * FROM standing_authorizations WHERE rule_id = ? AND revoked_at IS NULL ORDER BY granted_at DESC, rowid DESC LIMIT 1').get(ruleId);
+}
+
+// The latest authorization REGARDLESS of revocation — for display only. The
+// detail payload filtered revoked rows out entirely, so after a revoke the
+// page rendered "Authorized by … · expires …" from the pre-revoke fetch and
+// the revoked marker was unreachable on every path. Enforcement keeps using
+// currentAuthorization: a revoked grant must never be spendable.
+function latestAuthorization(ruleId) {
+  return db.prepare('SELECT * FROM standing_authorizations WHERE rule_id = ? ORDER BY granted_at DESC, rowid DESC LIMIT 1').get(ruleId);
 }
 
 function revokeAuthorization(ruleId, actor) {
@@ -315,7 +347,7 @@ function unreadableNow(rule, authz) {
   try { granted = JSON.parse((authz && authz.allowed_tools_json) || '[]'); } catch { /* treat as empty */ }
   // Same lookup createAuthorization used to mint the grant, so both sides of
   // the comparison are resolved the same way.
-  const agent = db.prepare('SELECT role, tools_json FROM agents WHERE id = ?').get(rule.agent_id) || {};
+  const agent = db.prepare('SELECT role, tools_json, model_tier FROM agents WHERE id = ?').get(rule.agent_id) || {};
   const live = grantedTools(rule, agent, authz && authz.authorized_by);
   return unreadableSources(rule, granted.filter((n) => live.includes(n)));
 }
@@ -473,21 +505,40 @@ function retryOrFail(rr, reason, now = new Date()) {
       .run(check.reason, check.alert ? 1 : 0, nowIso(), rr.id);
     return;
   }
-  tx(() => {
-    // Terminate BEFORE dispatching the replacement. The lease can expire while
-    // the run is still legitimately queued — the in-memory queue is unbounded,
-    // so a saturated workspace parks a 30-minute run past its whole lease —
-    // and a retry alongside it means two runs spending one occurrence's budget
-    // and writing conflicting memory. parentRunId makes the superseded attempt
-    // a child of nothing generic: the retry card projection skips it.
-    const priorRunId = rr.run_id || null;
-    for (const runId of attemptRunIds(rr)) closeRun(runId, `superseded by standing-rule retry (${String(reason).slice(0, 120)})`);
-    const run = dispatchRun({
+  // Terminate BEFORE dispatching the replacement. The lease can expire while
+  // the run is still legitimately queued — the in-memory queue is unbounded,
+  // so a saturated workspace parks a 30-minute run past its whole lease —
+  // and a retry alongside it means two runs spending one occurrence's budget
+  // and writing conflicting memory. parentRunId makes the superseded attempt
+  // a child of nothing generic: the retry card projection skips it.
+  const priorRunId = rr.run_id || null;
+  for (const runId of attemptRunIds(rr)) closeRun(runId, `superseded by standing-rule retry (${String(reason).slice(0, 120)})`);
+  let run;
+  try {
+    // OUTSIDE the tx, deliberately. dispatchRun throws before any DB write on
+    // budget-exceeded (429), agent-not-found (404) and draft-agent (403);
+    // inside a tx the ROLLBACK undid the attempt increment too, so
+    // MAX_ATTEMPTS was never reached, the exhaustion branch — the only writer
+    // of needs_attention on failure — was unreachable, and the occurrence sat
+    // 'running' with needs_attention 0: excluded from failedRunCards, below
+    // standingRuleCards' threshold, so NO card anywhere behind a blinking
+    // in-flight lamp. closeRun's abortRun is an in-memory side effect a
+    // ROLLBACK could not undo either — it killed a live attempt and restored
+    // its row.
+    run = dispatchRun({
       agentId: rule.agent_id, canvasId: rule.canvas_id, instruction: ruleInstruction(rule),
       triggerKind: 'system', mode: 'ask', initiatedBy: authz.authorized_by, actor: 'standing-rules',
       stepBudget: rule.step_budget || undefined, wallMs: rule.wall_ms_budget || undefined,
       authorityJson: authz.allowed_tools_json, parentRunId: priorRunId,
     });
+  } catch (err) {
+    const why = `retry dispatch failed: ${String(err.message || err)}`;
+    db.prepare("UPDATE standing_rule_runs SET state = 'failed', error = ?, needs_attention = 1, ended_at = ? WHERE id = ?")
+      .run(why.slice(0, 300), nowIso(), rr.id);
+    audit('system', 'standing-rules', 'standing_rule_run.fail', { ruleId: rr.rule_id, ruleRunId: rr.id, attempts: rr.attempt, reason: why.slice(0, 200) });
+    return;
+  }
+  tx(() => {
     const prior = JSON.parse(rr.retry_run_ids_json || '[]');
     if (rr.run_id) prior.push(rr.run_id);
     db.prepare('UPDATE standing_rule_runs SET run_id = ?, retry_run_ids_json = ?, attempt = attempt + 1, lease_until = ? WHERE id = ?')
@@ -502,17 +553,75 @@ function retryOrFail(rr, reason, now = new Date()) {
 // paused already read production data and wrote shared memory, so its card is
 // owed whichever sweep reaches the row first. Writing 'skipped' over it instead
 // destroys the result and the alert with it.
+// Which reads came back dark? Tool errors are recorded per call (runner
+// recordEvent 'tool_result' { isError }) and no consumer anywhere else reads
+// that flag, so a run whose every ws_*/hs_* call failed still finished
+// 'completed', wrote "NOTHING MATCHED", raised no card and advanced the
+// schedule. The persistent triggers are the ones where token refresh keeps
+// succeeding — Google granular consent (Drive accepted, Gmail declined), a
+// GOOGLE_WORKSPACE_SCOPES flip on existing tokens, admin context-aware-access
+// blocks, a watched sheet the grantor lost access to — so isConnected stays
+// true and nothing self-heals. A run that read nothing must never report
+// silence as a clean result.
+//
+// Two questions, because one alone leaks:
+//   `sources` — reviewed sources that went ENTIRELY dark, bucketed through
+//     SOURCE_TOOLS (the one definition of which source a tool belongs to). The
+//     run-wide question below is source-blind, and granular consent is
+//     multi-source by construction: a hubspot+web rule whose every CRM call
+//     403s while one web_search succeeds read nothing from the CRM and still
+//     finalized as a clean zero. A source with NO governed call this run is not
+//     a failure — the agent may simply not have needed it.
+//   `all`  — every governed call failed, whatever it belonged to. Kept because
+//     governed tools exist outside every reviewed source's mapping (mcp_*),
+//     and a run made entirely of those, all failed, read nothing either.
+function failedReads(rule, runId) {
+  const { governedTool } = require('./orchestrator/tools');
+  const rows = db.prepare("SELECT payload FROM run_events WHERE run_id = ? AND type = 'tool_result'").all(runId);
+  const sources = ruleSources(rule).filter((s) => s !== 'memory');
+  const tally = new Map(sources.map((s) => [s, { calls: 0, failed: 0 }]));
+  let governed = 0;
+  let failed = 0;
+  for (const row of rows) {
+    let p;
+    try { p = JSON.parse(row.payload || '{}'); } catch { continue; }
+    const name = String(p.name || '');
+    if (!governedTool(name)) continue;
+    governed += 1;
+    if (p.isError) failed += 1;
+    for (const s of sources) {
+      if (!(SOURCE_TOOLS[s] || (() => false))(name)) continue;
+      const t = tally.get(s);
+      t.calls += 1;
+      if (p.isError) t.failed += 1;
+    }
+  }
+  return {
+    sources: sources.filter((s) => tally.get(s).calls > 0 && tally.get(s).calls === tally.get(s).failed),
+    all: governed > 0 && governed === failed,
+  };
+}
+
 function completeFromRun(rr, run) {
   const matched = parseMatchedCount(run.summary);
   // An unparseable MATCHED line means the count is UNKNOWN, not zero.
   // Model adherence to a prompt-only output contract is not guaranteed,
   // and silently suppressing the card on a summary that may be reporting
   // urgent matches is the one failure an alert rule cannot have.
-  const needsAttention = rr.output_type === 'brief' || matched === null || matched > 0 ? 1 : 0;
+  const dark = failedReads(rr, run.id);
+  const readsFailed = dark.all || dark.sources.length > 0;
+  const needsAttention = readsFailed || rr.output_type === 'brief' || matched === null || matched > 0 ? 1 : 0;
+  // Naming the source is the whole value of the alert, same as unreadableNow:
+  // "restore HubSpot" and "re-connect Gmail" are different fixes, and the owner
+  // picks. Unnamed only when nothing bucketed (mcp_*-only run).
+  const at = dark.sources.length ? ` at ${dark.sources.join(', ')}` : '';
+  const error = readsFailed
+    ? `every source read this run attempted${at} failed — whatever the summary says, nothing was actually read${at}. Check the grantor's connection, scopes and access to the watched records.`
+    : null;
   db.prepare(`UPDATE standing_rule_runs SET state = 'completed', result_summary = ?, matched_count = ?,
-      output_refs_json = ?, cost_usd = ?, needs_attention = ?, ended_at = ? WHERE id = ?`)
+      output_refs_json = ?, cost_usd = ?, needs_attention = ?, error = ?, ended_at = ? WHERE id = ?`)
     .run(run.summary || '', matched, JSON.stringify(evidence.refsForRun(run.id)), run.cost_usd || 0,
-      needsAttention, run.ended_at || nowIso(), rr.id);
+      needsAttention, error, run.ended_at || nowIso(), rr.id);
 }
 
 // Sweep every claimed occurrence whose run reached a terminal state (or whose
@@ -528,7 +637,9 @@ function finalizeRuleRuns(now = new Date()) {
   // successes still copy through both: bookkeeping is never what a halt stops.
   const holdDispatch = control.isPaused() || !flagOn();
   const touched = new Set();
-  const open = db.prepare(`SELECT rr.*, r.output_type, r.canvas_id FROM standing_rule_runs rr
+  // source_scope_json rides along so completeFromRun can bucket a run's failed
+  // reads per reviewed source without a second lookup.
+  const open = db.prepare(`SELECT rr.*, r.output_type, r.canvas_id, r.source_scope_json FROM standing_rule_runs rr
     JOIN standing_rules r ON r.id = rr.rule_id WHERE rr.state = 'running'`).all();
   for (const rr of open) {
     try {
@@ -562,7 +673,7 @@ function finalizeRuleRuns(now = new Date()) {
 // reads and memory writes under an authorization that no longer exists — most
 // reproducible when concurrency is saturated or the workspace is paused.
 function haltRuleRuns(ruleId, reason) {
-  const open = db.prepare(`SELECT rr.*, r.output_type FROM standing_rule_runs rr
+  const open = db.prepare(`SELECT rr.*, r.output_type, r.source_scope_json FROM standing_rule_runs rr
     JOIN standing_rules r ON r.id = rr.rule_id
     WHERE rr.rule_id = ? AND rr.state IN ('pending', 'running')`).all(ruleId);
   for (const rr of open) {
@@ -644,6 +755,13 @@ function claimAndDispatch(rule, now) {
         // state, and resume re-verifies — it refuses until the grant is redone.
         db.prepare("UPDATE standing_rules SET state = 'paused', next_run_at = NULL, updated_at = ? WHERE id = ?")
           .run(nowIso(), rule.id);
+        // Occurrences genuinely overlap: nextRunAt returns the next wall-clock
+        // boundary from NOW, so a tick firing late for the 14:00 slot leaves a
+        // run leased for tens of minutes while the 15:00 tick invalidates the
+        // grant. Without this the server writes standing_rule.invalidated
+        // while that run keeps reading as the removed grantor and writing
+        // shared memory. Same stop pause/revoke/edit all take.
+        haltRuleRuns(rule.id, `standing rule invalidated: ${check.reason}`);
         audit('system', 'standing-rules', 'standing_rule.invalidated', { ruleId: rule.id, canvasId: rule.canvas_id, reason: check.reason });
       } else {
         db.prepare('UPDATE standing_rules SET next_run_at = ? WHERE id = ?').run(nextIso, rule.id);
@@ -714,7 +832,14 @@ function tick({ source = 'owner', actor = 'system' } = {}) {
   const skipped = [];
   for (const rule of due) {
     if (rule.expires_at && rule.expires_at <= now.toISOString()) {
-      db.prepare("UPDATE standing_rules SET state = 'expired', updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
+      // next_run_at cleared for the same reason the fatal-invalidation path
+      // clears it: a stale schedule on a stopped rule is the fake-green. And
+      // the same halt, because an occurrence dispatched on an earlier tick can
+      // still be in flight when the rule expires.
+      tx(() => {
+        db.prepare("UPDATE standing_rules SET state = 'expired', next_run_at = NULL, updated_at = ? WHERE id = ?").run(nowIso(), rule.id);
+        haltRuleRuns(rule.id, 'rule expired');
+      });
       audit('system', actor, 'standing_rule.expire', { ruleId: rule.id });
       skipped.push({ ruleId: rule.id, reason: 'rule expired' });
       continue;
@@ -751,7 +876,7 @@ module.exports = {
   PARSE_SYSTEM, validateInterpretation,
   occurrenceKey, nextRunAt, isoWeekKey,
   getRule, ruleView, upsertDraft,
-  createAuthorization, currentAuthorization, revokeAuthorization, verifyAuthorization, touchesWorkspace,
+  createAuthorization, currentAuthorization, latestAuthorization, revokeAuthorization, verifyAuthorization, touchesWorkspace,
   grantedTools, ruleSources, SOURCE_TOOLS, unreadableSources, unreadableNow, isStandingRuleRun,
   flagOn, lastSchedulerTick,
   ruleInstruction, rehearsalInstruction, parseMatchedCount,

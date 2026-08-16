@@ -41,6 +41,25 @@ function nextRunLabel(rule) {
     : `next ${fmtWhen(rule.next_run_at)}`;
 }
 
+// The consent card's "Next run" field. Same rule as above — the STATE decides
+// what may be claimed, never the column's truthiness — but a stopped rule needs
+// more than silence here: "computed at activation" on a revoked rule promises a
+// future activation that can never happen.
+const STOPPED_NEXT_RUN = {
+  paused: 'paused — nothing runs until it is resumed',
+  revoked: 'never — the authorization is revoked',
+  expired: 'never — the authorization expired',
+};
+
+function nextRunText(rule) {
+  if (STOPPED_NEXT_RUN[rule.state]) return STOPPED_NEXT_RUN[rule.state];
+  if (rule.state !== 'active') return 'computed at activation'; // draft / rehearsed
+  if (!rule.next_run_at) return 'not scheduled — activation recorded no next run';
+  return Date.parse(rule.next_run_at) <= Date.now()
+    ? `${fmtWhen(rule.next_run_at)} — overdue, nothing has run it. Check STANDING RULES · TICK on the systems board.`
+    : fmtWhen(rule.next_run_at);
+}
+
 // ponytail: headings, bullets, bold, paragraphs — the subset briefs actually
 // use. Everything renders as React text nodes (no HTML injection); add a real
 // renderer if briefs ever need tables or links.
@@ -114,10 +133,7 @@ function InterpretationCard({ rule, agentsById, readsAs }) {
         <li><b>Budget</b> — <span>{`${rule.step_budget != null ? `${rule.step_budget} steps` : 'default steps'} · ${rule.wall_ms_budget != null ? `${Math.round(rule.wall_ms_budget / 60000)} min` : 'default time'} per run`}</span></li>
         <li><b>Expires</b> — <span>{rule.expires_at ? fmtWhen(rule.expires_at) : `${expiryDays} days after activation`}</span></li>
         <li><b>Can</b> — <span>{can.join('; ') || '—'}</span> · <b>Cannot</b> — <span>{cannot.join('; ') || '—'}</span></li>
-        <li><b>Next run</b> — <span>{nextRunLabel(rule) ? fmtWhen(rule.next_run_at) : 'computed at activation'}
-          {nextRunLabel(rule) && Date.parse(rule.next_run_at) <= Date.now()
-            ? ' — overdue, nothing has run it. Check STANDING RULES · TICK on the systems board.'
-            : ''}</span></li>
+        <li><b>Next run</b> — <span>{nextRunText(rule)}</span></li>
       </ul>
     </section>
   );
@@ -202,6 +218,7 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
 
   const showDetail = useCallback((d) => {
     savedInstructionRef.current = d.rule.instruction;
+    setParseError(null);
     setDetail({ runs: [], authorization: null, rehearsalRun: null, ...d });
   }, []);
 
@@ -230,15 +247,23 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   };
 
   // Any real edit resets the rehearsal gate server-side; a no-op blur must not.
+  // The edit RE-INTERPRETS: PATCH reuses the stored interpretation verbatim, so
+  // rewriting "watch HubSpot deals over $25k" into "summarize my Gmail inbox"
+  // left nine of the card's ten fields — sources, scope, cadence, can/cannot —
+  // describing the old rule, and activation would freeze a grant built from it.
+  // Re-parse against this rule id (routes.js `body.rule_id`): same rule, same
+  // rehearsal-gate reset, every field re-derived from the new words.
   const saveInstruction = async () => {
     const r = detail.rule;
-    if (r.instruction === savedInstructionRef.current) return;
+    if (r.instruction === savedInstructionRef.current || busy) return;
+    setBusy(true);
+    setParseError(null);
     try {
-      const d = await rulesApi.update(r.id, { instruction: r.instruction });
+      const d = await rulesApi.parse(canvasId, r.instruction, r.id);
       savedInstructionRef.current = d.rule.instruction;
       setDetail((cur) => ({ ...cur, rule: d.rule, rehearsalRun: null }));
       loadList();
-    } catch (e) { toast(e.message); }
+    } catch (e) { setParseError(e.message); } finally { setBusy(false); }
   };
 
   const rehearse = async () => {
@@ -275,12 +300,18 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
     } finally { setBusy(false); }
   };
 
+  // A ceremony can change the AUTHORIZATION too, not just the rule: /revoke
+  // returns the now-revoked grant. Merging only { rule } left the block above
+  // rendering "Authorized by … · expires …" from the pre-revoke fetch, with no
+  // refetch path to correct it (the only poll is gated on rehearsalPending).
+  // Same merge activate does; `|| cur.authorization` keeps pause/resume, which
+  // return no authorization, from blanking it.
   const ceremony = (action, okMsg) => async () => {
     if (busy) return;
     setBusy(true);
     try {
       const d = await rulesApi[action](detail.rule.id);
-      setDetail((cur) => ({ ...cur, rule: d.rule }));
+      setDetail((cur) => ({ ...cur, rule: d.rule, authorization: d.authorization || cur.authorization }));
       loadList();
       toast(okMsg, 'ok');
     } catch (e) { toast(e.message); } finally { setBusy(false); }
@@ -294,17 +325,20 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
     return (
       <div className="rooms-view">
         <div className="room-head">
-          <button className="btn ghost small" onClick={() => { setDetail(null); loadList(); }}>← Rules</button>
+          <button className="btn ghost small" onClick={() => { setDetail(null); setParseError(null); loadList(); }}>← Rules</button>
           <h1>{short(rule.instruction, 60)}</h1>
           <span className={`chip rule-${rule.state}`}>{rule.state}</span>
           <span className="chip">{rule.output_type}</span>
           <span className="dim mono">{cadenceLabel(rule)}</span>
         </div>
+        {/* A revoked grant has no expiry left to promise — the revocation is
+            the whole state of it. */}
         {detail.authorization ? (
           <p className="dim">
             Authorized by <span className="mono">{detail.authorization.authorized_by}</span>
-            {detail.authorization.expires_at ? ` · expires ${fmtWhen(detail.authorization.expires_at)}` : ''}
-            {detail.authorization.revoked_at ? ' · revoked' : ''}
+            {detail.authorization.revoked_at
+              ? ` · revoked ${fmtWhen(detail.authorization.revoked_at)} — nothing runs under it again`
+              : (detail.authorization.expires_at ? ` · expires ${fmtWhen(detail.authorization.expires_at)}` : '')}
           </p>
         ) : null}
         <div className="builder-flow">
@@ -314,14 +348,25 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
               <textarea rows="3" value={rule.instruction} aria-label="Rule instruction"
                 onChange={(e) => setDetail((cur) => ({ ...cur, rule: { ...cur.rule, instruction: e.target.value } }))}
                 onBlur={saveInstruction} />
-              <p className="dim">Editing resets the rule to draft — rehearse again before it can activate.</p>
+              <p className="dim">Editing re-interprets the whole rule and resets it to draft — rehearse again before it can activate.</p>
+              {/* A re-interpretation that failed changed nothing: say so, rather
+                  than leave the edited text sitting above an unchanged card. */}
+              {parseError ? (
+                <p className="answer-fail" role="alert">
+                  Couldn&rsquo;t re-interpret that edit — {parseError}. The rule is unchanged; the card below still describes the saved version.
+                </p>
+              ) : null}
             </section>
           ) : null}
           {/* The live grant wins once it exists; before activation the
               rehearsal's own identity is what the owner is being asked to
-              accept as the review. */}
+              accept as the review. The payload now carries REVOKED grants too
+              (it has to, or the block above cannot say it was revoked), and a
+              revoked grantor is nobody's access to spend. */}
           <InterpretationCard rule={rule} agentsById={agentsById}
-            readsAs={detail.authorization?.authorized_by || rehearsal?.initiated_by || null} />
+            readsAs={detail.authorization?.revoked_at
+              ? `nobody — the grant from ${detail.authorization.authorized_by} was revoked`
+              : (detail.authorization?.authorized_by || rehearsal?.initiated_by || null)} />
           {rehearsal ? (
             <section className="rehearsal-block">
               <h4>Rehearsal {rehearsal.status === 'running' ? '— running…' : `— ${rehearsal.status}`}</h4>

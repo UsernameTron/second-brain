@@ -12,6 +12,10 @@ const path = require('node:path');
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-builder-'));
 process.env.DEV_AUTH = '1';
 process.env.ANTHROPIC_API_KEY = 'test';
+// The hs_* tools are disabled-by-absence (tools.js gates them on
+// opsrunner.configured()), and these tests exercise them — so this deployment
+// has the lane wired, exactly as hubspot-opsrunner.test.js does.
+process.env.HS_OPS_RUNNER_URL = 'https://ops-runner.test.example';
 
 const crypto = require('node:crypto');
 
@@ -207,6 +211,31 @@ test('prompt lint flags boundary-undercutting instructions; web_search is granta
     assert.ok(proposed.data.draft.proposal.authority.includes('web_search'), 'web_search is on the research menu');
     await call(ownerCookie, 'POST', `/api/agent-drafts/${proposed.data.draft.id}/abandon`);
   } finally { restore(); }
+});
+
+// unionMenu unioned across ROLES but passed no modelTier, so it silently took
+// authorityMenu's 'strong' default. On a mixed fleet the menu the generator
+// picks from omitted web_search while validateProposal — which uses the
+// proposal's OWN tier — would have kept it: the offer side under-offering a
+// tool the accept side honors. Finding 11's point was one eligibility
+// definition, so the menu unions the tiers rather than guessing one.
+test('the builder menu unions both model tiers, so it never under-offers what the validator accepts', () => {
+  const builder = require('../server/builder');
+  const prev = { strong: process.env.STRONG_PROVIDER, fast: process.env.FAST_PROVIDER };
+  process.env.STRONG_PROVIDER = 'gemini';
+  process.env.FAST_PROVIDER = 'anthropic';
+  try {
+    assert.ok(builder.unionMenu('owner').some((m) => m.name === 'web_search'),
+      'web_search is real on the fast tier, so the menu must offer it');
+    const { proposal } = builder.validateProposal(
+      { ...PROPOSAL, role: 'research', model_tier: 'fast', authority: ['web_search'] }, { userRole: 'owner' },
+    );
+    assert.deepEqual(proposal.authority, ['web_search'], 'the validator keeps it — the menu now agrees');
+  } finally {
+    for (const [k, v] of [['STRONG_PROVIDER', prev.strong], ['FAST_PROVIDER', prev.fast]]) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
 });
 
 test('a member cannot mutate another creator\'s draft; act-mode dispatch on a shadow agent is refused', async () => {
