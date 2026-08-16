@@ -168,15 +168,18 @@ function exportManifest(roomId) {
   // matching on tiny titles sprays false positives.
   const privateTitles = [...new Set(privateRefs.map((r) => String(r.display_title || '').trim()).filter((t) => t.length >= 4))];
   const mentionsPrivate = (list, kind) => list.flatMap((e) => {
-    const matched = privateTitles.filter((t) => e.content.toLowerCase().includes(t.toLowerCase()));
+    const matched = privateTitles.filter((t) => String(e.content || '').toLowerCase().includes(t.toLowerCase()));
     return matched.length ? [{ id: e.id, kind, content: e.content, matchedTitles: matched }] : [];
   });
+  const tasks = db.prepare("SELECT id, title, status, created_at FROM tasks WHERE canvas_id = ? ORDER BY created_at").all(canvasId);
   const contentWarnings = [
     ...mentionsPrivate(decisions.clean, 'decision'),
     ...mentionsPrivate(facts.clean, 'fact'),
+    // Tasks ship in `included` too, and a task title naming a private Drive
+    // doc leaves exactly as unscreened as a fact would.
+    ...mentionsPrivate(tasks.map((t) => ({ id: t.id, content: t.title })), 'task'),
   ];
 
-  const tasks = db.prepare("SELECT id, title, status, created_at FROM tasks WHERE canvas_id = ? ORDER BY created_at").all(canvasId);
   const openEscalations = db.prepare("SELECT id, question, created_at FROM escalations WHERE canvas_id = ? AND status = 'open'").all(canvasId);
 
   const manifest = {

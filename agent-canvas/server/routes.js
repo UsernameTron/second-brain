@@ -890,6 +890,16 @@ router.patch('/canvases/:canvasId/agents/:agentId', auth.requireCanvas, (req, re
 // (prompt, tier, authority, budgets) — never name/color/position, which are
 // per-canvas identity (same rule as resync). History never rewrites: the
 // restore itself lands as a new version row.
+//
+// Authority restore is FAITHFUL, including tools_json = NULL. A pre-P4
+// agent's baseline snapshot holds NULL, which tools.js reads as "no
+// allowlist — full role surface", so rolling a P4-published agent back to
+// that baseline does widen authority relative to the published grant. That is
+// deliberate: rollback's contract is "restore the config that WAS active",
+// and flooring NULL to an empty allowlist would make undoing a bad publish a
+// one-way trapdoor — the legacy agent could never get its working surface
+// back. The widening is owner-only, audited, named in the returned diff, and
+// still bounded by the role/mode gates. Pinned by test/agent-authority.test.js.
 router.get('/canvases/:canvasId/agents/:agentId/versions', auth.requireCanvas, (req, res) => {
   const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND canvas_id = ?').get(req.params.agentId, req.params.canvasId);
   if (!agent) return res.status(404).json({ error: 'agent not found' });

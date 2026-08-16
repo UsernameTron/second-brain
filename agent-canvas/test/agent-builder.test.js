@@ -13,10 +13,13 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-build
 process.env.DEV_AUTH = '1';
 process.env.ANTHROPIC_API_KEY = 'test';
 
+const crypto = require('node:crypto');
+
 const { server } = require('../server/index');
-const { db } = require('../server/db');
+const { db, nowIso } = require('../server/db');
 const anthropic = require('../server/orchestrator/anthropic');
 const runner = require('../server/orchestrator/runner');
+const mcpClient = require('../server/mcp/client');
 
 // Rehearsal runs go through the real run loop — stub its model.
 runner._internal.setCallModel(async () => ({
@@ -236,4 +239,151 @@ test('abandon: creator or owner only; published drafts refuse', async () => {
   assert.equal((await call(ownerCookie, 'POST', `/api/agent-drafts/${id}/abandon`)).status, 200);
   assert.equal(db.prepare('SELECT state FROM agent_drafts WHERE id = ?').get(id).state, 'abandoned');
   assert.equal((await call(ownerCookie, 'POST', `/api/agent-drafts/${draftId}/abandon`)).status, 409);
+});
+
+async function rehearseAndWait(cookie, id) {
+  const res = await call(cookie, 'POST', `/api/agent-drafts/${id}/rehearse`, {});
+  assert.equal(res.status, 200, `rehearse failed: ${JSON.stringify(res.data)}`);
+  return waitForRun(res.data.run.id);
+}
+
+test('publish onto an EXISTING live agent: baseline snapshot first, config rewritten in place, version appended', async () => {
+  // A pre-P4 agent: live, no authority map (the full role surface), a prompt
+  // that exists nowhere in version history.
+  const targetId = crypto.randomUUID();
+  db.prepare(`INSERT INTO agents (id, canvas_id, name, role, model_tier, system_prompt, created_at)
+    VALUES (?, ?, 'Legacy Scout', 'research', 'strong', 'legacy prompt', ?)`).run(targetId, canvasId, nowIso());
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM agent_versions WHERE agent_id = ?').get(targetId).n, 0, 'no history yet');
+  const agentsBefore = db.prepare("SELECT COUNT(*) AS n FROM agents WHERE canvas_id = ? AND lifecycle = 'active'").get(canvasId).n;
+
+  let id;
+  const restore = stubProposal({
+    ...PROPOSAL, name: 'Rebuilt Scout', role: 'research',
+    // Intersection only: a real menu tool, a tool the deployment cannot honor,
+    // and pure fiction. Only what the role menu grants may survive.
+    authority: ['hs_search', 'ws_gmail_draft', 'totally_fake_tool'],
+  });
+  let menuNames;
+  try {
+    const proposed = await call(ownerCookie, 'POST', '/api/agent-drafts/propose', {
+      canvas_id: canvasId, brief: 'rebuild the scout', target_agent_id: targetId,
+    });
+    assert.equal(proposed.status, 200);
+    id = proposed.data.draft.id;
+    assert.equal(proposed.data.draft.target_agent_id, targetId, 'the draft targets the live agent');
+    menuNames = new Set(proposed.data.menu.map((m) => m.name));
+    const granted = proposed.data.draft.proposal.authority;
+    assert.ok(granted.every((n) => menuNames.has(n)), 'authority is the menu intersection, never a superset');
+    assert.ok(granted.includes('hs_search'));
+    assert.ok(!granted.includes('totally_fake_tool'));
+    assert.ok(proposed.data.dropped.includes('totally_fake_tool'));
+  } finally { restore(); }
+
+  await rehearseAndWait(ownerCookie, id);
+  const published = await call(ownerCookie, 'POST', `/api/agent-drafts/${id}/publish`);
+  assert.equal(published.status, 200, JSON.stringify(published.data));
+
+  // No new agent: the live one was rewritten in place.
+  assert.equal(published.data.agent.id, targetId, 'published onto the target, not a fresh agent');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM agents WHERE canvas_id = ? AND lifecycle = 'active'").get(canvasId).n,
+    agentsBefore, 'the shadow was not promoted alongside the target');
+  const after = db.prepare('SELECT * FROM agents WHERE id = ?').get(targetId);
+  assert.equal(after.name, 'Rebuilt Scout');
+  assert.match(after.system_prompt, /ESCALATE/);
+  assert.ok(JSON.parse(after.tools_json).every((n) => menuNames.has(n)), 'live authority is the reviewed grant');
+
+  // ensureBaseline is what makes this reversible: without it the legacy config
+  // would exist nowhere and rollback would have no floor.
+  const versions = (await call(ownerCookie, 'GET', `/api/canvases/${canvasId}/agents/${targetId}/versions`)).data.versions;
+  assert.equal(versions.length, 2, 'baseline + publish');
+  assert.equal(versions[0].source, 'publish');
+  assert.equal(versions[0].draft_id, id);
+  assert.equal(versions[1].source, 'baseline');
+  assert.equal(versions[1].system_prompt, 'legacy prompt', 'the pre-publish config is recoverable');
+  assert.equal(versions[1].tools_json, null);
+
+  assert.ok(published.data.diff.system_prompt, 'the diff names the prompt rewrite');
+  assert.ok(published.data.diff.tools_json, 'the diff names the authority rewrite');
+  assert.equal(db.prepare('SELECT published_agent_id, state FROM agent_drafts WHERE id = ?').get(id).published_agent_id, targetId);
+});
+
+test('publish is refused when the rehearsal FAILED — state alone is not the gate', async () => {
+  let id;
+  const restoreProposal = stubProposal(PROPOSAL);
+  try {
+    id = (await call(ownerCookie, 'POST', '/api/agent-drafts/propose', { canvas_id: canvasId, brief: 'crash on rehearsal' })).data.draft.id;
+  } finally { restoreProposal(); }
+
+  // The draft reaches state 'rehearsed' when the run is DISPATCHED, before it
+  // finishes — so a crashed rehearsal leaves a rehearsed draft with a failed run.
+  const restoreModel = runner._internal.setCallModel(async () => { throw new Error('provider exploded'); });
+  let run;
+  try {
+    run = await rehearseAndWait(ownerCookie, id);
+  } finally { restoreModel(); }
+  assert.equal(run.status, 'failed');
+  assert.equal(db.prepare('SELECT state FROM agent_drafts WHERE id = ?').get(id).state, 'rehearsed',
+    'state is set at dispatch — it cannot be the gate on its own');
+
+  const refused = await call(ownerCookie, 'POST', `/api/agent-drafts/${id}/publish`);
+  assert.equal(refused.status, 409);
+  assert.match(refused.data.error, /failed/);
+  assert.equal(db.prepare('SELECT state FROM agent_drafts WHERE id = ?').get(id).state, 'rehearsed', 'nothing published');
+
+  // A clean re-rehearsal reopens the gate.
+  await rehearseAndWait(ownerCookie, id);
+  assert.equal((await call(ownerCookie, 'POST', `/api/agent-drafts/${id}/publish`)).status, 200);
+});
+
+// The owner-only MCP connector: a def the member-directed menu must never
+// carry. Stubbing the cache keeps the test on the authority path rather than
+// on connector transport (covered in mcp-access.test.js).
+function stubOwnerOnlyConnector() {
+  const realDefs = mcpClient.getCachedDefs;
+  const realResolve = mcpClient.resolveToolName;
+  mcpClient.getCachedDefs = () => [{
+    name: 'mcp_intel_search', description: 'Search the intel connector. Owner-only.',
+    input_schema: { type: 'object', properties: {} },
+  }];
+  mcpClient.resolveToolName = (name) => (name === 'mcp_intel_search' ? { access: 'owner', roles: [] } : null);
+  return () => { mcpClient.getCachedDefs = realDefs; mcpClient.resolveToolName = realResolve; };
+}
+
+test('PATCH drops ungrantable authority — including an owner-only connector a MEMBER asks for', async () => {
+  let id;
+  const restoreProposal = stubProposal(PROPOSAL);
+  try {
+    id = (await call(memberCookie, 'POST', '/api/agent-drafts/propose', { canvas_id: canvasId, brief: 'member patches this' })).data.draft.id;
+  } finally { restoreProposal(); }
+  const base = (await call(memberCookie, 'GET', `/api/agent-drafts/${id}`)).data.draft.proposal;
+  const patchWith = (cookie, authority) => call(cookie, 'PATCH', `/api/agent-drafts/${id}`, {
+    proposal: { ...base, inputs_outputs: { inputs: base.inputs, outputs: base.outputs }, authority },
+  });
+
+  // Plain fiction: dropped, reported, never an error the user has to debug.
+  const fictional = await patchWith(memberCookie, ['hs_search', 'not_a_real_tool']);
+  assert.equal(fictional.status, 200);
+  assert.deepEqual(fictional.data.draft.proposal.authority, ['hs_search']);
+  assert.deepEqual(fictional.data.dropped, ['not_a_real_tool']);
+
+  const restoreMcp = stubOwnerOnlyConnector();
+  try {
+    // The menu is built from the PATCHING user's role, so a member cannot
+    // hand themselves an owner-only connector by editing the proposal.
+    const asMember = await patchWith(memberCookie, ['hs_search', 'mcp_intel_search']);
+    assert.equal(asMember.status, 200);
+    assert.ok(!asMember.data.draft.proposal.authority.includes('mcp_intel_search'), 'owner-only connector dropped for a member');
+    assert.deepEqual(asMember.data.dropped, ['mcp_intel_search']);
+
+    // The owner may grant it — proving the drop was the role check, not a
+    // registry miss.
+    const asOwner = await patchWith(ownerCookie, ['hs_search', 'mcp_intel_search']);
+    assert.equal(asOwner.status, 200);
+    assert.ok(asOwner.data.draft.proposal.authority.includes('mcp_intel_search'), 'owner-directed menu carries it');
+    assert.deepEqual(asOwner.data.dropped, []);
+  } finally { restoreMcp(); }
+
+  // Every edit resets the rehearsal gate, authority edits included.
+  assert.equal(db.prepare('SELECT state FROM agent_drafts WHERE id = ?').get(id).state, 'draft');
+  await call(ownerCookie, 'POST', `/api/agent-drafts/${id}/abandon`);
 });

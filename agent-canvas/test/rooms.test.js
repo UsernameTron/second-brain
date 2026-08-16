@@ -204,6 +204,31 @@ test('export preview names what leaves and what stays; export is owner-only, aud
   assert.ok(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'room.export'").get().n >= 1);
 });
 
+test('the content screen covers TASKS too — an included task title naming a private source is flagged', async () => {
+  // Tasks ship in `included` alongside decisions and facts, so a task title
+  // quoting a gmail/drive title leaves exactly as unscreened as a fact would.
+  const ts = nowIso();
+  db.prepare('INSERT INTO tasks (id, canvas_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run('task-room-leak', canvasId, 'Chase the Renewal thread before Friday', 'todo', ts, ts);
+  db.prepare('INSERT INTO tasks (id, canvas_id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run('task-room-clean', canvasId, 'Send the pricing summary', 'todo', ts, ts);
+
+  try {
+    const preview = (await call(editorCookie, 'GET', `/api/rooms/${roomId}/export/preview`)).data;
+    const taskWarnings = preview.contentWarnings.filter((w) => w.kind === 'task');
+    assert.equal(taskWarnings.length, 1, 'only the task naming the private title is flagged');
+    assert.equal(taskWarnings[0].id, 'task-room-leak');
+    assert.deepEqual(taskWarnings[0].matchedTitles, ['Renewal thread']);
+    assert.ok(preview.included.tasks.some((t) => t.id === 'task-room-leak'), 'flagged task still ships — reviewer aid, not redactor');
+    assert.ok(!preview.contentWarnings.some((w) => w.id === 'task-room-clean'));
+    // The fact-level warning from the previous test is untouched.
+    assert.ok(preview.contentWarnings.some((w) => w.kind === 'fact'));
+  } finally {
+    // Leave the canvas's task fixture as it was — the archive test counts it.
+    db.prepare("DELETE FROM tasks WHERE id IN ('task-room-leak', 'task-room-clean')").run();
+  }
+});
+
 test('archive is lossless and flips room + canvas together', async () => {
   assert.equal((await call(editorCookie, 'PATCH', `/api/rooms/${roomId}`, { lifecycle: 'archived' })).status, 403); // owner only
   const archived = await call(ownerCookie, 'PATCH', `/api/rooms/${roomId}`, { lifecycle: 'archived' });
