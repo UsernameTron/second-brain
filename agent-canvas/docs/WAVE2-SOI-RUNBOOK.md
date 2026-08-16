@@ -1,5 +1,9 @@
 # Wave 2 — SOI (`org_knowledge_search`) deploy runbook
 
+> **Historical rollout record.** Its commands and blocker statements are not
+> current status. Establish connector truth with a live capability probe and
+> use [HANDOFF.md](HANDOFF.md) for the current release gate.
+
 Everything needed to land the SOI connector, written because this session
 could **not** land it. Status in the ledger: **BLOCKED**, not skipped.
 

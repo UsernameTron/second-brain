@@ -1,6 +1,14 @@
 # Deploying the Agent Canvas Workspace
 
-The app is one Cloud Run service (Node 22 + SQLite + Litestream→Cloud Storage) serving the API, WebSocket hub, and the built frontend. Deploy takes three steps; only step 2 needs the Google Cloud console UI (OAuth clients cannot be created by CLI).
+The app is one Cloud Run service (Node 22 + SQLite + Litestream→Cloud Storage) serving the API, WebSocket hub, and the built frontend. The current production target is project `agent-canvas-ctg-0811`, service `agent-canvas`, region `us-central1`. Treat that target as an explicit input even though the script has the same safe default.
+
+Before deploying, read the current-state block in [HANDOFF.md](HANDOFF.md) and
+describe the live service. A last-known revision in a document is evidence from
+that probe, not proof of what is serving now. If production already matches the
+intended commit, do not redeploy it.
+
+Deploy takes three steps; only step 2 needs the Google Cloud console UI (OAuth
+clients cannot be created by CLI).
 
 ## Step 1 — run the deploy script
 
@@ -11,14 +19,42 @@ gcloud auth login                       # keyless user auth — no service-accou
 gcloud billing accounts list            # note the billing account ID
 
 export BILLING_ACCOUNT=XXXXXX-XXXXXX-XXXXXX
+export PROJECT_ID=agent-canvas-ctg-0811
+export REGION=us-central1
+export SERVICE=agent-canvas
 ./agent-canvas/deploy/deploy.sh         # default: Claude via Vertex AI — inside the perimeter, keyless
 ```
 
-**Model provider — inside the perimeter by default.** The deploy defaults to `MODEL_PROVIDER=vertex`: agent conversations go to Claude served on **Vertex AI inside this Google Cloud project** — no data leaves the Google perimeter, there is no model API key anywhere in the system (the runtime service account authenticates), and model usage lands on the Google invoice under Google's Vertex data-use terms. One extra one-time step applies: in the console, **Vertex AI → Model Garden → search "Claude" → Enable** on claude-sonnet-5, claude-haiku-4-5, and claude-opus-4-8. To use Anthropic's first-party API instead, deploy with `MODEL_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=sk-ant-...` (stored in Secret Manager). Switching later is one redeploy with the other values. **Gemini and mixed fleets** are built in behind the same seam: `MODEL_PROVIDER=gemini` runs everything on Gemini via Vertex (same keyless service-account auth, same perimeter), and the per-tier overrides `FAST_PROVIDER` / `STRONG_PROVIDER` mix providers — e.g. `STRONG_PROVIDER=vertex FAST_PROVIDER=gemini` keeps the verified Claude behavior on the judgment-heavy agents while Gemini Flash handles routing and light work. Gemini tier models default to `gemini-2.5-flash` / `gemini-2.5-pro` (override with `GEMINI_FAST_MODEL` / `GEMINI_STRONG_MODEL` — check them against Google's current lineup). Two v1 limits on the Gemini path: research agents skip web search (Google's grounding tool has a different result shape), and safety blocks surface as escalations rather than retrying on a fallback model. **Verification status is provider-specific:** the workflow behaviors were verified on Claude models; moving a tier to Gemini needs the demo re-run and the tray/memory behaviors re-checked before trusting it with real batches — the adapter's translation layer is unit-tested offline, and its first live call happens on your deploy.
+**Redeploys preserve configuration; they no longer replace it.** As of
+2026-08-16 `deploy/deploy.sh` applies environment variables and secret bindings
+with `--update-env-vars` / `--update-secrets`, reads the running revision before
+it changes anything, and prints any live-only variable it is preserving (names
+only — never values). Two consequences worth knowing before you run it:
+
+- **Removing a variable is now deliberate**, never a side effect of forgetting
+  to export it:
+  `gcloud run services update agent-canvas --region us-central1 --remove-env-vars NAME`
+- **The model provider is inherited from the live service.** Leaving
+  `MODEL_PROVIDER` unset keeps whatever is running. Setting it to something
+  different aborts unless you also pass `DEPLOY_PROVIDER_CHANGE=1` — moving the
+  fleet between providers changes the model, the perimeter, and the invoice, so
+  it must be typed on purpose.
+
+Run `DEPLOY_DRY_RUN=1 ./deploy/deploy.sh` to execute every check and print the
+configuration comparison without deploying, and `./deploy/deploy.sh --selftest`
+to exercise the preflight's name parsing against fixtures with no cloud access
+at all.
+
+**Model provider — inside the perimeter by default.** On a FIRST deploy the script defaults to `MODEL_PROVIDER=vertex` (thereafter it inherits the live value, as above): agent conversations go to Claude served on **Vertex AI inside this Google Cloud project** — no data leaves the Google perimeter, there is no model API key anywhere in the system (the runtime service account authenticates), and model usage lands on the Google invoice under Google's Vertex data-use terms. One extra one-time step applies: in the console, **Vertex AI → Model Garden → search "Claude" → Enable** on claude-sonnet-5, claude-haiku-4-5, and claude-opus-4-8. To use Anthropic's first-party API instead, deploy with `MODEL_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=sk-ant-...` (stored in Secret Manager). Switching later is one redeploy with the other values. **Gemini and mixed fleets** are built in behind the same seam: `MODEL_PROVIDER=gemini` runs everything on Gemini via Vertex (same keyless service-account auth, same perimeter), and the per-tier overrides `FAST_PROVIDER` / `STRONG_PROVIDER` mix providers — e.g. `STRONG_PROVIDER=vertex FAST_PROVIDER=gemini` keeps the verified Claude behavior on the judgment-heavy agents while Gemini Flash handles routing and light work. Gemini tier models default to `gemini-2.5-flash` / `gemini-2.5-pro` (override with `GEMINI_FAST_MODEL` / `GEMINI_STRONG_MODEL` — check them against Google's current lineup). Two v1 limits on the Gemini path: research agents skip web search (Google's grounding tool has a different result shape), and safety blocks surface as escalations rather than retrying on a fallback model. **Verification status is provider-specific:** the workflow behaviors were verified on Claude models; moving a tier to Gemini needs the demo re-run and the tray/memory behaviors re-checked before trusting it with real batches — the adapter's translation layer is unit-tested offline, and its first live call happens on your deploy.
 
 After the first Vertex deploy, probe it end to end before inviting the team: sign in, open the command bar, and send "have Scout confirm the model connection works with one short memory entry" — a completed run in the activity dock proves the keyless Vertex path; a 403/404 error means the Model Garden enablement step is still pending.
 
-The script is idempotent. It creates a **new dedicated project** `agent-canvas-ctg` inside the cloudtechgurus.com organization, enables Cloud Run / Cloud Build / Artifact Registry / Secret Manager / Cloud Storage, creates a least-privilege runtime service account, stores the Anthropic key and a JWT secret in Secret Manager, builds the image with Cloud Build, and deploys. It prints the service URL at the end (like `https://agent-canvas-XXXXXXXX-uc.a.run.app`).
+The script is idempotent and operates on `PROJECT_ID` (current default:
+`agent-canvas-ctg-0811`). It creates the project only when it does not exist,
+enables the required APIs, creates a least-privilege runtime service account,
+stores required secrets in Secret Manager, builds the image, and deploys. It
+prints the service URL at the end. Never rely on an implicit project when
+working on production: keep the explicit exports above in the operator paste.
 
 ## Step 2 — create the Google OAuth client (one-time, ~2 minutes)
 
@@ -34,13 +70,61 @@ The script is idempotent. It creates a **new dedicated project** `agent-canvas-c
 3. Copy the client ID and attach it:
 
 ```bash
-gcloud run services update agent-canvas --project agent-canvas-ctg --region us-central1 \
+gcloud run services update agent-canvas --project agent-canvas-ctg-0811 --region us-central1 \
   --update-env-vars GOOGLE_CLIENT_ID=<the-client-id>.apps.googleusercontent.com
 ```
 
 ## Step 3 — sign in and check the seed
 
 Open the service URL, sign in with a cloudtechgurus.com Google account. The allowlist is seeded with pete@ (owner), fred@, darren@, jessica@ — **if the real mailbox names differ, the owner fixes them in-app** (top bar → Admin → Allowlist) or pre-seeds via `OWNER_EMAIL` / `SEED_MEMBERS` env vars. Remaining domain users are added from the same Admin panel — no redeploy.
+
+## P5 — wire the standing-rules scheduler
+
+Standing Rules are not operational merely because the Rules screen is visible.
+The server requires a dedicated OIDC caller, both tick environment variables,
+and evidence that a scheduler-signed tick reached the app. A manual owner tick
+is a recovery path and does not prove this lane.
+
+For the existing production service, prepare the stable endpoint and dedicated
+caller before the source deploy:
+
+```bash
+export PROJECT_ID=agent-canvas-ctg-0811
+export REGION=us-central1
+export SERVICE=agent-canvas
+export TICK_JOB=agent-canvas-standing-rules
+
+SERVICE_URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+export TICK_AUDIENCE="${SERVICE_URL}/api/standing-rules/tick"
+export TICK_INVOKER_SA="agent-canvas-tick@${PROJECT_ID}.iam.gserviceaccount.com"
+
+if ! gcloud iam service-accounts describe "$TICK_INVOKER_SA" --project "$PROJECT_ID" >/dev/null 2>&1; then
+  gcloud iam service-accounts create agent-canvas-tick --project "$PROJECT_ID" --display-name="Agent Canvas standing-rules tick"
+fi
+
+gcloud run services add-iam-policy-binding "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --member="serviceAccount:${TICK_INVOKER_SA}" --role=roles/run.invoker
+```
+
+Export `TICK_AUDIENCE` and `TICK_INVOKER_SA` when running `deploy/deploy.sh` to
+SET them the first time. Since 2026-08-16 the script updates the environment
+**additively**, so a later redeploy that forgets them preserves the values
+rather than dropping them and darkening the lane. After that deployment is
+healthy, create or update the job:
+
+```bash
+if gcloud scheduler jobs describe "$TICK_JOB" --project "$PROJECT_ID" --location "$REGION" >/dev/null 2>&1; then
+  gcloud scheduler jobs update http "$TICK_JOB" --project "$PROJECT_ID" --location "$REGION" --schedule="*/10 * * * *" --time-zone="Etc/UTC" --uri="$TICK_AUDIENCE" --http-method=POST --oidc-service-account-email="$TICK_INVOKER_SA" --oidc-token-audience="$TICK_AUDIENCE"
+else
+  gcloud scheduler jobs create http "$TICK_JOB" --project "$PROJECT_ID" --location "$REGION" --schedule="*/10 * * * *" --time-zone="Etc/UTC" --uri="$TICK_AUDIENCE" --http-method=POST --oidc-service-account-email="$TICK_INVOKER_SA" --oidc-token-audience="$TICK_AUDIENCE"
+fi
+```
+
+Acceptance requires all of the following: the Cloud Run revision contains the
+two env **names**; the job is enabled; a scheduler execution returns success;
+the Capabilities surface reports a recent scheduler-signed tick; and a due test
+rule produces the expected run and attention card. Do not print secret values
+while inspecting the revision. Pause the Scheduler job and switch off the
+`standing_rules` setting for the fastest no-deploy rollback.
 
 ## Workspace tools (agents' hands — optional but recommended)
 
@@ -103,18 +187,25 @@ The UI hides the slot when the file is absent, so skipping this never breaks a b
 - **Authoritative audit record**: every audit entry is hash-chained in SQLite (the queryable index) *and* mirrored as structured JSON to stdout, which Cloud Run delivers to Cloud Logging — a store the application runtime cannot update or delete. For regulator-grade immutability, route these entries to a dedicated log bucket with a **locked** retention policy (locking is deliberately irreversible — run this only once you're sure of the retention window):
 
   ```bash
-  gcloud logging buckets create audit-locked --location=us-central1 --retention-days=365 --project agent-canvas-ctg
+  gcloud logging buckets create audit-locked --location=us-central1 --retention-days=365 --project agent-canvas-ctg-0811
   gcloud logging sinks create agent-canvas-audit \
-    logging.googleapis.com/projects/agent-canvas-ctg/locations/us-central1/buckets/audit-locked \
-    --project agent-canvas-ctg \
+    logging.googleapis.com/projects/agent-canvas-ctg-0811/locations/us-central1/buckets/audit-locked \
+    --project agent-canvas-ctg-0811 \
     --log-filter='resource.type="cloud_run_revision" jsonPayload.audit=true'
   # After validating entries arrive, lock it (IRREVERSIBLE):
-  # gcloud logging buckets update audit-locked --location=us-central1 --locked --project agent-canvas-ctg
+  # gcloud logging buckets update audit-locked --location=us-central1 --locked --project agent-canvas-ctg-0811
   ```
-- **Database durability**: SQLite on the instance disk, restored from `gs://agent-canvas-ctg-db` on cold start and continuously replicated by Litestream. `--max-instances 1` is required (single writer). If the workspace ever outgrows this, the storage layer is isolated in `server/db.js` for a Cloud SQL migration.
+- **Database durability**: SQLite on the instance disk, restored from `gs://agent-canvas-ctg-0811-db` on cold start and continuously replicated by Litestream. `--max-instances 1` is required (single writer). If the workspace ever outgrows this, the storage layer is isolated in `server/db.js` for a Cloud SQL migration.
 - **Auth model**: the Cloud Run service allows unauthenticated ingress, and the app itself enforces Google sign-in (`hd=cloudtechgurus.com` + email_verified + allowlist, re-checked on every request) with signed httpOnly session cookies. Roles: owner / member, enforced server-side.
 - **Global pause**: any member can pause (kills in-flight model calls); only the owner can resume.
-- **Export**: owner → top bar → Export downloads the full workspace (memory, canvases, runs, audit log) as JSON.
+- **Export**: owner → top bar → Export downloads an operational-ledger JSON
+  snapshot: canvases, agents, notes, tasks, file metadata, memory and lineage,
+  runs/events, handoffs, escalations, sheet rows, changesets/changes, audit,
+  usage, and allowlist. It is **not a complete workspace backup**: among other
+  things, product settings, memberships, inquiries, Rooms, Builder versions,
+  Standing Rules, feedback/retrieval telemetry, and credentials are not in this
+  export. Credentials and token material must remain excluded. See
+  [ROADMAP.md](ROADMAP.md) for the P7 completeness decision.
 - **Dev auth (`DEV_AUTH=1`) is never set in production** — the Dockerfile doesn't set it and deploy.sh doesn't pass it. It exists only for local development and tests.
 
 ## Image build notes
