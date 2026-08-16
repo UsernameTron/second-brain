@@ -24,7 +24,8 @@ const CATEGORIES = ['watch', 'report', 'digest'];
 // the owner it is watching a source the run can never read.
 // 'enrichment' IS offered: it reaches the deployment's own enrichment lane
 // through the same review-then-grant path as every other source, and it is
-// disabled-by-absence rather than blocked-by-mode — see enrichmentDark below.
+// disabled-by-absence rather than blocked-by-mode — see unreadableNow below,
+// which covers it the same way it covers every other source.
 const SOURCES = ['gmail', 'drive', 'sheets', 'calendar', 'hubspot', 'enrichment', 'memory', 'web'];
 // Sources that read through the grantor's own Google connection — a rule
 // watching these skips (with an alert) when that connection is gone.
@@ -234,13 +235,13 @@ function grantedTools(rule, agent, grantor) {
   return menu.filter((n) => bySource(n) && (!agentAuthority || agentAuthority.includes(n)));
 }
 
-// The reviewed EXTERNAL sources that `granted` cannot actually read. One
-// definition of "this source contributed nothing", used at two moments:
-// activation refuses the grant outright (routes activate), and the tick's
-// enrichmentDark still catches a lane that goes dark AFTER the grant — which
-// activation cannot see. 'memory' is excluded by construction: memory/notes/
-// escalate are ungoverned, always present, and SOURCE_TOOLS.memory returns
-// false for every name.
+// The reviewed EXTERNAL sources that `granted` cannot actually read. THE one
+// definition of "this source contributes no readable tool", used at both
+// moments it matters: activation refuses to mint such a grant (routes
+// activate), and the tick refuses to spend one (unreadableNow). Two subtly
+// different answers to this question is exactly how a green lamp survives.
+// 'memory' is excluded by construction: memory/notes/escalate are ungoverned,
+// always present, and SOURCE_TOOLS.memory returns false for every name.
 function unreadableSources(rule, granted) {
   const list = (Array.isArray(granted) ? granted : []).map(String);
   return ruleSources(rule).filter((s) => s !== 'memory'
@@ -285,30 +286,29 @@ function touchesWorkspace(rule) {
   } catch { return false; }
 }
 
-// Enrichment is disabled-by-absence: with ED_DISPATCH_URL unset the tools do
-// not exist at all (tools.js toolsForRole), so a rule that reviewed the
-// enrichment source can hold a grant it cannot spend — because the lane was
-// already dark when the owner activated (grant resolved to nothing), because it
-// went dark afterwards, or because the rule's agent role is outside
-// ENRICHMENT_ROLES. All three read the same from the owner's chair: the card
-// says this rule watches enrichment and the run cannot see it.
+// The reviewed sources this rule can no longer read, re-resolved per tick.
+// Activation can only see the deployment as it was that day; every source is
+// disabled-by-absence at runtime, so any of them can go dark afterwards —
+// GOOGLE_WORKSPACE_SCOPES flipped to standard drops every ws_gmail_* tool,
+// ED_DISPATCH_URL unset drops the enrichment lane, ENABLE_WEB_SEARCH=0 drops
+// web_search, the agent's role or authority narrowing drops whatever it named.
+// Without this the rule keeps running, keeps finalizing NOTHING MATCHED, and
+// keeps displaying as a healthy active watch over a source it cannot read.
 //
-// Checks the GRANT, not just the deployment, on purpose. A deploy that lights
-// the lane back up must never widen a snapshot nobody re-consented to — the
-// grant stays whatever it resolved to, and re-activation is the only thing that
-// re-resolves it. So a rule granted empty stays skipped even once ED is wired.
-//
-// Composition with the activation guard: both ask the same question via
-// unreadableSources. Activation refuses to MINT an empty grant, so the
-// empty-grant branch here is now defense in depth (and covers rows granted
-// before that guard existed); the !configured() branch is the case activation
-// can never cover — a lane that was live at grant time and went dark since.
-function enrichmentDark(rule, authz) {
-  if (!ruleSources(rule).includes('enrichment')) return false;
-  if (!require('./enrichment/dispatch').configured()) return true;
+// The frozen grant INTERSECTED with what this deployment and the agent's live
+// authority would grant today. An intersection only ever narrows, which is the
+// whole point: a deploy that lights a lane back up can never widen a snapshot
+// nobody re-consented to (a grant frozen empty stays empty and stays skipped),
+// while one that goes dark is caught on the very next tick. Re-activation
+// remains the only thing that re-resolves a grant.
+function unreadableNow(rule, authz) {
   let granted = [];
   try { granted = JSON.parse((authz && authz.allowed_tools_json) || '[]'); } catch { /* treat as empty */ }
-  return unreadableSources(rule, granted).includes('enrichment');
+  // Same lookup createAuthorization used to mint the grant, so both sides of
+  // the comparison are resolved the same way.
+  const agent = db.prepare('SELECT role, tools_json FROM agents WHERE id = ?').get(rule.agent_id) || {};
+  const live = grantedTools(rule, agent, authz && authz.authorized_by);
+  return unreadableSources(rule, granted.filter((n) => live.includes(n)));
 }
 
 // Server-verified per dispatch, inside the tick tx. Scoping cannot outlive the
@@ -333,13 +333,23 @@ function verifyAuthorization(rule, authz, now = new Date(), { checkWorkspace = t
     // what the run's reads would act as.
     return { ok: false, reason: 'workspace_disconnected', alert: true };
   }
-  // Same class, same shape, same flag: a live-reachability check the run's
-  // reads depend on. Skipping it would let the rule run against a lane it
-  // cannot read and report "nothing matched" — a lamp faking green. Not fatal:
-  // the lane can be wired back on (and if the grant itself is empty, the alert
-  // is what tells the owner to re-activate).
-  if (checkWorkspace && enrichmentDark(rule, authz)) {
-    return { ok: false, reason: 'enrichment_unavailable', alert: true };
+  // Same class, same shape, same flag as the disconnected workspace above: a
+  // live-reachability check the run's reads depend on. Running anyway would
+  // report "nothing matched" over a source nobody is watching — a lamp faking
+  // green. Reachability, NOT a dead grant: the scopes/connector can be turned
+  // back on and the rule resumes on its own, so skip this occurrence, alert,
+  // and reschedule rather than pausing the rule.
+  if (checkWorkspace) {
+    const dark = unreadableNow(rule, authz);
+    // Naming the source is the whole value of the alert: "restore Gmail" and
+    // "re-activate the rule" are different fixes and the owner picks.
+    if (dark.length) {
+      return {
+        ok: false,
+        alert: true,
+        reason: `source_unreadable: ${dark.join(', ')} — nothing is being watched there. This rule can no longer read ${dark.length > 1 ? 'those sources' : 'that source'} on this deployment; restore the connector, scopes, or the agent's authority to resume, or re-activate the rule to grant it again.`,
+      };
+    }
   }
   return { ok: true };
 }
@@ -666,7 +676,7 @@ module.exports = {
   occurrenceKey, nextRunAt, isoWeekKey,
   getRule, ruleView, upsertDraft,
   createAuthorization, currentAuthorization, revokeAuthorization, verifyAuthorization, touchesWorkspace,
-  grantedTools, ruleSources, SOURCE_TOOLS, unreadableSources, isStandingRuleRun,
+  grantedTools, ruleSources, SOURCE_TOOLS, unreadableSources, unreadableNow, isStandingRuleRun,
   ruleInstruction, rehearsalInstruction, parseMatchedCount,
   finalizeRuleRuns, haltRuleRuns, tick, verifyTickOidc,
   _internal: {

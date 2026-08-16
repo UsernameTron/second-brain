@@ -837,7 +837,8 @@ test('a rule that did NOT review enrichment is granted none of it, even with the
 // the run would read nothing and report "nothing matched". Skip + alert
 // instead — the workspace-disconnected shape. Both causes are covered: the lane
 // going dark after the grant, and the grant that was resolved while it was dark
-// (which a later deploy must NOT silently repair).
+// (which a later deploy must NOT silently repair). Enrichment has no special
+// case any more: unreadableNow covers it as one source among all of them.
 test('an enrichment rule skips with an alert when the lane is dark, and a later deploy never widens its grant', async () => {
   db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
   const made = [];
@@ -849,7 +850,8 @@ test('an enrichment rule skips with an alert when the lane is dark, and a later 
     withEnrichment(false, () => standingRules.tick({ source: 'owner', actor: OWNER }));
     let [rr] = ruleRuns(wentDark.rule.id);
     assert.equal(rr.state, 'skipped');
-    assert.equal(rr.skip_reason, 'enrichment_unavailable');
+    assert.match(rr.skip_reason, /^source_unreadable: enrichment\b/, 'the alert names the source');
+    assert.match(rr.skip_reason, /nothing is being watched there/, 'and says plainly what stopped');
     assert.equal(rr.needs_attention, 1);
     assert.equal(rr.run_id, null, 'nothing dispatched into a lane it cannot read');
     assert.ok((await attentionCards()).some((c) => c.type === 'rule_alert' && c.sourceRef.id === rr.id),
@@ -866,10 +868,136 @@ test('an enrichment rule skips with an alert when the lane is dark, and a later 
     withEnrichment(true, () => standingRules.tick({ source: 'owner', actor: OWNER }));
     [rr] = ruleRuns(grantedDark.rule.id);
     assert.equal(rr.state, 'skipped');
-    assert.equal(rr.skip_reason, 'enrichment_unavailable', 'wiring the lane back on does not resurrect an empty grant');
+    assert.match(rr.skip_reason, /^source_unreadable: enrichment\b/, 'wiring the lane back on does not resurrect an empty grant');
     assert.equal(rr.run_id, null);
   } finally {
     for (const r of made) db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(r.id);
+  }
+});
+
+// ---------- a source that goes dark mid-life (generalized from enrichment) ----------
+// Activation refuses to MINT a grant over an unreadable source. Nothing stopped
+// an ALREADY-ACTIVE rule from outliving its source: flip
+// GOOGLE_WORKSPACE_SCOPES to standard and every ws_gmail_* tool leaves the
+// menu, while the Gmail rule keeps running, keeps finalizing NOTHING MATCHED,
+// and keeps displaying as a healthy active watch. Same guard as enrichment,
+// generalized to every source.
+
+function withScopes(mode, fn) {
+  const prev = process.env.GOOGLE_WORKSPACE_SCOPES;
+  if (mode) process.env.GOOGLE_WORKSPACE_SCOPES = mode; else delete process.env.GOOGLE_WORKSPACE_SCOPES;
+  try { return fn(); } finally {
+    if (prev === undefined) delete process.env.GOOGLE_WORKSPACE_SCOPES; else process.env.GOOGLE_WORKSPACE_SCOPES = prev;
+  }
+}
+
+// Gmail rules also pass through the workspace-connection check, so the grantor
+// needs a token row — otherwise the disconnected skip fires first and the test
+// proves nothing. Caller removes it (the disconnected-skip test above depends
+// on there being none).
+function connectGoogle(email) {
+  db.prepare("INSERT OR REPLACE INTO google_tokens (user_email, refresh_token_enc, scopes, connected_at, updated_at) VALUES (?, 'x', '', '', '')")
+    .run(String(email).toLowerCase());
+}
+function disconnectGoogle(email) {
+  db.prepare('DELETE FROM google_tokens WHERE user_email = ?').run(String(email).toLowerCase());
+}
+
+test('a Gmail rule whose scopes go standard mid-life skips with an alert naming gmail, stays active, and resumes when the scopes return', async () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const { rule } = withScopes('full', () => mkActiveRule({ sources: ['gmail', 'memory'] }));
+  connectGoogle(OWNER);
+  try {
+    // 1. Scopes flipped to standard: the tools left the menu under a live grant.
+    withScopes('standard', () => standingRules.tick({ source: 'owner', actor: OWNER }));
+    const [rr] = ruleRuns(rule.id);
+    assert.equal(rr.state, 'skipped');
+    assert.equal(rr.run_id, null, 'nothing dispatched at a source it cannot read');
+    assert.match(rr.skip_reason, /^source_unreadable: gmail\b/, 'the alert names the source');
+    assert.match(rr.skip_reason, /nothing is being watched there/, 'and says plainly what stopped');
+    assert.equal(rr.needs_attention, 1);
+    assert.ok((await attentionCards()).some((c) => c.type === 'rule_alert' && c.sourceRef.id === rr.id),
+      'the owner learns Gmail stopped being watched');
+
+    // 2. Reachability, not a dead grant: still active, rescheduled, not paused.
+    const after = standingRules.getRule(rule.id);
+    assert.equal(after.state, 'active', 'a source going dark is not a dead grant');
+    assert.ok(after.next_run_at > new Date().toISOString(), 'the schedule advanced rather than stalling');
+
+    // 3. Scopes restored: the very next occurrence runs normally, no re-grant.
+    // A day earlier, so this is a genuinely new daily occurrence key rather
+    // than a duplicate delivery of the one that just skipped.
+    db.prepare('UPDATE standing_rules SET next_run_at = ? WHERE id = ?')
+      .run(new Date(Date.now() - 86_400_000).toISOString(), rule.id);
+    withScopes('full', () => standingRules.tick({ source: 'owner', actor: OWNER }));
+    const all = ruleRuns(rule.id);
+    assert.equal(all.length, 2, 'a second occurrence was claimed');
+    // created_at is second-resolution, so pick by identity, not by order.
+    const fresh = all.find((r) => r.id !== rr.id);
+    assert.equal(fresh.state, 'running', `expected a live run, got ${fresh.state}: ${fresh.skip_reason}`);
+    assert.ok(fresh.run_id, 'and it dispatched once the source came back');
+    await waitForRun(fresh.run_id);
+    standingRules.finalizeRuleRuns();
+  } finally {
+    disconnectGoogle(OWNER);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// The frozen-grant invariant, on the general path: this guard detects
+// NARROWING and must never re-grant. A rule whose grant froze empty because the
+// source was already dark stays skipped forever once the env lights up —
+// re-activation is the only thing that re-resolves a grant.
+test('a grant frozen empty while gmail was off is not resurrected by the scopes coming back', () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const { rule, authz } = withScopes('standard', () => mkActiveRule({ sources: ['gmail', 'memory'] }));
+  try {
+    assert.deepEqual(JSON.parse(authz.allowed_tools_json), [], 'a dark source resolves to a concrete empty grant');
+    connectGoogle(OWNER);
+    withScopes('full', () => standingRules.tick({ source: 'owner', actor: OWNER }));
+    const [rr] = ruleRuns(rule.id);
+    assert.equal(rr.state, 'skipped');
+    assert.equal(rr.run_id, null);
+    assert.match(rr.skip_reason, /^source_unreadable: gmail\b/, 'lighting the env up never widens the snapshot');
+  } finally {
+    disconnectGoogle(OWNER);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// Not just the deployment: narrowing the AGENT is the other way a live grant
+// loses its last readable tool, and effectiveAuthority makes it just as real.
+test('narrowing the agent away from a rule’s only source skips with an alert naming it', async () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const { rule, authz } = mkActiveRule({ sources: ['hubspot', 'memory'] });
+  try {
+    assert.ok(JSON.parse(authz.allowed_tools_json).some((n) => n.startsWith('hs_')), 'granted real hubspot tools');
+    db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(['ws_drive_search']), agentId);
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    const [rr] = ruleRuns(rule.id);
+    assert.equal(rr.state, 'skipped');
+    assert.equal(rr.run_id, null);
+    assert.match(rr.skip_reason, /^source_unreadable: hubspot\b/);
+    assert.equal(standingRules.getRule(rule.id).state, 'active', 'the owner can widen the agent back');
+    assert.ok((await attentionCards()).some((c) => c.type === 'rule_alert' && c.sourceRef.id === rr.id));
+  } finally {
+    db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// One predicate, not two: the activation gate and the runtime guard must give
+// the same answer to "does this source contribute a readable tool".
+test('unreadableNow is unreadableSources over the grant intersected with today’s menu', () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const { rule, authz } = withScopes('full', () => mkActiveRule({ sources: ['gmail', 'memory'] }));
+  try {
+    assert.deepEqual(withScopes('full', () => standingRules.unreadableNow(rule, authz)), [],
+      'readable while the deployment can honor it');
+    assert.deepEqual(withScopes('standard', () => standingRules.unreadableNow(rule, authz)), ['gmail'],
+      'and the same predicate names it the moment it cannot');
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
   }
 });
 
