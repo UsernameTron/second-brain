@@ -308,6 +308,36 @@ router.get('/health/integrations', (req, res) => {
         ? `Wired to enrichment-dispatch (IAM client, keyless). Reads free (get_enriched_contact); paid enrichment spends real credits, research/targeting/commercial agents only, never on system-triggered runs.${provenStatus('enrichment').note}`
         : 'Not wired — ED_DISPATCH_URL unset (held dark until the owner lights it; see HANDOFF).',
     },
+    // P5: the scheduling lane. Without it a rule can be written, rehearsed,
+    // activated and displayed as "active · next 08:00" while NOTHING will ever
+    // run it — the loudest possible fake green, and the documented state of the
+    // current production revision. Never green from env presence: two set
+    // strings prove nothing about whether a Cloud Scheduler job exists. Green
+    // is earned from an OIDC-verified tick that actually arrived, the same way
+    // provenStatus earns it from a probe.
+    (() => {
+      const id = 'standing_rules';
+      const label = 'STANDING RULES · TICK';
+      if (!standingRules.flagOn()) {
+        return { id, label, status: 'planned', detail: 'Switched off: setSetting(\'standing_rules\',\'0\'). The nav is hidden and the tick no-ops before a rule row is read — the no-deploy rollback.' };
+      }
+      if (!process.env.TICK_AUDIENCE || !process.env.TICK_INVOKER_SA) {
+        return {
+          id, label, status: 'planned',
+          detail: 'Declared, NOT wired: TICK_AUDIENCE / TICK_INVOKER_SA unset on this revision, so POST /api/standing-rules/tick 503s every scheduled caller. Rules can still be written, rehearsed and activated — and none of them will ever run. Set both vars (deploy/deploy.sh passes them through) and create the Cloud Scheduler job.',
+        };
+      }
+      const last = standingRules.lastSchedulerTick();
+      // ponytail: 6h staleness bound — hourly is the fastest cadence, so a lane
+      // silent for six hours is not delivering. Tighten if cadences get finer.
+      const stale = !last || Date.now() - Date.parse(last) > 6 * 3_600_000;
+      return {
+        id, label, status: stale ? 'attention' : 'ready',
+        detail: last
+          ? `Last scheduler-signed tick ${last}.${stale ? ' NO TICK IN OVER 6 HOURS — check the Cloud Scheduler job; nothing has been dispatched since.' : ''}`
+          : 'Configured, but no scheduler-signed tick has ever reached this deployment — the Cloud Scheduler job may not exist. Env presence is not evidence; a manual owner tick does not count.',
+      };
+    })(),
     ...(mcp.configError() ? [{
       id: 'mcp', label: 'MCP CONFIG',
       status: 'down',
@@ -1209,8 +1239,10 @@ router.get('/standing-rules/:ruleId', (req, res) => {
   const authz = standingRules.currentAuthorization(rule.id) || null;
   const runs = db.prepare('SELECT * FROM standing_rule_runs WHERE rule_id = ? ORDER BY created_at DESC LIMIT 10').all(rule.id)
     .map((r) => ruleRunView(r, req.user.email));
+  // initiated_by is the identity the rehearsal's reads ACTED AS — the consent
+  // card's "Reads as" field, and what activation must match.
   const rehearsalRun = rule.rehearsal_run_id
-    ? db.prepare('SELECT id, status, mode, summary, error, created_at, ended_at FROM runs WHERE id = ?').get(rule.rehearsal_run_id)
+    ? db.prepare('SELECT id, status, mode, initiated_by, summary, error, created_at, ended_at FROM runs WHERE id = ?').get(rule.rehearsal_run_id)
     : null;
   res.json({ rule: standingRules.ruleView(rule), authorization: authz, runs, rehearsalRun });
 });
@@ -1265,6 +1297,24 @@ router.post('/standing-rules/:ruleId/rehearse', rateLimit('model'), (req, res) =
   if (!rehearsalAgent) {
     return res.status(409).json({ error: 'the rule’s agent is no longer active on this canvas — re-parse or edit the rule' });
   }
+  // The SAME reachability checks verifyAuthorization applies per dispatch, now
+  // against the REHEARSER — because "the rehearsal is the review", and a
+  // rehearsal that read nothing reviews nothing. Without them a rehearser with
+  // no Google connection gets isError on every call, the model writes prose
+  // over an empty result, the run finishes `completed`, and Activate lights up
+  // on a review that never reached a single source.
+  const rehearsalGrant = standingRules.grantedTools(rule, rehearsalAgent, req.user.email);
+  if (standingRules.touchesWorkspace(rule) && !workspace.isConnected(req.user.email)) {
+    return res.status(409).json({
+      error: 'this rule reads Google Workspace as whoever runs it, and your Google account is not connected — the rehearsal would read nothing and prove nothing. Connect it under Capabilities, then rehearse.',
+    });
+  }
+  const rehearsalDark = standingRules.unreadableSources(rule, rehearsalGrant);
+  if (rehearsalDark.length) {
+    return res.status(409).json({
+      error: `this rule reviewed ${rehearsalDark.join(', ')}, but ${rehearsalDark.length > 1 ? 'those sources grant' : 'that source grants'} no readable tool to ${rehearsalAgent.role} agents on this deployment — the rehearsal could never look. Remove the source, widen the agent’s authority, or enable the connector.`,
+    });
+  }
   let run = null;
   try {
     tx(() => {
@@ -1279,7 +1329,7 @@ router.post('/standing-rules/:ruleId/rehearse', rateLimit('model'), (req, res) =
         // stops demonstrating what the restricted run will actually do, which
         // is the entire point of a rehearse gate. The prompt's "and nothing
         // else" is a request, not a boundary.
-        authorityJson: JSON.stringify(standingRules.grantedTools(rule, rehearsalAgent, req.user.email)),
+        authorityJson: JSON.stringify(rehearsalGrant),
       });
       db.prepare("UPDATE standing_rules SET state = 'rehearsed', rehearsal_run_id = ?, updated_at = ? WHERE id = ?")
         .run(run.id, nowIso(), rule.id);
@@ -1298,9 +1348,24 @@ router.post('/standing-rules/:ruleId/activate', auth.requireOwner, (req, res) =>
   const rule = standingRules.getRule(req.params.ruleId);
   if (!rule) return res.status(404).json({ error: 'standing rule not found' });
   if (rule.state !== 'rehearsed') return res.status(409).json({ error: 'rehearse before activating — the rehearsal is the review' });
-  const run = db.prepare('SELECT id, status FROM runs WHERE id = ?').get(rule.rehearsal_run_id);
+  const run = db.prepare('SELECT id, status, initiated_by FROM runs WHERE id = ?').get(rule.rehearsal_run_id);
   if (!run || run.status !== 'completed') {
     return res.status(409).json({ error: `rehearsal run is ${run ? run.status : 'missing'} — activation requires a completed rehearsal` });
+  }
+  // The grant is spent as the ACTIVATOR: every scheduled run is dispatched with
+  // initiatedBy = authorized_by, and tools.js resolves Google/HubSpot/enrichment
+  // calls from run.initiated_by while grantedTools resolves the menu from the
+  // grantor's workspace role. A rehearsal run by someone else therefore read a
+  // DIFFERENT mailbox under a DIFFERENT authority — a member rehearses "flag
+  // mail about the comp plan" against his own inbox, it comes back clean, and
+  // every scheduled run then reads the owner's. Identity is the half of "what
+  // activates must be what rehearsed" that version alone never covered.
+  // Deliberately NOT fixed by dispatching the rehearsal as the grantor: that
+  // would let any member read the owner's mailbox with one click.
+  if (String(run.initiated_by || '').toLowerCase() !== String(req.user.email).toLowerCase()) {
+    return res.status(409).json({
+      error: `this rehearsal ran as ${run.initiated_by || 'nobody'}, but the rule would run as you — it read ${run.initiated_by ? 'their' : 'no one’s'} mail, files and CRM access, not yours. Rehearse it yourself, then activate.`,
+    });
   }
   const ruleAgent = db.prepare("SELECT id, role, tools_json FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id);
   if (!ruleAgent) {
@@ -1992,6 +2057,13 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
         parentRunId: escalation.run_id || null,
         initialReads: [...new Set([decisionEntry.id, ...contextIds])],
       });
+      // P5: if the escalating run belonged to a standing-rule occurrence, this
+      // resume is another attempt of it — it inherits the rule's frozen grant
+      // (queue.js) and keeps reading. Unrecorded, pause/revoke/edit cannot see
+      // it: haltRuleRuns finds attempts only through run_id/retry_run_ids_json,
+      // so revoking the rule would halt every tracked attempt while this one
+      // ran on. Covers `redirect` too — it re-targets the same dispatch.
+      standingRules.adoptChildRun(escalation.run_id, run.id);
     }
   });
   audit('user', req.user.email, 'escalation.resolve', { escalationId: escalation.id, action });

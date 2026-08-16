@@ -81,6 +81,15 @@ async function call(cookie, method, apiPath, body) {
   return { status: res.status, data: text ? JSON.parse(text) : null };
 }
 
+// workspace.isConnected is exactly "does this user have a google_tokens row".
+function connectGoogle(email) {
+  db.prepare('INSERT OR REPLACE INTO google_tokens (user_email, refresh_token_enc, scopes, connected_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .run(email, 'enc', 'scopes', nowIso(), nowIso());
+}
+function disconnectGoogle(email) {
+  db.prepare('DELETE FROM google_tokens WHERE user_email = ?').run(email);
+}
+
 function waitForRun(runId, tries = 100) {
   return new Promise((resolve, reject) => {
     const tick = () => {
@@ -347,10 +356,74 @@ test('editing resets the rehearsal gate: state→draft, version++, activate 409s
   assert.equal(patched.data.rule.rehearsal_run_id, null);
   assert.equal((await call(ownerCookie, 'POST', `/api/standing-rules/${ruleId}/activate`)).status, 409);
   assert.ok(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'standing_rule.edit'").get().n >= 1);
-  // Re-rehearse for activation.
-  const re = await call(memberCookie, 'POST', `/api/standing-rules/${ruleId}/rehearse`, {});
+  // Re-rehearse for activation — as the OWNER, who is the one who will grant.
+  // A rehearsal by anyone else read a different identity's data (see the
+  // activation-identity test below).
+  const re = await call(ownerCookie, 'POST', `/api/standing-rules/${ruleId}/rehearse`, {});
   assert.equal(re.status, 200);
   await waitForRun(re.data.run.id);
+});
+
+// The rehearsal IS the review, and every scheduled run is dispatched with
+// initiatedBy = the activator — tools.js resolves Gmail/Drive/CRM calls from
+// run.initiated_by, and grantedTools resolves the menu from the grantor's
+// workspace role. A member rehearsing against HIS mailbox and the owner
+// activating means the owner approved a clean result produced from data the
+// rule will never read. Identity is the half of "what activates must be what
+// rehearsed" that version alone never covered.
+test('activation refuses a rehearsal that ran as somebody else', async () => {
+  const restore = stubParse(INTERP(agentId));
+  let id;
+  try {
+    // The member writes the rule (creator), so rehearsing it is theirs to do.
+    id = (await call(memberCookie, 'POST', `/api/canvases/${canvasId}/standing-rules/parse`, { instruction: 'member rule, owner activation' })).data.rule.id;
+  } finally { restore(); }
+  const memberRehearsal = await call(memberCookie, 'POST', `/api/standing-rules/${id}/rehearse`, {});
+  assert.equal(memberRehearsal.status, 200, 'a member may still rehearse — against their own access');
+  await waitForRun(memberRehearsal.data.run.id);
+
+  const refused = await call(ownerCookie, 'POST', `/api/standing-rules/${id}/activate`);
+  assert.equal(refused.status, 409, 'the owner must not grant on someone else’s rehearsal');
+  assert.match(refused.data.error, new RegExp(MEMBER), 'the error names whose access actually did the reading');
+  assert.equal(standingRules.currentAuthorization(id), undefined, 'no grant was minted');
+
+  // The owner rehearsing it themselves is the whole remedy.
+  const ownRehearsal = await call(ownerCookie, 'POST', `/api/standing-rules/${id}/rehearse`, {});
+  assert.equal(ownRehearsal.status, 200);
+  await waitForRun(ownRehearsal.data.run.id);
+  const activated = await call(ownerCookie, 'POST', `/api/standing-rules/${id}/activate`);
+  assert.equal(activated.status, 200);
+  assert.equal(activated.data.authorization.authorized_by, OWNER);
+  // And the acting identity is on the payload the consent card renders.
+  const detail = await call(ownerCookie, 'GET', `/api/standing-rules/${id}`);
+  assert.equal(detail.data.rehearsalRun.initiated_by, OWNER, 'the card can state who the rule reads as');
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(id);
+});
+
+// A rehearsal that could not reach a single source is not a review: every
+// ws_* call returns isError, the model writes prose over nothing, the run
+// completes, and Activate lights up. The rehearse route applies the same
+// reachability checks verifyAuthorization applies per dispatch.
+test('rehearsing a Workspace rule with no Google connection is refused, not silently empty', async () => {
+  const restore = stubParse(INTERP(agentId, { sources: ['gmail', 'memory'] }));
+  let id;
+  try {
+    id = (await call(ownerCookie, 'POST', `/api/canvases/${canvasId}/standing-rules/parse`, { instruction: 'watch my inbox' })).data.rule.id;
+  } finally { restore(); }
+  const refused = await call(ownerCookie, 'POST', `/api/standing-rules/${id}/rehearse`, {});
+  assert.equal(refused.status, 409, 'no Google connection → the rehearsal would read nothing');
+  assert.match(refused.data.error, /not connected/i);
+  assert.equal(standingRules.getRule(id).state, 'draft', 'the gate never opened');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM runs WHERE canvas_id = ? AND mode = 'rehearse' AND instruction LIKE '%watch my inbox%'").get(canvasId).n, 0,
+    'and no run was dispatched to burn budget reading nothing');
+
+  connectGoogle(OWNER);
+  try {
+    const ok = await call(ownerCookie, 'POST', `/api/standing-rules/${id}/rehearse`, {});
+    assert.equal(ok.status, 200, 'connected, the same rehearsal proceeds');
+    await waitForRun(ok.data.run.id);
+  } finally { disconnectGoogle(OWNER); }
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(id);
 });
 
 test('activate: owner-only; creates the ask-mode authorization snapshot and schedules', async () => {
@@ -527,7 +600,11 @@ test('activation refuses a rule whose reviewed source grants no readable tool', 
     assert.equal(parsed.status, 200);
     gmailRuleId = parsed.data.rule.id;
   } finally { restore(); }
-  const rehearsed = await call(memberCookie, 'POST', `/api/standing-rules/${gmailRuleId}/rehearse`, {});
+  // The OWNER rehearses: activation now requires the rehearsal to have run as
+  // the identity the grant will be spent as, and a Workspace rule requires
+  // that identity to actually be connected.
+  connectGoogle(OWNER);
+  const rehearsed = await call(ownerCookie, 'POST', `/api/standing-rules/${gmailRuleId}/rehearse`, {});
   assert.equal(rehearsed.status, 200);
   await waitForRun(rehearsed.data.run.id);
 
@@ -557,4 +634,5 @@ test('activation refuses a rule whose reviewed source grants no readable tool', 
   assert.equal(activated.status, 200, 'the guard is about an empty grant, not about Gmail');
   assert.ok(JSON.parse(activated.data.authorization.allowed_tools_json).some((n) => n.startsWith('ws_gmail_')));
   db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(gmailRuleId);
+  disconnectGoogle(OWNER);
 });

@@ -270,6 +270,14 @@ if [ -n "${HS_OPS_RUNNER_URL:-}" ]; then ENV_VARS="${ENV_VARS},HS_OPS_RUNNER_URL
 # same IAM-client pattern as the ops runner. Env is set WHOLESALE — without
 # this passthrough a redeploy silently drops the var and darkens the lane.
 if [ -n "${ED_DISPATCH_URL:-}" ]; then ENV_VARS="${ENV_VARS},ED_DISPATCH_URL=${ED_DISPATCH_URL}"; fi
+# P5 standing-rule scheduler tick (optional): the OIDC lane verifies the caller
+# against TICK_AUDIENCE and requires it to BE TICK_INVOKER_SA. Either var
+# missing → the lane 503s and NOTHING scheduled ever runs, while the rules UI
+# still activates rules. Env is set WHOLESALE, so without this passthrough a
+# redeploy drops both and silently kills the lane. The systems board shows
+# STANDING RULES · TICK dark whenever they are absent.
+if [ -n "${TICK_AUDIENCE:-}" ]; then ENV_VARS="${ENV_VARS},TICK_AUDIENCE=${TICK_AUDIENCE}"; fi
+if [ -n "${TICK_INVOKER_SA:-}" ]; then ENV_VARS="${ENV_VARS},TICK_INVOKER_SA=${TICK_INVOKER_SA}"; fi
 gcloud run deploy "${SERVICE}" \
   --image "${IMAGE}" \
   --project "${PROJECT_ID}" \

@@ -7,7 +7,7 @@
 // occurrence row. Mirrors builder.js's role for P4.
 
 const crypto = require('node:crypto');
-const { db, tx, nowIso, getSetting } = require('./db');
+const { db, tx, nowIso, getSetting, setSetting } = require('./db');
 const { audit } = require('./audit');
 const auth = require('./auth');
 const bus = require('./bus');
@@ -41,6 +41,15 @@ const LEASE_FLOOR_MS = 10 * 60_000;
 const LEASE_SLACK_MS = 5 * 60_000; // queue wait + finalize latency
 
 function flagOn() { return getSetting('standing_rules', '1') === '1'; }
+
+// The systems-board lamp for the scheduling lane earns green from EVIDENCE —
+// an OIDC-verified call that actually arrived — never from env presence, which
+// proves only that two strings are set and nothing about whether a Cloud
+// Scheduler job exists. Stamped durably (a restart must not forget: min-
+// instances 0 means the container is usually cold between hourly ticks, and an
+// in-process record would read amber forever).
+const LAST_SCHEDULER_TICK = 'standing_rules_last_scheduler_tick';
+function lastSchedulerTick() { return getSetting(LAST_SCHEDULER_TICK, '') || null; }
 
 // ---------- interpretation: parse prompt + validation ----------
 // The model proposes; the server validates and clamps EVERYTHING. The model
@@ -487,16 +496,37 @@ function retryOrFail(rr, reason, now = new Date()) {
   });
 }
 
+// Copy a terminally SUCCESSFUL run's own outputs — summary, matched count,
+// evidence refs, cost — onto the occurrence row. THE one definition, shared by
+// the finalizer and by haltRuleRuns: a run that completed before the owner
+// paused already read production data and wrote shared memory, so its card is
+// owed whichever sweep reaches the row first. Writing 'skipped' over it instead
+// destroys the result and the alert with it.
+function completeFromRun(rr, run) {
+  const matched = parseMatchedCount(run.summary);
+  // An unparseable MATCHED line means the count is UNKNOWN, not zero.
+  // Model adherence to a prompt-only output contract is not guaranteed,
+  // and silently suppressing the card on a summary that may be reporting
+  // urgent matches is the one failure an alert rule cannot have.
+  const needsAttention = rr.output_type === 'brief' || matched === null || matched > 0 ? 1 : 0;
+  db.prepare(`UPDATE standing_rule_runs SET state = 'completed', result_summary = ?, matched_count = ?,
+      output_refs_json = ?, cost_usd = ?, needs_attention = ?, ended_at = ? WHERE id = ?`)
+    .run(run.summary || '', matched, JSON.stringify(evidence.refsForRun(run.id)), run.cost_usd || 0,
+      needsAttention, run.ended_at || nowIso(), rr.id);
+}
+
 // Sweep every claimed occurrence whose run reached a terminal state (or whose
 // lease expired while non-terminal) and copy the run's own outputs — summary,
 // evidence refs, cost — onto the rule-run row. The run IS the result (D3).
 function finalizeRuleRuns(now = new Date()) {
   let finalized = 0;
-  // A global pause must never consume the occurrence's retries. Pausing aborts
-  // the scheduled run; a paused sweep would read that as a failure, queue
-  // attempt two, then expire it — exhausting the occurrence purely because an
-  // operator hit pause. Terminal successes still copy through.
-  const paused = control.isPaused();
+  // A global pause — or the standing_rules rollback flag — must never consume
+  // the occurrence's retries. Pausing aborts the scheduled run; a paused sweep
+  // would read that as a failure, queue attempt two, then expire it —
+  // exhausting the occurrence purely because an operator hit pause. The flag is
+  // the same kind of halt, so it holds dispatch the same way. Terminal
+  // successes still copy through both: bookkeeping is never what a halt stops.
+  const holdDispatch = control.isPaused() || !flagOn();
   const touched = new Set();
   const open = db.prepare(`SELECT rr.*, r.output_type, r.canvas_id FROM standing_rule_runs rr
     JOIN standing_rules r ON r.id = rr.rule_id WHERE rr.state = 'running'`).all();
@@ -504,20 +534,11 @@ function finalizeRuleRuns(now = new Date()) {
     try {
       const run = rr.run_id ? db.prepare('SELECT * FROM runs WHERE id = ?').get(rr.run_id) : null;
       if (run && run.status === 'completed') {
-        const matched = parseMatchedCount(run.summary);
-        // An unparseable MATCHED line means the count is UNKNOWN, not zero.
-        // Model adherence to a prompt-only output contract is not guaranteed,
-        // and silently suppressing the card on a summary that may be reporting
-        // urgent matches is the one failure an alert rule cannot have.
-        const needsAttention = rr.output_type === 'brief' || matched === null || matched > 0 ? 1 : 0;
-        db.prepare(`UPDATE standing_rule_runs SET state = 'completed', result_summary = ?, matched_count = ?,
-            output_refs_json = ?, cost_usd = ?, needs_attention = ?, ended_at = ? WHERE id = ?`)
-          .run(run.summary || '', matched, JSON.stringify(evidence.refsForRun(run.id)), run.cost_usd || 0,
-            needsAttention, run.ended_at || nowIso(), rr.id);
+        completeFromRun(rr, run);
         finalized += 1;
         touched.add(rr.canvas_id);
-      } else if (paused) {
-        continue; // no dispatch, no attempt consumed, until the workspace resumes
+      } else if (holdDispatch) {
+        continue; // no dispatch, no attempt consumed, until the halt lifts
       } else if (run && !['queued', 'running'].includes(run.status)) {
         retryOrFail(rr, `run ${run.status}${run.error ? `: ${run.error}` : ''}`, now);
         finalized += 1;
@@ -541,18 +562,53 @@ function finalizeRuleRuns(now = new Date()) {
 // reads and memory writes under an authorization that no longer exists — most
 // reproducible when concurrency is saturated or the workspace is paused.
 function haltRuleRuns(ruleId, reason) {
-  const open = db.prepare("SELECT * FROM standing_rule_runs WHERE rule_id = ? AND state IN ('pending', 'running')").all(ruleId);
+  const open = db.prepare(`SELECT rr.*, r.output_type FROM standing_rule_runs rr
+    JOIN standing_rules r ON r.id = rr.rule_id
+    WHERE rr.rule_id = ? AND rr.state IN ('pending', 'running')`).all(ruleId);
   for (const rr of open) {
     // EVERY attempt, not just the current one: an older attempt that a
     // lease-expiry retry left live would keep reading and writing memory
-    // under an authorization the owner just revoked.
+    // under an authorization the owner just revoked. Terminal runs no-op.
     const ids = attemptRunIds(rr);
     for (const runId of ids) closeRun(runId, reason);
+    // finalizeRuleRuns only runs inside tick(), so an occurrence whose run
+    // COMPLETED at 09:05 is still 'running' when the owner pauses at 09:30.
+    // Writing 'skipped' over it would throw away a summary, matched count,
+    // cost and evidence refs produced from real reads, and bury the alert the
+    // owner is entitled to — for work that already happened. Halting stops
+    // FUTURE work; it never un-does finished work. Same ordering the finalizer
+    // uses deliberately: the completed branch sits ahead of the halt guard.
+    const run = rr.run_id ? db.prepare('SELECT * FROM runs WHERE id = ?').get(rr.run_id) : null;
+    if (run && run.status === 'completed') {
+      completeFromRun(rr, run);
+      audit('system', 'standing-rules', 'standing_rule_run.halt', { ruleId, ruleRunId: rr.id, runIds: ids, reason, completed: true });
+      continue;
+    }
     db.prepare("UPDATE standing_rule_runs SET state = 'skipped', skip_reason = ?, ended_at = ? WHERE id = ?")
       .run(reason, nowIso(), rr.id);
     audit('system', 'standing-rules', 'standing_rule_run.halt', { ruleId, ruleRunId: rr.id, runIds: ids, reason });
   }
   return open.length;
+}
+
+// A standing-rule run can escalate (a step/timeout/budget halt, or the escalate
+// tool), and resolving that escalation dispatches a CHILD run which inherits the
+// occurrence's frozen grant (queue.js) and keeps reading and writing memory.
+// haltRuleRuns only ever closes runs the occurrence row knows about, so without
+// this the child is invisible to pause/revoke/edit: revoking the rule kills
+// every tracked attempt while that one keeps executing. Recording it as another
+// attempt of the same occurrence puts it under the same stop path, the same
+// lease, and the same generic-retry refusal (isStandingRuleRun).
+function adoptChildRun(parentRunId, childRunId) {
+  if (!parentRunId || !childRunId) return false;
+  const rr = db.prepare(`SELECT * FROM standing_rule_runs
+      WHERE run_id = ? OR instr(COALESCE(retry_run_ids_json, ''), ?) > 0 LIMIT 1`)
+    .get(String(parentRunId), JSON.stringify(String(parentRunId)));
+  if (!rr) return false;
+  const prior = [...new Set([...attemptRunIds(rr).filter((id) => id !== rr.run_id), String(childRunId)])];
+  db.prepare('UPDATE standing_rule_runs SET retry_run_ids_json = ? WHERE id = ?').run(JSON.stringify(prior), rr.id);
+  audit('system', 'standing-rules', 'standing_rule_run.adopt_child', { ruleId: rr.rule_id, ruleRunId: rr.id, parentRunId, childRunId });
+  return true;
 }
 
 // ---------- the tick (D1/D2/D5/D7) ----------
@@ -623,16 +679,36 @@ function claimAndDispatch(rule, now) {
 }
 
 function tick({ source = 'owner', actor = 'system' } = {}) {
-  // Flag gate FIRST: setSetting('standing_rules','0') stops scheduled
-  // execution before a single rule row is read — the no-deploy rollback.
-  if (!flagOn()) return { skipped: 'flag off' };
+  // Evidence first, before any gate: the caller was OIDC-verified as the
+  // invoker SA to get here, so this IS the proof the scheduled lane works —
+  // and it is true whether or not the flag then stops the sweep.
+  if (source === 'scheduler') setSetting(LAST_SCHEDULER_TICK, nowIso());
+  // Finalize BEFORE the flag gate, exactly as it sits before the pause gate
+  // three lines down and for the same reason. setSetting('standing_rules','0')
+  // is the no-deploy rollback, but the orchestrator knows nothing about it: a
+  // run dispatched before the flip still completes, writes memory, and
+  // terminates. Gating bookkeeping on the flag strands that occurrence
+  // 'running' with no card, forever — and attention.js excludes it from the
+  // generic failed-run projection too, so nothing else would ever surface it.
+  // finalizeRuleRuns holds DISPATCH under the same flag, so the rollback still
+  // starts nothing new and consumes no attempt.
   const finalized = finalizeRuleRuns();
+  if (!flagOn()) return { skipped: 'flag off', finalized };
   if (control.isPaused()) {
     audit(source === 'scheduler' ? 'system' : 'user', actor, 'standing_rule.tick', { source, skipped: 'workspace paused', finalized });
     return { skipped: 'workspace paused', finalized };
   }
   const now = new Date();
-  const due = db.prepare("SELECT * FROM standing_rules WHERE state = 'active' AND next_run_at IS NOT NULL AND next_run_at <= ?")
+  // Archiving a canvas closes it: its cards are filtered out of every tray
+  // (routes.js builds the default tray from archived = 0) and the frontend can
+  // only ever fetch a canvas from that filtered list, so a rule still running
+  // under an archived canvas cannot be reached, paused or revoked without
+  // un-archiving — while it keeps reading the grantor's mailbox and spending
+  // the workspace budget for up to 90 days. DERIVED from canvases.archived, the
+  // P3 Rooms precedent (db.js: "no second flag to desync"): un-archiving
+  // restores the schedule on its own, with no rule state to migrate back.
+  const due = db.prepare(`SELECT r.* FROM standing_rules r JOIN canvases c ON c.id = r.canvas_id
+    WHERE r.state = 'active' AND r.next_run_at IS NOT NULL AND r.next_run_at <= ? AND c.archived = 0`)
     .all(now.toISOString());
   let claimed = 0;
   const skipped = [];
@@ -677,8 +753,9 @@ module.exports = {
   getRule, ruleView, upsertDraft,
   createAuthorization, currentAuthorization, revokeAuthorization, verifyAuthorization, touchesWorkspace,
   grantedTools, ruleSources, SOURCE_TOOLS, unreadableSources, unreadableNow, isStandingRuleRun,
+  flagOn, lastSchedulerTick,
   ruleInstruction, rehearsalInstruction, parseMatchedCount,
-  finalizeRuleRuns, haltRuleRuns, tick, verifyTickOidc,
+  finalizeRuleRuns, haltRuleRuns, adoptChildRun, tick, verifyTickOidc,
   _internal: {
     claimAndDispatch, retryOrFail,
     setTickVerifier(fn) { const prev = tickVerifier; tickVerifier = fn; return () => { tickVerifier = prev; }; },

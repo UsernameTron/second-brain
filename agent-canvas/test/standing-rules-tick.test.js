@@ -23,7 +23,7 @@ const { db, nowIso, setSetting } = require('../server/db');
 const bus = require('../server/bus');
 const runner = require('../server/orchestrator/runner');
 const control = require('../server/orchestrator/control');
-const { toolsForRole, executeTool, parseAuthority, intersectAuthority, MUTATING_TOOLS } = require('../server/orchestrator/tools');
+const { toolsForRole, executeTool, parseAuthority, intersectAuthority, createEscalation, MUTATING_TOOLS } = require('../server/orchestrator/tools');
 const standingRules = require('../server/standing-rules');
 
 // Scheduled runs go through the real run loop — stub its model.
@@ -1108,4 +1108,192 @@ test('an ordinary run still retries, and the retry inherits its parent’s autho
     ['hs_search_crm'], 'and the ceiling still binds at run time',
   );
   await waitForRun(retryId);
+});
+
+// ---------- P5 deploy blockers ----------
+
+// A standing run escalates routinely (every step/timeout/budget halt becomes
+// one, and escalate is a live tool in ask mode), and the resume dispatches a
+// CHILD run that inherits the occurrence's frozen grant and keeps reading and
+// writing memory. haltRuleRuns finds attempts only through
+// run_id/retry_run_ids_json, so an unrecorded resume is invisible to the stop
+// path: revoking the rule kills every tracked attempt while that one runs on.
+test('resolving a standing run’s escalation keeps the resume inside the rule’s stop path', async () => {
+  const { rule, authz } = mkActiveRule();
+  standingRules.tick({ source: 'owner', actor: OWNER });
+  const [rr] = ruleRuns(rule.id);
+  await waitForRun(rr.run_id);
+  // The shape a halt leaves behind: terminal run, occurrence still claimed.
+  db.prepare("UPDATE runs SET status = 'halted_steps', error = 'steps' WHERE id = ?").run(rr.run_id);
+  const escalation = createEscalation({
+    canvasId, runId: rr.run_id, agentId, kind: 'steps',
+    question: 'Scout hit its step budget. Resume with a bigger budget?', context: {},
+  });
+
+  const res = await fetch(`${base}/api/escalations/${escalation.id}/resolve`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: ownerCookie },
+    body: JSON.stringify({ action: 'accept', answer: 'yes, finish it' }),
+  });
+  assert.equal(res.status, 200);
+  const resumeId = (await res.json()).run.id;
+
+  const resume = db.prepare('SELECT mode, authority_json FROM runs WHERE id = ?').get(resumeId);
+  assert.equal(resume.mode, 'ask', 'the resume inherits the scheduled run’s mode');
+  assert.deepEqual(JSON.parse(resume.authority_json), JSON.parse(authz.allowed_tools_json),
+    'and the rule’s frozen grant — a NULL snapshot here is UNRESTRICTED');
+  const adopted = db.prepare('SELECT retry_run_ids_json FROM standing_rule_runs WHERE id = ?').get(rr.id);
+  assert.ok(JSON.parse(adopted.retry_run_ids_json).includes(resumeId),
+    'the resume is recorded as an attempt of the same occurrence');
+  assert.ok(standingRules.isStandingRuleRun(resumeId), 'so the generic retry endpoint refuses it too');
+
+  // The decisive one: revoking the rule must reach it.
+  await waitForRun(resumeId);
+  db.prepare("UPDATE runs SET status = 'running', ended_at = NULL WHERE id = ?").run(resumeId);
+  const controller = new AbortController();
+  control.registerAbort(resumeId, controller);
+  try {
+    const revoked = await fetch(`${base}/api/standing-rules/${rule.id}/revoke`, { method: 'POST', headers: { Cookie: ownerCookie } });
+    assert.equal(revoked.status, 200);
+    assert.ok(controller.signal.aborted, 'revoking the rule aborts the escalation resume too');
+    assert.equal(db.prepare('SELECT status FROM runs WHERE id = ?').get(resumeId).status, 'failed',
+      'an untracked resume would keep reading under a revoked authorization');
+  } finally { control.unregisterAbort(resumeId); }
+});
+
+// Archive closes a canvas: every card its rules raise is filtered out of the
+// tray, and the frontend can only fetch canvases from that filtered list — so
+// an archived canvas's rule cannot be reached, paused or revoked without
+// un-archiving, while it keeps reading the grantor's mailbox and spending the
+// workspace budget for up to 90 days.
+test('archiving a canvas stops its standing rules, and un-archiving restores them', async () => {
+  const { rule } = mkActiveRule();
+  try {
+    db.prepare('UPDATE canvases SET archived = 1 WHERE id = ?').run(canvasId);
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    assert.equal(ruleRuns(rule.id).length, 0, 'nothing claimed, nothing dispatched, nothing read');
+    assert.equal(standingRules.getRule(rule.id).state, 'active',
+      'derived from canvases.archived — no second flag to desync, nothing to migrate back');
+    assert.ok(standingRules.getRule(rule.id).next_run_at <= nowIso(), 'the occurrence is still owed, not consumed');
+
+    db.prepare('UPDATE canvases SET archived = 0 WHERE id = ?').run(canvasId);
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    const runs = ruleRuns(rule.id);
+    assert.equal(runs.length, 1, 'un-archiving restores the schedule on its own');
+    await waitForRun(runs[0].run_id);
+    standingRules.finalizeRuleRuns();
+  } finally {
+    db.prepare('UPDATE canvases SET archived = 0 WHERE id = ?').run(canvasId);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// finalizeRuleRuns only runs inside tick(), so an occurrence whose run
+// completed at 09:05 is still 'running' when the owner pauses at 09:30.
+// Writing 'skipped: rule paused' over it destroys a summary, matched count,
+// cost and evidence refs produced from real production reads, and buries the
+// alert with them — for work that already happened and cannot be re-derived
+// (the occurrence key is spent).
+test('pausing after the run already completed keeps the result and still raises the card', async () => {
+  const { rule } = mkActiveRule();
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    const [rr] = ruleRuns(rule.id);
+    await waitForRun(rr.run_id);
+    assert.equal(db.prepare('SELECT state FROM standing_rule_runs WHERE id = ?').get(rr.id).state, 'running',
+      'the finalizer has not swept yet — this is the window');
+
+    const paused = await fetch(`${base}/api/standing-rules/${rule.id}/pause`, { method: 'POST', headers: { Cookie: ownerCookie } });
+    assert.equal(paused.status, 200);
+
+    const done = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+    assert.equal(done.state, 'completed', 'a halt stops future work; it never un-does finished work');
+    assert.equal(done.skip_reason, null);
+    assert.equal(done.matched_count, 2, 'the count the run actually reported');
+    assert.match(done.result_summary, /need attention/, 'and its summary survives');
+    assert.equal(done.needs_attention, 1);
+    assert.ok((await attentionCards()).some((c) => c.type === 'rule_alert' && c.sourceRef.id === rr.id),
+      'the alert the owner is owed for reads that already happened');
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// setSetting('standing_rules','0') is the documented no-deploy rollback, but
+// the orchestrator knows nothing about it: a run dispatched before the flip
+// completes, writes memory, and terminates. Gating BOOKKEEPING on the flag
+// strands that occurrence 'running' with no card forever (attention.js excludes
+// it from the generic failed-run projection too). The flag gates dispatch —
+// the same asymmetry the pause gate already has, deliberately.
+test('the rollback flag stops dispatch without stranding an in-flight occurrence', async () => {
+  const finished = mkActiveRule();
+  const failing = mkActiveRule();
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    const [doneRr] = ruleRuns(finished.rule.id);
+    const [failRr] = ruleRuns(failing.rule.id);
+    await waitForRun(doneRr.run_id);
+    await waitForRun(failRr.run_id);
+    db.prepare("UPDATE runs SET status = 'failed', error = 'model exploded' WHERE id = ?").run(failRr.run_id);
+
+    setSetting('standing_rules', '0'); // the rollback, flipped mid-flight
+    try {
+      const res = standingRules.tick({ source: 'owner', actor: OWNER });
+      assert.equal(res.skipped, 'flag off', 'the rollback still stops the sweep');
+
+      const doneAfter = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(doneRr.id);
+      assert.equal(doneAfter.state, 'completed', 'a run that finished before the flip is still finalized');
+      assert.equal(doneAfter.needs_attention, 1, 'and its card is raised, not stranded');
+      assert.equal(doneAfter.matched_count, 2);
+
+      const failAfter = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(failRr.id);
+      assert.equal(failAfter.attempt, 1, 'but the flag still gates DISPATCH — no retry while rolled back');
+      assert.equal(failAfter.state, 'running', 'and the occurrence keeps its retries for the resume');
+    } finally { setSetting('standing_rules', '1'); }
+
+    standingRules.finalizeRuleRuns();
+    const resumed = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(failRr.id);
+    assert.equal(resumed.attempt, 2, 'the retry lands once the flag is back on');
+    await waitForRun(resumed.run_id);
+    standingRules.finalizeRuleRuns();
+  } finally {
+    for (const r of [finished.rule, failing.rule]) {
+      db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(r.id);
+    }
+  }
+});
+
+// Every other env-gated capability has a lamp; P5 shipped without one, so with
+// TICK_AUDIENCE / TICK_INVOKER_SA unset — the documented state of the current
+// production revision — the OIDC lane 503s, nothing is ever scheduled, and the
+// Rules UI still renders "active · next 08:00". Green is earned from a tick
+// that actually arrived, never from two env strings being set.
+test('the scheduling lane has a systems-board lamp that never fakes green', async () => {
+  const prevAudience = process.env.TICK_AUDIENCE;
+  const prevInvoker = process.env.TICK_INVOKER_SA;
+  const lamp = async () => {
+    const res = await fetch(`${base}/api/health/integrations`, { headers: { Cookie: ownerCookie } });
+    return (await res.json()).integrations.find((i) => i.id === 'standing_rules');
+  };
+  try {
+    delete process.env.TICK_AUDIENCE;
+    delete process.env.TICK_INVOKER_SA;
+    let l = await lamp();
+    assert.ok(l, 'the scheduling lane has a lamp at all');
+    assert.equal(l.status, 'planned', 'declared, deliberately not wired — never fake green');
+    assert.match(l.detail, /TICK_AUDIENCE/, 'and it names what is missing');
+
+    process.env.TICK_AUDIENCE = `${base}/api/standing-rules/tick`;
+    process.env.TICK_INVOKER_SA = TICK_SA;
+    setSetting('standing_rules_last_scheduler_tick', '');
+    l = await lamp();
+    assert.equal(l.status, 'attention', 'env set is not evidence a Cloud Scheduler job exists');
+
+    standingRules.tick({ source: 'scheduler', actor: TICK_SA });
+    l = await lamp();
+    assert.equal(l.status, 'ready', 'green comes from a scheduler-signed tick that actually arrived');
+    assert.ok(standingRules.lastSchedulerTick(), 'stamped durably — a cold start must not forget');
+  } finally {
+    if (prevAudience === undefined) delete process.env.TICK_AUDIENCE; else process.env.TICK_AUDIENCE = prevAudience;
+    if (prevInvoker === undefined) delete process.env.TICK_INVOKER_SA; else process.env.TICK_INVOKER_SA = prevInvoker;
+  }
 });

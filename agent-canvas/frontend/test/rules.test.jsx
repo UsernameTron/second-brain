@@ -72,14 +72,17 @@ describe('Rules & Briefs view', () => {
     });
     renderRules();
     await parseFlow();
-    for (const label of ['Watched', 'Sources', 'Scope', 'Cadence', 'Run by', 'Output', 'Budget', 'Expires', 'Can', 'Cannot', 'Next run']) {
+    for (const label of ['Watched', 'Sources', 'Scope', 'Cadence', 'Run by', 'Reads as', 'Output', 'Budget', 'Expires', 'Can', 'Cannot', 'Next run']) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(screen.getByText('inbound deals')).toBeInTheDocument();
     expect(screen.getByText('hubspot')).toBeInTheDocument();
     expect(screen.getByText('deals over $25k')).toBeInTheDocument();
     expect(screen.getAllByText('daily at 08:00 UTC').length).toBeGreaterThan(0);
-    expect(screen.getByText('Scout (research), owned by pete@cloudtechgurus.com')).toBeInTheDocument();
+    // owner_email is the CREATOR (db.js says so verbatim); the identity whose
+    // access the rule spends is a separate field.
+    expect(screen.getByText('Scout (research), created by pete@cloudtechgurus.com')).toBeInTheDocument();
+    expect(screen.getByText(/whoever rehearses and activates it/)).toBeInTheDocument();
     expect(screen.getByText('an alert, only when something matches')).toBeInTheDocument();
     expect(screen.getByText('8 steps · 2 min per run')).toBeInTheDocument();
     // The card states the authority activation will actually grant
@@ -283,6 +286,53 @@ describe('Rules & Briefs view', () => {
     // Run-state chips carry a class that actually has CSS behind it.
     expect(container.querySelector('.chip.run-completed')).not.toBeNull();
     expect(container.querySelector('[class*="inq-"]')).toBeNull();
+  });
+
+  // The card's only identity field named the creator, while the grant is spent
+  // as whoever activates and the rehearsal read as whoever ran it. The owner
+  // could read "owned by pete@" over a rehearsal of darren@'s mailbox and grant
+  // against his own. The acting identity has to be on the card.
+  it('names the identity the rule actually reads as, not the creator', async () => {
+    const rehearsed = { ...DRAFT_RULE, state: 'rehearsed' };
+    api.mockImplementation((path) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [rehearsed] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({
+          rule: rehearsed, authorization: null, runs: [],
+          rehearsalRun: { ...REHEARSAL_DONE, initiated_by: 'darren@cloudtechgurus.com' },
+        });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    expect(await screen.findByText('Reads as')).toBeInTheDocument();
+    expect(screen.getByText('darren@cloudtechgurus.com')).toBeInTheDocument();
+    expect(screen.getByText('Scout (research), created by pete@cloudtechgurus.com')).toBeInTheDocument();
+  });
+
+  // next_run_at survives pause/revoke/expire, and the whole scheduling lane can
+  // be absent (TICK_AUDIENCE unset) while a rule reads "active · next 08:00".
+  // A promise nothing will keep is the fake green.
+  it('never promises a next run for a stopped rule, and flags an overdue one', async () => {
+    const past = new Date(Date.now() - 3 * 3600_000).toISOString();
+    const paused = { ...DRAFT_RULE, id: 'sr9', instruction: 'paused rule', state: 'paused', next_run_at: '2099-01-01T08:00:00Z' };
+    const overdue = { ...DRAFT_RULE, instruction: 'overdue rule', state: 'active', next_run_at: past };
+    api.mockImplementation((path) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [paused, overdue] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/standing-rules/sr1') return Promise.resolve({ rule: overdue, authorization: null, runs: [], rehearsalRun: null });
+      return Promise.resolve({});
+    });
+    renderRules();
+    await screen.findByText('paused rule');
+    expect(screen.queryByText(/2099-01-01/)).toBeNull(); // a stopped rule promises nothing
+    expect(screen.getByText(/overdue, nothing has run it/)).toBeInTheDocument();
+
+    // And the same honesty on the consent card.
+    await userEvent.click(screen.getByText('overdue rule'));
+    expect(await screen.findByText(/Check STANDING RULES · TICK/)).toBeInTheDocument();
   });
 
   it('owner can pause, resume, and revoke', async () => {

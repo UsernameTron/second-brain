@@ -28,6 +28,19 @@ function fmtWhen(ts) {
   return `${String(ts).slice(0, 16).replace('T', ' ')} UTC`;
 }
 
+// next_run_at is only a promise while the rule is ACTIVE — pause, revoke and
+// expire all leave the column populated, and rendering it regardless promised a
+// run that will never come. A due time already in the past is the visible
+// symptom of a scheduling lane that is not delivering (TICK_AUDIENCE /
+// TICK_INVOKER_SA unset, or no Cloud Scheduler job): say so rather than keep
+// showing a future-tense "next".
+function nextRunLabel(rule) {
+  if (!rule.next_run_at || rule.state !== 'active') return null;
+  return Date.parse(rule.next_run_at) <= Date.now()
+    ? `due ${fmtWhen(rule.next_run_at)} — overdue, nothing has run it`
+    : `next ${fmtWhen(rule.next_run_at)}`;
+}
+
 // ponytail: headings, bullets, bold, paragraphs — the subset briefs actually
 // use. Everything renders as React text nodes (no HTML injection); add a real
 // renderer if briefs ever need tables or links.
@@ -70,7 +83,7 @@ function RefsFooter({ refs: raw }) {
 
 // The 10-field plain-language review card: watched / sources / scope /
 // cadence / owner / output / budget / expiry / can-cannot / next-run.
-function InterpretationCard({ rule, agentsById }) {
+function InterpretationCard({ rule, agentsById, readsAs }) {
   // ruleView() sends the parsed `interpretation` alongside the raw column.
   const interp = fromJson(rule.interpretation ?? rule.interpretation_json, {});
   const agent = agentsById[interp.agent_id || rule.agent_id];
@@ -91,12 +104,20 @@ function InterpretationCard({ rule, agentsById }) {
         </li>
         <li><b>Scope</b> — <span>{interp.scope || '—'}</span></li>
         <li><b>Cadence</b> — <span>{cadenceLabel(rule)}</span></li>
-        <li><b>Run by</b> — <span>{`${agent ? `${agent.name} (${agent.role})` : (interp.agent_id || rule.agent_id || '—')}, owned by ${rule.owner_email}`}</span></li>
+        <li><b>Run by</b> — <span>{`${agent ? `${agent.name} (${agent.role})` : (interp.agent_id || rule.agent_id || '—')}, created by ${rule.owner_email}`}</span></li>
+        {/* Whose mail, files and CRM access the run actually spends. The
+            creator above is NOT it: every scheduled run acts as the person who
+            activated the rule, and the rehearsal acted as whoever ran it. The
+            grant means nothing unless the card names that identity. */}
+        <li><b>Reads as</b> — <span>{readsAs || 'not yet — whoever rehearses and activates it'}</span></li>
         <li><b>Output</b> — <span>{rule.output_type === 'brief' ? 'a written brief with sources' : 'an alert, only when something matches'}</span></li>
         <li><b>Budget</b> — <span>{`${rule.step_budget != null ? `${rule.step_budget} steps` : 'default steps'} · ${rule.wall_ms_budget != null ? `${Math.round(rule.wall_ms_budget / 60000)} min` : 'default time'} per run`}</span></li>
         <li><b>Expires</b> — <span>{rule.expires_at ? fmtWhen(rule.expires_at) : `${expiryDays} days after activation`}</span></li>
         <li><b>Can</b> — <span>{can.join('; ') || '—'}</span> · <b>Cannot</b> — <span>{cannot.join('; ') || '—'}</span></li>
-        <li><b>Next run</b> — <span>{rule.next_run_at ? fmtWhen(rule.next_run_at) : 'computed at activation'}</span></li>
+        <li><b>Next run</b> — <span>{nextRunLabel(rule) ? fmtWhen(rule.next_run_at) : 'computed at activation'}
+          {nextRunLabel(rule) && Date.parse(rule.next_run_at) <= Date.now()
+            ? ' — overdue, nothing has run it. Check STANDING RULES · TICK on the systems board.'
+            : ''}</span></li>
       </ul>
     </section>
   );
@@ -296,7 +317,11 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
               <p className="dim">Editing resets the rule to draft — rehearse again before it can activate.</p>
             </section>
           ) : null}
-          <InterpretationCard rule={rule} agentsById={agentsById} />
+          {/* The live grant wins once it exists; before activation the
+              rehearsal's own identity is what the owner is being asked to
+              accept as the review. */}
+          <InterpretationCard rule={rule} agentsById={agentsById}
+            readsAs={detail.authorization?.authorized_by || rehearsal?.initiated_by || null} />
           {rehearsal ? (
             <section className="rehearsal-block">
               <h4>Rehearsal {rehearsal.status === 'running' ? '— running…' : `— ${rehearsal.status}`}</h4>
@@ -365,7 +390,7 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
             <b>{short(r.instruction, 80)}</b>
             <span className={`chip rule-${r.state}`}>{r.state}</span>
             <span className="chip">{r.output_type}</span>
-            <span className="dim mono">{cadenceLabel(r)}{r.next_run_at ? ` · next ${fmtWhen(r.next_run_at)}` : ''}</span>
+            <span className="dim mono">{cadenceLabel(r)}{nextRunLabel(r) ? ` · ${nextRunLabel(r)}` : ''}</span>
           </button>
         ))}
         {rulesList !== null && rulesList.length === 0 ? (
