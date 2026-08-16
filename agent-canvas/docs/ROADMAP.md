@@ -1,7 +1,7 @@
 # Agent Canvas roadmap and phase classification
 
-Updated 2026-08-16 from repository `master` at `92fb427`, observed deployed as
-revision `agent-canvas-00051-94w` at that time. This file owns phase intent and
+Updated 2026-08-16 from repository `master` at `62eae86`, deployed as revision
+`agent-canvas-00052-nbf` (probed at deploy time). This file owns phase intent and
 dependencies. It does not override the production evidence in
 [HANDOFF.md](HANDOFF.md) — and that evidence is itself an observation with a
 timestamp, currently un-refreshable while Cloud SDK auth is expired.
@@ -57,7 +57,7 @@ created, so the scheduler lane is dark by construction.
    unlock P6. **Neither is Complete under the vocabulary above:** P4 lacks live
    acceptance, and P5's external lane has not passed.
 
-### P5 release follow-up — FIXED IN SOURCE, not yet deployed
+### P5 release follow-up — FIXED and DEPLOYED (`00052-nbf`, 2026-08-16)
 
 A live defect observed during acceptance: a draft or rehearsed rule kept
 displaying the previous grant as "Authorized by … expires …", asserting a live
@@ -85,9 +85,8 @@ migration, and the existing rule-state architecture preserved:
   reactivate cycle, including the negative case: a refused edit and a failed
   re-interpretation retire nothing and leave the rule active.
 
-**Status: merged to the truth-up branch and test-proven; NOT deployed.** It
-reaches production only on the next deploy, and the acceptance gates below are
-unchanged by it.
+**Status: merged (PR #199, `62eae86`) and deployed on `agent-canvas-00052-nbf`
+2026-08-16.** The acceptance gates below are unchanged by it.
 
 ## P6 — outcomes, earned trust, and reviewed episodic learning
 

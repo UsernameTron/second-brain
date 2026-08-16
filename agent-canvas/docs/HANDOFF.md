@@ -18,9 +18,9 @@ since), or **unverified**. A live claim decays — re-probe before depending on 
 **Canonical checkout (git-proven):** `/Users/cpconnor/projects/second-brain`, app
 subtree `agent-canvas/`. `master`, `origin/master`, and `HEAD` all resolve to
 `92fb427ef491a5431740f571bdaf66ae7a45c62f`. PRs #194 through #198 are
-represented on `master`. This truth-up sits on the branch
-`fix/agent-canvas-truth-up`, cut from `92fb427`; the canonical checkout was left
-dirty and untouched so the pre-integration state stays inspectable.
+represented on `master`. The truth-up branch merged as
+PR #199, squashed to `62eae86`; the pre-integration dirty state is preserved in
+`stash@{0}` on the canonical checkout.
 
 **Verification after this truth-up (`npm run verify`, 2026-08-16):** **362
 backend tests / 0 failures**, **39 frontend tests / 0 failures**, a clean
@@ -48,14 +48,18 @@ carries #194 through #198. All 11 env vars survived the wholesale set;
 `TICK_AUDIENCE` and `TICK_INVOKER_SA` were **deliberately absent**, so the OIDC
 scheduler lane is off. Zero error-severity log entries after deploy.
 
-**Live probe (live-proven, observed 2026-08-16 after `gcloud auth login` was
-restored):** serving URL `https://agent-canvas-mqqftm2ora-uc.a.run.app`, revision
-**`agent-canvas-00051-94w` at 100% traffic** — unchanged from the earlier
-observation. Eleven env-var names present (NODE_ENV, OWNER_EMAIL,
-LITESTREAM_REPLICA_URL, MODEL_PROVIDER, GOOGLE_CLIENT_ID, HS_OPS_RUNNER_URL,
-ED_DISPATCH_URL, ANTHROPIC_API_KEY, JWT_SECRET, GOOGLE_CLIENT_SECRET,
-RAPIDAPI_KEY); `TICK_AUDIENCE` / `TICK_INVOKER_SA` absent, scheduler lane dark
-as intended. `/api/config` answered 200 anonymously with the expected payload.
+**Deployed and live-proven (2026-08-16 ~18:30Z):** `master` at `62eae86`
+(PR #199) deployed as revision **`agent-canvas-00052-nbf` at 100% traffic** —
+the first run of the preservation-first deploy script, preceded by a
+`DEPLOY_DRY_RUN=1` rehearsal that listed the five live-only variables it would
+preserve (ED_DISPATCH_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+HS_OPS_RUNNER_URL, RAPIDAPI_KEY — exactly the ones the old wholesale set would
+have deleted). Post-deploy probes: all eleven env-var names intact,
+`MODEL_PROVIDER=anthropic` inherited (not overwritten), **`/api/healthz` 200**
+with `{"ok":true,"paused":false}`, `/api/config` 200, the live bundle carrying
+both the `Export operational ledger (JSON)` and `Previously authorized by`
+strings, zero error-severity log entries since deploy. `TICK_AUDIENCE` /
+`TICK_INVOKER_SA` remain absent — scheduler lane dark by intent.
 
 **Resolved: the live `MODEL_PROVIDER` is `anthropic` (live-proven 2026-08-16).**
 The wholesale-set hazard did NOT fire on the last deploy — the value survived.
@@ -76,8 +80,8 @@ but this is not a byte-for-byte claim about every server file.
 | Phase | Repository state | Deployment/acceptance state |
 |---|---|---|
 | Gate 0, P1, P2 | Implemented, merged | Recorded as deployed and live-accepted in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); not replayed since |
-| P3 Evidence Rooms | Implemented, merged | Core journey recorded live-accepted; #194 export screen **deployed** on `00051-94w`; dedicated post-#194 acceptance not recorded |
-| P4 Agent Builder | Implemented, merged, hardened by #197 | **Deployed** on `00051-94w`; dedicated signed-in builder/publish/version/rollback acceptance still outstanding |
+| P3 Evidence Rooms | Implemented, merged | Core journey recorded live-accepted; #194 export screen **deployed** (now on `00052-nbf`); dedicated post-#194 acceptance not recorded |
+| P4 Agent Builder | Implemented, merged, hardened by #197 | **Deployed** (now on `00052-nbf`); dedicated signed-in builder/publish/version/rollback acceptance still outstanding |
 | P5 Standing Rules | Implemented, merged, all 14 follow-up findings closed by #198 | **Deployed; manual execution path accepted** (next section). Unattended scheduling intentionally dark and **unaccepted** |
 | P6 Outcomes & reviewed learning | Planned only | Not implemented |
 | P7 Selective integrations | Planned only | Not implemented |
@@ -105,7 +109,7 @@ unproven. A manual owner tick does not satisfy scheduler capability evidence.
 The full run-by-run transcript is preserved verbatim in
 [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md).
 
-### What `fix/agent-canvas-truth-up` changes (test-proven, NOT deployed)
+### What PR #199 changed (deployed on `00052-nbf`)
 
 1. **Stale authorization after an edit — fixed.** Editing an active rule now
    retires its grant in the same transaction as the flip to draft, both edit
@@ -150,27 +154,25 @@ the same handler now also answers at **`/api/healthz`**, which rides the `/api`
 prefix the GFE forwards untouched, registered before the `/api` router so it
 stays unauthenticated. `/healthz` is kept for local runs. Covered by
 `test/healthz.test.js`, including a guard that both paths share one handler.
-**Source-fixed and test-proven; the alias reaches production on the next
-deploy** — until then the live service has no externally reachable liveness
-path, which is the state it has been in since the first deploy, not a
-regression.
+**Deployed on `00052-nbf` and probed live: `/api/healthz` answers 200.**
 
 ### Release gates, in order
 
 0. ~~**Restore Cloud SDK access.**~~ **DONE 2026-08-16** — `gcloud auth login`
    run interactively; the probes in this file are from the restored session.
 1. ~~**Probe before changing anything.**~~ **DONE and REFRESHED 2026-08-16.**
-   Revision `agent-canvas-00051-94w` at 100% traffic, eleven env-var names
-   confirmed, `MODEL_PROVIDER=anthropic` live-proven, `/api/config` 200, and the
-   `/healthz` question closed (platform-reserved path — section above).
+   Now `agent-canvas-00052-nbf` at 100% traffic (post-deploy), eleven env-var
+   names confirmed, `MODEL_PROVIDER=anthropic` live-proven, `/api/healthz` and
+   `/api/config` both 200 (the `/healthz` question closed — section above).
 2. **Wire P5 scheduling. STILL OUTSTANDING and deliberately not done.** Create
    the dedicated tick service account and Cloud Scheduler job, and set both
    `TICK_AUDIENCE` and `TICK_INVOKER_SA`; one without the other deliberately
    disables the OIDC lane. Both are absent today, which is why the lane is dark.
    This is the step where unattended runs against real data begin.
-3. ~~**Deploy current `master` once.**~~ **DONE 2026-08-16.** `master` at
-   `92fb427` is deployed; production is NOT behind. Do not redeploy to satisfy
-   this gate. The environment contract was preserved through the wholesale set.
+3. ~~**Deploy current `master` once.**~~ **DONE 2026-08-16, twice.** `master`
+   at `62eae86` is deployed as `00052-nbf`; production is NOT behind. The second
+   deploy was the first run of the preservation-first script, rehearsed with
+   DEPLOY_DRY_RUN=1 first; the environment contract was preserved additively.
 4. **Accept P4 in-app.** Build from plain language, inspect the generated role,
    rehearse, publish as owner, verify version history/rollback, and confirm no
    authority widens.
