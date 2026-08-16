@@ -139,6 +139,54 @@ describe('Rules & Briefs view', () => {
     expect(screen.getByRole('button', { name: 'Activate' })).toBeDisabled();
   });
 
+  // The server marks the rule `rehearsed` the moment a rehearsal is dispatched,
+  // so the state check alone would accept a second dispatch while the first run
+  // is still queued/running — concurrent model runs, duplicate budget, and the
+  // rule pointing at whichever rehearsal landed last. The run's own state, not
+  // the request's, is what has to hold the button.
+  it('keeps Rehearse disabled while its run is in flight, and re-enables once it completes', async () => {
+    let runStatus = 'queued';
+    api.mockImplementation((path) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [] });
+      if (path === '/api/canvases/c1/standing-rules/parse') return Promise.resolve({ rule: DRAFT_RULE });
+      if (path === '/api/standing-rules/sr1/rehearse') {
+        return Promise.resolve({ rule: { ...DRAFT_RULE, state: 'rehearsed' }, run: { id: 'r1', status: 'queued' } });
+      }
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({
+          rule: { ...DRAFT_RULE, state: 'rehearsed' }, authorization: null, runs: [],
+          rehearsalRun: runStatus === 'completed' ? REHEARSAL_DONE : { id: 'r1', status: runStatus },
+        });
+      }
+      return Promise.resolve({});
+    });
+    const dispatches = () => api.mock.calls.filter(([p]) => p === '/api/standing-rules/sr1/rehearse').length;
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderRules();
+    await parseFlow();
+    expect(screen.getByRole('button', { name: 'Rehearse' })).toBeEnabled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Rehearse' }));
+    // Disabled as soon as the dispatch returns — the POST resolving is not the
+    // rehearsal finishing.
+    expect(await screen.findByRole('button', { name: 'Rehearsing…' })).toBeDisabled();
+    expect(dispatches()).toBe(1);
+
+    // Two poll cycles with the run still nonterminal: still held, and clicks in
+    // that window launch nothing.
+    runStatus = 'running';
+    await vi.advanceTimersByTimeAsync(3200);
+    expect(screen.getByRole('button', { name: 'Rehearsing…' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Rehearsing…' }));
+    expect(dispatches()).toBe(1);
+
+    runStatus = 'completed';
+    await vi.advanceTimersByTimeAsync(1600);
+    await screen.findByText(/Would have matched 3 deals/);
+    vi.useRealTimers();
+    expect(screen.getByRole('button', { name: 'Rehearse' })).toBeEnabled();
+  });
+
   it('owner activates a rehearsed rule', async () => {
     const rehearsed = { ...DRAFT_RULE, state: 'rehearsed' };
     api.mockImplementation((path, opts) => {

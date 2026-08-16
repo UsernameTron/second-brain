@@ -142,8 +142,27 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState(null); // { rule, authorization, runs, rehearsalRun }
   const savedInstructionRef = useRef('');
-  const pollRef = useRef(null);
-  useEffect(() => () => clearInterval(pollRef.current), []);
+
+  // Dispatching a rehearsal returns as soon as the run is queued — the run
+  // itself is still in flight, and the server has already flipped the rule to
+  // `rehearsed`. So "is a rehearsal pending?" is the run's state, never the
+  // request's. It gates the poll below AND the Rehearse button, so repeated
+  // clicks can't launch concurrent runs (the server's 409 is the backstop).
+  const ruleId = detail?.rule?.id || null;
+  const rehearsalPending = ['queued', 'running'].includes(detail?.rehearsalRun?.status);
+  useEffect(() => {
+    if (!ruleId || !rehearsalPending) return undefined;
+    const t = setInterval(async () => {
+      try {
+        const full = await rulesApi.get(ruleId);
+        if (!['queued', 'running'].includes(full.rehearsalRun?.status)) {
+          savedInstructionRef.current = full.rule.instruction;
+          setDetail((cur) => ({ ...cur, ...full }));
+        }
+      } catch { /* keep polling */ }
+    }, 1500);
+    return () => clearInterval(t);
+  }, [ruleId, rehearsalPending]);
 
   const agentsById = useMemo(() => {
     const m = {};
@@ -198,24 +217,24 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   };
 
   const rehearse = async () => {
-    if (busy) return;
+    if (busy || rehearsalPending) return;
     setBusy(true);
     try {
       const id = detail.rule.id;
       const d = await rulesApi.rehearse(id);
+      // Marking the run pending is what starts the poll and holds the button;
+      // the poll replaces this optimistic marker with the server's real run.
       setDetail((cur) => ({ ...cur, rule: d.rule, rehearsalRun: { status: 'running' } }));
-      clearInterval(pollRef.current);
-      pollRef.current = setInterval(async () => {
-        try {
-          const full = await rulesApi.get(id);
-          if (full.rehearsalRun && !['queued', 'running'].includes(full.rehearsalRun.status)) {
-            clearInterval(pollRef.current);
-            savedInstructionRef.current = full.rule.instruction;
-            setDetail((cur) => ({ ...cur, ...full }));
-          }
-        } catch { /* keep polling */ }
-      }, 1500);
-    } catch (e) { toast(e.message); } finally { setBusy(false); }
+    } catch (e) {
+      // 409 = the server's backstop: a rehearsal is already in flight and this
+      // client didn't know. Re-read the run so the button reflects reality.
+      if (e.status === 409) {
+        rulesApi.get(detail.rule.id)
+          .then((full) => setDetail((cur) => ({ ...cur, rehearsalRun: full.rehearsalRun })))
+          .catch(() => {});
+      }
+      toast(e.status === 409 ? 'A rehearsal is already running — wait for it to finish' : e.message);
+    } finally { setBusy(false); }
   };
 
   const activate = async () => {
@@ -284,8 +303,9 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
           ) : null}
           <div className="canvas-new-actions">
             {editable && ['draft', 'rehearsed'].includes(rule.state) ? (
-              <button className="btn primary small" disabled={busy} onClick={rehearse}>
-                {rehearsal && rehearsal.status === 'running' ? 'Rehearsing…' : 'Rehearse'}
+              <button className="btn primary small" disabled={busy || rehearsalPending} onClick={rehearse}
+                title={rehearsalPending ? 'A rehearsal is already running' : 'See what WOULD have matched — nothing changes'}>
+                {rehearsalPending ? 'Rehearsing…' : 'Rehearse'}
               </button>
             ) : null}
             {isOwner && ['draft', 'rehearsed'].includes(rule.state) ? (
