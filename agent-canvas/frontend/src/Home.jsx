@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
 import { ContextReceipt } from './Panels.jsx';
+import { SummaryMarkdown, formatContractTail } from './format.jsx';
 
 // P1 Inquiry Home: the signed-in starting point. Ask the company without
 // picking an agent; answer first, machinery second. Evidence chips,
@@ -65,7 +66,13 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, toast }) {
       ) : null}
 
       {inquiry.status === 'answered' && run ? (
-        <div className="answer-body">{run.summary || '(completed without a summary)'}</div>
+        <div className="answer-body">
+          {/* Generic surface: contract text is humanized (meaning kept), never
+              stripped — an answer that ends "MATCHED: 2" IS the answer. */}
+          {run.summary
+            ? <SummaryMarkdown text={formatContractTail(run.summary, 'humanize')} />
+            : '(completed without a summary)'}
+        </div>
       ) : null}
 
       {inquiry.status === 'unanswered' && run ? (

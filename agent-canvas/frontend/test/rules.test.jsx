@@ -426,7 +426,7 @@ describe('Rules & Briefs view', () => {
     const briefRun = {
       id: 'rr1', rule_id: 'sr2', state: 'completed', occurrence_key: '2026-W33', matched_count: null,
       skip_reason: null, error: null, cost_usd: 0,
-      result_summary: '## Weekly brief\n- **Acme** renewal moved to legal\nAll quiet otherwise',
+      result_summary: '## Weekly brief\n- **Acme** renewal moved to legal\nAll quiet otherwise\nNOTHING MATCHED',
       output_refs_json: JSON.stringify(refs), output_refs: refs,
       retry_run_ids_json: '[]', retry_run_ids: [],
       created_at: new Date().toISOString(),
@@ -448,6 +448,8 @@ describe('Rules & Briefs view', () => {
     expect(await screen.findByRole('heading', { name: 'Weekly brief' })).toBeInTheDocument();
     expect(screen.getByText('Acme')).toBeInTheDocument(); // **bold** renders as <b>
     expect(screen.getByText('All quiet otherwise')).toBeInTheDocument();
+    // The machine contract line stays in the API payload but never renders.
+    expect(screen.queryByText(/NOTHING MATCHED/)).toBeNull();
     expect(screen.getByText('Evidence: Acme renewal note · https://acme.example/renewal')).toBeInTheDocument();
     expect(screen.getByText(/Authorized by/)).toBeInTheDocument();
     expect(screen.getByText('2026-W33')).toBeInTheDocument();

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { timeAgo, short } from './api.js';
+import { formatContractTail, plainPreview, humanizePayload } from './format.jsx';
 
 // P2 unified NEEDS YOU: a full-stage view over the attention projection.
 // Workspace owns the fetch (one source of truth for the badge and this view);
@@ -36,7 +37,16 @@ function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, o
         <span className="mono dim">{timeAgo(row.created_at)}</span>
       </div>
       <div className="ny-decision">{row.decision}</div>
-      {row.context ? <div className="ny-context">{short(row.context, 220)}</div> : null}
+      {/* Only rule cards have known standing-rule provenance, and the server
+          slices context to ~300 chars — a cut mid-token stays as-is, which the
+          tail matcher tolerates by leaving ambiguity unchanged. Everything
+          else keeps its meaning via humanize. */}
+      {row.context ? (
+        <div className="ny-context">
+          {short(plainPreview(formatContractTail(row.context,
+            row.type === 'rule_alert' || row.type === 'brief_ready' ? 'strip' : 'humanize')), 220)}
+        </div>
+      ) : null}
       {hasCtx ? (
         <button className="link-btn" onClick={() => setShowCtx((v) => !v)}>
           {showCtx ? 'hide context' : 'context'}
@@ -44,7 +54,7 @@ function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, o
       ) : null}
       {showCtx ? (
         <pre className="tray-context mono">
-          {short((() => { try { return JSON.stringify(row.contextData, null, 1); } catch { return String(row.contextData); } })(), 800)}
+          {short((() => { try { return humanizePayload(row.contextData).join('\n'); } catch { return String(row.contextData); } })(), 800)}
         </pre>
       ) : null}
       <div className="ny-meta">

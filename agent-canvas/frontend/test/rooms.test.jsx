@@ -58,6 +58,20 @@ describe('Evidence Rooms view', () => {
     expect(api).toHaveBeenLastCalledWith('/api/rooms/r1?lens=risk');
   });
 
+  it('risk rows show the attention card decision, not a blank fallback', async () => {
+    const risk = {
+      sourceRef: { kind: 'rule_alert', id: 'rr1' }, decision: 'Acknowledge the renewal alert',
+      created_at: new Date().toISOString(),
+    };
+    api.mockImplementation((path) => {
+      if (path === '/api/rooms') return Promise.resolve({ rooms: [ROOM], archived: [] });
+      return Promise.resolve(built({ sections: { ...EMPTY_SECTIONS, risks: [risk] } }));
+    });
+    renderRooms();
+    await userEvent.click(await screen.findByText('Acme renewal'));
+    expect(await screen.findByText('Acknowledge the renewal alert')).toBeInTheDocument();
+  });
+
   it('Refresh room posts; view-only access hides it', async () => {
     api.mockImplementation((path, opts) => {
       if (path === '/api/rooms') return Promise.resolve({ rooms: [ROOM], archived: [] });

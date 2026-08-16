@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { fmtClock, short } from './api.js';
+import { formatRunEventPreview } from './format.jsx';
 
 const BUCKETS = [
   { key: 'text', label: 'text', icon: '¶' },
@@ -12,39 +13,21 @@ const BUCKETS = [
 ];
 const ICON = Object.fromEntries(BUCKETS.map((b) => [b.key, b.icon]));
 
+// Bucket/icon selection lives here; the preview words come from format.jsx.
 function itemFromRunEvent(e) {
   const p = e.payload || {};
   let bucket;
-  let text;
   switch (e.type) {
-    case 'text':
-      bucket = 'text'; text = short(p.text, 160); break;
+    case 'text': bucket = 'text'; break;
     case 'tool_call':
       bucket = p.name === 'handoff' ? 'handoff' : /memory/.test(p.name || '') ? 'memory' : 'tool_call';
-      text = `${p.name}(${short(JSON.stringify(p.input || {}), 110)})`;
       break;
-    case 'tool_result':
-      bucket = 'tool_result';
-      text = `${p.name} → ${short(p.preview, 130)}${p.isError ? ' ⚠' : ''}`;
-      break;
-    case 'memory':
-      bucket = 'memory';
-      text = `[${p.epistemic || '?'}] ${short(p.content, 130)}`;
-      break;
-    case 'escalation':
-      bucket = 'escalation';
-      text = `${p.kind || 'escalation'}: ${short(p.question, 130)}`;
-      break;
-    case 'run_started':
-      bucket = 'run'; text = `run started — ${short(p.instruction, 110)}`; break;
-    case 'run_finished':
-      bucket = 'run';
-      text = `run ${p.status}${p.summary ? ` — ${short(p.summary, 100)}` : ''}${p.error ? ` ⚠ ${short(p.error, 80)}` : ''}`;
-      break;
-    default:
-      bucket = 'run'; text = `${e.type} ${short(JSON.stringify(p), 100)}`;
+    case 'tool_result': bucket = 'tool_result'; break;
+    case 'memory': bucket = 'memory'; break;
+    case 'escalation': bucket = 'escalation'; break;
+    default: bucket = 'run';
   }
-  return { id: `e-${e.id}`, ts: e.ts, agent_id: e.agent_id, bucket, text };
+  return { id: `e-${e.id}`, ts: e.ts, agent_id: e.agent_id, bucket, text: formatRunEventPreview(e, 'dock') };
 }
 
 export default function ActivityDock({ activity, handoffs, agents, agentsById, onHoverHandoff }) {

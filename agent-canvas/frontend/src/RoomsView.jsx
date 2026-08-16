@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
+import { formatRunEventPreview } from './format.jsx';
 
 // P3 Evidence Rooms. A Room is a lens over its canvas: Brief (six sections +
 // now/history/risk), Map (the canvas itself), Activity (the existing feed).
@@ -85,7 +86,9 @@ function RoomBrief({ built, onOpenRun }) {
         {s.risks.length === 0 ? <p className="dim">Nothing risky on the radar.</p> : (
           <ul className="room-list">
             {s.risks.map((r) => (
-              <li key={`${r.sourceRef.kind}-${r.sourceRef.id}`}><span className="chip">{r.sourceRef.kind.replace('_', ' ')}</span> {r.title || r.summary || r.question} <span className="dim mono">· {timeAgo(r.created_at)}</span></li>
+              // Risks are attention cards — `decision` is the field they
+              // actually carry (server/attention.js card contract).
+              <li key={`${r.sourceRef.kind}-${r.sourceRef.id}`}><span className="chip">{r.sourceRef.kind.replace('_', ' ')}</span> {r.decision || r.title || r.summary || r.question || 'Needs review'} <span className="dim mono">· {timeAgo(r.created_at)}</span></li>
             ))}
           </ul>
         )}
@@ -255,7 +258,7 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
         {activity !== null ? (
           <ul className="room-list room-activity">
             {activity.length === 0 ? <li className="dim">No activity yet.</li> : activity.map((a) => (
-              <li key={a.id}><span className="chip">{a.type}</span> {short(typeof a.payload === 'string' ? a.payload : JSON.stringify(a.payload), 120)} <span className="dim mono">· {timeAgo(a.ts)}</span></li>
+              <li key={a.id}><span className="chip">{a.type}</span> {short(formatRunEventPreview(a, 'room'), 120)} <span className="dim mono">· {timeAgo(a.ts)}</span></li>
             ))}
           </ul>
         ) : (

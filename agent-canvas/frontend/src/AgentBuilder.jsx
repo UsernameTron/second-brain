@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
+import { SummaryMarkdown, formatContractTail } from './format.jsx';
 
 // P4 plain-language agent builder: describe the job → review the proposed
 // agent (every permission in plain language) → rehearse it → publish it.
@@ -179,7 +180,9 @@ export default function AgentBuilder({ canvasId, isOwner, onPublished, toast }) 
       {rehearsal ? (
         <section className="rehearsal-block">
           <h4>Rehearsal {rehearsal.status === 'running' ? '— running…' : `— ${rehearsal.status}`}</h4>
-          {rehearsal.summary ? <p className="rehearsal-summary">{rehearsal.summary}</p> : null}
+          {rehearsal.summary ? (
+            <SummaryMarkdown className="rehearsal-summary" text={formatContractTail(rehearsal.summary, 'humanize')} />
+          ) : null}
           {rehearsal.error ? <p className="answer-fail">{rehearsal.error}</p> : null}
         </section>
       ) : null}

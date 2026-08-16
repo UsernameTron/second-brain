@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { timeAgo, short } from './api.js';
+import { humanizePayload } from './format.jsx';
 
 const KIND_COLORS = {
   question: 'k-question', livelock: 'k-livelock', budget: 'k-budget', timeout: 'k-timeout',
@@ -16,7 +17,7 @@ function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign })
   const ownerLabel = esc.owner_email || (ownerAgent ? ownerAgent.name : null);
 
   const contextStr = (() => {
-    try { return JSON.stringify(esc.context, null, 1); } catch { return String(esc.context); }
+    try { return humanizePayload(esc.context).join('\n'); } catch { return String(esc.context); }
   })();
 
   return (

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, fmtUSD, timeAgo, fmtClock, short } from './api.js';
+import { SummaryMarkdown, formatContractTail, plainPreview, formatRunEventPreview } from './format.jsx';
 import ExplainMap from './ExplainMap.jsx';
 
 export function Panel({ title, wide, onClose, headerExtra, children }) {
@@ -150,7 +151,11 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
             <span className="mono">{selRun.steps_used}/{selRun.step_budget} steps · {fmtUSD(selRun.cost_usd)}</span>
           </div>
           <div className="run-detail-instr">{short(selRun.instruction, 240)}</div>
-          {selRun.summary ? <div className="run-summary">{selRun.summary}</div> : null}
+          {selRun.summary ? (
+            <div className="run-summary">
+              <SummaryMarkdown text={formatContractTail(selRun.summary, 'humanize')} />
+            </div>
+          ) : null}
           {selRun.error ? <div className="run-error">⚠ {selRun.error}</div> : null}
           {canvasId ? (
             <button className="btn ghost small" aria-pressed={showMap} onClick={() => setShowMap(!showMap)}>
@@ -191,7 +196,7 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
               <span className="mono">{r.steps_used}/{r.step_budget}</span>
               <span className="mono">{fmtUSD(r.cost_usd)}</span>
               <span className="run-row-time">{timeAgo(r.created_at)}</span>
-              <span className="run-row-sum">{short(r.summary || r.instruction, 90)}</span>
+              <span className="run-row-sum">{short(plainPreview(formatContractTail(r.summary || r.instruction, 'humanize')), 90)}</span>
             </button>
           ))}
         </div>
@@ -254,17 +259,7 @@ export function ContextReceipt({ receipt, onFeedback }) {
   );
 }
 
-function runEventPreview(ev) {
-  const p = ev.payload || {};
-  switch (ev.type) {
-    case 'text': return short(p.text, 220);
-    case 'tool_call': return `${p.name}(${short(JSON.stringify(p.input || {}), 160)})`;
-    case 'tool_result': return `${p.name} → ${short(p.preview, 180)}${p.isError ? ' ⚠' : ''}`;
-    case 'run_started': return short(p.instruction, 180);
-    case 'run_finished': return `${p.status}${p.summary ? ` — ${short(p.summary, 150)}` : ''}${p.error ? ` ⚠ ${short(p.error, 120)}` : ''}`;
-    default: return short(JSON.stringify(p), 180);
-  }
-}
+const runEventPreview = (ev) => formatRunEventPreview(ev, 'detail');
 
 export function NotePanel({ note, task, people = [], agents = [], onAssignTask, onSave, onClose }) {
   const [draft, setDraft] = useState(() => (note ? { title: note.title, content: note.content, pinned: !!note.pinned } : null));

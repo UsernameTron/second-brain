@@ -54,6 +54,24 @@ describe('Inquiry Home', () => {
     });
   });
 
+  it('renders an answered summary as formatted text with contract meaning kept', async () => {
+    const answered = {
+      ...inquiry('a1', 'Any renewals at risk?'),
+      status: 'answered',
+      run: { id: 'r1', status: 'completed', summary: '## Renewals\n**Acme** needs a call.\nMATCHED: 2' },
+    };
+    // The answered card also fetches the run receipt on mount.
+    api.mockImplementation((path) => (
+      path.includes('/receipt') ? Promise.resolve({ cited: [], searches: [], evidence: [] }) : Promise.resolve({ inquiries: [answered] })
+    ));
+    renderHome();
+    expect(await screen.findByRole('heading', { name: 'Renewals' })).toBeInTheDocument();
+    expect(screen.getByText('Acme')).toBeInTheDocument(); // **bold** renders as <b>
+    // Generic surface: the machine line is humanized, never deleted.
+    expect(screen.getByText('2 items matched.')).toBeInTheDocument();
+    expect(screen.queryByText(/MATCHED: 2/)).toBeNull();
+  });
+
   it('a stale list response never replaces a newer one', async () => {
     const pending = [];
     api.mockImplementation(() => new Promise((resolve) => pending.push(resolve)));
