@@ -289,6 +289,31 @@ test('rehearse: rehearse-mode run on the rule agent; editor may rehearse', async
   assert.match(run.instruction, /MATCHED/);
 });
 
+test('a second rehearsal is refused while the first run is still in flight', async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const restore = runner._internal.setCallModel(async () => {
+    await gate;
+    return { content: [{ type: 'text', text: 'Rehearsal: nothing would have matched. MATCHED: 0' }], stop_reason: 'end_turn', usage: {} };
+  });
+  try {
+    const first = await call(memberCookie, 'POST', `/api/standing-rules/${ruleId}/rehearse`, {});
+    assert.equal(first.status, 200);
+
+    const second = await call(memberCookie, 'POST', `/api/standing-rules/${ruleId}/rehearse`, {});
+    assert.equal(second.status, 409, 'concurrent rehearsal must be refused');
+    assert.match(second.data.error, /already (queued|running)/);
+    // The rule still points at the first run — nothing was overwritten, and no
+    // second run was dispatched to burn duplicate budget.
+    assert.equal(standingRules.getRule(ruleId).rehearsal_run_id, first.data.run.id);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM runs WHERE agent_id = ? AND mode = 'rehearse' AND status IN ('queued','running')").get(agentId).n, 1);
+  } finally {
+    release();
+    restore();
+  }
+  await waitForRun(db.prepare('SELECT rehearsal_run_id AS id FROM standing_rules WHERE id = ?').get(ruleId).id);
+});
+
 test('editing resets the rehearsal gate: state→draft, version++, activate 409s again', async () => {
   const patched = await call(memberCookie, 'PATCH', `/api/standing-rules/${ruleId}`, { instruction: 'Watch deals above $75k instead' });
   assert.equal(patched.status, 200);

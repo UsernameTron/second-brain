@@ -1249,6 +1249,16 @@ router.post('/standing-rules/:ruleId/rehearse', rateLimit('model'), (req, res) =
   const rule = ruleAccess(req, res, { mutate: true });
   if (!rule) return;
   if (!['draft', 'rehearsed'].includes(rule.state)) return res.status(409).json({ error: `rule is ${rule.state} — edit it back to draft first` });
+  // State flips to 'rehearsed' the moment the run is DISPATCHED, so the state
+  // check above still admits a second rehearsal while the first is queued or
+  // running: two runs burning budget, and rehearsal_run_id pointing at whichever
+  // landed last. Terminal-or-nothing, like the run-retry gate.
+  const inFlight = rule.rehearsal_run_id
+    ? db.prepare('SELECT status FROM runs WHERE id = ?').get(rule.rehearsal_run_id)
+    : null;
+  if (inFlight && ['queued', 'running'].includes(inFlight.status)) {
+    return res.status(409).json({ error: `a rehearsal is already ${inFlight.status} — wait for it to finish before rehearsing again` });
+  }
   if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused' });
   if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted' });
   if (!db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id)) {

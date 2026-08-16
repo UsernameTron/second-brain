@@ -581,6 +581,19 @@ function intersectAuthority(a, b) {
   return a.filter((name) => b.includes(name));
 }
 
+// The authority actually in force RIGHT NOW for a run: the dispatch-time
+// snapshot (runs.authority_json — a standing grant) intersected with the
+// agent's live row, re-read from the DB so an owner narrowing an agent mid-run
+// takes effect immediately. Shared by executeTool's call-time re-check and the
+// runner's per-model-call web_search gate (a provider-executed tool never
+// reaches executeTool, so it needs the same check on the offer side).
+function effectiveAuthority(run, agent) {
+  const liveAuthority = agent && agent.id
+    ? (db.prepare('SELECT tools_json FROM agents WHERE id = ?').get(agent.id) || agent).tools_json
+    : agent && agent.tools_json;
+  return intersectAuthority(parseAuthority(run.authority_json), parseAuthority(liveAuthority));
+}
+
 function toolsForRole(role, { userRole = 'member', mode = 'act', authority = null } = {}) {
   // MCP defs are filtered per directing user + agent role: owner-only
   // connectors never reach a member-directed run's tool list, and role-scoped
@@ -668,10 +681,7 @@ async function executeTool(name, input, ctx) {
   // narrowing an agent mid-run takes effect on the very next tool call. The
   // dispatch-time snapshot (runs.authority_json) is intersected with it, so a
   // widening after a standing grant cannot reach this run.
-  const liveAuthority = agent && agent.id
-    ? (db.prepare('SELECT tools_json FROM agents WHERE id = ?').get(agent.id) || agent).tools_json
-    : agent && agent.tools_json;
-  const effective = intersectAuthority(parseAuthority(run.authority_json), parseAuthority(liveAuthority));
+  const effective = effectiveAuthority(run, agent);
   if (!allowedByAuthority(name, effective)) {
     return { content: `REFUSED: this agent's authority map does not include ${name}. Work within your granted tools, or escalate if the task requires this authority.`, isError: true };
   }
@@ -1191,4 +1201,4 @@ function createEscalation({ canvasId, runId, agentId, kind, question, context })
   return escalation;
 }
 
-module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS, blockedInMode, MUTATING_TOOLS, REHEARSAL_BLOCKED_TOOLS, governedTool, allowedByAuthority, parseAuthority, intersectAuthority, authorityMenu };
+module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS, blockedInMode, MUTATING_TOOLS, REHEARSAL_BLOCKED_TOOLS, governedTool, allowedByAuthority, parseAuthority, intersectAuthority, effectiveAuthority, authorityMenu };
