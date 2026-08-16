@@ -744,6 +744,60 @@ test('activation refuses a rule that would expire before its first run', async (
   db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
 });
 
+// PATCH is the ONLY route that accepts a structured { interpretation }, and the
+// branch had no test at all — every other PATCH case here sends { instruction }.
+// It is also the only way to change cadence_hour, cadence_day, the budgets or
+// the expiry WITHOUT re-parsing the prose, which re-derives all ten fields from
+// the model and silently defaults whatever it omits (cadence_hour → 8,
+// step_budget → 12, wall_ms_budget → 300000, expires_days → 90). "Move the
+// Monday brief to Friday" through a re-parse can therefore move the hour too.
+test('a structured edit changes what the prose cannot, and re-gates the rule', async () => {
+  const { rule, runId } = mkRehearsed('brief me weekly on the migration', {
+    overrides: { cadence: 'weekly', cadence_day: 1, cadence_hour: 20, output_type: 'brief' },
+  });
+  const activated = await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`);
+  assert.equal(activated.status, 200);
+  const grantBefore = activated.data.authorization.allowed_tools_json;
+
+  const stored = JSON.parse(standingRules.getRule(rule.id).interpretation_json);
+  const edited = await call(ownerCookie, 'PATCH', `/api/standing-rules/${rule.id}`, {
+    interpretation: { ...stored, cadence_day: 5, step_budget: 30, expires_days: 120 },
+  });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.data.rule.instruction, 'brief me weekly on the migration', 'the prose is untouched — no model ran');
+  assert.equal(edited.data.rule.cadence_day, 5, 'Monday → Friday without rewriting a word');
+  assert.equal(edited.data.rule.cadence_hour, 20, 'and the hour a re-parse could have defaulted to 8 survives');
+  assert.equal(edited.data.rule.step_budget, 30, 'a budget with no plain-language vocabulary at all');
+  assert.equal(edited.data.rule.interpretation.expires_days, 120);
+  assert.deepEqual(edited.data.rule.interpretation.can, stored.can, 'model-written consent prose carries through');
+
+  // The rehearsal gate resets exactly as an instruction edit's does.
+  assert.equal(edited.data.rule.state, 'draft');
+  assert.equal(edited.data.rule.version, rule.version + 1);
+  assert.equal(edited.data.rule.rehearsal_run_id, null);
+  assert.equal(edited.data.rule.next_run_at, null);
+  // closeRun only kills a non-terminal attempt: the rehearsal here already
+  // finished, so the gate resets by forgetting it, not by rewriting history.
+  assert.equal(db.prepare('SELECT status FROM runs WHERE id = ?').get(runId).status, 'completed');
+
+  // Nothing widened without re-consent: the frozen grant is untouched and the
+  // rule cannot go live again without a fresh rehearsal.
+  assert.equal(standingRules.currentAuthorization(rule.id).allowed_tools_json, grantBefore);
+  assert.equal((await call(ownerCookie, 'POST', `/api/standing-rules/${rule.id}/activate`)).status, 409);
+
+  // The model is out of the loop; the trust boundary is not.
+  const clamped = await call(ownerCookie, 'PATCH', `/api/standing-rules/${rule.id}`, {
+    interpretation: { ...stored, step_budget: 9999 },
+  });
+  assert.equal(clamped.data.rule.step_budget, 12, 'an out-of-range budget clamps to the default, never stores');
+  const hallucinated = await call(ownerCookie, 'PATCH', `/api/standing-rules/${rule.id}`, {
+    interpretation: { ...stored, agent_id: 'not-on-this-canvas' },
+  });
+  assert.equal(hallucinated.status, 400);
+  assert.match(hallucinated.data.error, /active agent on this canvas/);
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
 // The card joins the LIVE rule while its body comes from the occurrence, and
 // rule_version — recorded at claim time for exactly this — was read by nothing.
 // An unacknowledged card from a prior version resurfaced the moment the edited

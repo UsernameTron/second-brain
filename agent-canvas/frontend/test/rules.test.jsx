@@ -199,6 +199,74 @@ describe('Rules & Briefs view', () => {
     expect(screen.getByText('a written brief with sources')).toBeInTheDocument();
   });
 
+  // Re-parsing the prose re-derives all ten fields from the model, and
+  // validateInterpretation silently defaults cadence_hour to 8, step_budget to
+  // 12 and expires_days to 90 when the model omits them — so "move this brief
+  // from Monday to Friday" or "give it more steps" had no honest path, and
+  // step/time budget have no plain-language vocabulary at all. The structured
+  // form goes through PATCH: no model, nothing drifts that wasn't typed.
+  it('edits structured fields through PATCH without re-parsing the instruction', async () => {
+    const weekly = {
+      ...DRAFT_RULE, state: 'active', cadence: 'weekly', cadence_day: 1, cadence_hour: 8,
+      next_run_at: '2026-08-17T08:00:00Z',
+      interpretation: { ...INTERP, cadence: 'weekly', cadence_day: 1 },
+    };
+    api.mockImplementation((path, opts) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [weekly] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/standing-rules/sr1' && opts && opts.method === 'PATCH') {
+        const i = opts.body.interpretation;
+        return Promise.resolve({
+          rule: {
+            ...weekly, state: 'draft', version: 2, rehearsal_run_id: null, next_run_at: null,
+            cadence: i.cadence, cadence_day: i.cadence_day, cadence_hour: i.cadence_hour,
+            step_budget: i.step_budget, wall_ms_budget: i.wall_ms_budget,
+            interpretation: i, interpretation_json: JSON.stringify(i),
+          },
+        });
+      }
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({ rule: weekly, authorization: null, runs: [], rehearsalRun: null });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    expect((await screen.findAllByText('weekly on Monday at 08:00 UTC')).length).toBeGreaterThan(0);
+
+    // Collapsed by default — the plain-language card stays the primary view,
+    // and a closed panel renders no controls at all.
+    expect(screen.queryByLabelText('Step budget')).toBeNull();
+    await userEvent.click(screen.getByText('Settings — cadence, sources, budget, expiry'));
+
+    await userEvent.selectOptions(await screen.findByLabelText('Day'), '5');
+    await userEvent.clear(screen.getByLabelText('Step budget'));
+    await userEvent.type(screen.getByLabelText('Step budget'), '20');
+    await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+
+    await waitFor(() => {
+      expect(api).toHaveBeenCalledWith('/api/standing-rules/sr1', expect.objectContaining({
+        method: 'PATCH',
+        body: {
+          interpretation: expect.objectContaining({
+            cadence: 'weekly', cadence_day: 5, cadence_hour: 8, step_budget: 20,
+            wall_ms_budget: 120000, expires_days: 30, output_type: 'alert',
+            agent_id: 'a1', sources: ['hubspot'], scope: 'deals over $25k',
+            // Model-written prose the form never touches — blanking it would
+            // empty two consent-card fields.
+            summary: 'inbound deals', can: ['read CRM records'],
+            cannot: ['send email', 'change records'],
+          }),
+        },
+      }));
+    });
+    // The prose was untouched, so it must NOT have gone through the model.
+    expect(api.mock.calls.some(([p]) => p === '/api/canvases/c1/standing-rules/parse')).toBe(false);
+    // And the gate reset: back to draft, Activate held until a fresh rehearsal.
+    expect((await screen.findAllByText('weekly on Friday at 08:00 UTC')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Activate' })).toBeDisabled();
+  });
+
   // A re-interpretation that failed changed nothing server-side. Silence (or a
   // toast that scrolls away) leaves the edited words above an unchanged card
   // looking saved.

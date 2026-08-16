@@ -47,6 +47,12 @@ export function makeRulesApi(fetcher) {
     parse: (canvasId, instruction, ruleId = null) => fetcher(`/api/canvases/${canvasId}/standing-rules/parse`, {
       method: 'POST', body: ruleId ? { instruction, rule_id: ruleId } : { instruction },
     }),
+    // Structured-field edits: the ONLY path that changes cadence, budgets,
+    // expiry, sources, scope, output type or agent without rewriting the prose
+    // and hoping the model re-derives the other nine fields identically. The
+    // server re-validates and re-clamps the whole interpretation and resets the
+    // rehearsal gate, same as parse — this grants nothing on its own.
+    update: (id, body) => fetcher(`/api/standing-rules/${id}`, { method: 'PATCH', body }),
     list: (canvasId) => fetcher(`/api/canvases/${canvasId}/standing-rules`),
     get: (id) => fetcher(`/api/standing-rules/${id}`),
     rehearse: (id) => fetcher(`/api/standing-rules/${id}/rehearse`, { method: 'POST', body: {} }),

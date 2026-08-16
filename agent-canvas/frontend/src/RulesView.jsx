@@ -7,6 +7,9 @@ import { rulesApi, timeAgo, short } from './api.js';
 // owner activates. Runs land here as history; briefs render their markdown.
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+// Mirrors server/standing-rules.js SOURCES — the only values validateInterpretation
+// keeps (anything else is silently dropped, so offering more would be a lie).
+const SOURCES = ['gmail', 'drive', 'sheets', 'calendar', 'hubspot', 'enrichment', 'memory', 'web'];
 const WEEKLY_BRIEF_TEMPLATE = 'Prepare my weekly operating brief every Monday morning: what moved, what is stuck, what needs attention, and what to expect this week — with sources for every claim and explicit uncertainty where the evidence is thin.';
 
 // Server rows may carry JSON columns as strings or already-parsed objects.
@@ -139,6 +142,136 @@ function InterpretationCard({ rule, agentsById, readsAs }) {
   );
 }
 
+// Structured-field editing. Re-parsing the prose was the ONLY way to change any
+// of these, and it re-derives all ten fields from the model every time: a rule
+// running daily at 20:00 whose owner reworded a clause got cadence_hour back
+// from validateInterpretation's silent default (8), and step_budget/
+// wall_ms_budget/expires_days have no plain-language vocabulary to express at
+// all — the parse prompt asks the model to pick them and the owner never gets a
+// say. So "move the Monday brief to Friday" or "give it more steps" had no
+// honest path. PATCH is that path: same validate-and-clamp, same rehearsal-gate
+// reset, no model in the loop, so nothing drifts that the owner did not type.
+//
+// Native inputs and native constraint validation on purpose — min/max on a
+// number input is the whole client-side check, and the server clamps anyway.
+// Keyed on `${id}#${version}` by the caller so a server response remounts this
+// with fresh defaults instead of a useEffect sync dance.
+function RuleSettings({ rule, agents, busy, onSave }) {
+  // Rendered only while the disclosure is open. `<details>` keeps its children
+  // in the DOM when closed, and this form repeats every source name and the
+  // scope verbatim — a second copy of half the consent card, findable by
+  // screen readers and by text queries, on a panel nobody opened.
+  const [open, setOpen] = useState(false);
+  const interp = fromJson(rule.interpretation ?? rule.interpretation_json, {});
+  const [f, setF] = useState(() => ({
+    agent_id: interp.agent_id || rule.agent_id || '',
+    cadence: rule.cadence || 'daily',
+    cadence_hour: rule.cadence_hour ?? 8,
+    cadence_day: rule.cadence_day ?? 1,
+    output_type: rule.output_type || 'alert',
+    sources: Array.isArray(interp.sources) ? interp.sources : [],
+    scope: interp.scope || '',
+    step_budget: rule.step_budget ?? 12,
+    wall_min: Math.max(1, Math.round((rule.wall_ms_budget ?? 300_000) / 60_000)),
+    expires_days: Number.isInteger(interp.expires_days) ? interp.expires_days : 90,
+  }));
+  const set = (k) => (e) => setF((c) => ({ ...c, [k]: e.target.value }));
+  const toggleSource = (s) => (e) => setF((c) => ({
+    ...c, sources: e.target.checked ? [...new Set([...c.sources, s])] : c.sources.filter((x) => x !== s),
+  }));
+  const submit = (e) => {
+    e.preventDefault();
+    // Spread the STORED interpretation first: summary/category/can/cannot are
+    // model-written prose this form deliberately does not touch, and blanking
+    // them would empty two consent-card fields. cadence_day is null off weekly
+    // — validateInterpretation rejects a weekly rule without one and ignores it
+    // otherwise.
+    onSave({
+      ...interp,
+      agent_id: f.agent_id,
+      cadence: f.cadence,
+      cadence_hour: Number(f.cadence_hour),
+      cadence_day: f.cadence === 'weekly' ? Number(f.cadence_day) : null,
+      output_type: f.output_type,
+      sources: f.sources,
+      scope: String(f.scope).trim(),
+      step_budget: Number(f.step_budget),
+      wall_ms_budget: Number(f.wall_min) * 60_000,
+      expires_days: Number(f.expires_days),
+    });
+  };
+  return (
+    <details className="rule-settings" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>Settings — cadence, sources, budget, expiry</summary>
+      {!open ? null : (
+      <form onSubmit={submit}>
+        <label htmlFor="rs-agent">Run by</label>
+        <select id="rs-agent" value={f.agent_id} onChange={set('agent_id')}>
+          {(agents || []).map((a) => <option key={a.id} value={a.id}>{`${a.name} (${a.role})`}</option>)}
+        </select>
+
+        <label htmlFor="rs-cadence">Cadence</label>
+        <select id="rs-cadence" value={f.cadence} onChange={set('cadence')}>
+          <option value="hourly">every hour</option>
+          <option value="daily">daily</option>
+          <option value="weekly">weekly</option>
+        </select>
+
+        {f.cadence === 'weekly' ? (
+          <>
+            <label htmlFor="rs-day">Day</label>
+            <select id="rs-day" value={f.cadence_day} onChange={set('cadence_day')}>
+              {DAY_NAMES.map((d, i) => <option key={d} value={i}>{d}</option>)}
+            </select>
+          </>
+        ) : null}
+
+        {f.cadence === 'hourly' ? null : (
+          <>
+            <label htmlFor="rs-hour">Hour (UTC)</label>
+            <input id="rs-hour" type="number" min="0" max="23" step="1" value={f.cadence_hour} onChange={set('cadence_hour')} />
+          </>
+        )}
+
+        <label htmlFor="rs-output">Output</label>
+        <select id="rs-output" value={f.output_type} onChange={set('output_type')}>
+          <option value="alert">alert — only when something matches</option>
+          <option value="brief">brief — a written brief every run</option>
+        </select>
+
+        <fieldset>
+          <legend>Sources</legend>
+          {SOURCES.map((s) => (
+            <label key={s} htmlFor={`rs-src-${s}`}>
+              <input id={`rs-src-${s}`} type="checkbox" checked={f.sources.includes(s)} onChange={toggleSource(s)} />
+              {s}
+            </label>
+          ))}
+        </fieldset>
+
+        <label htmlFor="rs-scope">Scope</label>
+        <textarea id="rs-scope" rows="2" required value={f.scope} onChange={set('scope')} />
+
+        <label htmlFor="rs-steps">Step budget</label>
+        <input id="rs-steps" type="number" min="1" max="64" step="1" value={f.step_budget} onChange={set('step_budget')} />
+
+        <label htmlFor="rs-wall">Time budget (minutes)</label>
+        <input id="rs-wall" type="number" min="1" max="30" step="1" value={f.wall_min} onChange={set('wall_min')} />
+
+        <label htmlFor="rs-expiry">Expires (days after activation)</label>
+        <input id="rs-expiry" type="number" min="1" max="365" step="1" value={f.expires_days} onChange={set('expires_days')} />
+
+        <p className="dim">
+          Saving resets the rule to draft — rehearse again before it can activate. The plain-language
+          Can/Cannot lines are carried over unchanged; only editing the instruction rewrites those.
+        </p>
+        <button className="btn primary small" type="submit" disabled={busy}>Save settings</button>
+      </form>
+      )}
+    </details>
+  );
+}
+
 // standing_rule_runs.state — its own vocabulary (pending/skipped don't exist on
 // agent runs), but the run-* chip colors already carry these meanings, so map
 // onto them instead of inventing a second palette.
@@ -266,6 +399,23 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
     } catch (e) { setParseError(e.message); } finally { setBusy(false); }
   };
 
+  // Structured edit: PATCH, not re-parse. The prose is untouched, so putting it
+  // through the model could only re-derive fields the owner did not ask to
+  // change. Same server-side ceremony either way (validate → clamp → draft →
+  // version++ → rehearsal cleared), so the button below has to say so.
+  const saveSettings = async (interpretation) => {
+    if (busy) return;
+    setBusy(true);
+    setParseError(null);
+    try {
+      const d = await rulesApi.update(detail.rule.id, { interpretation });
+      savedInstructionRef.current = d.rule.instruction;
+      setDetail((cur) => ({ ...cur, rule: d.rule, rehearsalRun: null }));
+      loadList();
+      toast('Settings saved — rehearse again before it can activate', 'ok');
+    } catch (e) { toast(e.message); } finally { setBusy(false); }
+  };
+
   const rehearse = async () => {
     if (busy || rehearsalPending) return;
     setBusy(true);
@@ -357,6 +507,13 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
                 </p>
               ) : null}
             </section>
+          ) : null}
+          {/* Same gate as the instruction textarea (and the same server check:
+              PATCH's ruleAccess admits the creator or the owner). A revoked or
+              expired rule has nothing left to edit. */}
+          {editable ? (
+            <RuleSettings key={`${rule.id}#${rule.version}`} rule={rule} agents={agents || []}
+              busy={busy} onSave={saveSettings} />
           ) : null}
           {/* The live grant wins once it exists; before activation the
               rehearsal's own identity is what the owner is being asked to
