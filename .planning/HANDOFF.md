@@ -1,11 +1,11 @@
 # Session handoff (auto-written by Stop hook)
 
-- When: 2026-08-15 19:28 CDT
-- Branch: feat/agent-canvas-p5-standing-rules
-- Dirty at stop: 1 files
+- When: 2026-08-16 13:34 CDT
+- Branch: chore/agent-canvas-deploy-truthup-2026-08-16
+- Dirty at stop: 2 files
 - Recent commits:
-  - 8c364d4 agent-canvas P5: fold in Codex round-2 — 8 of 9 findings, incl. two holes in the first round
-  - 0d8f67f chore(session): auto-commit session work (2026-08-15)
-  - f1e7777 chore(session): auto-commit session work (2026-08-15)
-  - 5e6b1ab agent-canvas docs: HANDOFF — Codex review round on #196 (97f9bcb)
-  - 97f9bcb agent-canvas P5: fold in all 9 Codex review findings on #196
+  - 62eae86 agent-canvas: truth-up and release closeout — authorization retirement, preservation-first deploy, classified docs, /api/healthz (#199)
+  - 92fb427 agent-canvas P5: close all 14 ship-and-fix audit findings, plus rules settings form (#198)
+  - f9192a7 agent-canvas P4: close the authority/publish coverage gaps found by adversarial audit (#195) (#197)
+  - b0576e1 agent-canvas P5: standing rules, watches & weekly brief (#196)
+  - a75caba agent-canvas P4: plain-language agent builder — authority map, rehearse-gated publish, versions (#195)

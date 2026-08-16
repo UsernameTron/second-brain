@@ -18,9 +18,9 @@ since), or **unverified**. A live claim decays — re-probe before depending on 
 **Canonical checkout (git-proven):** `/Users/cpconnor/projects/second-brain`, app
 subtree `agent-canvas/`. `master`, `origin/master`, and `HEAD` all resolve to
 `92fb427ef491a5431740f571bdaf66ae7a45c62f`. PRs #194 through #198 are
-represented on `master`. This truth-up sits on the branch
-`fix/agent-canvas-truth-up`, cut from `92fb427`; the canonical checkout was left
-dirty and untouched so the pre-integration state stays inspectable.
+represented on `master`. The truth-up branch merged as
+PR #199, squashed to `62eae86`; the pre-integration dirty state is preserved in
+`stash@{0}` on the canonical checkout.
 
 **Verification after this truth-up (`npm run verify`, 2026-08-16):** **362
 backend tests / 0 failures**, **39 frontend tests / 0 failures**, a clean
@@ -48,14 +48,18 @@ carries #194 through #198. All 11 env vars survived the wholesale set;
 `TICK_AUDIENCE` and `TICK_INVOKER_SA` were **deliberately absent**, so the OIDC
 scheduler lane is off. Zero error-severity log entries after deploy.
 
-**Live probe (live-proven, observed 2026-08-16 after `gcloud auth login` was
-restored):** serving URL `https://agent-canvas-mqqftm2ora-uc.a.run.app`, revision
-**`agent-canvas-00051-94w` at 100% traffic** — unchanged from the earlier
-observation. Eleven env-var names present (NODE_ENV, OWNER_EMAIL,
-LITESTREAM_REPLICA_URL, MODEL_PROVIDER, GOOGLE_CLIENT_ID, HS_OPS_RUNNER_URL,
-ED_DISPATCH_URL, ANTHROPIC_API_KEY, JWT_SECRET, GOOGLE_CLIENT_SECRET,
-RAPIDAPI_KEY); `TICK_AUDIENCE` / `TICK_INVOKER_SA` absent, scheduler lane dark
-as intended. `/api/config` answered 200 anonymously with the expected payload.
+**Deployed and live-proven (2026-08-16 ~18:30Z):** `master` at `62eae86`
+(PR #199) deployed as revision **`agent-canvas-00052-nbf` at 100% traffic** —
+the first run of the preservation-first deploy script, preceded by a
+`DEPLOY_DRY_RUN=1` rehearsal that listed the five live-only variables it would
+preserve (ED_DISPATCH_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+HS_OPS_RUNNER_URL, RAPIDAPI_KEY — exactly the ones the old wholesale set would
+have deleted). Post-deploy probes: all eleven env-var names intact,
+`MODEL_PROVIDER=anthropic` inherited (not overwritten), **`/api/healthz` 200**
+with `{"ok":true,"paused":false}`, `/api/config` 200, the live bundle carrying
+both the `Export operational ledger (JSON)` and `Previously authorized by`
+strings, zero error-severity log entries since deploy. `TICK_AUDIENCE` /
+`TICK_INVOKER_SA` remain absent — scheduler lane dark by intent.
 
 **Resolved: the live `MODEL_PROVIDER` is `anthropic` (live-proven 2026-08-16).**
 The wholesale-set hazard did NOT fire on the last deploy — the value survived.
@@ -105,7 +109,7 @@ unproven. A manual owner tick does not satisfy scheduler capability evidence.
 The full run-by-run transcript is preserved verbatim in
 [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md).
 
-### What `fix/agent-canvas-truth-up` changes (test-proven, NOT deployed)
+### What PR #199 changed (deployed on `00052-nbf`)
 
 1. **Stale authorization after an edit — fixed.** Editing an active rule now
    retires its grant in the same transaction as the flip to draft, both edit
@@ -150,10 +154,7 @@ the same handler now also answers at **`/api/healthz`**, which rides the `/api`
 prefix the GFE forwards untouched, registered before the `/api` router so it
 stays unauthenticated. `/healthz` is kept for local runs. Covered by
 `test/healthz.test.js`, including a guard that both paths share one handler.
-**Source-fixed and test-proven; the alias reaches production on the next
-deploy** — until then the live service has no externally reachable liveness
-path, which is the state it has been in since the first deploy, not a
-regression.
+**Deployed on `00052-nbf` and probed live: `/api/healthz` answers 200.**
 
 ### Release gates, in order
 
