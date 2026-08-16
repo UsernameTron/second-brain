@@ -1122,6 +1122,22 @@ function ruleAccess(req, res, { edit = true, mutate = false } = {}) {
   return rule;
 }
 
+// Rule history is canvas-readable by every member, and a scheduled run's
+// output refs can name a private Drive file or a mailbox message. Same
+// read-time redaction the run receipt applies: only the directing user (the
+// grantor whose Google identity the reads acted as) sees the raw id + URI.
+// The raw output_refs_json column is dropped from the payload — spreading it
+// would hand back exactly what the redaction just removed.
+function ruleRunView(r, viewerEmail) {
+  const parse = (j) => { try { const a = JSON.parse(j || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } };
+  const { output_refs_json: refsJson, retry_run_ids_json: retryJson, ...rest } = r;
+  return {
+    ...rest,
+    output_refs: parse(refsJson).map((ref) => evidence.redactRef(ref, viewerEmail)),
+    retry_run_ids: parse(retryJson),
+  };
+}
+
 // Parse: plain language → validated interpretation (D9, the P4 propose
 // pattern). Creates a draft rule, or re-interprets an existing one — either
 // way the rehearsal gate resets. The model proposes; the server re-validates
@@ -1192,7 +1208,7 @@ router.get('/standing-rules/:ruleId', (req, res) => {
   if (!rule) return;
   const authz = standingRules.currentAuthorization(rule.id) || null;
   const runs = db.prepare('SELECT * FROM standing_rule_runs WHERE rule_id = ? ORDER BY created_at DESC LIMIT 10').all(rule.id)
-    .map((r) => ({ ...r, output_refs: JSON.parse(r.output_refs_json || '[]'), retry_run_ids: JSON.parse(r.retry_run_ids_json || '[]') }));
+    .map((r) => ruleRunView(r, req.user.email));
   const rehearsalRun = rule.rehearsal_run_id
     ? db.prepare('SELECT id, status, mode, summary, error, created_at, ended_at FROM runs WHERE id = ?').get(rule.rehearsal_run_id)
     : null;
@@ -1336,7 +1352,7 @@ router.get('/standing-rules/:ruleId/runs', (req, res) => {
   const rule = ruleAccess(req, res, { edit: false });
   if (!rule) return;
   const runs = db.prepare('SELECT * FROM standing_rule_runs WHERE rule_id = ? ORDER BY created_at DESC LIMIT 50').all(rule.id)
-    .map((r) => ({ ...r, output_refs: JSON.parse(r.output_refs_json || '[]'), retry_run_ids: JSON.parse(r.retry_run_ids_json || '[]') }));
+    .map((r) => ruleRunView(r, req.user.email));
   res.json({ runs });
 });
 
@@ -1353,7 +1369,7 @@ router.post('/standing-rule-runs/:ruleRunId/acknowledge', (req, res) => {
       .run(nowIso(), req.user.email, rr.id);
     audit('user', req.user.email, 'standing_rule_run.acknowledge', { ruleRunId: rr.id, ruleId: rr.rule_id, canvasId: rr.canvas_id });
   }
-  res.json({ run: db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id) });
+  res.json({ run: ruleRunView(db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id), req.user.email) });
 });
 
 // Owner-only: re-copy prompt + tier from the source roster entry. Name and

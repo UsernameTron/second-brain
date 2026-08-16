@@ -325,12 +325,14 @@ test('a failed dispatched run is retried, then completes on the fresh run', asyn
 // ---------- authority snapshot (Codex P1) ----------
 
 test('widening the agent after the grant never widens the rule; narrowing it still does', async () => {
-  const GRANTED = ['hs_search', 'ws_drive_search'];
+  // Both granted tools must sit inside the rule's declared sources — the grant
+  // is source-scoped too, and 'drive' would make the rule workspace-touching.
+  const GRANTED = ['hs_search', 'hs_get'];
   db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(GRANTED), agentId);
   const { rule } = mkActiveRule(); // authorization snapshots tools_json as it is NOW
   try {
     // The owner widens the agent AFTER the standing authorization was granted.
-    db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify([...GRANTED, 'ws_gmail_search']), agentId);
+    db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify([...GRANTED, 'hs_list']), agentId);
     assert.equal(standingRules.tick({ source: 'owner', actor: OWNER }).claimed, 1);
     const [rr] = ruleRuns(rule.id);
     const run = db.prepare('SELECT * FROM runs WHERE id = ?').get(rr.run_id);
@@ -338,13 +340,13 @@ test('widening the agent after the grant never widens the rule; narrowing it sti
 
     const canvas = { id: canvasId };
     const live = () => db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId);
-    const widened = await executeTool('ws_gmail_search', { query: 'anything' }, { run, agent: live(), canvas });
+    const widened = await executeTool('hs_list', { object_type: 'deals' }, { run, agent: live(), canvas });
     assert.ok(widened.isError, 'a tool added after the grant must not execute on the rule run');
     assert.match(widened.content, /authority map/);
 
     // A later NARROWING still takes effect — the snapshot is a ceiling, not a floor.
     db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(['hs_search']), agentId);
-    const narrowed = await executeTool('ws_drive_search', { query: 'anything' }, { run, agent: live(), canvas });
+    const narrowed = await executeTool('hs_get', { object_type: 'deals', id: '1' }, { run, agent: live(), canvas });
     assert.ok(narrowed.isError, 'a tool removed after the grant must stop executing');
     assert.match(narrowed.content, /authority map/);
 
@@ -353,8 +355,8 @@ test('widening the agent after the grant never widens the rule; narrowing it sti
     assert.deepEqual(effective, ['hs_search']);
     const offered = toolsForRole('research', { mode: 'ask', authority: effective }).map((t) => t.name);
     assert.ok(offered.includes('hs_search'));
-    assert.ok(!offered.includes('ws_drive_search'));
-    assert.ok(!offered.includes('ws_gmail_search'));
+    assert.ok(!offered.includes('hs_get'));
+    assert.ok(!offered.includes('hs_list'));
 
     await waitForRun(rr.run_id);
     standingRules.finalizeRuleRuns();
@@ -524,6 +526,253 @@ test('a completed watch with no parseable MATCHED line surfaces instead of going
     assert.equal(done.needs_attention, 1, 'an unknown count must be reviewed, never silently suppressed');
   } finally {
     restoreModel();
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// ---------- Codex round 2 ----------
+
+async function attentionCards(cookie = ownerCookie) {
+  const res = await fetch(`${base}/api/attention?canvas_id=${canvasId}`, { headers: { Cookie: cookie } });
+  assert.equal(res.status, 200);
+  return (await res.json()).attention;
+}
+
+// R2-1: a pre-P4 agent has tools_json NULL, and NULL is the identity element of
+// intersectAuthority — so a NULL grant-time snapshot is no ceiling at all.
+test('a legacy agent with no authority map still gets a CONCRETE grant-time ceiling', async () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const { rule } = mkActiveRule();
+  try {
+    assert.equal(standingRules.tick({ source: 'owner', actor: OWNER }).claimed, 1);
+    const [rr] = ruleRuns(rule.id);
+    const run = db.prepare('SELECT * FROM runs WHERE id = ?').get(rr.run_id);
+    assert.notEqual(run.authority_json, null, 'a NULL snapshot means unrestricted forever');
+    const granted = JSON.parse(run.authority_json);
+    assert.ok(granted.includes('hs_search'), 'the reviewed sources resolve to real tools');
+
+    // The owner now publishes an authority map naming a tool this rule never
+    // reviewed. Against a NULL snapshot the intersection would hand it over.
+    db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(['hs_search', 'ws_drive_search']), agentId);
+    const live = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId);
+    const out = await executeTool('ws_drive_search', { query: 'anything' }, { run, agent: live, canvas: { id: canvasId } });
+    assert.ok(out.isError, 'a tool published after the grant must not execute on the rule run');
+    assert.match(out.content, /authority map/);
+
+    await waitForRun(rr.run_id);
+    standingRules.finalizeRuleRuns();
+  } finally {
+    db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// R2-7: the reviewed source list is the consent card's whole promise.
+test('the grant is scoped to the reviewed sources, and the run is told them', () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const { rule, authz } = mkActiveRule();
+  const granted = JSON.parse(authz.allowed_tools_json);
+  assert.ok(granted.length > 0, 'a hubspot rule can reach hubspot');
+  assert.ok(granted.every((n) => n.startsWith('hs_')),
+    `only the reviewed sources' tools are granted, got ${granted.join(', ')}`);
+  assert.ok(!granted.includes('web_search'), 'an undeclared source grants nothing');
+
+  // A memory-only rule reaches no external surface at all.
+  const memOnly = mkActiveRule({ sources: ['memory'] });
+  assert.deepEqual(JSON.parse(memOnly.authz.allowed_tools_json), []);
+
+  assert.match(standingRules.ruleInstruction(standingRules.getRule(rule.id)), /Sources: read hubspot, memory/);
+  for (const r of [rule, memOnly.rule]) db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(r.id);
+});
+
+// R2-2: the in-memory queue is unbounded, so a saturated workspace can park a
+// run past its whole lease. Retrying alongside it double-spends the occurrence.
+test('a lease-expiry retry terminates the prior attempt before dispatching', async () => {
+  const { rule } = mkActiveRule();
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    let [rr] = ruleRuns(rule.id);
+    const first = rr.run_id;
+    await waitForRun(first);
+
+    // The shape a saturated queue leaves: still queued/running, lease gone.
+    db.prepare("UPDATE runs SET status = 'queued', ended_at = NULL WHERE id = ?").run(first);
+    db.prepare('UPDATE standing_rule_runs SET lease_until = ? WHERE id = ?').run(PAST(), rr.id);
+    const controller = new AbortController();
+    control.registerAbort(first, controller);
+    try { standingRules.finalizeRuleRuns(); } finally { control.unregisterAbort(first); }
+
+    rr = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+    assert.equal(rr.attempt, 2);
+    assert.notEqual(rr.run_id, first);
+    const prior = db.prepare('SELECT * FROM runs WHERE id = ?').get(first);
+    assert.equal(prior.status, 'failed', 'the prior attempt must not still be waiting to execute');
+    assert.match(prior.error, /superseded by standing-rule retry/);
+    assert.ok(controller.signal.aborted, 'its in-flight work is cancelled, not left to race the retry');
+    assert.equal(db.prepare('SELECT parent_run_id FROM runs WHERE id = ?').get(rr.run_id).parent_run_id, first);
+
+    // And the superseded attempt never becomes a generic Retry card.
+    assert.ok(!(await attentionCards()).some((c) => c.type === 'failed_run' && c.sourceRef.id === first));
+
+    await waitForRun(rr.run_id);
+    standingRules.finalizeRuleRuns();
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// R2-3: an earlier attempt lives only in retry_run_ids_json — halting rr.run_id
+// alone leaves it reading and writing memory after the grant is revoked.
+test('revoking halts EVERY attempt of the occurrence, not just the current one', async () => {
+  const { rule } = mkActiveRule();
+  let first;
+  let rr;
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    [rr] = ruleRuns(rule.id);
+    first = rr.run_id;
+    await waitForRun(first);
+    db.prepare("UPDATE runs SET status = 'running', ended_at = NULL WHERE id = ?").run(first);
+    db.prepare('UPDATE standing_rule_runs SET lease_until = ? WHERE id = ?').run(PAST(), rr.id);
+    standingRules.finalizeRuleRuns();
+    rr = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+    assert.deepEqual(JSON.parse(rr.retry_run_ids_json), [first], 'the prior id lives only here');
+    await waitForRun(rr.run_id);
+
+    // Both attempts live (defense in depth: whatever leaves an older attempt
+    // running, revoke must still reach it).
+    db.prepare("UPDATE runs SET status = 'running', ended_at = NULL, error = NULL WHERE id IN (?, ?)").run(first, rr.run_id);
+    const c1 = new AbortController();
+    const c2 = new AbortController();
+    control.registerAbort(first, c1);
+    control.registerAbort(rr.run_id, c2);
+    try {
+      const res = await fetch(`${base}/api/standing-rules/${rule.id}/revoke`, { method: 'POST', headers: { Cookie: ownerCookie } });
+      assert.equal(res.status, 200);
+    } finally {
+      control.unregisterAbort(first);
+      control.unregisterAbort(rr.run_id);
+    }
+    assert.ok(c1.signal.aborted, 'the earlier attempt is aborted too');
+    assert.ok(c2.signal.aborted);
+    for (const id of [first, rr.run_id]) {
+      assert.equal(db.prepare('SELECT status FROM runs WHERE id = ?').get(id).status, 'failed', `run ${id} still open`);
+    }
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// R2-4: editing flips the rule to draft, and draft rules emit no cards — so an
+// unhalted occurrence keeps running the old instruction, invisibly.
+test('editing an active rule halts the occurrence already in flight', async () => {
+  const { rule, rr, controller } = await inFlightRule();
+  try {
+    const res = await fetch(`${base}/api/standing-rules/${rule.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: ownerCookie },
+      body: JSON.stringify({ instruction: 'watch something else entirely' }),
+    });
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).rule.state, 'draft');
+    assert.ok(controller.signal.aborted, 'the old approved instruction must stop running');
+    assert.equal(db.prepare('SELECT status FROM runs WHERE id = ?').get(rr.run_id).status, 'failed');
+    const halted = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+    assert.equal(halted.state, 'skipped');
+    assert.match(halted.skip_reason, /edited/);
+  } finally {
+    control.unregisterAbort(rr.run_id);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// R2-5: rule history is canvas-readable; a scheduled read of a private Drive
+// file must not hand its id and URI to every member.
+test('rule history and detail redact private evidence refs for anyone but the directing user', async () => {
+  const { rule } = mkActiveRule();
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    const [rr] = ruleRuns(rule.id);
+    await waitForRun(rr.run_id);
+    standingRules.finalizeRuleRuns();
+    const ref = {
+      id: 'ref-private-1', runId: rr.run_id, sourceKind: 'drive', sourceId: 'FILE_SECRET_ID',
+      title: 'Q3 comp plan', uri: 'https://drive.google.com/open?id=FILE_SECRET_ID',
+      directedBy: OWNER, retrievedAt: nowIso(), visibility: 'canvas', meta: {},
+    };
+    db.prepare('UPDATE standing_rule_runs SET output_refs_json = ? WHERE id = ?').run(JSON.stringify([ref]), rr.id);
+
+    for (const path of [`/api/standing-rules/${rule.id}/runs`, `/api/standing-rules/${rule.id}`]) {
+      const res = await fetch(`${base}${path}`, { headers: { Cookie: memberCookie } });
+      assert.equal(res.status, 200, `${path} readable by a member`);
+      const body = await res.json();
+      const row = body.runs.find((r) => r.id === rr.id);
+      assert.ok(row, `${path} returns the occurrence`);
+      assert.equal(row.output_refs_json, undefined, 'the raw column must not ride along unredacted');
+      const [got] = row.output_refs;
+      assert.equal(got.uri, '', `${path} leaked the private URI`);
+      assert.equal(got.sourceId, '');
+      assert.equal(got.redacted, true);
+      assert.equal(got.title, 'Q3 comp plan', 'the receipt stays honest — kind and title survive');
+    }
+
+    // The grantor, whose Google identity the read acted as, still sees it.
+    const own = await fetch(`${base}/api/standing-rules/${rule.id}/runs`, { headers: { Cookie: ownerCookie } });
+    const mine = (await own.json()).runs.find((r) => r.id === rr.id).output_refs[0];
+    assert.equal(mine.uri, ref.uri);
+    assert.equal(mine.sourceId, 'FILE_SECRET_ID');
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// R2-6: lamps never fake green. A rule whose grant is gone must not keep
+// displaying as active while it silently skips every occurrence forever.
+test('a rule whose authorization is gone stops monitoring LOUDLY, not silently', async () => {
+  const { rule } = mkActiveRule({ authorizedBy: 'ghost@cloudtechgurus.com' });
+  standingRules.tick({ source: 'owner', actor: OWNER });
+
+  const after = standingRules.getRule(rule.id);
+  assert.notEqual(after.state, 'active', 'an unrunnable rule must not display as active');
+  assert.equal(after.state, 'paused');
+  assert.equal(after.next_run_at, null, 'a silently advanced schedule is the fake-green');
+
+  const [rr] = ruleRuns(rule.id);
+  assert.equal(rr.state, 'skipped');
+  assert.equal(rr.needs_attention, 1, 'someone is relying on monitoring that stopped');
+  assert.ok((await attentionCards()).some((c) => c.type === 'rule_alert' && c.sourceRef.id === rr.id),
+    'the owner learns the rule is broken');
+  assert.ok(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'standing_rule.invalidated'").get().n >= 1);
+
+  // Resume refuses until the grant is redone — no accidental revival.
+  const res = await fetch(`${base}/api/standing-rules/${rule.id}/resume`, { method: 'POST', headers: { Cookie: ownerCookie } });
+  assert.equal(res.status, 409);
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+// R2-8: between a scheduled run going terminal and the next finalizer tick, the
+// generic projection would offer Retry — and a click would dispatch a second
+// run for the same occurrence the finalizer is about to retry itself.
+test('a standing run that fails before the finalizer ticks offers no generic Retry card', async () => {
+  const { rule } = mkActiveRule();
+  try {
+    standingRules.tick({ source: 'owner', actor: OWNER });
+    let [rr] = ruleRuns(rule.id);
+    await waitForRun(rr.run_id);
+    db.prepare("UPDATE runs SET status = 'failed', error = 'model exploded' WHERE id = ?").run(rr.run_id);
+    assert.equal(db.prepare('SELECT state FROM standing_rule_runs WHERE id = ?').get(rr.id).state, 'running',
+      'the finalizer has not swept yet — this is the window');
+
+    assert.ok(!(await attentionCards()).some((c) => c.type === 'failed_run' && c.sourceRef.id === rr.run_id),
+      'the standing-rule lifecycle owns this run; a generic Retry would double-dispatch it');
+
+    // And the lifecycle does own it — the finalizer dispatches the retry.
+    standingRules.finalizeRuleRuns();
+    rr = db.prepare('SELECT * FROM standing_rule_runs WHERE id = ?').get(rr.id);
+    assert.equal(rr.attempt, 2);
+    await waitForRun(rr.run_id);
+    standingRules.finalizeRuleRuns();
+  } finally {
     db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
   }
 });

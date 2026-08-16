@@ -128,12 +128,15 @@ function failedRunCards(canvasId) {
           AND (e.status = 'open' OR e.kind != 'question')
       )
       AND NOT EXISTS (SELECT 1 FROM runs child WHERE child.parent_run_id = r.id)
-      -- P5: a run the owner deliberately halted by revoking or pausing its
-      -- standing rule is a control action, not a failure — same reason
-      -- halted_paused is excluded above. Offering "retry" would re-dispatch
-      -- work the owner just stopped.
+      -- P5: EVERY run owned by a standing-rule occurrence belongs to the
+      -- standing-rule lifecycle, not to this projection. It dispatches its own
+      -- retries and raises its own rule_alert card; a generic Retry here would
+      -- run the work twice and write memory twice — and the state != 'skipped'
+      -- window (terminal run, finalizer not yet ticked) is exactly when a user
+      -- sees the card and clicks it. Superseded earlier attempts carry
+      -- parent_run_id, so the child clause above already covers them.
       AND NOT EXISTS (
-        SELECT 1 FROM standing_rule_runs srr WHERE srr.run_id = r.id AND srr.state = 'skipped'
+        SELECT 1 FROM standing_rule_runs srr WHERE srr.run_id = r.id
       )
     ORDER BY r.created_at DESC LIMIT 50
   `).all(canvasId);

@@ -164,12 +164,20 @@ function upsertDraft({ canvasId, ruleId = null, instruction, interp, actor }) {
     wall_ms_budget: interp.wall_ms_budget,
   };
   if (ruleId) {
-    db.prepare(`UPDATE standing_rules SET agent_id = ?, instruction = ?, interpretation_json = ?, category = ?,
-        source_scope_json = ?, output_type = ?, cadence = ?, cadence_hour = ?, cadence_day = ?,
-        step_budget = ?, wall_ms_budget = ?, state = 'draft', rehearsal_run_id = NULL,
-        version = version + 1, updated_at = ? WHERE id = ?`)
-      .run(cols.agent_id, cols.instruction, cols.interpretation_json, cols.category, cols.source_scope_json,
-        cols.output_type, cols.cadence, cols.cadence_hour, cols.cadence_day, cols.step_budget, cols.wall_ms_budget, ts, ruleId);
+    tx(() => {
+      // Editing an ACTIVE rule flips it to draft, and a draft rule emits no
+      // attention cards — so an occurrence left running would finish the OLD
+      // approved instruction, write memory under the old authorization, and
+      // its card would be invisible to the person who just edited it. Same
+      // stop as pause/revoke. Covers PATCH and re-parse: both land here.
+      haltRuleRuns(ruleId, 'rule edited');
+      db.prepare(`UPDATE standing_rules SET agent_id = ?, instruction = ?, interpretation_json = ?, category = ?,
+          source_scope_json = ?, output_type = ?, cadence = ?, cadence_hour = ?, cadence_day = ?,
+          step_budget = ?, wall_ms_budget = ?, state = 'draft', rehearsal_run_id = NULL, next_run_at = NULL,
+          version = version + 1, updated_at = ? WHERE id = ?`)
+        .run(cols.agent_id, cols.instruction, cols.interpretation_json, cols.category, cols.source_scope_json,
+          cols.output_type, cols.cadence, cols.cadence_hour, cols.cadence_day, cols.step_budget, cols.wall_ms_budget, ts, ruleId);
+    });
     return getRule(ruleId);
   }
   const id = crypto.randomUUID();
@@ -184,12 +192,49 @@ function upsertDraft({ canvasId, ruleId = null, instruction, interp, actor }) {
 }
 
 // ---------- authorization lifecycle (D5) ----------
+// The governed tools each reviewed source actually needs. A source the owner
+// read on the consent card is the ONLY reason a rule may reach that surface —
+// otherwise the card describes a constraint that does not exist.
+const SOURCE_TOOLS = {
+  gmail: (n) => n.startsWith('ws_gmail_'),
+  drive: (n) => n.startsWith('ws_drive_') || n.startsWith('ws_docs_'),
+  sheets: (n) => n.startsWith('ws_sheets_'),
+  calendar: (n) => n.startsWith('ws_calendar_'),
+  hubspot: (n) => n.startsWith('hs_'),
+  web: (n) => n === 'web_search',
+  memory: () => false, // memory/notes/escalate are never governed tools
+};
+
+function ruleSources(rule) {
+  try {
+    const s = JSON.parse(rule.source_scope_json || '{}').sources;
+    return (Array.isArray(s) ? s : []).filter((x) => SOURCES.includes(x));
+  } catch { return []; }
+}
+
+// The CONCRETE governed surface a rule run may ever touch, resolved at GRANT
+// time: this deployment's menu for the agent's role, intersected with the
+// agent's own authority map, intersected with the tools the reviewed sources
+// need. Never null. A null snapshot is "unrestricted" to intersectAuthority,
+// so a legacy agent (tools_json NULL) would leave the ceiling floating with
+// the deployment — every connector enabled or authority published afterwards
+// silently widening a rule nobody re-consented to.
+function grantedTools(rule, agent, grantor) {
+  const { authorityMenu, parseAuthority } = require('./orchestrator/tools');
+  const menu = authorityMenu(agent.role || 'research', { userRole: auth.workspaceRole(grantor) }).map((m) => m.name);
+  const agentAuthority = parseAuthority(agent.tools_json);
+  const sources = ruleSources(rule);
+  const bySource = (n) => sources.some((s) => (SOURCE_TOOLS[s] || (() => false))(n));
+  return menu.filter((n) => bySource(n) && (!agentAuthority || agentAuthority.includes(n)));
+}
+
 function createAuthorization({ rule, authorizedBy, expiresAt }) {
-  const agent = db.prepare('SELECT tools_json FROM agents WHERE id = ?').get(rule.agent_id) || {};
+  const agent = db.prepare('SELECT role, tools_json FROM agents WHERE id = ?').get(rule.agent_id) || {};
   const id = crypto.randomUUID();
   db.prepare(`INSERT INTO standing_authorizations (id, rule_id, canvas_id, authorized_by, workspace_role_at_grant,
       allowed_tools_json, mode, granted_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, 'ask', ?, ?)`)
-    .run(id, rule.id, rule.canvas_id, authorizedBy, auth.workspaceRole(authorizedBy), agent.tools_json ?? null, nowIso(), expiresAt);
+    .run(id, rule.id, rule.canvas_id, authorizedBy, auth.workspaceRole(authorizedBy),
+      JSON.stringify(grantedTools(rule, agent, authorizedBy)), nowIso(), expiresAt);
   return db.prepare('SELECT * FROM standing_authorizations WHERE id = ?').get(id);
 }
 
@@ -213,13 +258,17 @@ function touchesWorkspace(rule) {
 // grantor's access: the grantor must still be allowlisted AND still hold edit
 // access to the rule's canvas. Never invents an interactive user.
 function verifyAuthorization(rule, authz, now = new Date(), { checkWorkspace = true } = {}) {
-  if (!authz) return { ok: false, reason: 'no standing authorization' };
-  if (authz.revoked_at) return { ok: false, reason: 'authorization revoked' };
-  if (authz.expires_at && authz.expires_at <= now.toISOString()) return { ok: false, reason: 'authorization expired' };
+  // fatal = the grant is gone for good; no later tick can fix it. These must
+  // never be a quiet skip that advances the schedule — the rule would keep
+  // displaying as active while monitoring nobody re-consented to has stopped.
+  const dead = (reason) => ({ ok: false, reason, alert: true, fatal: true });
+  if (!authz) return dead('no standing authorization');
+  if (authz.revoked_at) return dead('authorization revoked');
+  if (authz.expires_at && authz.expires_at <= now.toISOString()) return dead('authorization expired');
   const entry = auth.allowlistEntry(authz.authorized_by);
-  if (!entry) return { ok: false, reason: 'grantor no longer on the workspace allowlist' };
+  if (!entry) return dead('grantor no longer on the workspace allowlist');
   const check = auth.canEditCanvas({ role: entry.role, email: authz.authorized_by }, rule.canvas_id);
-  if (!check.ok) return { ok: false, reason: 'grantor no longer has edit access to this canvas' };
+  if (!check.ok) return dead('grantor no longer has edit access to this canvas');
   if (rule.state !== 'active') return { ok: false, reason: `rule is ${rule.state}` };
   if (rule.expires_at && rule.expires_at <= now.toISOString()) return { ok: false, reason: 'rule expired' };
   if (checkWorkspace && touchesWorkspace(rule) && !workspace.isConnected(authz.authorized_by)) {
@@ -249,11 +298,16 @@ function ruleInstruction(rule, { rehearsal = false } = {}) {
   let scope = '';
   try { scope = JSON.parse(rule.source_scope_json || '{}').scope || ''; } catch { /* keep empty */ }
   const scopeLine = scope ? `Scope: ${scope}\n` : '';
+  // The reviewed source list is a constraint, not decoration. The grant-time
+  // tool snapshot enforces it (grantedTools), but the run must also be TOLD —
+  // otherwise it can skip an approved source or wander at a refused one.
+  const sources = ruleSources(rule);
+  const sourceLine = sources.length ? `Sources: read ${sources.join(', ')} — and nothing else.\n` : '';
   const memoryLine = rehearsal ? REHEARSAL_MEMORY_LINE : MEMORY_DIRECTIVE;
   if (rule.output_type === 'brief') {
-    return `Scheduled ${rule.cadence} brief (standing rule ${rule.id}). ${rule.instruction}\n${scopeLine}Write the operating brief in markdown with source references (evidence refs) and explicit uncertainty — state plainly what you could not verify. ${memoryLine} ${MATCHED_CONTRACT}`;
+    return `Scheduled ${rule.cadence} brief (standing rule ${rule.id}). ${rule.instruction}\n${sourceLine}${scopeLine}Write the operating brief in markdown with source references (evidence refs) and explicit uncertainty — state plainly what you could not verify. ${memoryLine} ${MATCHED_CONTRACT}`;
   }
-  return `Scheduled ${rule.cadence} watch (standing rule ${rule.id}). ${rule.instruction}\n${scopeLine}Check what this rule watches and raise ONLY what genuinely needs a human's attention — "nothing to report" is a valid result. ${memoryLine} ${MATCHED_CONTRACT}`;
+  return `Scheduled ${rule.cadence} watch (standing rule ${rule.id}). ${rule.instruction}\n${sourceLine}${scopeLine}Check what this rule watches and raise ONLY what genuinely needs a human's attention — "nothing to report" is a valid result. ${memoryLine} ${MATCHED_CONTRACT}`;
 }
 
 function rehearsalInstruction(rule) {
@@ -284,10 +338,33 @@ function notifyCanvas(canvasId) {
   if (canvasId) bus.emit('event', { type: 'canvas_structure', canvasId });
 }
 
+// Terminate ONE attempt: kill the in-flight model call and close the row. A
+// run that never started has no controller to abort — closing the row is what
+// stops it, because executeRun no-ops on a non-queued run.
+function closeRun(runId, reason) {
+  if (!runId) return;
+  control.abortRun(runId, reason);
+  db.prepare("UPDATE runs SET status = 'failed', error = ?, ended_at = ? WHERE id = ? AND status IN ('queued', 'running')")
+    .run(String(reason).slice(0, 300), nowIso(), runId);
+}
+
+// Every attempt this occurrence has ever dispatched. The current one lives on
+// run_id; earlier ones survive only in retry_run_ids_json, and a lease-expiry
+// retry can leave one of them genuinely live.
+function attemptRunIds(rr) {
+  let prior = [];
+  try { const p = JSON.parse(rr.retry_run_ids_json || '[]'); prior = Array.isArray(p) ? p : []; } catch { prior = []; }
+  return [...new Set([rr.run_id, ...prior].filter(Boolean))];
+}
+
 // Retry with a fresh run on the SAME occurrence row (attempt max 2), then
 // failed + alert. The prior run id is preserved in retry_run_ids_json.
 function retryOrFail(rr, reason, now = new Date()) {
   if (rr.attempt >= MAX_ATTEMPTS) {
+    // The last attempt may still be alive (this branch is reached on lease
+    // expiry, not only on a terminal run). Closing the occurrence while its
+    // run keeps reading and writing memory is the same leak as a retry.
+    for (const runId of attemptRunIds(rr)) closeRun(runId, 'standing rule attempts exhausted');
     db.prepare("UPDATE standing_rule_runs SET state = 'failed', error = ?, needs_attention = 1, ended_at = ? WHERE id = ?")
       .run(String(reason).slice(0, 300), nowIso(), rr.id);
     audit('system', 'standing-rules', 'standing_rule_run.fail', { ruleId: rr.rule_id, ruleRunId: rr.id, attempts: rr.attempt, reason: String(reason).slice(0, 200) });
@@ -297,16 +374,25 @@ function retryOrFail(rr, reason, now = new Date()) {
   const authz = currentAuthorization(rr.rule_id);
   const check = rule ? verifyAuthorization(rule, authz, now) : { ok: false, reason: 'rule missing' };
   if (!check.ok) {
+    for (const runId of attemptRunIds(rr)) closeRun(runId, `standing rule skipped: ${check.reason}`);
     db.prepare("UPDATE standing_rule_runs SET state = 'skipped', skip_reason = ?, needs_attention = ?, ended_at = ? WHERE id = ?")
       .run(check.reason, check.alert ? 1 : 0, nowIso(), rr.id);
     return;
   }
   tx(() => {
+    // Terminate BEFORE dispatching the replacement. The lease can expire while
+    // the run is still legitimately queued — the in-memory queue is unbounded,
+    // so a saturated workspace parks a 30-minute run past its whole lease —
+    // and a retry alongside it means two runs spending one occurrence's budget
+    // and writing conflicting memory. parentRunId makes the superseded attempt
+    // a child of nothing generic: the retry card projection skips it.
+    const priorRunId = rr.run_id || null;
+    for (const runId of attemptRunIds(rr)) closeRun(runId, `superseded by standing-rule retry (${String(reason).slice(0, 120)})`);
     const run = dispatchRun({
       agentId: rule.agent_id, canvasId: rule.canvas_id, instruction: ruleInstruction(rule),
       triggerKind: 'system', mode: 'ask', initiatedBy: authz.authorized_by, actor: 'standing-rules',
       stepBudget: rule.step_budget || undefined, wallMs: rule.wall_ms_budget || undefined,
-      authorityJson: authz.allowed_tools_json,
+      authorityJson: authz.allowed_tools_json, parentRunId: priorRunId,
     });
     const prior = JSON.parse(rr.retry_run_ids_json || '[]');
     if (rr.run_id) prior.push(rr.run_id);
@@ -372,16 +458,14 @@ function finalizeRuleRuns(now = new Date()) {
 function haltRuleRuns(ruleId, reason) {
   const open = db.prepare("SELECT * FROM standing_rule_runs WHERE rule_id = ? AND state IN ('pending', 'running')").all(ruleId);
   for (const rr of open) {
-    if (rr.run_id) {
-      control.abortRun(rr.run_id, reason);
-      // A run that has not started has no controller to abort: closing the row
-      // is what stops it, because executeRun no-ops on a non-queued run.
-      db.prepare("UPDATE runs SET status = 'failed', error = ?, ended_at = ? WHERE id = ? AND status IN ('queued', 'running')")
-        .run(reason, nowIso(), rr.run_id);
-    }
+    // EVERY attempt, not just the current one: an older attempt that a
+    // lease-expiry retry left live would keep reading and writing memory
+    // under an authorization the owner just revoked.
+    const ids = attemptRunIds(rr);
+    for (const runId of ids) closeRun(runId, reason);
     db.prepare("UPDATE standing_rule_runs SET state = 'skipped', skip_reason = ?, ended_at = ? WHERE id = ?")
       .run(reason, nowIso(), rr.id);
-    audit('system', 'standing-rules', 'standing_rule_run.halt', { ruleId, ruleRunId: rr.id, runId: rr.run_id, reason });
+    audit('system', 'standing-rules', 'standing_rule_run.halt', { ruleId, ruleRunId: rr.id, runIds: ids, reason });
   }
   return open.length;
 }
@@ -412,7 +496,17 @@ function claimAndDispatch(rule, now) {
     if (!check.ok) {
       db.prepare("UPDATE standing_rule_runs SET state = 'skipped', skip_reason = ?, needs_attention = ?, ended_at = ? WHERE id = ?")
         .run(check.reason, check.alert ? 1 : 0, nowIso(), id);
-      db.prepare('UPDATE standing_rules SET next_run_at = ? WHERE id = ?').run(nextIso, rule.id);
+      if (check.fatal) {
+        // Lamps never fake green. The grant is gone for good, so advancing
+        // next_run_at would leave the rule reading as active and monitoring
+        // forever silently. 'paused' is the existing not-running-but-visible
+        // state, and resume re-verifies — it refuses until the grant is redone.
+        db.prepare("UPDATE standing_rules SET state = 'paused', next_run_at = NULL, updated_at = ? WHERE id = ?")
+          .run(nowIso(), rule.id);
+        audit('system', 'standing-rules', 'standing_rule.invalidated', { ruleId: rule.id, canvasId: rule.canvas_id, reason: check.reason });
+      } else {
+        db.prepare('UPDATE standing_rules SET next_run_at = ? WHERE id = ?').run(nextIso, rule.id);
+      }
       outcome = { claimed: false, reason: check.reason, alert: !!check.alert };
       return;
     }
@@ -497,6 +591,7 @@ module.exports = {
   occurrenceKey, nextRunAt, isoWeekKey,
   getRule, ruleView, upsertDraft,
   createAuthorization, currentAuthorization, revokeAuthorization, verifyAuthorization, touchesWorkspace,
+  grantedTools, ruleSources,
   ruleInstruction, rehearsalInstruction, parseMatchedCount,
   finalizeRuleRuns, haltRuleRuns, tick, verifyTickOidc,
   _internal: {
