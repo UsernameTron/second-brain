@@ -1619,3 +1619,34 @@ Read broadly, write reasonably, destroy never — enforced structurally
 (runs carry initiated_by through handoff chains), every external call
 audited, lamps never fake green (dark = honestly unwired), and every claim
 verified against a tool result before telling the user — the js-yaml lesson.
+
+## 2026-08-16 deploy observations moved out of HANDOFF.md (preserved verbatim)
+
+**Production evidence — OBSERVED 2026-08-16, NOT re-verified since.** A past
+probe is not proof of present state; treat every line in this paragraph as
+decaying until re-run. At the time of observation, `master` at `92fb427` was
+deployed and the active revision was **`agent-canvas-00051-94w`, serving 100%
+traffic**, probed via Cloud SDK using application-default credentials. It
+carries #194 through #198. All 11 env vars survived the wholesale set;
+`TICK_AUDIENCE` and `TICK_INVOKER_SA` were **deliberately absent**, so the OIDC
+scheduler lane is off. Zero error-severity log entries after deploy.
+
+**Deployed and live-proven (2026-08-16 ~18:30Z):** `master` at `62eae86`
+(PR #199) deployed as revision **`agent-canvas-00052-nbf` at 100% traffic** —
+the first run of the preservation-first deploy script, preceded by a
+`DEPLOY_DRY_RUN=1` rehearsal that listed the five live-only variables it would
+preserve (ED_DISPATCH_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+HS_OPS_RUNNER_URL, RAPIDAPI_KEY — exactly the ones the old wholesale set would
+have deleted). Post-deploy probes: all eleven env-var names intact,
+`MODEL_PROVIDER=anthropic` inherited (not overwritten), **`/api/healthz` 200**
+with `{"ok":true,"paused":false}`, `/api/config` 200, the live bundle carrying
+both the `Export operational ledger (JSON)` and `Previously authorized by`
+strings, zero error-severity log entries since deploy. `TICK_AUDIENCE` /
+`TICK_INVOKER_SA` remain absent — scheduler lane dark by intent.
+
+**Resolved: the live `MODEL_PROVIDER` is `anthropic` (live-proven 2026-08-16).**
+The wholesale-set hazard did NOT fire on the last deploy — the value survived.
+The hazard itself is retired on this branch: the script now inherits the live
+value and requires `DEPLOY_PROVIDER_CHANGE=1` to depart from it. Note the deploy
+script's first-deploy default (`vertex`) differs from what production actually
+runs; inheritance is what keeps that difference harmless.

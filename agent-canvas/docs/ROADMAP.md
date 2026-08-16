@@ -1,10 +1,13 @@
 # Agent Canvas roadmap and phase classification
 
-Updated 2026-08-16 from repository `master` at `62eae86`, deployed as revision
-`agent-canvas-00052-nbf` (probed at deploy time). This file owns phase intent and
-dependencies. It does not override the production evidence in
-[HANDOFF.md](HANDOFF.md) — and that evidence is itself an observation with a
-timestamp, currently un-refreshable while Cloud SDK auth is expired.
+Updated 2026-08-16 against synchronized documentation base `72db799` (not
+necessarily the current HEAD; docs-only commits follow `62eae86`, the last
+code change). Production serves revision
+`agent-canvas-00053-h2n` at 100% traffic — `62eae86` code plus the tick env
+vars, with the Cloud Scheduler lane live-proven (direct verification
+2026-08-16). This file owns phase intent and dependencies. It does not override
+the production evidence in [HANDOFF.md](HANDOFF.md) — that evidence is an
+observation with a timestamp and decays until re-probed.
 
 ## Status vocabulary
 
@@ -24,9 +27,9 @@ timestamp, currently un-refreshable while Cloud SDK auth is expired.
 | Gate 0 — trustworthy baseline | Merged | Live-accepted in recorded evidence | Re-probe after the next deploy |
 | P1 — Inquiry Home and Explain Map | Merged | Live-accepted in recorded evidence | Preserve in regression/UAT |
 | P2 — People and Needs You | Merged | Live-accepted in recorded evidence | Preserve in regression/UAT |
-| P3 — Evidence Rooms | Merged | Core journey accepted; #194 hardening **deployed** on `00051-94w`; dedicated post-#194 acceptance not recorded | Run the screened-export acceptance journey |
-| P4 — reviewable plain-language Agent Builder | Merged; hardened through #197 | **Deployed** on `00051-94w` (2026-08-16); live-accepted **not** claimed | Run the dedicated owner build/publish/version/rollback acceptance |
-| P5 — Standing Rules and briefs | Merged; hardened through #198 | **Deployed; manual execution path live-accepted** (2026-08-16). Unattended scheduling intentionally dark and **unaccepted** — not Complete | Wire the OIDC scheduler identity + job, then accept a scheduler-signed run |
+| P3 — Evidence Rooms | Merged | **Live-accepted including #194** (2026-08-16, `00052-nbf`): screened-export journey observed live | Preserve in regression/UAT |
+| P4 — reviewable plain-language Agent Builder | Merged; hardened through #197 | **Live-accepted** (2026-08-16, `00052-nbf`): build, rehearse gate, publish, version history, rollback, authority non-expansion all observed live | Preserve in regression/UAT |
+| P5 — Standing Rules and briefs | Merged; hardened through #198 | **Deployed on `00053-h2n`; manual path live-accepted; scheduler delivery live-proven** (2026-08-16: job enabled `*/10`, OIDC identity has `run.invoker`, 200s at 19:04/19:10/19:20 UTC). **Not Complete:** no due rule yet dispatched by a scheduled tick; pause and expiry unexercised under the scheduler; clean-zero alert test-only | Observe a scheduled-tick dispatch with its run/card, then exercise pause and expiry under the scheduler, then the clean-zero alert live |
 | P6 — Outcomes and reviewed learning | Planned only | Not started | Begin only after P4/P5 acceptance |
 | P7 — selective integrations and portability | Planned only | Not started | Begin only after P6 earns its acceptance evidence |
 
@@ -37,25 +40,27 @@ tick arrives.
 
 ## Immediate release close-out
 
-Steps 1–2 are done: `master` at `92fb427` was deployed 2026-08-16 and the serving
-revision is `00051-94w` at 100% traffic. The tick identity was deliberately NOT
-created, so the scheduler lane is dark by construction.
-
-1. ~~Probe Cloud Run and record the serving revision and traffic split.~~ Done.
-2. ~~Deploy `master` once if behind.~~ Done; tick identity intentionally deferred.
-3. Run P4 signed-in acceptance: plain-language build, generated configuration
-   review, rehearsal, owner publish, version inspection, rollback, and authority
-   non-expansion. **Still outstanding** — P4 is deployed but unaccepted.
-4. P5 signed-in acceptance — **manual path done** (parse, settings edit and gate
-   reset, rehearsal, activation, two-tick dispatch/finalize lifecycle, attention
-   card, acknowledgment, duplicate-tick protection, revoke; recorded in
-   `HANDOFF.md`). **Still outstanding:** a scheduler-signed run, plus pause and
-   expiry, plus the clean-zero alert path, which did not occur live because the
-   model omitted its `MATCHED:` contract line and the honest-unknown path fired
-   instead.
-5. Update `HANDOFF.md` with observed facts. Only then classify P4/P5 complete and
-   unlock P6. **Neither is Complete under the vocabulary above:** P4 lacks live
-   acceptance, and P5's external lane has not passed.
+1. ~~Probe Cloud Run and record the serving revision and traffic split.~~ Done
+   — latest: `00053-h2n` at 100% traffic (2026-08-16).
+2. ~~Deploy `master` once if behind.~~ Done (`62eae86` as `00052-nbf`, then
+   `00053-h2n` adding the tick env vars).
+3. ~~Run P4 signed-in acceptance.~~ **Done 2026-08-16 on `00052-nbf`** — full
+   journey including rehearse gate, publish, version history, rollback,
+   authority non-expansion.
+4. P5 acceptance — **manual path done; scheduler delivery live-proven**
+   (job enabled, OIDC 200s at 19:04/19:10/19:20 UTC). **Still outstanding —
+   the scheduler cadence alone does not prove these acceptance scenarios; each
+   requires an eligible rule state and observed evidence, and pause requires
+   explicit operator action:** a due rule dispatched by a scheduled tick with
+   its run and attention card; pause under scheduler operation (not passive);
+   expiry under scheduler operation (needs an active fixture or a naturally
+   expiring rule); the clean-zero alert path live (test-only today — on the
+   live attempt the model omitted its `MATCHED:` contract line and the
+   honest-unknown path fired instead).
+5. Update `HANDOFF.md` with observed facts. Only then classify P5 complete and
+   unlock P6. **P5 is NOT Complete under the vocabulary above** — its external
+   lane is delivered but its remaining acceptance checks have not passed. P4 is
+   Complete (merged + deployed + live-accepted).
 
 ### P5 release follow-up — FIXED and DEPLOYED (`00052-nbf`, 2026-08-16)
 
