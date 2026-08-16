@@ -407,10 +407,19 @@ export function humanizeDetail(value) {
   const kept = [];
   let used = 0;
   for (const l of lines) {
-    if (used + l.length > DETAIL_CHAR_CAP) break;
+    const room = DETAIL_CHAR_CAP - used;
+    if (l.length + 1 > room) {
+      // One oversized field must never swallow the whole view: keep as much of
+      // it as the budget allows and mark the cut inline. Dropping it wholesale
+      // hid every bit of the context a human is deciding from.
+      if (room > 1) { kept.push(`${l.slice(0, room - 1)}…`); }
+      break;
+    }
     kept.push(l); used += l.length + 1;
   }
-  return `${kept.join('\n')}\n… ${lines.length - kept.length} more field(s) not shown — open the source record`;
+  const hidden = lines.length - kept.length;
+  const notice = hidden > 0 ? `\n… ${hidden} more field(s) not shown — open the source record` : '';
+  return `${kept.join('\n')}${notice}`;
 }
 
 // Shared run-event preview text. Bucket/icon selection stays with the caller

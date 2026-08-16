@@ -163,6 +163,21 @@ describe('humanizeDetail', () => {
     expect(text).not.toContain('not shown');
   });
 
+  it('keeps a prefix of a single oversized field instead of hiding it', () => {
+    const note = `START-${'x'.repeat(30_000)}-END`;
+    const text = humanizeDetail({ note });
+    expect(text.startsWith('note: START-')).toBe(true); // the field survives
+    expect(text.endsWith('…')).toBe(true); // cut is marked inline
+    expect(text).not.toContain('more field(s) not shown'); // nothing else exists to hide
+    expect(text.length).toBeLessThanOrEqual(20_000);
+  });
+
+  it('still lists the hidden count when later fields are dropped', () => {
+    const text = humanizeDetail({ big: 'y'.repeat(30_000), second: 'kept?', third: 'kept?' });
+    expect(text.startsWith('big: yyy')).toBe(true);
+    expect(text).toContain('2 more field(s) not shown');
+  });
+
   it('says so explicitly when a pathological payload is bounded', () => {
     const huge = Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`field_${i}`, 'v'.repeat(100)]));
     const text = humanizeDetail(huge);
