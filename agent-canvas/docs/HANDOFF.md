@@ -5,26 +5,29 @@ depending on it. **The single current-state block is directly below; every
 `## START HERE`/`## Superseded` block further down is prior-session history,
 kept for the reasoning, not the status.**
 
-## WHERE THINGS STAND (2026-08-15 — every number below re-verified this session)
+## WHERE THINGS STAND (2026-08-15 — tests, build, audit and PR state re-verified at branch head `88cb87c`)
 
 **Production is still `agent-canvas-00050-5ht`, 100% traffic, created
-2026-08-15T20:19:14Z** (Cloud Run API, checked this session). It carries P2.1 +
+2026-08-15T20:19:14Z** (Cloud Run API, probed earlier this session; **not
+re-probed at this update** — `gcloud` auth has expired and cannot refresh
+non-interactively, so `gcloud auth login` then re-describe before acting on this
+line or on the "neither tick var is set" claim below). It carries P2.1 +
 P3 and **nothing after**. Master is AHEAD of production by two merges, both cut
 after that revision: the room-export content screen **#194** (21:10:38Z) and
 **P4 #195** (21:58:43Z). Neither is running. **P5 is not on master at all** —
 PR [#196](https://github.com/UsernameTron/second-brain/pull/196) is **OPEN, not
 merged, not deployed**, on `feat/agent-canvas-p5-standing-rules`.
 
-Branch state, re-run this session at branch head `97f9bcb` (also the PR head):
-backend `npm test` **294 pass / 0 fail**; frontend `npm test --prefix frontend`
-**26 pass across 6 files**; frontend production build clean; `npm audit
---omit=dev` **0 vulnerabilities**. The +9 backend / +3 frontend over the
-pre-review counts (285 / 23) are the Codex regression tests — see the P5 block.
-**All 6 CI checks are green on `97f9bcb` itself**, not just on the pre-fix
-commit (Analyze, CodeQL, GitGuardian, agent-canvas-test, claude-review,
-test (22) — `gh pr checks 196`). A Codex re-review of the fixes was requested
-and has **not come back**: the only review on #196 is still the original
-2026-08-15T23:39:14Z pass, with zero comments after the fix push.
+Branch state, re-run at branch head `88cb87c` (also the PR head):
+backend `npm test` **318 pass / 0 fail**; frontend `npm test --prefix frontend`
+**27 pass across 6 files**; frontend production build clean; `npm audit
+--omit=dev` **0 vulnerabilities** (root and `frontend/`). The +33 backend / +4
+frontend over the pre-review counts (285 / 23) are the Codex regression tests —
+see the P5 block. **5 of 6 CI checks pass on `88cb87c`** (CodeQL, Analyze,
+GitGuardian, agent-canvas-test, test (22)); **`claude-review` is still
+pending**, not failed — re-check `gh pr checks 196` before merging. Codex
+reviewed the branch **three times** and all **23 inline threads are replied to
+and resolved, 0 unresolved** (`reviewThreads` via GraphQL).
 
 ### Operator-gated, in this order
 
@@ -35,7 +38,8 @@ and has **not come back**: the only review on #196 is still the original
 3. **Add `TICK_AUDIENCE` and `TICK_INVOKER_SA` to the deploy export block** in
    the redeploy procedure below. Env vars are set WHOLESALE — a var you do not
    export is DROPPED from the new revision, and dropping these two silently
-   disables the scheduled tick lane. Neither is on `00050-5ht` today (verified).
+   disables the scheduled tick lane. Neither was on `00050-5ht` when last
+   probed — re-confirm once `gcloud` auth is restored.
 4. **Deploy P5, then run the P5 acceptance walk** (in the P5 block below).
    **P5 has had NO live acceptance of any kind.**
 
@@ -64,7 +68,9 @@ clamped ranges.
 **grantor still on the workspace allowlist AND still holding edit access to the
 canvas**, rule still `active` and unexpired, global pause off, flag on. A rule
 reading gmail/drive/sheets/calendar whose grantor's Google connection is gone
-**skips with an alert**, never silently. Runs carry **`initiatedBy` = the
+**skips with an alert**, never silently — as does a rule any of whose reviewed
+sources this deployment can no longer read (the runtime readability guard in the
+review notes below). Runs carry **`initiatedBy` = the
 grantor** — no invented interactive user. Scheduled dispatch is hard-coded
 `mode: 'ask'`, so mutating tools are **double-gated out** (mode gate + authority
 map).
@@ -73,64 +79,113 @@ map).
 registered above `requireAuth`. Two lanes into one handler: a signed-in **owner**
 session (manual/recovery ticks), else a **Google-signed OIDC ID token** verified
 with the same `google-auth-library` machinery sign-in uses, against
-**`TICK_AUDIENCE`**, where the caller must BE **`TICK_INVOKER_SA`**. **Either
-var unset → 503 and the scheduled lane is off** — never open by default. Both
+**`TICK_AUDIENCE`**, where the caller must BE **`TICK_INVOKER_SA`**. **EITHER
+var unset → 503 and the scheduled lane is off** — never open by default. The
+owner-session lane is checked **before** the env gate, so a manual owner tick
+still works on a revision missing both vars: that is the recovery path, and it
+is also why a green manual tick proves nothing about the scheduled lane. Both
 vars **MUST** be added to the wholesale deploy export block (see the redeploy
 procedure below) or they are dropped and the lane dies quietly.
 
-**Rollback needs no deploy.** `setSetting('standing_rules','0')` hides the UI
+**Rollback needs no deploy.** `setSetting('standing_rules','0')` hides the nav
 **and** no-ops the tick before a single rule row is read — scheduled execution
-stops immediately. The Scheduler job pauses independently of that. The new
+stops immediately. (It does NOT retract already-produced attention cards; see
+the gaps below.) The Scheduler job pauses independently of that. The new
 tables (`standing_rules`, `standing_authorizations`, `standing_rule_runs`) and
 the `runs.authority_json` column are additive and inert on revert.
 
-**Codex review round folded in — `97f9bcb`, all 9 findings (7 P1, 2 P2).** Every
-one was checked against source before anything changed; all 9 held, none
-rejected. Each carries a regression test confirmed to fail with its fix
-reverted (re-sampled this session: reverting `intersectAuthority` to ignore the
-snapshot turns `test/standing-rules-tick.test.js` red on exactly the authority
-test, and green again on restore).
+**Review: three Codex rounds + one cross-PR seam, all folded in
+(`8fa8bdd` → `97f9bcb` → `0425fba` → `88cb87c`).** 9 + 9 + 5 = **23 inline
+threads, every one checked against source before anything changed, all 23
+replied to and resolved**. Each fix carries a regression test confirmed to fail
+with the fix reverted. The load-bearing ones:
 
-- **Authority — the one that mattered.** The standing authorization always
-  snapshotted `allowed_tools_json` at grant time, but **nothing carried it to
-  dispatch**: the runner derived its tool surface from the agent's LIVE
-  `tools_json`, so widening an agent's authority after a rule was activated
-  **silently widened every rule that ran on it**. Runs now carry a new
-  `authority_json` column (additive migration, NULL = live authority governs
-  alone), intersected with live authority at **both** the offer filter
-  (`runner.js`) and the call-time recheck (`tools.js executeTool`) — later
-  widenings never apply, later reductions still do.
-- **Revoke and pause now halt every nonterminal run for the rule**
-  (`haltRuleRuns()`, inside the same transaction). Previously a queued or
-  running run survived revocation and kept reading and writing memory under an
-  authorization that no longer existed.
+- **Authority, and the ceiling that was not there.** The authorization always
+  snapshotted the grant, but **nothing carried it to dispatch** — the runner
+  derived its surface from the agent's LIVE `tools_json`, so widening an agent
+  after activation silently widened every rule on it. Runs now carry
+  `authority_json` (additive column, NULL = live authority governs alone),
+  intersected with live authority at **both** the offer filter (`runner.js`) and
+  the call-time recheck (`tools.js executeTool`): later widenings never apply,
+  later reductions do. Round 2 found the deeper half — the grant stored
+  `agent.tools_json ?? null`, and **NULL reads as unrestricted**, so a legacy
+  agent pinned no ceiling at all and the rule's surface floated with the
+  **deployment**: flipping a scope flag or setting an env var silently granted
+  new tools with no re-consent. `grantedTools()` now resolves a **concrete
+  array** at grant time — role menu ∩ agent authority ∩ source-permitted.
+- **Runtime source-readability guard (round 3).** Activation can only see the
+  deployment as it was that day. `verifyAuthorization` re-resolves the frozen
+  grant ∩ what this deployment and the agent's live authority would grant today,
+  and **skips with an alert naming every dark source**. The intersection can only
+  ever NARROW — that is the invariant: re-lighting an env var cannot widen a
+  snapshot nobody re-consented to (a grant frozen empty stays empty and stays
+  skipped), while a lane going dark is caught on the very next tick. Semantics
+  are **reachability, not a dead grant**: skip + alert, the rule stays active and
+  reschedules, and it resumes on its own. `enrichmentDark` was **deleted and
+  subsumed** — one predicate (`unreadableSources`) now serves both the activate
+  route (refusing to mint an empty grant) and the tick (refusing to spend one).
+  Two predicates answering one question is how a green lamp survives.
+- **Activation refuses a rule whose reviewed source grants no readable tool**,
+  naming the source. Otherwise the card advertises a watch the run can never
+  perform, and it finalizes NOTHING MATCHED forever.
+- **The generic retry endpoint REJECTS standing-rule attempts** — current and
+  superseded — rather than re-authorizing them. Attempt ids are reachable: the
+  runs history hands `run_id` and `retry_run_ids` to any canvas viewer.
+  Re-authorizing would fix only the tool ceiling; a generic retry produces a run
+  with **no occurrence row**, so it sits outside the lease, the attempt budget,
+  the attention card and — decisively — `haltRuleRuns`, which finds attempts only
+  through `run_id`/`retry_run_ids_json`. Revoke and pause could not stop it.
+- **Rehearsals dispatch under `grantedTools()`** — the same resolution activation
+  uses, asserted byte-equal by test. They previously ran on the agent's full live
+  authority, which both read past what the consent card showed and stopped the
+  rehearsal demonstrating what the real run would do.
 - **Rehearse-mode `memory_write` / `memory_correct` are blocked at the TOOL
-  layer** (`blockedInMode`), not merely discouraged by the prompt. **This also
-  closes the same exposure in P4 builder rehearsals** (`routes.js` dispatches
-  those shadow runs with `mode: 'rehearse'` through the same gate) — a
-  root-cause fix with blast radius beyond P5.
-- **Occurrence lease now derives from the rule's wall budget plus slack.** A
-  flat 10 minutes against a wall budget of up to 30 let the finalizer declare a
-  live run expired and dispatch a second attempt alongside it.
-- **A paused workspace no longer consumes retry attempts or expires
-  occurrences.** Finalization still copies terminal successes while paused, but
-  dispatches nothing.
-- **`mcp` removed as an offerable rule source.** Ask mode strips every `mcp_*`
-  tool, so an activated MCP watch could never read the source its card claimed
-  to watch.
-- **An unparseable `MATCHED:` line surfaces for review** instead of finalizing
-  as a silent success, and `matched_count` stays NULL — an honest unknown
-  rather than a recorded 0.
-- **Finalization emits a canvas bus event** so a connected client refetches
-  attention; a new alert or brief could previously go unseen until reload.
-- **`brief_ready` NEEDS YOU cards deep-link to the rule.** They had advertised
-  an `open_rule` action the UI never rendered, so a brief could only be
-  acknowledged as a 300-character truncation, without its full text or evidence
-  refs. The control is absent, not dead, when the flag is off.
-- **Halted runs are excluded from "run failed — retry it" cards.** Halting
-  marks a run failed, which would have offered a retry for work the owner
-  deliberately stopped; excluded in `attention.js`, matching the existing
-  `halted_paused` precedent.
+  layer** (`REHEARSAL_BLOCKED_TOOLS`), not by the prompt. **This also closes the
+  same exposure in P4 builder rehearsals** — a root-cause fix with blast radius
+  beyond P5.
+- **`web_search` is re-checked per model call.** It is provider-executed, so it
+  never reaches `executeTool`'s call-time recheck; the run-scoped tool array
+  meant a mid-run revocation did not stop it searching — or billing. Only the
+  server-tool half is per-call (the ~40 ordinary tools keep the run-scoped list
+  and their `executeTool` recheck). Same commit: a second rehearsal 409s while
+  the first is nonterminal.
+- **Evidence refs are redacted via `ruleRunView()` on history, detail AND
+  acknowledge** — and the raw `output_refs_json` / `retry_run_ids_json` columns
+  are **dropped** from the payload, not merely re-parsed alongside it.
+- **Permanent authorization failures pause the rule**, clear `next_run_at`,
+  audit, and raise a card. An active rule whose grantor lost allowlist or canvas
+  access previously recorded a non-attention skip and advanced its schedule —
+  silently skipping forever while displaying as active.
+- **Revoke, pause and edit halt every nonterminal run for the rule**
+  (`haltRuleRuns()`, same transaction) — **every attempt**, not just the current
+  one, since a lease-expiry retry can leave an earlier one live.
+- **Round-1 remainder, still in force:** the occurrence lease derives from the
+  rule's wall budget plus slack (a flat 10 minutes let the finalizer dispatch a
+  second attempt alongside a live run); a paused workspace consumes no retry
+  attempt and expires no occurrence; `mcp` is not an offerable source (ask mode
+  strips every `mcp_*` tool); an unparseable `MATCHED:` line surfaces for review
+  with `matched_count` NULL rather than a silent 0; finalization emits a canvas
+  bus event so a connected client refetches attention; `brief_ready` cards
+  deep-link to the rule; halted runs are excluded from "retry it" cards.
+- **The NULL-authority seam with #197 (`88cb87c`).** `intersectAuthority` treats
+  NULL as "no allowlist", and #197's agent rollback can restore `tools_json =
+  NULL`. If a run already carries a concrete grant and its agent is rolled back
+  mid-flight, the intersection resolves to **the snapshot** — verified by reading,
+  then pinned by a test rather than left resting on the identity rule, because
+  neither PR owns that seam alone.
+
+**Cross-PR behaviour: #196 + #197 will 409 an in-flight room export.** This
+emerges only when BOTH are merged, and neither PR documents it alone. #197
+tightens room-export `manifestHash()` from an id projection to `included` in
+full plus `contentWarnings`. P5 rules run on a schedule **with no human
+present** and can write memory entries and evidence refs on any canvas —
+including a room canvas — and `included` is built from exactly those (decisions,
+facts, public evidence refs, tasks). So a standing-rules tick landing between an
+owner's export **preview** and their **export** changes the hash and 409s the
+export. **That is the intended outcome** — a scheduled run that changes what
+leaves the workspace should force a re-review — but it is new operator-visible
+behaviour with no other explanation on screen. **Remedy: re-preview, then
+export.**
 
 **Acceptance walk still owed (signed-in, on production):** create rule →
 interpretation card → rehearse → activate → manual owner tick → run → NEEDS YOU
@@ -150,6 +205,25 @@ alert → acknowledge → weekly-brief rule → brief renders with refs. **Not r
   the flag, so flipping it off hides the nav but leaves already-produced cards
   acknowledgeable. Deliberate — don't strand unacknowledged work — but the flag
   comment in `routes.js` says it "hides the UI", which overstates the sweep.
+- **An invalidated rule reads "paused", not "broken".** A permanent
+  authorization failure parks the rule in `paused` — the existing
+  not-running-but-visible state — so the UI cannot distinguish "the owner paused
+  this" from "the grant died". `standing_rules.state` is a SQLite `CHECK
+  (state IN (...))` constraint, and SQLite cannot ALTER one, so a dedicated
+  state costs a table rebuild. Resume re-verifies and refuses until the grant is
+  redone, so the behaviour is correct — only the label is coarse.
+- **Grant snapshots list act-mode mutating tools the ask-mode run can never
+  fire.** `grantedTools()` filters `authorityMenu()`, which resolves under
+  `mode: 'act'`, so a snapshot can contain e.g. `ws_gmail_draft` or
+  `hs_apply_change`. Harmless — scheduled dispatch is hard-coded `mode: 'ask'`
+  and `blockedInMode` strips them twice over — but the stored grant reads wider
+  than the rule's real surface to anyone auditing the row.
+- **The `enrichment` source means "watch already-enriched records" only.**
+  `enrich_contact`, `enrich_company` and `verify_email` are in `MUTATING_TOOLS`,
+  so ask mode strips them: **a scheduled rule can never spend enrichment
+  credits.** Only `get_enriched_contact` — the free cached re-read — survives
+  into a rule run. An owner reading "Sources — enrichment" would reasonably
+  assume the opposite, so the consent card states it outright.
 
 ## P4 AGENT BUILDER — BUILT ON `feat/p4-agent-builder` (2026-08-15)
 
