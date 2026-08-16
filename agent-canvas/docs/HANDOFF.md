@@ -15,10 +15,16 @@ after that revision: the room-export content screen **#194** (21:10:38Z) and
 PR [#196](https://github.com/UsernameTron/second-brain/pull/196) is **OPEN, not
 merged, not deployed**, on `feat/agent-canvas-p5-standing-rules`.
 
-Branch state, re-run this session: backend `npm test` **285 pass / 0 fail**
-(258 pre-existing + 27 new P5); frontend `npm test --prefix frontend` **23 pass
-across 6 files** (15 pre-existing + 8 new P5); frontend production build clean;
-`npm audit --omit=dev` **0 vulnerabilities**.
+Branch state, re-run this session at branch head `97f9bcb` (also the PR head):
+backend `npm test` **294 pass / 0 fail**; frontend `npm test --prefix frontend`
+**26 pass across 6 files**; frontend production build clean; `npm audit
+--omit=dev` **0 vulnerabilities**. The +9 backend / +3 frontend over the
+pre-review counts (285 / 23) are the Codex regression tests — see the P5 block.
+**All 6 CI checks are green on `97f9bcb` itself**, not just on the pre-fix
+commit (Analyze, CodeQL, GitGuardian, agent-canvas-test, claude-review,
+test (22) — `gh pr checks 196`). A Codex re-review of the fixes was requested
+and has **not come back**: the only review on #196 is still the original
+2026-08-15T23:39:14Z pass, with zero comments after the fix push.
 
 ### Operator-gated, in this order
 
@@ -75,8 +81,56 @@ procedure below) or they are dropped and the lane dies quietly.
 **Rollback needs no deploy.** `setSetting('standing_rules','0')` hides the UI
 **and** no-ops the tick before a single rule row is read — scheduled execution
 stops immediately. The Scheduler job pauses independently of that. The new
-tables (`standing_rules`, `standing_authorizations`, `standing_rule_runs`) are
-additive and inert on revert.
+tables (`standing_rules`, `standing_authorizations`, `standing_rule_runs`) and
+the `runs.authority_json` column are additive and inert on revert.
+
+**Codex review round folded in — `97f9bcb`, all 9 findings (7 P1, 2 P2).** Every
+one was checked against source before anything changed; all 9 held, none
+rejected. Each carries a regression test confirmed to fail with its fix
+reverted (re-sampled this session: reverting `intersectAuthority` to ignore the
+snapshot turns `test/standing-rules-tick.test.js` red on exactly the authority
+test, and green again on restore).
+
+- **Authority — the one that mattered.** The standing authorization always
+  snapshotted `allowed_tools_json` at grant time, but **nothing carried it to
+  dispatch**: the runner derived its tool surface from the agent's LIVE
+  `tools_json`, so widening an agent's authority after a rule was activated
+  **silently widened every rule that ran on it**. Runs now carry a new
+  `authority_json` column (additive migration, NULL = live authority governs
+  alone), intersected with live authority at **both** the offer filter
+  (`runner.js`) and the call-time recheck (`tools.js executeTool`) — later
+  widenings never apply, later reductions still do.
+- **Revoke and pause now halt every nonterminal run for the rule**
+  (`haltRuleRuns()`, inside the same transaction). Previously a queued or
+  running run survived revocation and kept reading and writing memory under an
+  authorization that no longer existed.
+- **Rehearse-mode `memory_write` / `memory_correct` are blocked at the TOOL
+  layer** (`blockedInMode`), not merely discouraged by the prompt. **This also
+  closes the same exposure in P4 builder rehearsals** (`routes.js` dispatches
+  those shadow runs with `mode: 'rehearse'` through the same gate) — a
+  root-cause fix with blast radius beyond P5.
+- **Occurrence lease now derives from the rule's wall budget plus slack.** A
+  flat 10 minutes against a wall budget of up to 30 let the finalizer declare a
+  live run expired and dispatch a second attempt alongside it.
+- **A paused workspace no longer consumes retry attempts or expires
+  occurrences.** Finalization still copies terminal successes while paused, but
+  dispatches nothing.
+- **`mcp` removed as an offerable rule source.** Ask mode strips every `mcp_*`
+  tool, so an activated MCP watch could never read the source its card claimed
+  to watch.
+- **An unparseable `MATCHED:` line surfaces for review** instead of finalizing
+  as a silent success, and `matched_count` stays NULL — an honest unknown
+  rather than a recorded 0.
+- **Finalization emits a canvas bus event** so a connected client refetches
+  attention; a new alert or brief could previously go unseen until reload.
+- **`brief_ready` NEEDS YOU cards deep-link to the rule.** They had advertised
+  an `open_rule` action the UI never rendered, so a brief could only be
+  acknowledged as a 300-character truncation, without its full text or evidence
+  refs. The control is absent, not dead, when the flag is off.
+- **Halted runs are excluded from "run failed — retry it" cards.** Halting
+  marks a run failed, which would have offered a retry for work the owner
+  deliberately stopped; excluded in `attention.js`, matching the existing
+  `halted_paused` precedent.
 
 **Acceptance walk still owed (signed-in, on production):** create rule →
 interpretation card → rehearse → activate → manual owner tick → run → NEEDS YOU
