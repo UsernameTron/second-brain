@@ -221,9 +221,19 @@ if LIVE_ENV_NAMES="$(gcloud run services describe "${SERVICE}" --project "${PROJ
      --format='value[delimiter="\n"](spec.template.spec.containers[0].env.name)' 2>"${DESCRIBE_ERR}")"; then
   LIVE_EXISTS=1
   LIVE_ENV_NAMES="$(printf '%s\n' "${LIVE_ENV_NAMES}" | sed '/^$/d' | sort -u)"
-  LIVE_PROVIDER="$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" \
+  # Fail CLOSED on this second read too: the service demonstrably exists, so a
+  # failure here (transient API error, format quirk) would leave LIVE_PROVIDER
+  # empty, skip the inheritance gate below, and let the script default walk
+  # over a live provider — the exact silent move this preflight exists to stop.
+  if ! LIVE_PROVIDER="$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" \
     --format='value(spec.template.spec.containers[0].env.filter("name:MODEL_PROVIDER").extract("value").flatten())' \
-    2>/dev/null | tr -d "[]'\" " || true)"
+    2>"${DESCRIBE_ERR}")"; then
+    echo "ERROR: the ${SERVICE} service exists but its MODEL_PROVIDER could not be read." >&2
+    sed 's/^/    /' "${DESCRIBE_ERR}" >&2
+    echo "    Refusing to deploy: an unreadable provider would let the script default overwrite the live one." >&2
+    rm -f "${DESCRIBE_ERR}"; exit 1
+  fi
+  LIVE_PROVIDER="$(printf '%s' "${LIVE_PROVIDER}" | tr -d "[]'\" ")"
 elif grep -qiE 'not found|does not exist|NOT_FOUND' "${DESCRIBE_ERR}"; then
   echo "==> No existing ${SERVICE} service — treating this as a first deploy."
 else
@@ -414,10 +424,14 @@ if [ "${LIVE_EXISTS}" = "1" ]; then
     echo "    To remove any of them, do it explicitly:"
     echo "      gcloud run services update ${SERVICE} --project ${PROJECT_ID} --region ${REGION} --remove-env-vars NAME"
   fi
-  if [ "${DEPLOY_DRY_RUN:-0}" = "1" ]; then
-    echo "==> DEPLOY_DRY_RUN=1 — configuration preflight only, nothing deployed."
-    exit 0
-  fi
+fi
+
+# The dry-run exit lives OUTSIDE the live-service branch: on a first deploy
+# LIVE_EXISTS is 0, and a dry-run that fell through that condition would create
+# the service anyway — the one thing the flag promises never happens.
+if [ "${DEPLOY_DRY_RUN:-0}" = "1" ]; then
+  echo "==> DEPLOY_DRY_RUN=1 — configuration preflight only, nothing deployed."
+  exit 0
 fi
 
 gcloud run deploy "${SERVICE}" \
