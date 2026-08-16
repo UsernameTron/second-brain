@@ -367,6 +367,45 @@ test('widening the agent after the grant never widens the rule; narrowing it sti
   }
 });
 
+// A rollback can restore tools_json = NULL, which intersectAuthority reads as
+// "no allowlist". That must not read as "unrestricted" for a run already
+// carrying a concrete grant: the snapshot is the ceiling, and a mid-flight
+// rollback is a narrowing story, never a widening one. This is the one seam
+// where the agent-rollback NULL semantics (PR #197) meet the standing-grant
+// snapshot, so it is pinned rather than left to the identity rule.
+test('a mid-flight rollback to a NULL authority map cannot widen a granted rule run', async () => {
+  const GRANTED = ['hs_search', 'hs_get'];
+  db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(GRANTED), agentId);
+  const { rule } = mkActiveRule();
+  try {
+    assert.equal(standingRules.tick({ source: 'owner', actor: OWNER }).claimed, 1);
+    const [rr] = ruleRuns(rule.id);
+    const run = db.prepare('SELECT * FROM runs WHERE id = ?').get(rr.run_id);
+
+    // The owner rolls the agent back to a pre-P4 version: tools_json = NULL.
+    db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+    const live = () => db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId);
+
+    const effective = intersectAuthority(parseAuthority(run.authority_json), parseAuthority(live().tools_json));
+    assert.deepEqual(effective, GRANTED, 'a NULL live row leaves the snapshot standing, it does not dissolve it');
+
+    const canvas = { id: canvasId };
+    const outside = await executeTool('hs_list', { object_type: 'deals' }, { run, agent: live(), canvas });
+    assert.ok(outside.isError, 'a tool outside the grant stays refused after the rollback');
+    assert.match(outside.content, /authority map/);
+
+    const offered = toolsForRole('research', { mode: 'ask', authority: effective }).map((t) => t.name);
+    assert.ok(!offered.includes('hs_list'), 'the offer side agrees — no widening via NULL');
+    assert.ok(offered.includes('hs_search'));
+
+    await waitForRun(rr.run_id);
+    standingRules.finalizeRuleRuns();
+  } finally {
+    db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
 // ---------- lease vs wall budget (Codex P1) ----------
 
 test('the occurrence lease outlives the run it guards — no double dispatch', async () => {
