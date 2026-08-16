@@ -142,6 +142,31 @@ test('matched_count parses from the summary contract line', () => {
   assert.equal(standingRules.parseMatchedCount(null), null);
 });
 
+// Codex P2: an unanchored search takes the FIRST "MATCHED:" anywhere in the
+// text — quoted source records and the agent's own prose produce that pattern
+// naturally — recording zero and suppressing the alert while the real count is
+// two. The contract line is the final nonblank line and nothing else.
+test('matched_count reads the final contract line, not the first MATCHED in the prose', () => {
+  assert.equal(
+    standingRules.parseMatchedCount('Source reported MATCHED: 0 yesterday, but two are new today.\nMATCHED: 2'),
+    2, 'prose earlier in the summary must not win over the contract line',
+  );
+  assert.equal(
+    standingRules.parseMatchedCount('The digest said NOTHING MATCHED last week.\n\nMATCHED: 4\n  \n'),
+    4, 'trailing blank lines do not hide the contract line',
+  );
+  assert.equal(
+    standingRules.parseMatchedCount('Recap: MATCHED: 0 last run.\nNOTHING MATCHED'),
+    0, 'a NOTHING MATCHED contract line still parses as a real zero',
+  );
+  // Conflicting contract statements on the one line the contract owns: the
+  // count is UNKNOWN, never one of them. null surfaces the card for review.
+  assert.equal(standingRules.parseMatchedCount('MATCHED: 0 but really MATCHED: 3'), null);
+  assert.equal(standingRules.parseMatchedCount('NOTHING MATCHED — well, MATCHED: 1'), null);
+  // No contract line at the end at all is unknown too, not the earlier number.
+  assert.equal(standingRules.parseMatchedCount('MATCHED: 7\nThanks for reading!'), null);
+});
+
 // ---------- T1: authorization verify matrix ----------
 
 test('authorization verify matrix: missing/revoked/expired/off-allowlist/no-access all refuse', () => {
@@ -454,4 +479,82 @@ test('draft rules never emit cards', async () => {
   insertRuleRun('rr-draft-1', draftRuleId, { matched: 5, summary: 'MATCHED: 5' });
   const attn = await call(ownerCookie, 'GET', `/api/attention?canvas_id=${canvasId}`);
   assert.ok(!attn.data.attention.some((c) => c.sourceRef.id === 'rr-draft-1'), 'draft rule must not surface cards');
+});
+
+// ---------- Codex P1: rehearsal authority + activation source viability ----------
+
+// A rehearsal that offers the agent's FULL live authority reads sources the
+// owner never reviewed, and stops demonstrating what the restricted scheduled
+// run will do — which is the whole point of a rehearse gate. It must carry the
+// identical source-limited grant activation computes.
+test('a rehearsal runs under the rule’s source-limited authority, not the agent’s full surface', async () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId); // agent itself unrestricted
+  const restore = stubParse(INTERP(agentId, { sources: ['hubspot', 'memory'] }));
+  let scopedRuleId;
+  try {
+    const parsed = await call(memberCookie, 'POST', `/api/canvases/${canvasId}/standing-rules/parse`, { instruction: 'watch hubspot only' });
+    assert.equal(parsed.status, 200);
+    scopedRuleId = parsed.data.rule.id;
+  } finally { restore(); }
+
+  const rehearsed = await call(memberCookie, 'POST', `/api/standing-rules/${scopedRuleId}/rehearse`, {});
+  assert.equal(rehearsed.status, 200);
+  await waitForRun(rehearsed.data.run.id);
+
+  const snapshot = db.prepare('SELECT authority_json FROM runs WHERE id = ?').get(rehearsed.data.run.id).authority_json;
+  assert.notEqual(snapshot, null, 'a null snapshot is UNRESTRICTED to intersectAuthority — the ceiling would be missing');
+  const granted = JSON.parse(snapshot);
+  assert.ok(granted.length > 0 && granted.every((n) => n.startsWith('hs_')),
+    `the reviewed hubspot source and nothing else, got ${granted.join(', ') || '(empty)'}`);
+  assert.ok(!granted.some((n) => n.startsWith('ws_') || n === 'web_search'),
+    'unreviewed Workspace/web surfaces must not be reachable in a rehearsal');
+  // Exactly what activation would snapshot — one resolution, reused.
+  const agentRow = db.prepare('SELECT id, role, tools_json FROM agents WHERE id = ?').get(agentId);
+  assert.deepEqual(granted, standingRules.grantedTools(standingRules.getRule(scopedRuleId), agentRow, MEMBER));
+
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(scopedRuleId);
+});
+
+// A reviewed source that resolves to no readable tool is a lamp faking green:
+// the card says the rule watches Gmail, the run cannot look, and it finalizes
+// NOTHING MATCHED forever with no alert. Activation must refuse instead.
+test('activation refuses a rule whose reviewed source grants no readable tool', async () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const restore = stubParse(INTERP(agentId, { sources: ['gmail', 'memory'] }));
+  let gmailRuleId;
+  try {
+    const parsed = await call(memberCookie, 'POST', `/api/canvases/${canvasId}/standing-rules/parse`, { instruction: 'watch my inbox' });
+    assert.equal(parsed.status, 200);
+    gmailRuleId = parsed.data.rule.id;
+  } finally { restore(); }
+  const rehearsed = await call(memberCookie, 'POST', `/api/standing-rules/${gmailRuleId}/rehearse`, {});
+  assert.equal(rehearsed.status, 200);
+  await waitForRun(rehearsed.data.run.id);
+
+  const prevScopes = process.env.GOOGLE_WORKSPACE_SCOPES;
+  try {
+    // Standard scopes drop every Gmail tool from the menu, so the grant for a
+    // Gmail rule resolves empty — the exact case Codex reported.
+    process.env.GOOGLE_WORKSPACE_SCOPES = 'standard';
+    const agentRow = db.prepare('SELECT id, role, tools_json FROM agents WHERE id = ?').get(agentId);
+    const rule = standingRules.getRule(gmailRuleId);
+    assert.deepEqual(standingRules.grantedTools(rule, agentRow, OWNER), [], 'precondition: the grant really is empty');
+    assert.deepEqual(standingRules.unreadableSources(rule, []), ['gmail'], 'memory is ungoverned and never counted');
+
+    const refused = await call(ownerCookie, 'POST', `/api/standing-rules/${gmailRuleId}/activate`);
+    assert.equal(refused.status, 409, 'a rule that could never look must not activate');
+    assert.match(refused.data.error, /gmail/i, 'the error names the offending source');
+    const stillRehearsed = standingRules.getRule(gmailRuleId);
+    assert.equal(stillRehearsed.state, 'rehearsed', 'refusal leaves the rule where it was');
+    assert.equal(standingRules.currentAuthorization(gmailRuleId), undefined, 'no grant was minted');
+  } finally {
+    if (prevScopes === undefined) delete process.env.GOOGLE_WORKSPACE_SCOPES;
+    else process.env.GOOGLE_WORKSPACE_SCOPES = prevScopes;
+  }
+
+  // Same rule, deployment that can actually honour Gmail: activation proceeds.
+  const activated = await call(ownerCookie, 'POST', `/api/standing-rules/${gmailRuleId}/activate`);
+  assert.equal(activated.status, 200, 'the guard is about an empty grant, not about Gmail');
+  assert.ok(JSON.parse(activated.data.authorization.allowed_tools_json).some((n) => n.startsWith('ws_gmail_')));
+  db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(gmailRuleId);
 });

@@ -37,10 +37,19 @@ function dispatchRun({ agentId, canvasId, instruction, triggerKind = 'user', par
   // parent's mode so an ask/rehearse run cannot launder mutation through a
   // handoff (belt-and-braces — handoff is itself blocked in those modes).
   let runMode = mode;
-  if (parentRunId && (!initiator || !runMode)) {
-    const parent = db.prepare('SELECT initiated_by, mode FROM runs WHERE id = ?').get(parentRunId);
+  // Authority inherits for exactly the same reason mode does, and it is the
+  // more dangerous of the two to drop: a child dispatched from a run that was
+  // dispatched under a snapshot (a standing grant, a rehearsal's source-limited
+  // surface) is born with authority_json NULL otherwise — and NULL is the
+  // identity element to intersectAuthority, i.e. UNRESTRICTED. Every child
+  // path (retry, handoff, escalation answer, resume) routes through here, so
+  // one inheritance rule closes the whole class instead of each caller.
+  let runAuthority = authorityJson;
+  if (parentRunId && (!initiator || !runMode || runAuthority === null)) {
+    const parent = db.prepare('SELECT initiated_by, mode, authority_json FROM runs WHERE id = ?').get(parentRunId);
     if (!initiator) initiator = parent?.initiated_by || null;
     if (!runMode) runMode = parent?.mode || null;
+    if (runAuthority === null) runAuthority = parent?.authority_json ?? null;
   }
   runMode = runMode || 'act';
   // P4: a draft shadow agent exists only to rehearse. Any other mode through
@@ -55,7 +64,7 @@ function dispatchRun({ agentId, canvasId, instruction, triggerKind = 'user', par
     // Per-agent budgets (P4 builder proposals) are the dispatch default;
     // an explicit caller budget still wins, the env default is the floor.
     stepBudget || agent.step_budget || DEFAULT_STEP_BUDGET, wallMs || agent.wall_ms_budget || DEFAULT_WALL_MS,
-    nowIso(), initiator, runMode, authorityJson);
+    nowIso(), initiator, runMode, runAuthority);
   if (initialReads.length) memory.recordRunReads(id, initialReads);
   audit(triggerKind === 'user' ? 'user' : 'system', actor, 'run.dispatch', { runId: id, agentId, canvasId, triggerKind });
   bus.emit('event', { type: 'run_status', canvasId, runId: id, agentId, status: 'queued' });

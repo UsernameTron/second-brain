@@ -1261,7 +1261,8 @@ router.post('/standing-rules/:ruleId/rehearse', rateLimit('model'), (req, res) =
   }
   if (control.isPaused()) return res.status(409).json({ error: 'workspace is paused' });
   if (control.budgetExceeded()) return res.status(429).json({ error: 'daily budget exhausted' });
-  if (!db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id)) {
+  const rehearsalAgent = db.prepare("SELECT id, role, tools_json FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id);
+  if (!rehearsalAgent) {
     return res.status(409).json({ error: 'the rule’s agent is no longer active on this canvas — re-parse or edit the rule' });
   }
   let run = null;
@@ -1271,6 +1272,14 @@ router.post('/standing-rules/:ruleId/rehearse', rateLimit('model'), (req, res) =
         agentId: rule.agent_id, canvasId: rule.canvas_id, instruction: standingRules.rehearsalInstruction(rule),
         triggerKind: 'user', actor: req.user.email, initiatedBy: req.user.email, mode: 'rehearse',
         stepBudget: rule.step_budget || undefined, wallMs: rule.wall_ms_budget || undefined,
+        // The rehearsal runs against the SAME source-limited surface the
+        // eventual scheduled run gets — the identical grantedTools resolution
+        // activation uses. Without it the rehearsal offers the agent's full
+        // live authority: it reads sources the owner never reviewed, and it
+        // stops demonstrating what the restricted run will actually do, which
+        // is the entire point of a rehearse gate. The prompt's "and nothing
+        // else" is a request, not a boundary.
+        authorityJson: JSON.stringify(standingRules.grantedTools(rule, rehearsalAgent, req.user.email)),
       });
       db.prepare("UPDATE standing_rules SET state = 'rehearsed', rehearsal_run_id = ?, updated_at = ? WHERE id = ?")
         .run(run.id, nowIso(), rule.id);
@@ -1293,8 +1302,21 @@ router.post('/standing-rules/:ruleId/activate', auth.requireOwner, (req, res) =>
   if (!run || run.status !== 'completed') {
     return res.status(409).json({ error: `rehearsal run is ${run ? run.status : 'missing'} — activation requires a completed rehearsal` });
   }
-  if (!db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id)) {
+  const ruleAgent = db.prepare("SELECT id, role, tools_json FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(rule.agent_id, rule.canvas_id);
+  if (!ruleAgent) {
     return res.status(409).json({ error: 'the rule’s agent is no longer active on this canvas' });
+  }
+  // A reviewed source that resolves to no readable tool is a lamp faking
+  // green: the card says the rule watches Gmail, the grant is empty, the run
+  // cannot look, and it finalizes NOTHING MATCHED with no alert forever.
+  // Refuse the grant instead — naming the source, because the fix (turn on
+  // full Google scopes / widen the agent's authority / drop the source) is
+  // different per source and the owner is the only one who can pick.
+  const unreadable = standingRules.unreadableSources(rule, standingRules.grantedTools(rule, ruleAgent, req.user.email));
+  if (unreadable.length) {
+    return res.status(409).json({
+      error: `this rule reviewed ${unreadable.join(', ')}, but ${unreadable.length > 1 ? 'those sources grant' : 'that source grants'} no readable tool to ${ruleAgent.role} agents on this deployment — the scheduled run could never look. Remove the source, widen the agent’s authority, or enable the connector, then rehearse again.`,
+    });
   }
   const interp = JSON.parse(rule.interpretation_json || '{}');
   const expiresAt = new Date(Date.now() + (interp.expires_days || 90) * 86_400_000).toISOString();
@@ -1424,6 +1446,18 @@ router.post('/canvases/:canvasId/runs/:runId/retry', rateLimit('model'), auth.re
   const run = db.prepare('SELECT * FROM runs WHERE id = ? AND canvas_id = ?').get(req.params.runId, req.params.canvasId);
   if (!run) return res.status(404).json({ error: 'run not found' });
   if (['queued', 'running'].includes(run.status)) return res.status(409).json({ error: 'run is still active — only terminal runs can be retried' });
+  // Standing-rule attempts belong to the occurrence lifecycle, not here. The
+  // attention projection already hides their cards, but every attempt's run id
+  // is readable from GET /standing-rules/:id/runs, so the endpoint itself has
+  // to refuse. Rejecting beats re-validating the grant: a generic retry
+  // produces a run with no occurrence row, so it is outside the lease, the
+  // attempt budget, the needs_attention card AND — the decisive one —
+  // haltRuleRuns, which finds attempts only through run_id/retry_run_ids_json.
+  // Revoke and pause could not stop it. There is no version of "re-validate
+  // and let it through" that the standing-rule stop path can see.
+  if (standingRules.isStandingRuleRun(run.id)) {
+    return res.status(409).json({ error: 'this run belongs to a standing rule — the rule dispatches its own retries. Open the rule to review, resume, or re-activate it.' });
+  }
   if (!db.prepare("SELECT id FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(run.agent_id, req.params.canvasId)) {
     return res.status(400).json({ error: 'the run’s agent is no longer on this canvas' });
   }

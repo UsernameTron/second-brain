@@ -872,3 +872,73 @@ test('an enrichment rule skips with an alert when the lane is dark, and a later 
     for (const r of made) db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(r.id);
   }
 });
+
+// ---------- Codex P1: the generic retry endpoint vs the standing lifecycle ----------
+
+// The attention projection stopped SHOWING retry cards for standing-rule
+// attempts, but every attempt's run id is readable from
+// GET /standing-rules/:id/runs — so the endpoint itself has to refuse. A
+// generic retry re-dispatches with no authorityJson (authority_json NULL =
+// unrestricted) and, worse, produces a run with no occurrence row: outside the
+// lease, the attempt budget, the alert card, and haltRuleRuns — revoke and
+// pause could not stop it.
+test('the generic retry endpoint refuses standing-rule attempts, current and superseded', async () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const { rule } = mkActiveRule();
+  try {
+    assert.ok(standingRules.tick({ source: 'owner', actor: OWNER }).claimed >= 1);
+    const [rr] = ruleRuns(rule.id);
+    const attemptId = rr.run_id;
+    assert.ok(attemptId, 'precondition: the occurrence dispatched a run');
+    await waitForRun(attemptId);
+
+    const retryAttempt = () => fetch(`${base}/api/canvases/${canvasId}/runs/${attemptId}/retry`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: ownerCookie },
+    }).then(async (r) => ({ status: r.status, data: await r.json() }));
+
+    const runsBefore = db.prepare('SELECT COUNT(*) AS n FROM runs').get().n;
+    let refused = await retryAttempt();
+    assert.equal(refused.status, 409, 'the current attempt must not be retryable outside the rule');
+    assert.match(refused.data.error, /standing rule/i);
+    assert.ok(standingRules.isStandingRuleRun(attemptId));
+
+    // A superseded attempt survives only in retry_run_ids_json — terminal, and
+    // exactly the shape the generic endpoint accepts.
+    db.prepare('UPDATE standing_rule_runs SET run_id = NULL, retry_run_ids_json = ? WHERE id = ?')
+      .run(JSON.stringify([attemptId]), rr.id);
+    refused = await retryAttempt();
+    assert.equal(refused.status, 409, 'a superseded attempt is still owned by the occurrence');
+    assert.ok(standingRules.isStandingRuleRun(attemptId));
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM runs').get().n, runsBefore, 'no run was dispatched by either refusal');
+  } finally {
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  }
+});
+
+// The guard is targeted: an ordinary run on the same canvas still retries, and
+// the retry inherits the parent's authority snapshot instead of being born
+// with authority_json NULL — which intersectAuthority treats as unrestricted.
+test('an ordinary run still retries, and the retry inherits its parent’s authority ceiling', async () => {
+  const { dispatchRun } = require('../server/orchestrator/queue');
+  const ceiling = JSON.stringify(['hs_search_crm']);
+  const parent = dispatchRun({
+    agentId, canvasId, instruction: 'a scoped ordinary run', triggerKind: 'user',
+    actor: OWNER, initiatedBy: OWNER, mode: 'ask', authorityJson: ceiling,
+  });
+  await waitForRun(parent.id);
+
+  const res = await fetch(`${base}/api/canvases/${canvasId}/runs/${parent.id}/retry`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: ownerCookie },
+  });
+  assert.equal(res.status, 200, 'non-standing runs are unaffected by the guard');
+  const retryId = (await res.json()).run.id;
+  const child = db.prepare('SELECT mode, authority_json FROM runs WHERE id = ?').get(retryId);
+  assert.equal(child.mode, 'ask', 'mode still inherits');
+  assert.deepEqual(JSON.parse(child.authority_json), ['hs_search_crm'],
+    'authority inherits with it — a NULL snapshot here would be an unrestricted retry');
+  assert.deepEqual(
+    intersectAuthority(parseAuthority(child.authority_json), parseAuthority(null)),
+    ['hs_search_crm'], 'and the ceiling still binds at run time',
+  );
+  await waitForRun(retryId);
+});

@@ -234,6 +234,31 @@ function grantedTools(rule, agent, grantor) {
   return menu.filter((n) => bySource(n) && (!agentAuthority || agentAuthority.includes(n)));
 }
 
+// The reviewed EXTERNAL sources that `granted` cannot actually read. One
+// definition of "this source contributed nothing", used at two moments:
+// activation refuses the grant outright (routes activate), and the tick's
+// enrichmentDark still catches a lane that goes dark AFTER the grant — which
+// activation cannot see. 'memory' is excluded by construction: memory/notes/
+// escalate are ungoverned, always present, and SOURCE_TOOLS.memory returns
+// false for every name.
+function unreadableSources(rule, granted) {
+  const list = (Array.isArray(granted) ? granted : []).map(String);
+  return ruleSources(rule).filter((s) => s !== 'memory'
+    && !list.some((n) => (SOURCE_TOOLS[s] || (() => false))(n)));
+}
+
+// Is this run one of a standing rule's attempts? The current attempt lives on
+// run_id; superseded ones survive only in retry_run_ids_json, and those are
+// terminal — exactly what the generic retry endpoint accepts.
+// ponytail: instr() over the JSON array text rather than a join table; ids are
+// UUIDs, so a quoted substring hit is the id and nothing else.
+function isStandingRuleRun(runId) {
+  if (!runId) return false;
+  return !!db.prepare(`SELECT 1 FROM standing_rule_runs
+      WHERE run_id = ? OR instr(COALESCE(retry_run_ids_json, ''), ?) > 0 LIMIT 1`)
+    .get(String(runId), JSON.stringify(String(runId)));
+}
+
 function createAuthorization({ rule, authorizedBy, expiresAt }) {
   const agent = db.prepare('SELECT role, tools_json FROM agents WHERE id = ?').get(rule.agent_id) || {};
   const id = crypto.randomUUID();
@@ -272,12 +297,18 @@ function touchesWorkspace(rule) {
 // the lane back up must never widen a snapshot nobody re-consented to — the
 // grant stays whatever it resolved to, and re-activation is the only thing that
 // re-resolves it. So a rule granted empty stays skipped even once ED is wired.
+//
+// Composition with the activation guard: both ask the same question via
+// unreadableSources. Activation refuses to MINT an empty grant, so the
+// empty-grant branch here is now defense in depth (and covers rows granted
+// before that guard existed); the !configured() branch is the case activation
+// can never cover — a lane that was live at grant time and went dark since.
 function enrichmentDark(rule, authz) {
   if (!ruleSources(rule).includes('enrichment')) return false;
   if (!require('./enrichment/dispatch').configured()) return true;
   let granted = [];
   try { granted = JSON.parse((authz && authz.allowed_tools_json) || '[]'); } catch { /* treat as empty */ }
-  return !(Array.isArray(granted) && granted.some((n) => SOURCE_TOOLS.enrichment(String(n))));
+  return unreadableSources(rule, granted).includes('enrichment');
 }
 
 // Server-verified per dispatch, inside the tick tx. Scoping cannot outlive the
@@ -348,12 +379,22 @@ function rehearsalInstruction(rule) {
   return `REHEARSAL against recent data: report exactly what WOULD have matched in the last 7 days; change nothing.\n${ruleInstruction(rule, { rehearsal: true })}`;
 }
 
+// The contract line is the FINAL nonblank line, never the first match anywhere
+// in the text. Quoted source records and the agent's own prose produce
+// "MATCHED: 0" naturally ("the source reported MATCHED: 0 yesterday"), and an
+// unanchored search reads that as the answer — recording zero and suppressing
+// the alert while the agent's actual final count is two.
+// Two contract statements on that one line contradict each other, so the count
+// is UNKNOWN rather than either of them. Unknown surfaces the card for review
+// (finalizeRuleRuns treats null as needs_attention); zero suppresses it, and
+// wrongly suppressing is the one failure an alert rule cannot have.
 function parseMatchedCount(summary) {
-  if (!summary) return null;
-  const m = /MATCHED:\s*(\d+)/i.exec(summary);
-  if (m) return Number(m[1]);
-  if (/NOTHING\s+MATCHED/i.test(summary)) return 0;
-  return null;
+  const lines = String(summary || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const last = lines[lines.length - 1] || '';
+  const counts = last.match(/MATCHED:\s*\d+/gi) || [];
+  const nothing = /NOTHING\s+MATCHED/i.test(last);
+  if (counts.length + (nothing ? 1 : 0) !== 1) return null;
+  return counts.length ? Number(/\d+/.exec(counts[0])[0]) : 0;
 }
 
 // ---------- finalize + retry (D7) ----------
@@ -625,7 +666,7 @@ module.exports = {
   occurrenceKey, nextRunAt, isoWeekKey,
   getRule, ruleView, upsertDraft,
   createAuthorization, currentAuthorization, revokeAuthorization, verifyAuthorization, touchesWorkspace,
-  grantedTools, ruleSources, SOURCE_TOOLS,
+  grantedTools, ruleSources, SOURCE_TOOLS, unreadableSources, isStandingRuleRun,
   ruleInstruction, rehearsalInstruction, parseMatchedCount,
   finalizeRuleRuns, haltRuleRuns, tick, verifyTickOidc,
   _internal: {
