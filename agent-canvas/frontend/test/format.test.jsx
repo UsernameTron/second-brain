@@ -196,6 +196,96 @@ describe('formatRunEventPreview', () => {
   });
 });
 
+describe('technical ** operators vs markdown bold', () => {
+  it('leaves 2**8 and 3**9 completely alone', () => {
+    const { container } = render(<SummaryMarkdown text={'2**8 and 3**9'} />);
+    expect(container.querySelector('b')).toBeNull();
+    expect(container.textContent).toBe('2**8 and 3**9');
+    expect(plainPreview('2**8 and 3**9')).toBe('2**8 and 3**9');
+  });
+
+  it('bolds real markers in the same line as an operator', () => {
+    const { container } = render(<SummaryMarkdown text={'the **rate** is 2**8'} />);
+    const bolds = [...container.querySelectorAll('b')];
+    expect(bolds).toHaveLength(1);
+    expect(bolds[0].textContent).toBe('rate');
+    expect(container.textContent).toBe('the rate is 2**8');
+    expect(plainPreview('the **rate** is 2**8')).toBe('the rate is 2**8');
+  });
+
+  it('tokenizes multiple bold spans, keeping punctuation, spacing and operators', () => {
+    const { container } = render(<SummaryMarkdown text={'(**Acme**) and **Globex** — 2**8'} />);
+    const bolds = [...container.querySelectorAll('b')];
+    expect(bolds.map((b) => b.textContent)).toEqual(['Acme', 'Globex']);
+    expect(container.textContent).toBe('(Acme) and Globex — 2**8');
+    expect(plainPreview('(**Acme**) and **Globex** — 2**8')).toBe('(Acme) and Globex — 2**8');
+  });
+});
+
+describe('truncated-JSON scanner', () => {
+  const cutOff = (obj, n) => { const s = JSON.stringify(obj); return s.slice(0, s.length - n); };
+
+  it('never accepts a partial number as a shorter valid one', () => {
+    const lines = humanizePayload('{"ratio":1.5e-3,"partial":2.5e');
+    expect(lines).toContain('ratio: 0.0015');
+    expect(lines).toContain('partial: 2.5e');
+    expect(lines).not.toContain('partial: 2.5');
+    for (const [frag, shown, notShown] of [
+      ['{"n":1e+', 'n: 1e+', 'n: 1'],
+      ['{"n":1.', 'n: 1.', 'n: 1'],
+      ['{"n":01', 'n: 01', 'n: 0'],
+    ]) {
+      const out = humanizePayload(frag);
+      expect(out).toContain(shown);
+      expect(out).not.toContain(notShown);
+    }
+    // A malformed number that is NOT at the cut is a syntax error, not
+    // truncation — the text is preserved rather than half-read.
+    expect(humanizePayload('{"n":01,"b":2}')).toEqual(['{"n":01,"b":2}']);
+  });
+
+  it('humanizes truncated scalar arrays, keyed and top-level', () => {
+    const keyed = humanizePayload('{"tags":["urgent","renewal","le');
+    expect(keyed).toContain('tags: urgent, renewal, le');
+    expect(keyed.join('\n')).not.toMatch(/[[\]"]/);
+    const topLevel = humanizePayload('[1,2,');
+    expect(topLevel).toEqual(['1, 2', '… (result truncated)']);
+  });
+
+  it('keeps embedded commas and escaped characters intact', () => {
+    const commas = humanizePayload(cutOff({ city: 'New York, NY', next: 'x' }, 6));
+    expect(commas).toContain('city: New York, NY');
+    const escaped = humanizePayload(cutOff({ note: 'say "hi" via C:\\tmp', next: 'x' }, 6));
+    expect(escaped).toContain('note: say "hi" via C:\\tmp');
+  });
+
+  it('leaves JSON-lookalike prose exactly as written', () => {
+    expect(humanizePayload('[note] hello')).toEqual(['[note] hello']);
+    expect(humanizePayload('{"example": prose}')).toEqual(['{"example": prose}']);
+    expect(humanizePayload('{"a":1} and then ordinary prose')).toEqual(['{"a":1} and then ordinary prose']);
+  });
+});
+
+describe('arrays of objects', () => {
+  it('names the records it can and counts the rest', () => {
+    const payload = {
+      deals: [
+        { deal_name: 'Acme Corp' },
+        { deal_name: 'Globex' },
+        { deal_name: 'Initech' },
+        { deal_name: 'Umbrella' },
+      ],
+    };
+    expect(humanizePayload(payload)).toEqual(['deals: Acme Corp, Globex, Initech, +1 more']);
+  });
+
+  it('counts unidentifiable records in the remainder, and falls back when none are', () => {
+    expect(humanizePayload({ rows: [{ name: 'A' }, { blank: '   ' }, { nil: null }] }))
+      .toEqual(['rows: A, +2 more']);
+    expect(humanizePayload({ rows: [{ nil: null }, { blank: '  ' }] })).toEqual(['rows: 2 items']);
+  });
+});
+
 describe('component surfaces', () => {
   it('Activity Dock previews carry no raw JSON braces', () => {
     const activity = [

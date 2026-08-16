@@ -10,12 +10,26 @@ import { short } from './api.js';
 // summaries actually use. Everything renders as React text nodes (no HTML
 // injection, never dangerouslySetInnerHTML); add a real renderer if output
 // ever needs tables or links.
+// Markdown bold sits on a word boundary; `2**8` is an exponent operator that
+// happens to contain the same characters. Requiring the opener to start the
+// string or follow whitespace/opening punctuation — and the closer to end it
+// or precede whitespace/closing punctuation — separates the two. Without this
+// "2**8 and 3**9" bolded "8 and 3" and previews rendered it "28 and 39".
+// No lookbehind (older Safari): the boundary char is captured and re-emitted.
+const BOLD_RE = /(^|[\s([{"'—–-])\*\*(\S(?:(?:[^*]|\*(?!\*))*?[^\s*])?)\*\*(?=$|[\s)\]}"'.,;:!?—–-])/g;
+
 export function boldSpans(text) {
-  const parts = String(text).split(/\*\*([^*]+)\*\*/g);
-  // Odd indexes are balanced **bold** captures. An UNMATCHED ** stays literal:
-  // deleting it would silently rewrite content that legitimately contains
-  // asterisks (code, emphasis the model half-finished, actual ** in data).
-  return parts.map((p, i) => (i % 2 ? <b key={i}>{p}</b> : p));
+  const s = String(text);
+  const out = [];
+  let last = 0;
+  for (const m of s.matchAll(BOLD_RE)) {
+    const open = m.index + m[1].length; // keep the boundary char as plain text
+    if (open > last) out.push(s.slice(last, open));
+    out.push(<b key={open}>{m[2]}</b>);
+    last = m.index + m[0].length;
+  }
+  if (last < s.length) out.push(s.slice(last));
+  return out.length ? out : [s];
 }
 
 // Domain-neutral markdown-subset renderer. It does NOT strip standing-rule
@@ -101,8 +115,8 @@ export function plainPreview(text) {
     .map((l) => l
       .replace(/^\s*#{1,4}\s+/, '')
       .replace(/^\s*(?:[-*]|\d{1,3}[.)])\s+/, '')
-      // Balanced pairs only — a lone ** is content, same rule as boldSpans.
-      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      // Same boundary rule as boldSpans: strip bold markers, keep operators.
+      .replace(BOLD_RE, '$1$2')
       .trim())
     .filter(Boolean)
     .join(' · ');
@@ -130,34 +144,180 @@ function boundedDesc(v) {
   const noun = Array.isArray(v) ? 'item' : 'field';
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
+// "3 items" names nothing. Pull an identifying scalar so a bounded preview of
+// a list of records still says WHICH records. Only non-null, non-blank strings
+// and numbers qualify; anything unrepresented is counted in the remainder.
+const ID_KEYS = ['name', 'title', 'label', 'deal_name', 'subject', 'email', 'id', 'key'];
+function identifierOf(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  const usable = (x) => (typeof x === 'number' && Number.isFinite(x)) || (typeof x === 'string' && x.trim());
+  for (const k of ID_KEYS) if (usable(o[k])) return String(o[k]).trim();
+  for (const val of Object.values(o)) if (usable(val)) return String(val).trim();
+  return null;
+}
+const MAX_IDS = 3;
 function arrayLabel(v) {
   if (!v.length) return '(none)'; // an empty array rendered as blank read as "missing"
-  return v.every(isScalar) ? short(v.map(scalarLabel).join(', '), 80) : boundedDesc(v);
+  if (v.every(isScalar)) return short(v.map(scalarLabel).join(', '), 80);
+  const ids = [];
+  for (const item of v) {
+    if (ids.length >= MAX_IDS) break;
+    const id = identifierOf(item);
+    if (id) ids.push(id);
+  }
+  if (!ids.length) return boundedDesc(v); // nothing identifiable — "N items" is the honest answer
+  const rest = v.length - ids.length;
+  return short(rest > 0 ? `${ids.join(', ')}, +${rest} more` : ids.join(', '), 80);
 }
 
 // Run-event previews slice tool results to 600 chars BEFORE they reach the
 // browser (server/orchestrator/runner.js recordEvent), so a structured result
-// can arrive as a cut-off JSON prefix that will never parse. Salvage the
-// complete "key": scalar pairs instead of showing broken braces.
+// can arrive as a cut-off JSON prefix that will never parse.
+//
+// Recovering it by regex was wrong twice over: splitting an array body on
+// commas corrupts "New York, NY", and a pattern cannot tell an escaped quote
+// from a closing one. This is an incremental JSON scanner instead. It returns
+// the longest SYNTACTICALLY VALID prefix and only when the input ran out
+// mid-structure — a genuine syntax error, or valid JSON followed by prose,
+// returns null so the caller leaves the text alone.
 const TRUNCATED_MARK = '… (result truncated)';
+const BAD = Symbol('bad-json');
+
+function scanJsonPrefix(src) {
+  let i = 0;
+  let truncated = false;
+  const cut = () => { truncated = true; return undefined; };
+  const ws = () => { while (i < src.length && /\s/.test(src[i])) i += 1; };
+
+  // Escape-aware. On a cut mid-string the content so far is kept: the caller
+  // shows "deal name: Acme Cor" rather than dropping the field entirely.
+  const parseString = () => {
+    i += 1;
+    let out = '';
+    const ESC = { '"': '"', '\\': '\\', '/': '/', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' };
+    while (i < src.length) {
+      const c = src[i];
+      if (c === '\\') {
+        const e = src[i + 1];
+        if (e === undefined) { truncated = true; return out; }
+        if (e === 'u') {
+          const hex = src.slice(i + 2, i + 6);
+          if (hex.length < 4) { truncated = true; return out; }
+          if (!/^[0-9a-fA-F]{4}$/.test(hex)) return BAD;
+          out += String.fromCharCode(parseInt(hex, 16)); i += 6; continue;
+        }
+        if (!(e in ESC)) return BAD;
+        out += ESC[e]; i += 2; continue;
+      }
+      if (c === '"') { i += 1; return out; }
+      if (c < ' ') return BAD; // raw control char is invalid JSON
+      out += c; i += 1;
+    }
+    truncated = true;
+    return out;
+  };
+
+  // A number is only accepted once a delimiter proves the token ended. When
+  // the cut lands inside it the RAW token is kept, so "1.5e" can never be
+  // read as 1.5 — it renders as the fragment it is.
+  const NUM = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
+  const parseNumber = () => {
+    const start = i;
+    while (i < src.length && /[-+0-9.eE]/.test(src[i])) i += 1;
+    const tok = src.slice(start, i);
+    if (i >= src.length) { truncated = true; return tok; }
+    if (!NUM.test(tok) || !/[\s,}\]]/.test(src[i])) return BAD;
+    return Number(tok);
+  };
+
+  const LITERALS = [['true', true], ['false', false], ['null', null]];
+  const parseLiteral = () => {
+    for (const [lit, val] of LITERALS) {
+      if (src.startsWith(lit, i)) {
+        const end = i + lit.length;
+        if (end < src.length && !/[\s,}\]]/.test(src[end])) return BAD;
+        i = end; return val;
+      }
+    }
+    const rest = src.slice(i);
+    if (rest && LITERALS.some(([lit]) => lit.startsWith(rest))) { i = src.length; return cut(); }
+    return BAD;
+  };
+
+  const parseArray = () => {
+    i += 1;
+    const arr = [];
+    ws();
+    if (i >= src.length) return cut() || arr;
+    if (src[i] === ']') { i += 1; return arr; }
+    for (;;) {
+      const v = parseValue();
+      if (v === BAD) return BAD;
+      if (v !== undefined) arr.push(v);
+      if (truncated) return arr;
+      ws();
+      if (i >= src.length) { truncated = true; return arr; }
+      if (src[i] === ',') { i += 1; ws(); if (i >= src.length) { truncated = true; return arr; } continue; }
+      if (src[i] === ']') { i += 1; return arr; }
+      return BAD;
+    }
+  };
+
+  const parseObject = () => {
+    i += 1;
+    const obj = {};
+    ws();
+    if (i >= src.length) return cut() || obj;
+    if (src[i] === '}') { i += 1; return obj; }
+    for (;;) {
+      ws();
+      if (i >= src.length) { truncated = true; return obj; }
+      if (src[i] !== '"') return BAD;
+      const key = parseString();
+      if (key === BAD) return BAD;
+      if (truncated) return obj; // a half-read key names nothing
+      ws();
+      if (i >= src.length) { truncated = true; return obj; }
+      if (src[i] !== ':') return BAD;
+      i += 1; ws();
+      if (i >= src.length) { truncated = true; return obj; }
+      const v = parseValue();
+      if (v === BAD) return BAD;
+      if (v !== undefined) obj[key] = v;
+      if (truncated) return obj;
+      ws();
+      if (i >= src.length) { truncated = true; return obj; }
+      if (src[i] === ',') { i += 1; continue; }
+      if (src[i] === '}') { i += 1; return obj; }
+      return BAD;
+    }
+  };
+
+  function parseValue() {
+    ws();
+    if (i >= src.length) return cut();
+    const c = src[i];
+    if (c === '"') { const r = parseString(); return r === BAD ? BAD : r; }
+    if (c === '{') return parseObject();
+    if (c === '[') return parseArray();
+    if (c === '-' || (c >= '0' && c <= '9')) return parseNumber();
+    return parseLiteral();
+  }
+
+  ws();
+  if (i >= src.length || (src[i] !== '{' && src[i] !== '[')) return null;
+  const value = parseValue();
+  if (value === BAD) return null;
+  // Not truncated means this parsed cleanly to the end — JSON.parse would have
+  // taken it — or there is trailing prose. Either way it is not our case.
+  if (!truncated) return null;
+  return value;
+}
+
 function salvageJsonish(s) {
-  const lines = [...s.matchAll(/"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)/g)]
-    .slice(0, MAX_FIELDS)
-    .map(([, k, raw]) => {
-      let v = raw;
-      try { v = JSON.parse(raw); } catch { /* keep raw */ }
-      return `${fieldLabel(k)}: ${scalarLabel(v)}`;
-    });
-  // The cut can land mid-value ('"deal_name":"Acme Cor'), which the complete-
-  // pair pattern above skips. Recover that trailing fragment too.
-  // (A complete pair ends in a quote or brace, so it never matches this.)
-  const partial = s.match(/"([^"]+)"\s*:\s*"?([^",}\]]*)$/);
-  if (partial && partial[2].trim()) lines.push(`${fieldLabel(partial[1])}: ${partial[2].trim()}`);
-  if (lines.length) { lines.push(TRUNCATED_MARK); return lines; }
-  // Nothing structured survived the cut. Never hand back the broken syntax —
-  // strip the punctuation and show whatever text is left.
-  const bare = s.replace(/[{}[\]"]/g, ' ').replace(/[:,]/g, ': ').replace(/\s{2,}/g, ' ').trim();
-  return [bare ? `${bare} ${TRUNCATED_MARK}` : TRUNCATED_MARK];
+  const scanned = scanJsonPrefix(s);
+  if (scanned === null || scanned === undefined) return null;
+  return [...humanizePayload(scanned), TRUNCATED_MARK];
 }
 
 // Structured payload → readable "label: value" lines, no JSON punctuation.
@@ -177,9 +337,10 @@ export function humanizePayload(value, opts = {}) {
         const parsed = JSON.parse(t);
         if (parsed && typeof parsed === 'object') v = parsed;
       } catch {
-        // Only salvage when it really is cut-off JSON — a quoted key proves
-        // that. Prose that merely opens with a brace stays untouched.
-        if (/"[^"]+"\s*:/.test(t)) return salvageJsonish(t);
+        // The scanner itself decides whether this is truncated JSON; prose
+        // that merely opens with a brace comes back null and stays untouched.
+        const salvaged = salvageJsonish(t);
+        if (salvaged) return salvaged;
       }
     }
     if (typeof v === 'string') return [v];
