@@ -269,9 +269,9 @@ function scanJsonPrefix(src) {
 
   const parseObject = () => {
     i += 1;
-    // Null prototype: `obj["__proto__"] = v` on a normal object mutates the
-    // prototype instead of storing a field — the value would vanish from the
-    // display and, for an object value, pollute every object in the page.
+    // A normal object's legacy __proto__ setter would change this temporary
+    // object's prototype instead of storing an own field. A null-prototype object
+    // preserves __proto__ as ordinary display data.
     const obj = Object.create(null);
     ws();
     if (i >= src.length) return cut() || obj;
