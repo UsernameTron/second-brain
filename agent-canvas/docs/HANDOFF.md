@@ -73,7 +73,7 @@ runs; inheritance is what keeps that difference harmless.
 | Gate 0, P1, P2 | Implemented, merged | Recorded as deployed and live-accepted in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); not replayed since |
 | P3 Evidence Rooms | Implemented, merged | **Live-accepted incl. #194** (2026-08-16, `00052-nbf`): the room's Disclosure Review rendered included/excluded counts, held 3 private-surface Drive sources internal, and content-flagged the fact whose wording names them |
 | P4 Agent Builder | Implemented, merged, hardened by #197 | **Live-accepted** (2026-08-16, `00052-nbf`) — see the P4 acceptance section below |
-| P5 Standing Rules | Implemented, merged, all 14 follow-up findings closed by #198 | **Deployed; manual execution path accepted** (next section). Unattended scheduling intentionally dark and **unaccepted** |
+| P5 Standing Rules | Implemented, merged, all 14 follow-up findings closed by #198 | **Deployed; manual path accepted; scheduler lane WIRED and live-proven** (2026-08-16 — section below). Outstanding: a due rule dispatched by a scheduled tick, pause/expiry under the scheduler, clean-zero alert path |
 | P6 Outcomes & reviewed learning | Planned only | Not implemented |
 | P7 Selective integrations | Planned only | Not implemented |
 
@@ -116,8 +116,10 @@ publish entry (actor, tier, purpose); **Rollback executed and recorded
 honestly** — "Restored: no fields differed" appended as a new `rollback`
 version with the original publish preserved, no authority widened.
 
-Still outstanding for P5: a scheduler-signed tick (lane deliberately dark),
-pause/expiry under the scheduler, and the clean-zero alert path.
+Still outstanding for P5 after the scheduler wiring (2026-08-16): observing a
+DUE rule dispatched by a scheduled (not forced, not manual) tick — the next
+cadence of the existing rules will exercise this — plus pause/expiry under the
+scheduler and the clean-zero alert path.
 
 ### What PR #199 changed (deployed on `00052-nbf`)
 
@@ -174,21 +176,24 @@ stays unauthenticated. `/healthz` is kept for local runs. Covered by
    Now `agent-canvas-00052-nbf` at 100% traffic (post-deploy), eleven env-var
    names confirmed, `MODEL_PROVIDER=anthropic` live-proven, `/api/healthz` and
    `/api/config` both 200 (the `/healthz` question closed — section above).
-2. **Wire P5 scheduling. STILL OUTSTANDING and deliberately not done.** Create
-   the dedicated tick service account and Cloud Scheduler job, and set both
-   `TICK_AUDIENCE` and `TICK_INVOKER_SA`; one without the other deliberately
-   disables the OIDC lane. Both are absent today, which is why the lane is dark.
-   This is the step where unattended runs against real data begin.
-3. ~~**Deploy current `master` once.**~~ **DONE 2026-08-16, twice.** `master`
-   at `62eae86` is deployed as `00052-nbf`; production is NOT behind. The second
-   deploy was the first run of the preservation-first script, rehearsed with
-   DEPLOY_DRY_RUN=1 first; the environment contract was preserved additively.
+2. ~~**Wire P5 scheduling.**~~ **DONE 2026-08-16 ~19:00Z (live-proven).**
+   `agent-canvas-tick@` SA created, granted `roles/run.invoker`; both tick env
+   vars set additively (revision `agent-canvas-00053-h2n`); Cloud Scheduler job
+   `agent-canvas-standing-rules` ENABLED at `*/10 * * * *` with OIDC audience =
+   the tick URL. A forced first execution reached the app and returned **200**
+   at 19:04:37Z (request log + WAL write), zero error logs, and the
+   `STANDING RULES · TICK` lamp turned **green**: "Last scheduler-signed tick
+   2026-08-16T19:04:37.676Z". Unattended runs against real data are now on.
+3. ~~**Deploy current `master` once.**~~ **DONE 2026-08-16** — `62eae86`
+   deployed as `00052-nbf` via the preservation-first script (dry-run
+   rehearsed); env contract preserved additively.
 4. ~~**Accept P4 in-app.**~~ **DONE 2026-08-16** — full journey observed live
    on `00052-nbf` (section above), including the rehearse gate, version
    history, rollback, and authority non-expansion. P3 #194 screened export
    accepted in the same session.
-5. **Accept P5 end to end.** Parse, edit, rehearse, activate, receive a real
-   scheduler-signed tick, inspect the run/attention card, then exercise pause,
-   revoke, expiry, and rollback. A manual owner tick does not prove scheduling.
+5. **Finish P5 end-to-end acceptance.** The scheduler-signed tick is done
+   (gate 2). Remaining: watch a due rule produce its run and attention card
+   from a scheduled tick, then exercise pause, revoke, and expiry under the
+   scheduler. Fastest rollback stays: pause the Scheduler job.
 6. **Truth-up this block again** with the observed revision, timestamp, test
    evidence, and acceptance result before beginning P6.
