@@ -1010,7 +1010,7 @@ export default function Workspace() {
                   <button onClick={() => { setArchivedOpen(true); setMenuOpen(false); }}>
                     Archived canvases{archivedCanvases.length ? ` (${archivedCanvases.length})` : ''}
                   </button>
-                  <a href="/api/export" download>Export workspace JSON</a>
+                  <a href="/api/export" download>Export operational ledger (JSON)</a>
                 </>
               ) : null}
               <button onClick={signOut}>Sign out</button>

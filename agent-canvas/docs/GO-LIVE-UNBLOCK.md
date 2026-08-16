@@ -1,5 +1,9 @@
 # Unblocking "Access blocked: … has not completed the Google verification process"
 
+> **Historical incident record.** The original blocker was resolved. Do not use
+> this as the current release runbook; start with [HANDOFF.md](HANDOFF.md) and
+> [DEPLOY.md](DEPLOY.md).
+
 **Symptom:** Sign-in works, but **Connect Google Workspace** ends in
 `Error 403: access_denied` — "can only be accessed by developer-approved
 testers."

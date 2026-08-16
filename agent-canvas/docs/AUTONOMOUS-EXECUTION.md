@@ -1,5 +1,9 @@
 # Autonomous execution mandate — review the plans, then run them
 
+> **Historical instruction — do not execute as a current mandate.** Its useful
+> reasoning is preserved, but phase status and operator gates have moved to
+> [HANDOFF.md](HANDOFF.md) and [ROADMAP.md](ROADMAP.md).
+
 Handoff for a fresh session. Start it with: *"Read
 agent-canvas/docs/AUTONOMOUS-EXECUTION.md and execute it."* Written
 2026-08-14 at the close of the planning week. Pete has delegated execution:

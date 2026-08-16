@@ -1234,7 +1234,11 @@ router.post('/canvases/:canvasId/standing-rules/parse', rateLimit('model'), auth
   });
   audit('user', req.user.email, existing ? 'standing_rule.parse' : 'standing_rule.create',
     { ruleId: rule.id, canvasId: req.params.canvasId, version: rule.version, agentId: rule.agent_id });
-  res.json({ rule: standingRules.ruleView(rule) });
+  // The retired grant rides back, same shape revoke uses: an edit retires the
+  // authorization (upsertDraft), and there is no refetch path behind this
+  // response — a client that merged only { rule } would keep rendering the
+  // pre-edit "Authorized by … · expires …" over a rule that can no longer run.
+  res.json({ rule: standingRules.ruleView(rule), authorization: standingRules.latestAuthorization(rule.id) || null });
 }));
 
 router.get('/canvases/:canvasId/standing-rules', auth.requireCanvas, (req, res) => {
@@ -1285,7 +1289,10 @@ router.patch('/standing-rules/:ruleId', (req, res) => {
   }
   const updated = standingRules.upsertDraft({ canvasId: rule.canvas_id, ruleId: rule.id, instruction, interp, actor: req.user.email });
   audit('user', req.user.email, 'standing_rule.edit', { ruleId: rule.id, canvasId: rule.canvas_id, version: updated.version });
-  res.json({ rule: standingRules.ruleView(updated) });
+  // Same as the parse route above: the edit retired the grant, so the response
+  // carries the retired row rather than leaving the client's live-grant claim
+  // standing with nothing to correct it.
+  res.json({ rule: standingRules.ruleView(updated), authorization: standingRules.latestAuthorization(rule.id) || null });
 });
 
 // Rehearse: one rehearse-mode run on the rule's agent — "report what WOULD
@@ -2380,7 +2387,10 @@ router.get('/audit', auth.requireOwner, (req, res) => {
   });
 });
 
-// ---------- export (owner only) ----------
+// ---------- operational-ledger export (owner only) ----------
+// Deliberately not described as a full backup: credentials/tokens stay out, and
+// newer product tables require an explicit portability contract before joining
+// this stable owner export.
 router.get('/export', auth.requireOwner, (req, res) => {
   audit('user', req.user.email, 'workspace.export', {});
   const dump = {

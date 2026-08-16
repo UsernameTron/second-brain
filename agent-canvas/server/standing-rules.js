@@ -199,6 +199,18 @@ function upsertDraft({ canvasId, ruleId = null, instruction, interp, actor }) {
       // rehearsals on one agent. Close it before the column forgets it.
       const prior = getRule(ruleId);
       if (prior && prior.rehearsal_run_id) closeRun(prior.rehearsal_run_id, 'rule edited');
+      // The grant was consented to for the rule AS IT WAS. The edit flips the
+      // rule to draft — the tick's due query only ever selects 'active', so it
+      // can never be spent again — but the authorization row stayed unrevoked,
+      // so currentAuthorization kept returning it and the detail payload kept
+      // rendering "Authorized by … · expires …" over a rule that cannot run: a
+      // live authorization claimed on screen that enforcement had already
+      // stopped honouring. Retire it in the SAME tx as the edit and the state
+      // transition, so no reader can see one without the other. The row and its
+      // history are kept (revoked_at/revoked_by stamped, never deleted), and
+      // re-activation mints a new one — same stop revoke takes, same one
+      // definition of "retire this grant".
+      revokeAuthorization(ruleId, actor);
       db.prepare(`UPDATE standing_rules SET agent_id = ?, instruction = ?, interpretation_json = ?, category = ?,
           source_scope_json = ?, output_type = ?, cadence = ?, cadence_hour = ?, cadence_day = ?,
           step_budget = ?, wall_ms_budget = ?, state = 'draft', rehearsal_run_id = NULL, next_run_at = NULL,

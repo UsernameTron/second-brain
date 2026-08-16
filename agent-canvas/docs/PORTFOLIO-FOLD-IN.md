@@ -1,5 +1,9 @@
 # Portfolio Fold-In — mission brief for a fresh session
 
+> **Historical mission brief — do not execute wholesale.** Candidate ideas must
+> be re-evaluated against current source and promoted through
+> [ROADMAP.md](ROADMAP.md); this file is not a current backlog or release order.
+
 Self-contained instruction: analyze the CTG project portfolio and fold its
 functional capabilities into Agent Canvas. Written 2026-08-14 from a live
 inventory of `/Users/cpconnor/projects/CTG-Workspace-Build/projects`

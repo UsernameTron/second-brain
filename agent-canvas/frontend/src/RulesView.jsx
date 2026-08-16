@@ -131,7 +131,7 @@ function InterpretationCard({ rule, agentsById, readsAs }) {
             creator above is NOT it: every scheduled run acts as the person who
             activated the rule, and the rehearsal acted as whoever ran it. The
             grant means nothing unless the card names that identity. */}
-        <li><b>Reads as</b> — <span>{readsAs || 'not yet — whoever rehearses and activates it'}</span></li>
+        <li><b>Reads as</b> — <span>{readsAs || 'not yet established — whoever rehearses and activates it'}</span></li>
         <li><b>Output</b> — <span>{rule.output_type === 'brief' ? 'a written brief with sources' : 'an alert, only when something matches'}</span></li>
         <li><b>Budget</b> — <span>{`${rule.step_budget != null ? `${rule.step_budget} steps` : 'default steps'} · ${rule.wall_ms_budget != null ? `${Math.round(rule.wall_ms_budget / 60000)} min` : 'default time'} per run`}</span></li>
         <li><b>Expires</b> — <span>{rule.expires_at ? fmtWhen(rule.expires_at) : `${expiryDays} days after activation`}</span></li>
@@ -408,7 +408,13 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
     mergeDetail(id, { editError: null });
     try {
       const d = await rulesApi.parse(canvasId, edited, id);
-      mergeDetail(id, { rule: d.rule, rehearsalRun: null, savedInstruction: d.rule.instruction });
+      // The edit retired the grant server-side and the response carries the
+      // retired row — merge it, the same way the ceremonies do, or the block
+      // above keeps the pre-edit grant with no refetch path to correct it.
+      mergeDetail(id, (cur) => ({
+        rule: d.rule, rehearsalRun: null, savedInstruction: d.rule.instruction,
+        authorization: d.authorization || cur.authorization,
+      }));
       loadList();
     } catch (e) {
       // A failed re-interpretation wrote NOTHING: every error path in the parse
@@ -436,7 +442,10 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
     setBusy(true);
     try {
       const d = await rulesApi.update(id, { interpretation });
-      mergeDetail(id, { rule: d.rule, rehearsalRun: null, savedInstruction: d.rule.instruction, editError: null });
+      mergeDetail(id, (cur) => ({
+        rule: d.rule, rehearsalRun: null, savedInstruction: d.rule.instruction, editError: null,
+        authorization: d.authorization || cur.authorization,
+      }));
       loadList();
       toast('Settings saved — rehearse again before it can activate', 'ok');
     } catch (e) { toast(e.message); } finally { setBusy(false); }
@@ -500,6 +509,15 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
     const rehearsal = detail.rehearsalRun;
     const rehearsed = rule.state === 'rehearsed' && rehearsal && rehearsal.status === 'completed';
     const editable = !['revoked', 'expired'].includes(rule.state);
+    // A draft or rehearsed rule cannot run: the tick's due query only ever
+    // selects `active`. Any authorization on screen for one of those states is
+    // the grant the edit retired — rendering it as "Authorized by … · expires
+    // …" asserts a live authorization on a rule enforcement has already stopped
+    // honouring. The server retires the row on every edit and returns it, but
+    // the STATE is what decides what may be claimed here, so a legacy row (or a
+    // client that has not caught up) cannot resurrect the live-grant claim
+    // either. Revoked and expired rules keep their own terminal language.
+    const retiredGrant = ['draft', 'rehearsed'].includes(rule.state) && !!detail.authorization;
     return (
       <div className="rooms-view">
         <div className="room-head">
@@ -510,13 +528,17 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
           <span className="dim mono">{cadenceLabel(rule)}</span>
         </div>
         {/* A revoked grant has no expiry left to promise — the revocation is
-            the whole state of it. */}
+            the whole state of it. A retired one has no expiry to promise
+            either: it is history, and history is all it may claim. */}
         {detail.authorization ? (
           <p className="dim">
-            Authorized by <span className="mono">{detail.authorization.authorized_by}</span>
-            {detail.authorization.revoked_at
-              ? ` · revoked ${fmtWhen(detail.authorization.revoked_at)} — nothing runs under it again`
-              : (detail.authorization.expires_at ? ` · expires ${fmtWhen(detail.authorization.expires_at)}` : '')}
+            {retiredGrant ? 'Previously authorized by ' : 'Authorized by '}
+            <span className="mono">{detail.authorization.authorized_by}</span>
+            {retiredGrant
+              ? ` — retired${detail.authorization.revoked_at ? ` ${fmtWhen(detail.authorization.revoked_at)}` : ''} when the rule changed. It is not a live authorization: nothing runs under it unless the rule is rehearsed and activated again.`
+              : (detail.authorization.revoked_at
+                ? ` · revoked ${fmtWhen(detail.authorization.revoked_at)} — nothing runs under it again`
+                : (detail.authorization.expires_at ? ` · expires ${fmtWhen(detail.authorization.expires_at)}` : ''))}
           </p>
         ) : null}
         <div className="builder-flow">
@@ -550,11 +572,17 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
               rehearsal's own identity is what the owner is being asked to
               accept as the review. The payload now carries REVOKED grants too
               (it has to, or the block above cannot say it was revoked), and a
-              revoked grantor is nobody's access to spend. */}
+              revoked grantor is nobody's access to spend. A RETIRED grant is
+              not an answer to this question at all: the rule is back at the
+              gate, and what it would read as next is whoever rehearses it now —
+              falling back to the old grantor would name an identity the next
+              run has no claim on. */}
           <InterpretationCard rule={rule} agentsById={agentsById}
-            readsAs={detail.authorization?.revoked_at
-              ? `nobody — the grant from ${detail.authorization.authorized_by} was revoked`
-              : (detail.authorization?.authorized_by || rehearsal?.initiated_by || null)} />
+            readsAs={retiredGrant
+              ? (rehearsal?.initiated_by || null)
+              : (detail.authorization?.revoked_at
+                ? `nobody — the grant from ${detail.authorization.authorized_by} was revoked`
+                : (detail.authorization?.authorized_by || rehearsal?.initiated_by || null))} />
           {rehearsal ? (
             <section className="rehearsal-block">
               <h4>Rehearsal {rehearsal.status === 'running' ? '— running…' : `— ${rehearsal.status}`}</h4>

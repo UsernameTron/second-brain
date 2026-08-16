@@ -36,7 +36,17 @@ app.use((req, res, next) => {
   return jsonParser(req, res, next);
 });
 
-app.get('/healthz', (req, res) => res.json({ ok: true, paused: control.isPaused() }));
+// Two paths, one handler. `/healthz` never reaches this process in production:
+// Cloud Run's Google Frontend reserves the path and answers its own 404 before
+// the request touches the container — proven live 2026-08-16, where /api/config
+// returned 200 anonymously while /healthz returned Google's error page on both
+// hostnames, authenticated or not. `/api/healthz` rides the /api prefix the GFE
+// forwards untouched; it is registered BEFORE the /api router so it stays
+// unauthenticated, which is the point of a liveness probe. /healthz is kept for
+// local runs and anything already pointed at it.
+const health = (req, res) => res.json({ ok: true, paused: control.isPaused() });
+app.get('/healthz', health);
+app.get('/api/healthz', health);
 
 app.use('/api', routes);
 

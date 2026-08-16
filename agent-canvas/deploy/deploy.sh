@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-command deploy of the Agent Canvas Workspace to Google Cloud Run, inside
-# a NEW dedicated project in the cloudtechgurus.com organization.
+# the dedicated Agent Canvas project in the cloudtechgurus.com organization.
 #
 # Prerequisites (run once, interactively, as a cloudtechgurus.com admin):
 #   gcloud auth login                      # keyless user credentials — never a service-account key
@@ -17,12 +17,58 @@
 # Optional:
 #   GOOGLE_CLIENT_ID=....apps.googleusercontent.com   # OAuth web client (see step 2 of docs/DEPLOY.md);
 #                                                      # can be added later with a `gcloud run services update`
-#   PROJECT_ID (default agent-canvas-ctg), REGION (default us-central1), OWNER_EMAIL
+#   PROJECT_ID (default agent-canvas-ctg-0811), REGION (default us-central1), OWNER_EMAIL
+#   DEPLOY_PROVIDER_CHANGE=1  # required to MOVE a live service to a different
+#                             # MODEL_PROVIDER; without it a provider change aborts
+#   DEPLOY_DRY_RUN=1          # run every check and print the configuration diff,
+#                             # then stop before `gcloud run deploy`
 #
 # Everything here is idempotent: re-running updates in place.
+#
+# Preservation-first, as of the 2026-08-16 truth-up. Environment variables and
+# secret bindings are applied ADDITIVELY (--update-env-vars / --update-secrets),
+# and MODEL_PROVIDER is inherited from the running revision unless explicitly
+# overridden. A redeploy can no longer drop a variable or move the model
+# provider as a side effect of an unset shell variable. Removing a variable is
+# now a deliberate, separate act:
+#   gcloud run services update SERVICE --region REGION --remove-env-vars NAME
 set -euo pipefail
 
-PROJECT_ID="${PROJECT_ID:-agent-canvas-ctg}"
+# Names of the NAME=VALUE pairs in a comma-joined gcloud flag argument, one per
+# line, sorted. Used only to compare the computed configuration against the live
+# one; values are discarded here and never printed anywhere. Split out as a
+# function so `deploy.sh --selftest` can prove it against fixtures without
+# touching a cloud project.
+flag_names() {
+  printf '%s' "$1" | tr ',' '\n' | sed -n 's/^[[:space:]]*\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | sort -u
+}
+
+if [ "${1:-}" = "--selftest" ]; then
+  fail=0
+  check() { # check <label> <expected> <actual>
+    if [ "$2" = "$3" ]; then echo "ok   — $1"; else
+      echo "FAIL — $1"; echo "  expected: [$2]"; echo "  actual:   [$3]"; fail=1
+    fi
+  }
+  check "plain env pairs" "$(printf 'B\nNODE_ENV')" \
+    "$(flag_names 'NODE_ENV=production,B=2')"
+  check "values containing = and : survive without leaking into names" "$(printf 'LITESTREAM_REPLICA_URL\nMCP_SERVERS')" \
+    "$(flag_names 'LITESTREAM_REPLICA_URL=gcs://p-db/agent-canvas,MCP_SERVERS=[{"a":"b=c"}]')"
+  check "secret flag form" "$(printf 'ANTHROPIC_API_KEY\nJWT_SECRET')" \
+    "$(flag_names "$(printf '%s' '--update-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest,JWT_SECRET=jwt-secret:latest' | sed 's/--update-secrets //')")"
+  # The whole point of the preflight: a name that is live but not recomputed is
+  # reported, and one that is present in either computed list is not.
+  live="$(printf 'ED_DISPATCH_URL\nJWT_SECRET\nNODE_ENV\nTICK_AUDIENCE')"
+  computed="$(printf '%s\n' "$(flag_names 'NODE_ENV=production')" "$(flag_names 'JWT_SECRET=jwt-secret:latest')" | sort -u)"
+  check "live-only names are the ones surfaced" "$(printf 'ED_DISPATCH_URL\nTICK_AUDIENCE')" \
+    "$(comm -23 <(printf '%s\n' "${live}") <(printf '%s\n' "${computed}"))"
+  check "no live-only names when everything is recomputed" "" \
+    "$(comm -23 <(printf '%s\n' "${live}") <(printf '%s\n' "${live}"))"
+  [ "${fail}" = "0" ] && echo "deploy.sh preflight self-test: PASS" || echo "deploy.sh preflight self-test: FAIL" >&2
+  exit "${fail}"
+fi
+
+PROJECT_ID="${PROJECT_ID:-agent-canvas-ctg-0811}"
 REGION="${REGION:-us-central1}"
 SERVICE="${SERVICE:-agent-canvas}"
 OWNER_EMAIL="${OWNER_EMAIL:-pete@cloudtechgurus.com}"
@@ -32,10 +78,24 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:latest"
 SA_NAME="agent-canvas-run"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
+# Which model serves every agent conversation is the single most consequential
+# setting on the service, and it used to be decided by a bare `:-vertex`
+# default. A redeploy that forgot to export MODEL_PROVIDER therefore MOVED the
+# whole fleet to another provider silently — no prompt, no diff, nothing in the
+# output to read. The value is now resolved against the LIVE service further
+# down (step 2b) and only an explicit request may change it. Record here whether
+# the caller actually asked for a provider, because "unset" and "the same value
+# the default happens to be" are different intentions.
+MODEL_PROVIDER_EXPLICIT=0
+if [ -n "${MODEL_PROVIDER+x}" ]; then MODEL_PROVIDER_EXPLICIT=1; fi
 MODEL_PROVIDER="${MODEL_PROVIDER:-vertex}"
 case "${MODEL_PROVIDER}" in vertex|gemini|anthropic) ;; *) echo "MODEL_PROVIDER must be vertex|gemini|anthropic" >&2; exit 1;; esac
 VERTEX_REGION="${VERTEX_REGION:-global}"
-if [ "${MODEL_PROVIDER}" = "anthropic" ]; then
+# An EXPLICIT anthropic request must carry the key. An INHERITED one must not
+# demand it: the running service already has the secret bound, and additive
+# --update-secrets keeps that binding, so a plain redeploy of an anthropic
+# service needs no credential in the operator's shell at all.
+if [ "${MODEL_PROVIDER}" = "anthropic" ] && [ "${MODEL_PROVIDER_EXPLICIT}" = "1" ]; then
   : "${ANTHROPIC_API_KEY:?MODEL_PROVIDER=anthropic requires ANTHROPIC_API_KEY (console.anthropic.com)}"
 fi
 
@@ -138,9 +198,73 @@ fi
 # with "Gmail API has not been used in project … or it is disabled".
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   secretmanager.googleapis.com storage.googleapis.com iam.googleapis.com aiplatform.googleapis.com \
-  cloudresourcemanager.googleapis.com \
+  cloudresourcemanager.googleapis.com cloudscheduler.googleapis.com \
   gmail.googleapis.com drive.googleapis.com sheets.googleapis.com calendar-json.googleapis.com \
   --project "${PROJECT_ID}"
+
+# 2b. Read the LIVE service before deciding anything that could overwrite it.
+# Everything below this point used to be computed from the operator's shell
+# alone, which is how a redeploy could change the model provider or drop an
+# environment variable without anyone typing the change. Read the running
+# revision first; treat it as the baseline; require an explicit flag to depart
+# from it. NAMES ONLY are ever read or printed here — never a value, never a
+# secret version. An absent service is a first deploy, and there is no baseline
+# to protect.
+# A secret-backed variable is an entry in this same env list (its value simply
+# comes from a secretKeyRef), so ONE list of names covers both plain vars and
+# secret bindings: whichever kind goes missing, the name goes missing with it.
+LIVE_EXISTS=0
+LIVE_ENV_NAMES=""
+LIVE_PROVIDER=""
+DESCRIBE_ERR="$(mktemp)"
+if LIVE_ENV_NAMES="$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" \
+     --format='value[delimiter="\n"](spec.template.spec.containers[0].env.name)' 2>"${DESCRIBE_ERR}")"; then
+  LIVE_EXISTS=1
+  LIVE_ENV_NAMES="$(printf '%s\n' "${LIVE_ENV_NAMES}" | sed '/^$/d' | sort -u)"
+  # Fail CLOSED on this second read too: the service demonstrably exists, so a
+  # failure here (transient API error, format quirk) would leave LIVE_PROVIDER
+  # empty, skip the inheritance gate below, and let the script default walk
+  # over a live provider — the exact silent move this preflight exists to stop.
+  if ! LIVE_PROVIDER="$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" \
+    --format='value(spec.template.spec.containers[0].env.filter("name:MODEL_PROVIDER").extract("value").flatten())' \
+    2>"${DESCRIBE_ERR}")"; then
+    echo "ERROR: the ${SERVICE} service exists but its MODEL_PROVIDER could not be read." >&2
+    sed 's/^/    /' "${DESCRIBE_ERR}" >&2
+    echo "    Refusing to deploy: an unreadable provider would let the script default overwrite the live one." >&2
+    rm -f "${DESCRIBE_ERR}"; exit 1
+  fi
+  LIVE_PROVIDER="$(printf '%s' "${LIVE_PROVIDER}" | tr -d "[]'\" ")"
+elif grep -qiE 'not found|does not exist|NOT_FOUND' "${DESCRIBE_ERR}"; then
+  echo "==> No existing ${SERVICE} service — treating this as a first deploy."
+else
+  # Anything that is NOT "the service is absent" means we could not establish
+  # the baseline: expired credentials, a wrong project, a revoked role. Refusing
+  # is the whole point — proceeding would deploy a computed configuration over a
+  # live one we were unable to read.
+  echo "ERROR: could not read the live ${SERVICE} service, and the failure is not 'service absent'." >&2
+  sed 's/^/    /' "${DESCRIBE_ERR}" >&2
+  echo "    Refusing to deploy over a configuration this script could not read." >&2
+  echo "    Fix the access (often: gcloud auth login) and re-run." >&2
+  rm -f "${DESCRIBE_ERR}"; exit 1
+fi
+rm -f "${DESCRIBE_ERR}"
+
+# Provider: inherit the live value unless the caller explicitly asked otherwise.
+if [ "${LIVE_EXISTS}" = "1" ] && [ -n "${LIVE_PROVIDER}" ]; then
+  if [ "${MODEL_PROVIDER_EXPLICIT}" = "0" ]; then
+    if [ "${LIVE_PROVIDER}" != "${MODEL_PROVIDER}" ]; then
+      echo "==> MODEL_PROVIDER not set; inheriting the live value '${LIVE_PROVIDER}' (script default is '${MODEL_PROVIDER}')."
+    fi
+    MODEL_PROVIDER="${LIVE_PROVIDER}"
+    case "${MODEL_PROVIDER}" in vertex|gemini|anthropic) ;; *) echo "live MODEL_PROVIDER '${MODEL_PROVIDER}' is not one of vertex|gemini|anthropic — set MODEL_PROVIDER explicitly" >&2; exit 1;; esac
+  elif [ "${LIVE_PROVIDER}" != "${MODEL_PROVIDER}" ] && [ "${DEPLOY_PROVIDER_CHANGE:-0}" != "1" ]; then
+    echo "ERROR: this deploy would move the model provider from '${LIVE_PROVIDER}' to '${MODEL_PROVIDER}'." >&2
+    echo "    That re-points every agent conversation at a different model and billing surface." >&2
+    echo "    Re-run with DEPLOY_PROVIDER_CHANGE=1 if the change is intended." >&2
+    exit 1
+  fi
+fi
+echo "==> Model provider: ${MODEL_PROVIDER} (live: ${LIVE_PROVIDER:-none})"
 
 # 3. Artifact Registry + database bucket.
 gcloud artifacts repositories describe "${REPO}" --location="${REGION}" --project "${PROJECT_ID}" >/dev/null 2>&1 || \
@@ -157,7 +281,10 @@ create_or_update_secret() {
     printf '%s' "${value}" | gcloud secrets create "${name}" --project "${PROJECT_ID}" --data-file=-
   fi
 }
-if [ "${MODEL_PROVIDER}" = "anthropic" ]; then
+# Only write a key that was actually supplied. An inherited anthropic provider
+# redeploys against the secret version already in Secret Manager; adding a
+# version from an empty shell variable would serve an empty credential.
+if [ "${MODEL_PROVIDER}" = "anthropic" ] && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   create_or_update_secret anthropic-api-key "${ANTHROPIC_API_KEY}"
 fi
 gcloud secrets describe jwt-secret --project "${PROJECT_ID}" >/dev/null 2>&1 || \
@@ -252,9 +379,9 @@ if [ "${MODEL_PROVIDER}" != "anthropic" ]; then
   ENV_VARS="${ENV_VARS},VERTEX_PROJECT_ID=${PROJECT_ID},VERTEX_REGION=${VERTEX_REGION}"
   if [ -n "${FAST_PROVIDER:-}" ]; then ENV_VARS="${ENV_VARS},FAST_PROVIDER=${FAST_PROVIDER}"; fi
   if [ -n "${STRONG_PROVIDER:-}" ]; then ENV_VARS="${ENV_VARS},STRONG_PROVIDER=${STRONG_PROVIDER}"; fi
-  SECRET_FLAGS="--set-secrets JWT_SECRET=jwt-secret:latest"
+  SECRET_FLAGS="--update-secrets JWT_SECRET=jwt-secret:latest"
 else
-  SECRET_FLAGS="--set-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest,JWT_SECRET=jwt-secret:latest"
+  SECRET_FLAGS="--update-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest,JWT_SECRET=jwt-secret:latest"
 fi
 if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
   SECRET_FLAGS="${SECRET_FLAGS},GOOGLE_CLIENT_SECRET=google-oauth-secret:latest"
@@ -267,17 +394,46 @@ if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then ENV_VARS="${ENV_VARS},GOOGLE_CLIENT_ID=$
 # policy-gated sandbox runner. No HubSpot credential enters this service.
 if [ -n "${HS_OPS_RUNNER_URL:-}" ]; then ENV_VARS="${ENV_VARS},HS_OPS_RUNNER_URL=${HS_OPS_RUNNER_URL}"; fi
 # Enrichment dispatch (optional, lit by Pete 2026-08-14 after F-01 sign-off):
-# same IAM-client pattern as the ops runner. Env is set WHOLESALE — without
-# this passthrough a redeploy silently drops the var and darkens the lane.
+# same IAM-client pattern as the ops runner. Passing it through re-asserts the
+# value from this shell; leaving it unset now PRESERVES whatever the service
+# already has, because the update is additive.
 if [ -n "${ED_DISPATCH_URL:-}" ]; then ENV_VARS="${ENV_VARS},ED_DISPATCH_URL=${ED_DISPATCH_URL}"; fi
 # P5 standing-rule scheduler tick (optional): the OIDC lane verifies the caller
 # against TICK_AUDIENCE and requires it to BE TICK_INVOKER_SA. Either var
 # missing → the lane 503s and NOTHING scheduled ever runs, while the rules UI
-# still activates rules. Env is set WHOLESALE, so without this passthrough a
-# redeploy drops both and silently kills the lane. The systems board shows
-# STANDING RULES · TICK dark whenever they are absent.
+# still activates rules. The systems board shows STANDING RULES · TICK dark
+# whenever they are absent. Additive update means an unset var here no longer
+# darkens a lane that was already lit.
 if [ -n "${TICK_AUDIENCE:-}" ]; then ENV_VARS="${ENV_VARS},TICK_AUDIENCE=${TICK_AUDIENCE}"; fi
 if [ -n "${TICK_INVOKER_SA:-}" ]; then ENV_VARS="${ENV_VARS},TICK_INVOKER_SA=${TICK_INVOKER_SA}"; fi
+
+# Last gate before the only irreversible step in this script. --update-env-vars
+# cannot drop a name on its own, so a name that is live but absent from the
+# computed set is simply preserved — which is the desired behaviour and worth
+# SAYING, because the previous wholesale --set-env-vars silently deleted exactly
+# those. Anything the operator genuinely wants gone goes through an explicit
+# `gcloud run services update --remove-env-vars NAME`. Names only: no value from
+# either side is read, compared, or printed here.
+if [ "${LIVE_EXISTS}" = "1" ]; then
+  NEW_ENV_NAMES="$(flag_names "${ENV_VARS}")"
+  NEW_SECRET_NAMES="$(flag_names "$(printf '%s' "${SECRET_FLAGS}" | sed 's/--update-secrets //')")"
+  PRESERVED="$(comm -23 <(printf '%s\n' "${LIVE_ENV_NAMES}") <(printf '%s\n' "${NEW_ENV_NAMES}" "${NEW_SECRET_NAMES}" | sort -u) || true)"
+  if [ -n "${PRESERVED}" ]; then
+    echo "==> Live-only variables this deploy does NOT re-assert (preserved, not dropped):"
+    printf '%s\n' "${PRESERVED}" | sed 's/^/      /'
+    echo "    To remove any of them, do it explicitly:"
+    echo "      gcloud run services update ${SERVICE} --project ${PROJECT_ID} --region ${REGION} --remove-env-vars NAME"
+  fi
+fi
+
+# The dry-run exit lives OUTSIDE the live-service branch: on a first deploy
+# LIVE_EXISTS is 0, and a dry-run that fell through that condition would create
+# the service anyway — the one thing the flag promises never happens.
+if [ "${DEPLOY_DRY_RUN:-0}" = "1" ]; then
+  echo "==> DEPLOY_DRY_RUN=1 — configuration preflight only, nothing deployed."
+  exit 0
+fi
+
 gcloud run deploy "${SERVICE}" \
   --image "${IMAGE}" \
   --project "${PROJECT_ID}" \
@@ -286,7 +442,7 @@ gcloud run deploy "${SERVICE}" \
   --allow-unauthenticated \
   --min-instances 0 --max-instances 1 \
   --memory 1Gi --cpu 1 \
-  --set-env-vars "${ENV_VARS}" \
+  --update-env-vars "${ENV_VARS}" \
   ${SECRET_FLAGS}
 
 URL="$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" --format='value(status.url)')"

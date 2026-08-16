@@ -1,5 +1,9 @@
 # Agent Canvas — Improvement Findings
 
+> **Historical survey and remediation ledger.** Retained for rationale and test
+> provenance; it does not define current phase or deployment status. See
+> [ROADMAP.md](ROADMAP.md) and [HANDOFF.md](HANDOFF.md).
+
 > ## Status: 15 of 15 addressed as of 2026-08-14 evening (11 partially — see table)
 >
 > This is the survey as written, kept intact as the record of what was found and

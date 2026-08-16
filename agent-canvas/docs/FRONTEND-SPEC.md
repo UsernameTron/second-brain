@@ -1,8 +1,23 @@
 # Agent Canvas Workspace — Frontend Specification
 
+> **Historical design baseline, not a current inventory.** The implemented UI
+> has advanced through P5. Current source and tests define behavior; use
+> [ROADMAP.md](ROADMAP.md) for status and this file only for original shell
+> constraints that source has not superseded.
+
 Single-page app in `frontend/` (Vite + React, plain JSX, no TypeScript, no router library, no state library — plain hooks + one context). Build output must land in `frontend/dist` (served statically by the Express server in `server/index.js`).
 
-**Source of truth for the API and WebSocket protocol: read `server/routes.js`, `server/ws.js`, `server/index.js`, `server/seed.js`.** All endpoints are under `/api`, same origin, cookie-authenticated (`credentials: 'same-origin'` is the default for same-origin fetch — do NOT set custom auth headers). WebSocket at `/ws` on the same origin, authenticated by the same cookie.
+**Source of truth for the API and WebSocket protocol: read `server/routes.js`, `server/ws.js`, `server/index.js`, `server/seed.js`.** Every *application* endpoint the SPA calls is under `/api`, same origin, cookie-authenticated (`credentials: 'same-origin'` is the default for same-origin fetch — do NOT set custom auth headers). WebSocket at `/ws` on the same origin, authenticated by the same cookie.
+
+Three same-origin paths sit deliberately outside `/api` and are **not**
+cookie-authenticated — an earlier revision of this line claimed "all endpoints
+are under `/api`", which is not true of the served application:
+
+- `GET /healthz` — unauthenticated liveness probe (`server/index.js`),
+  registered before the `/api` router and excluded from the SPA catch-all.
+- `/ws` — the WebSocket upgrade, cookie-authenticated but not an `/api` route.
+- Everything else — static assets from `frontend/dist`, with a catch-all that
+  serves `index.html` for client-side routing.
 
 ## Views
 
@@ -44,7 +59,7 @@ Reconnect WS with backoff; on reconnect re-`join` and refetch canvas state + esc
 ## Design direction (this must look DESIGNED, not templated)
 
 - CTG light theme (rebranded 2026-08-11 to the Cloud Tech Gurus design system): cool light ground (#f2f5fa), white raised cards with hairline borders and navy-tinted shadows, brand navy #104080 / blue #2080D0 / blue-bright #30A0F0 accents, semantic success #169E6A / warning #D98A14 / danger #C4362A, Montserrat badging + Inter body, pill buttons. Role colors come from agent data (seeded: research blue, coding navy, review green). Subtle navy dot-grid canvas background that moves with pan. Epistemic state stays double-encoded — border *style* (solid/dashed/dotted) carries it independent of color. The mascot CUE renders from `/mascot.png` on the sign-in card and the clear tray when present (see frontend/public/README.md).
-- Typography with a point of view: display font "Space Grotesk" (Google Fonts `<link>`), mono accents "IBM Plex Mono" for ids/data. NEVER Inter/Roboto/Arial-default look. Tight, confident spacing; generous radii (10–14px); thin luminous 1px borders (rgba white 8–12%).
+- Typography with a point of view. **Superseded by the 2026-08-11 CTG rebrand, and the two bullets contradicted each other until 2026-08-16:** this line specified "Space Grotesk" display + "IBM Plex Mono" and "NEVER Inter", while the bullet above it specified Inter body — the rebrand had changed the answer without this line being updated. The shipped stack is authoritative in `frontend/index.html` and `frontend/src/styles.css`: **Montserrat** (700/800, the `--font-wide` display and badging face), **Inter** (400–700 body), **JetBrains Mono** (ids and data, `--font-mono`). What survives from the original intent is the *posture*, not the faces: no Arial/Roboto system-default look, tight confident spacing, generous radii (10–14px), hairline 1px borders.
 - Micro-motion: agent pulse while running, edge flow animation, tray items slide in, ripple keyframes red (#ff4d6d) → amber (#ffd166) → fade. Respect `prefers-reduced-motion`.
 - Epistemic encoding must survive B/W: solid vs dashed vs dotted borders, filled vs half vs hollow dots (shape, not just color).
 - All text readable: minimum 12px, body 13–14px; contrast ≥ 4.5:1.

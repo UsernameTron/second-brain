@@ -1,5 +1,13 @@
 # HubSpot Agent CLI — Claude working surface (Phase 2 of the MCP plan)
 
+> **Reference material for an optional external tool surface — not a status
+> record.** Everything here about package versions, transport, tool counts, and
+> account or runtime availability was read from a published package on
+> 2026-08-13 and can drift without anything in this repository changing. It does
+> **not** establish that any connector, credential, or permission is live; only
+> a fresh capability probe does that. Current release state lives in
+> [HANDOFF.md](HANDOFF.md), phase intent in [ROADMAP.md](ROADMAP.md).
+
 The HubSpot **Agent CLI** is the app-development agent surface inside
 `@hubspot/cli` (v8.13+). Its MCP server (`hs mcp start`) is what Pete runs
 locally as **HubSpotDev** (21 tools). Verified from the published package
