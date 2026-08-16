@@ -12,10 +12,10 @@ import { short } from './api.js';
 // ever needs tables or links.
 export function boldSpans(text) {
   const parts = String(text).split(/\*\*([^*]+)\*\*/g);
-  // Odd indexes are balanced **bold** captures; stray ** left in the even
-  // segments are delimiter artifacts, not content — drop them (and the
-  // double space deleting one mid-sentence leaves behind).
-  return parts.map((p, i) => (i % 2 ? <b key={i}>{p}</b> : p.replace(/\*\*/g, '').replace(/ {2,}/g, ' ')));
+  // Odd indexes are balanced **bold** captures. An UNMATCHED ** stays literal:
+  // deleting it would silently rewrite content that legitimately contains
+  // asterisks (code, emphasis the model half-finished, actual ** in data).
+  return parts.map((p, i) => (i % 2 ? <b key={i}>{p}</b> : p));
 }
 
 // Domain-neutral markdown-subset renderer. It does NOT strip standing-rule
@@ -33,12 +33,17 @@ export function SummaryMarkdown({ text, className = '' }) {
   };
   String(text || '').split(/\r\n|\r|\n/).forEach((line, i) => {
     const t = line.trim();
-    const ol = t.match(/^\d{1,3}[.)]\s+(.*)$/);
+    const ol = t.match(/^(\d{1,3})[.)]\s+(.*)$/);
     if (ol || /^[-*]\s+/.test(t)) {
       const tag = ol ? 'ol' : 'ul';
       if (list && listTag !== tag) flush();
       listTag = tag;
-      (list = list || []).push(<li key={i}>{boldSpans(ol ? ol[1] : t.replace(/^[-*]\s+/, ''))}</li>);
+      // value keeps the source numbering ("3. check X" stays 3, not 1).
+      (list = list || []).push(
+        ol
+          ? <li key={i} value={Number(ol[1])}>{boldSpans(ol[2])}</li>
+          : <li key={i}>{boldSpans(t.replace(/^[-*]\s+/, ''))}</li>,
+      );
       return;
     }
     flush();
@@ -127,10 +132,31 @@ function arrayLabel(v) {
   return v.every(isScalar) ? short(v.map(scalarLabel).join(', '), 80) : boundedDesc(v);
 }
 
+// Run-event previews slice tool results to 600 chars BEFORE they reach the
+// browser (server/orchestrator/runner.js recordEvent), so a structured result
+// can arrive as a cut-off JSON prefix that will never parse. Salvage the
+// complete "key": scalar pairs instead of showing broken braces.
+function salvageJsonish(s) {
+  const pairs = [...s.matchAll(/"([^"]+)"\s*:\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false|null)/g)];
+  if (!pairs.length) return null;
+  const lines = pairs.slice(0, MAX_FIELDS).map(([, k, raw]) => {
+    let v = raw;
+    try { v = JSON.parse(raw); } catch { /* keep raw */ }
+    return `${fieldLabel(k)}: ${scalarLabel(v)}`;
+  });
+  lines.push('… (result truncated)');
+  return lines;
+}
+
 // Structured payload → readable "label: value" lines, no JSON punctuation.
 // Ordinary strings pass through unchanged; strings that ARE JSON objects or
-// arrays get parsed and humanized.
-export function humanizePayload(value) {
+// arrays get parsed and humanized; truncated JSON gets salvaged, not dumped.
+// opts.full: unbounded depth and no per-value caps — for expanded detail
+// views (escalation context) where omitting a nested field could hide the
+// very thing the human is being asked to decide on. Default stays bounded
+// for one-line previews.
+export function humanizePayload(value, opts = {}) {
+  const full = !!opts.full;
   let v = value;
   if (typeof v === 'string') {
     const t = v.trim();
@@ -138,12 +164,38 @@ export function humanizePayload(value) {
       try {
         const parsed = JSON.parse(t);
         if (parsed && typeof parsed === 'object') v = parsed;
-      } catch { /* not JSON — keep the string */ }
+      } catch {
+        const salvaged = salvageJsonish(t);
+        if (salvaged) return salvaged;
+      }
     }
     if (typeof v === 'string') return [v];
   }
-  if (isScalar(v)) return [scalarLabel(v)];
-  if (Array.isArray(v)) return [arrayLabel(v)];
+  const scalar = full ? (x) => (x == null ? '—' : typeof x === 'boolean' ? (x ? 'yes' : 'no') : String(x)) : scalarLabel;
+  if (isScalar(v)) return [scalar(v)];
+  if (Array.isArray(v) && v.every(isScalar)) return [full ? v.map(scalar).join(', ') : arrayLabel(v)];
+  if (Array.isArray(v) && !full) return [arrayLabel(v)];
+
+  if (full) {
+    // Unbounded recursive walk: every leaf becomes its own "a / b / c: value"
+    // line, arrays of scalars join inline, arrays of objects path by index.
+    const lines = [];
+    const walk = (node, path) => {
+      if (isScalar(node)) { lines.push(`${path}: ${scalar(node)}`); return; }
+      if (Array.isArray(node)) {
+        if (node.every(isScalar)) { lines.push(`${path}: ${node.map(scalar).join(', ')}`); return; }
+        node.forEach((item, i) => walk(item, `${path} / ${i + 1}`));
+        return;
+      }
+      const entries = Object.entries(node);
+      if (!entries.length) { lines.push(`${path}: (empty)`); return; }
+      for (const [k, val] of entries) walk(val, path ? `${path} / ${fieldLabel(k)}` : fieldLabel(k));
+    };
+    if (Array.isArray(v)) v.forEach((item, i) => walk(item, String(i + 1)));
+    else for (const [k, val] of Object.entries(v)) walk(val, fieldLabel(k));
+    return lines.length ? lines : ['(empty)'];
+  }
+
   const lines = [];
   const entries = Object.entries(v);
   for (const [k, val] of entries.slice(0, MAX_FIELDS)) {

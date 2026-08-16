@@ -1498,8 +1498,14 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .summary-markdown h4 { font-size: 14px; }
 .summary-markdown h5 { font-size: 13px; }
 .summary-markdown h6 { font-size: 12px; }
+.summary-markdown ul { list-style: disc; }
+.summary-markdown ol { list-style: decimal; }
 .summary-markdown ul, .summary-markdown ol { list-style-position: outside; padding-left: 18px; }
-.summary-markdown li { margin: 2px 0; }
+/* .room-list li sets display:flex on ALL descendant li (rule-history rows) —
+   restore list-item display inside rendered markdown or the markers vanish.
+   Declared after .room-list in this file, so the tie in specificity resolves
+   to these rules. */
+.summary-markdown li { display: list-item; margin: 2px 0; }
 /* Inside rule-history rows (.room-list is a flex row) the rendered summary
    takes the full row width instead of flowing inline with the chips. */
 .room-list li .summary-markdown { width: 100%; }

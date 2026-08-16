@@ -28,10 +28,17 @@ describe('SummaryMarkdown', () => {
     expect([...ols[0].querySelectorAll('li')].map((li) => li.textContent)).toEqual(['one', 'two']);
   });
 
-  it('drops unmatched ** artifacts without eating content', () => {
+  it('keeps an unmatched ** literal instead of silently rewriting content', () => {
     const { container } = render(<SummaryMarkdown text={'A stray ** delimiter here'} />);
-    expect(container.textContent).toBe('A stray delimiter here');
+    expect(container.textContent).toBe('A stray ** delimiter here');
     expect(container.querySelector('b')).toBeNull();
+  });
+
+  it('preserves the source numbering of ordered lists', () => {
+    const { container } = render(<SummaryMarkdown text={'5. five\n6. six'} />);
+    const items = [...container.querySelectorAll('ol.md-list li')];
+    expect(items.map((li) => li.getAttribute('value'))).toEqual(['5', '6']);
+    expect(items.map((li) => li.textContent)).toEqual(['five', 'six']);
   });
 
   it('keeps HTML-looking input as visible text, never elements', () => {
@@ -102,6 +109,30 @@ describe('humanizePayload', () => {
     expect(lines).toEqual(['nested / deep: 3 fields']);
   });
 
+  it('full mode walks every nested level so expanded detail omits nothing', () => {
+    const ctx = {
+      deal: { terms: { discount_pct: 12, approved: false }, contacts: ['ann@x.com', 'bo@x.com'] },
+      note: null,
+    };
+    expect(humanizePayload(ctx, { full: true })).toEqual([
+      'deal / terms / discount pct: 12',
+      'deal / terms / approved: no',
+      'deal / contacts: ann@x.com, bo@x.com',
+      'note: —',
+    ]);
+    // The bounded default would have collapsed terms to "2 fields".
+    expect(humanizePayload(ctx)).toContain('deal / terms: 2 fields');
+  });
+
+  it('salvages truncated JSON previews instead of showing broken braces', () => {
+    const cut = '{"deal_name":"Acme","amount":5000,"nested":{"stage":"legal","ow';
+    const lines = humanizePayload(cut);
+    expect(lines).toContain('deal name: Acme');
+    expect(lines).toContain('amount: 5000');
+    expect(lines[lines.length - 1]).toBe('… (result truncated)');
+    expect(lines.join('\n')).not.toContain('{');
+  });
+
   it('parses JSON-encoded strings and preserves ordinary ones', () => {
     expect(humanizePayload('{"q":"renewals","limit":5}')).toEqual(['q: renewals', 'limit: 5']);
     expect(humanizePayload('[1,2,3]')).toEqual(['1, 2, 3']);
@@ -144,15 +175,17 @@ describe('component surfaces', () => {
     expect(container.textContent).not.toContain('{');
   });
 
-  it('Tray expanded context reads as labeled lines, not JSON', async () => {
+  it('Tray expanded context keeps every nested decision-critical detail', async () => {
     const esc = {
       id: 'e1', kind: 'question', question: 'Proceed?', created_at: new Date().toISOString(),
-      context: { deal_name: 'Acme', amount: 5000 },
+      context: { deal_name: 'Acme', terms: { discount_pct: 12, legal: { reviewer: 'Jess' } } },
     };
     render(<Tray escalations={[esc]} agentsById={{}} agents={[]} people={[]} onResolve={vi.fn()} onAssign={vi.fn()} />);
     fireEvent.click(screen.getByText('context'));
     const pre = await screen.findByText(/deal name: Acme/);
-    expect(pre.textContent).toContain('amount: 5000');
+    expect(pre.textContent).toContain('terms / discount pct: 12');
+    expect(pre.textContent).toContain('terms / legal / reviewer: Jess');
+    expect(pre.textContent).not.toContain('fields'); // never a bounded "2 fields" stub
     expect(pre.textContent).not.toContain('{');
   });
 

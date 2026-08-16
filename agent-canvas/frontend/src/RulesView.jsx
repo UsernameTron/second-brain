@@ -64,11 +64,13 @@ function nextRunText(rule) {
     : fmtWhen(rule.next_run_at);
 }
 
-// The markdown renderer lives in format.jsx now (SummaryMarkdown). Rule
-// surfaces are the one place contract stripping is safe: the MATCHED count is
-// already rendered as its own chip, so the tail line is pure duplication here.
-function RuleNarrative({ text }) {
-  const narrative = formatContractTail(text, 'strip');
+// The markdown renderer lives in format.jsx now (SummaryMarkdown). Run
+// HISTORY is the one place contract stripping is safe: the MATCHED count is
+// already rendered as its own chip there, so the tail line is duplication.
+// Rehearsals have NO count chip — "NOTHING MATCHED" may be the entire result,
+// so they humanize ("Nothing matched.") and never lose the outcome.
+function RuleNarrative({ text, mode = 'strip' }) {
+  const narrative = formatContractTail(text, mode);
   if (!narrative.trim()) return <p className="dim">No narrative summary was returned.</p>;
   return <SummaryMarkdown text={narrative} />;
 }
@@ -567,7 +569,7 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
               <h4>Rehearsal {rehearsal.status === 'running' ? '— running…' : `— ${rehearsal.status}`}</h4>
               {rehearsal.status === 'running' ? <p className="dim">Checking recent data for what WOULD have matched — nothing changes.</p> : null}
               {rehearsal.summary ? (
-                <div className="rehearsal-summary"><RuleNarrative text={rehearsal.summary} /></div>
+                <div className="rehearsal-summary"><RuleNarrative text={rehearsal.summary} mode="humanize" /></div>
               ) : null}
               {rehearsal.error ? <p className="answer-fail">{rehearsal.error}</p> : null}
             </section>

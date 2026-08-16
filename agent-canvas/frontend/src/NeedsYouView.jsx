@@ -54,7 +54,7 @@ function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, o
       ) : null}
       {showCtx ? (
         <pre className="tray-context mono">
-          {short((() => { try { return humanizePayload(row.contextData).join('\n'); } catch { return String(row.contextData); } })(), 800)}
+          {short((() => { try { return humanizePayload(row.contextData, { full: true }).join('\n'); } catch { return String(row.contextData); } })(), 800)}
         </pre>
       ) : null}
       <div className="ny-meta">

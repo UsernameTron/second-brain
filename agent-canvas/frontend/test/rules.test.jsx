@@ -455,6 +455,27 @@ describe('Rules & Briefs view', () => {
     expect(screen.getByText('2026-W33')).toBeInTheDocument();
   });
 
+  it('a clean-zero rehearsal shows "Nothing matched.", never an empty box', async () => {
+    api.mockImplementation((path) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [DRAFT_RULE] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({
+          rule: { ...DRAFT_RULE, state: 'rehearsed' }, authorization: null, runs: [],
+          rehearsalRun: { id: 'r1', status: 'completed', summary: 'NOTHING MATCHED' },
+        });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    // Rehearsals carry no count chip — the contract line IS the result, so it
+    // is humanized, never stripped to nothing.
+    expect(await screen.findByText('Nothing matched.')).toBeInTheDocument();
+    expect(screen.queryByText(/NOTHING MATCHED/)).toBeNull();
+    expect(screen.queryByText('No narrative summary was returned.')).toBeNull();
+  });
+
   // The NEEDS YOU brief_ready card advertises open_rule and shows only ~300
   // chars; the deep link has to land on the detail, full brief and refs included.
   it('focusRuleId opens that rule detail on mount, with the full brief and refs', async () => {

@@ -17,7 +17,7 @@ function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign })
   const ownerLabel = esc.owner_email || (ownerAgent ? ownerAgent.name : null);
 
   const contextStr = (() => {
-    try { return humanizePayload(esc.context).join('\n'); } catch { return String(esc.context); }
+    try { return humanizePayload(esc.context, { full: true }).join('\n'); } catch { return String(esc.context); }
   })();
 
   return (
