@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { rulesApi, timeAgo, short } from './api.js';
 
 // P5 Rules & Briefs: a standing rule is a stored instruction + a persisted
@@ -314,8 +314,22 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   const [instruction, setInstruction] = useState('');
   const [parseError, setParseError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [detail, setDetail] = useState(null); // { rule, authorization, runs, rehearsalRun }
-  const savedInstructionRef = useRef('');
+  // { rule, savedInstruction, editError, authorization, runs, rehearsalRun }
+  const [detail, setDetail] = useState(null);
+
+  // Every async response writes back through here, and only when the pane is
+  // still showing the rule that request was for. `setDetail((cur) => ({ ...cur,
+  // … }))` spread a null `cur` when the owner had already clicked "← Rules":
+  // the rule reopened itself with its runs and authorization missing. Two
+  // things ride inside the same state rather than beside it, so a late response
+  // cannot desync them either: `savedInstruction` (the server's copy of the
+  // prose — the textarea edits `rule.instruction` live, so that is the only
+  // record of what is actually stored) and `editError`.
+  const mergeDetail = useCallback((id, patch) => {
+    setDetail((cur) => (cur && cur.rule.id === id
+      ? { ...cur, ...(typeof patch === 'function' ? patch(cur) : patch) }
+      : cur));
+  }, []);
 
   // Dispatching a rehearsal returns as soon as the run is queued — the run
   // itself is still in flight, and the server has already flipped the rule to
@@ -330,13 +344,12 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
       try {
         const full = await rulesApi.get(ruleId);
         if (!['queued', 'running'].includes(full.rehearsalRun?.status)) {
-          savedInstructionRef.current = full.rule.instruction;
-          setDetail((cur) => ({ ...cur, ...full }));
+          mergeDetail(ruleId, { ...full, savedInstruction: full.rule.instruction });
         }
       } catch { /* keep polling */ }
     }, 1500);
     return () => clearInterval(t);
-  }, [ruleId, rehearsalPending]);
+  }, [ruleId, rehearsalPending, mergeDetail]);
 
   const agentsById = useMemo(() => {
     const m = {};
@@ -350,9 +363,11 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   useEffect(() => { loadList(); }, [loadList]);
 
   const showDetail = useCallback((d) => {
-    savedInstructionRef.current = d.rule.instruction;
     setParseError(null);
-    setDetail({ runs: [], authorization: null, rehearsalRun: null, ...d });
+    setDetail({
+      runs: [], authorization: null, rehearsalRun: null, ...d,
+      savedInstruction: d.rule.instruction, editError: null,
+    });
   }, []);
 
   const openRule = useCallback((id) => {
@@ -387,16 +402,28 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   // Re-parse against this rule id (routes.js `body.rule_id`): same rule, same
   // rehearsal-gate reset, every field re-derived from the new words.
   const saveInstruction = async () => {
-    const r = detail.rule;
-    if (r.instruction === savedInstructionRef.current || busy) return;
+    const { id, instruction: edited } = detail.rule;
+    if (edited === detail.savedInstruction || busy) return;
     setBusy(true);
-    setParseError(null);
+    mergeDetail(id, { editError: null });
     try {
-      const d = await rulesApi.parse(canvasId, r.instruction, r.id);
-      savedInstructionRef.current = d.rule.instruction;
-      setDetail((cur) => ({ ...cur, rule: d.rule, rehearsalRun: null }));
+      const d = await rulesApi.parse(canvasId, edited, id);
+      mergeDetail(id, { rule: d.rule, rehearsalRun: null, savedInstruction: d.rule.instruction });
       loadList();
-    } catch (e) { setParseError(e.message); } finally { setBusy(false); }
+    } catch (e) {
+      // A failed re-interpretation wrote NOTHING: every error path in the parse
+      // route returns before upsertDraft. So the server still holds the old
+      // instruction — and, on a rehearsed rule, a completed rehearsal of it,
+      // which leaves Activate enabled the moment `busy` clears. Leaving the
+      // edited words in the textarea and the heading pointed the consent
+      // surface at an instruction that was never interpreted and is not what
+      // Activate would authorize. Put the saved prose back, so the screen and
+      // the ceremony describe the same rule; the alert below is what keeps the
+      // restore from being silent. Restoring beats refetching here: the fetch
+      // that just failed is the same lane a refetch would use, and a refetch
+      // that also fails leaves exactly the ambiguity this is closing.
+      mergeDetail(id, (cur) => ({ rule: { ...cur.rule, instruction: cur.savedInstruction }, editError: e.message }));
+    } finally { setBusy(false); }
   };
 
   // Structured edit: PATCH, not re-parse. The prose is untouched, so putting it
@@ -405,12 +432,11 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   // version++ → rehearsal cleared), so the button below has to say so.
   const saveSettings = async (interpretation) => {
     if (busy) return;
+    const id = detail.rule.id;
     setBusy(true);
-    setParseError(null);
     try {
-      const d = await rulesApi.update(detail.rule.id, { interpretation });
-      savedInstructionRef.current = d.rule.instruction;
-      setDetail((cur) => ({ ...cur, rule: d.rule, rehearsalRun: null }));
+      const d = await rulesApi.update(id, { interpretation });
+      mergeDetail(id, { rule: d.rule, rehearsalRun: null, savedInstruction: d.rule.instruction, editError: null });
       loadList();
       toast('Settings saved — rehearse again before it can activate', 'ok');
     } catch (e) { toast(e.message); } finally { setBusy(false); }
@@ -419,18 +445,18 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   const rehearse = async () => {
     if (busy || rehearsalPending) return;
     setBusy(true);
+    const id = detail.rule.id;
     try {
-      const id = detail.rule.id;
       const d = await rulesApi.rehearse(id);
       // Marking the run pending is what starts the poll and holds the button;
       // the poll replaces this optimistic marker with the server's real run.
-      setDetail((cur) => ({ ...cur, rule: d.rule, rehearsalRun: { status: 'running' } }));
+      mergeDetail(id, { rule: d.rule, rehearsalRun: { status: 'running' } });
     } catch (e) {
       // 409 = the server's backstop: a rehearsal is already in flight and this
       // client didn't know. Re-read the run so the button reflects reality.
       if (e.status === 409) {
-        rulesApi.get(detail.rule.id)
-          .then((full) => setDetail((cur) => ({ ...cur, rehearsalRun: full.rehearsalRun })))
+        rulesApi.get(id)
+          .then((full) => mergeDetail(id, { rehearsalRun: full.rehearsalRun }))
           .catch(() => {});
       }
       toast(e.status === 409 ? 'A rehearsal is already running — wait for it to finish' : e.message);
@@ -440,9 +466,10 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   const activate = async () => {
     if (busy) return;
     setBusy(true);
+    const id = detail.rule.id;
     try {
-      const d = await rulesApi.activate(detail.rule.id);
-      setDetail((cur) => ({ ...cur, rule: d.rule, authorization: d.authorization || cur.authorization }));
+      const d = await rulesApi.activate(id);
+      mergeDetail(id, (cur) => ({ rule: d.rule, authorization: d.authorization || cur.authorization }));
       loadList();
       toast('Rule is active — it runs on its cadence from here', 'ok');
     } catch (e) {
@@ -459,9 +486,10 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
   const ceremony = (action, okMsg) => async () => {
     if (busy) return;
     setBusy(true);
+    const id = detail.rule.id;
     try {
-      const d = await rulesApi[action](detail.rule.id);
-      setDetail((cur) => ({ ...cur, rule: d.rule, authorization: d.authorization || cur.authorization }));
+      const d = await rulesApi[action](id);
+      mergeDetail(id, (cur) => ({ rule: d.rule, authorization: d.authorization || cur.authorization }));
       loadList();
       toast(okMsg, 'ok');
     } catch (e) { toast(e.message); } finally { setBusy(false); }
@@ -499,11 +527,14 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
                 onChange={(e) => setDetail((cur) => ({ ...cur, rule: { ...cur.rule, instruction: e.target.value } }))}
                 onBlur={saveInstruction} />
               <p className="dim">Editing re-interprets the whole rule and resets it to draft — rehearse again before it can activate.</p>
-              {/* A re-interpretation that failed changed nothing: say so, rather
-                  than leave the edited text sitting above an unchanged card. */}
-              {parseError ? (
+              {/* A re-interpretation that failed changed nothing, and the edit
+                  above it has been put back — say both, or the restore is just
+                  a second way to mislead. */}
+              {detail.editError ? (
                 <p className="answer-fail" role="alert">
-                  Couldn&rsquo;t re-interpret that edit — {parseError}. The rule is unchanged; the card below still describes the saved version.
+                  Couldn&rsquo;t re-interpret that edit — {detail.editError}. The rule is unchanged, and your edited
+                  text has been restored to the saved instruction — nothing on this screen describes anything other
+                  than the rule the server holds.
                 </p>
               ) : null}
             </section>

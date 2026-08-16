@@ -4,7 +4,7 @@
 // and NEEDS YOU rule_alert / brief_ready labels + Acknowledge.
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../src/api.js', async (importOriginal) => {
@@ -267,10 +267,14 @@ describe('Rules & Briefs view', () => {
     expect(screen.getByRole('button', { name: 'Activate' })).toBeDisabled();
   });
 
-  // A re-interpretation that failed changed nothing server-side. Silence (or a
-  // toast that scrolls away) leaves the edited words above an unchanged card
-  // looking saved.
-  it('surfaces a failed re-interpretation instead of letting the edit look saved', async () => {
+  // A re-interpretation that failed changed nothing server-side — the parse
+  // route returns before upsertDraft on every error path. But the edited words
+  // stayed in the textarea and the heading while the server still held the old
+  // rule AND its completed rehearsal, so Activate came back enabled: the owner
+  // could authorize an instruction that was never interpreted, reading a screen
+  // that described it. The screen has to go back to what the server holds, and
+  // has to say that it did.
+  it('restores the saved instruction when a re-interpretation fails, so Activate cannot authorize an invisible rule', async () => {
     const rehearsed = { ...DRAFT_RULE, state: 'rehearsed' };
     api.mockImplementation((path) => {
       if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [rehearsed] });
@@ -289,6 +293,47 @@ describe('Rules & Briefs view', () => {
     fireEvent.blur(screen.getByLabelText('Rule instruction'));
     expect(await screen.findByRole('alert')).toHaveTextContent('rule interpretation failed to produce valid JSON');
     expect(screen.getByRole('alert')).toHaveTextContent(/rule is unchanged/i);
+    expect(screen.getByRole('alert')).toHaveTextContent(/restored to the saved instruction/i);
+
+    // The edit is gone from every surface that describes what Activate would
+    // authorize — textarea and heading both back to the stored prose.
+    await waitFor(() => expect(screen.getByLabelText('Rule instruction').value).toBe(DRAFT_RULE.instruction));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(DRAFT_RULE.instruction);
+    // Activate is live again (the server's rehearsal survived) — and now it
+    // grants exactly the rule on screen.
+    expect(screen.getByRole('button', { name: 'Activate' })).toBeEnabled();
+  });
+
+  // Blur fires the re-parse; "← Rules" clears the detail before it lands. The
+  // updater then spread a null `cur` and set detail again — reopening the rule
+  // with its runs and authorization gone. Every async response in this view now
+  // writes through one guard keyed on the rule it was issued for.
+  it('a late edit response cannot reopen a rule the owner already left', async () => {
+    const rehearsed = { ...DRAFT_RULE, state: 'rehearsed' };
+    let landParse;
+    api.mockImplementation((path, opts) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [rehearsed] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/canvases/c1/standing-rules/parse') {
+        return new Promise((res) => {
+          landParse = () => res({ rule: { ...rehearsed, instruction: opts.body.instruction, state: 'draft', version: 2 } });
+        });
+      }
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({ rule: rehearsed, authorization: null, runs: [], rehearsalRun: REHEARSAL_DONE });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    await userEvent.type(await screen.findByLabelText('Rule instruction'), ' and flag renewals');
+    fireEvent.blur(screen.getByLabelText('Rule instruction'));
+    await userEvent.click(screen.getByRole('button', { name: '← Rules' }));
+    expect(screen.queryByText('What this rule means')).toBeNull();
+
+    await act(async () => { landParse(); });
+    expect(screen.queryByText('What this rule means')).toBeNull();
+    expect(screen.getByLabelText('Describe the standing rule')).toBeInTheDocument();
   });
 
   // The server marks the rule `rehearsed` the moment a rehearsal is dispatched,
