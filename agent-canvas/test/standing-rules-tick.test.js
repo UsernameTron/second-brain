@@ -3,7 +3,8 @@
 // claim/lease, dispatch (ask mode, system trigger, initiatedBy = grantor),
 // finalize (MATCHED parsing, evidence refs), duplicate-occurrence no-op,
 // authorization enforcement at dispatch, lease-expiry retry → max attempts →
-// failed + alert, and the workspace-disconnected skip.
+// failed + alert, the workspace-disconnected skip, and enrichment as a
+// reviewable source (granted only when declared, dark-lane skip + alert).
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -791,4 +792,83 @@ test('workspace-touching rule with a disconnected grantor skips with an alert, n
   const cards = (await attn.json()).attention;
   assert.ok(cards.some((c) => c.type === 'rule_alert' && c.sourceRef.id === rr.id), 'disconnected skip raises a NEEDS YOU alert');
   db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+});
+
+// ---------- enrichment as a reviewable source ----------
+
+const ED_URL = 'https://enrichment-dispatch.test.example';
+function withEnrichment(on, fn) {
+  const prev = process.env.ED_DISPATCH_URL;
+  if (on) process.env.ED_DISPATCH_URL = ED_URL; else delete process.env.ED_DISPATCH_URL;
+  try { return fn(); } finally {
+    if (prev === undefined) delete process.env.ED_DISPATCH_URL; else process.env.ED_DISPATCH_URL = prev;
+  }
+}
+
+test('a rule that reviewed the enrichment source is granted the enrichment tools', () => {
+  assert.ok(standingRules.PARSE_SYSTEM([]).includes('"enrichment"'), 'the parse prompt offers it');
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  withEnrichment(true, () => {
+    const { rule, authz } = mkActiveRule({ sources: ['enrichment', 'memory'] });
+    assert.deepEqual(standingRules.ruleSources(rule), ['enrichment', 'memory'], 'the validator keeps it');
+    const granted = JSON.parse(authz.allowed_tools_json);
+    for (const name of ['enrich_contact', 'enrich_company', 'verify_email', 'get_enriched_contact']) {
+      assert.ok(granted.includes(name), `${name} is granted to a rule that reviewed enrichment`);
+    }
+    assert.ok(granted.every((n) => standingRules.SOURCE_TOOLS.enrichment(n)),
+      `the enrichment source grants enrichment tools and nothing else, got ${granted.join(', ')}`);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  });
+});
+
+test('a rule that did NOT review enrichment is granted none of it, even with the lane wired', () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  withEnrichment(true, () => {
+    const { rule, authz } = mkActiveRule({ sources: ['hubspot', 'memory'] });
+    const granted = JSON.parse(authz.allowed_tools_json);
+    assert.ok(granted.length > 0, 'the hubspot source still resolves to real tools');
+    assert.ok(!granted.some((n) => standingRules.SOURCE_TOOLS.enrichment(n)),
+      `an undeclared source grants nothing, got ${granted.join(', ')}`);
+    db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(rule.id);
+  });
+});
+
+// Disabled-by-absence: ED_DISPATCH_URL unset means the tools do not exist, so
+// the run would read nothing and report "nothing matched". Skip + alert
+// instead — the workspace-disconnected shape. Both causes are covered: the lane
+// going dark after the grant, and the grant that was resolved while it was dark
+// (which a later deploy must NOT silently repair).
+test('an enrichment rule skips with an alert when the lane is dark, and a later deploy never widens its grant', async () => {
+  db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
+  const made = [];
+  try {
+    // 1. Lane wired at grant time, dark by the time it runs.
+    const wentDark = withEnrichment(true, () => mkActiveRule({ sources: ['enrichment', 'memory'] }));
+    made.push(wentDark.rule);
+    assert.ok(JSON.parse(wentDark.authz.allowed_tools_json).length > 0, 'granted while the lane was lit');
+    withEnrichment(false, () => standingRules.tick({ source: 'owner', actor: OWNER }));
+    let [rr] = ruleRuns(wentDark.rule.id);
+    assert.equal(rr.state, 'skipped');
+    assert.equal(rr.skip_reason, 'enrichment_unavailable');
+    assert.equal(rr.needs_attention, 1);
+    assert.equal(rr.run_id, null, 'nothing dispatched into a lane it cannot read');
+    assert.ok((await attentionCards()).some((c) => c.type === 'rule_alert' && c.sourceRef.id === rr.id),
+      'the dark lane raises a NEEDS YOU alert rather than a silent nothing-matched');
+    assert.equal(standingRules.getRule(wentDark.rule.id).state, 'active',
+      'a recoverable skip, not a fatal invalidation');
+
+    // 2. Granted while dark, lane lit by the time it runs: the deploy must not
+    // widen a grant nobody re-consented to, so it still cannot reach enrichment.
+    const grantedDark = withEnrichment(false, () => mkActiveRule({ sources: ['enrichment', 'memory'] }));
+    made.push(grantedDark.rule);
+    assert.deepEqual(JSON.parse(grantedDark.authz.allowed_tools_json), [],
+      'a dark lane resolves to a concrete empty grant, never an unrestricted one');
+    withEnrichment(true, () => standingRules.tick({ source: 'owner', actor: OWNER }));
+    [rr] = ruleRuns(grantedDark.rule.id);
+    assert.equal(rr.state, 'skipped');
+    assert.equal(rr.skip_reason, 'enrichment_unavailable', 'wiring the lane back on does not resurrect an empty grant');
+    assert.equal(rr.run_id, null);
+  } finally {
+    for (const r of made) db.prepare("UPDATE standing_rules SET state = 'revoked' WHERE id = ?").run(r.id);
+  }
 });

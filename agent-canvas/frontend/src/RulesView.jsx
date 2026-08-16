@@ -84,7 +84,11 @@ function InterpretationCard({ rule, agentsById }) {
       <h3>What this rule means</h3>
       <ul className="room-list">
         <li><b>Watched</b> — <span>{interp.summary || short(rule.instruction, 120)}</span></li>
-        <li><b>Sources</b> — <span>{(interp.sources || []).join(', ') || '—'}</span></li>
+        <li><b>Sources</b> — <span>{(interp.sources || []).join(', ') || '—'}</span>
+          {(interp.sources || []).includes('enrichment')
+            ? <span className="dim"> — reads already-enriched records only; a scheduled rule never spends enrichment credits</span>
+            : null}
+        </li>
         <li><b>Scope</b> — <span>{interp.scope || '—'}</span></li>
         <li><b>Cadence</b> — <span>{cadenceLabel(rule)}</span></li>
         <li><b>Run by</b> — <span>{`${agent ? `${agent.name} (${agent.role})` : (interp.agent_id || rule.agent_id || '—')}, owned by ${rule.owner_email}`}</span></li>

@@ -22,7 +22,10 @@ const CATEGORIES = ['watch', 'report', 'digest'];
 // No 'mcp': rule runs are ask-mode, and every mcp_* tool is blocked outside act
 // mode (orchestrator/tools.js blockedInMode). Offering it would let a card tell
 // the owner it is watching a source the run can never read.
-const SOURCES = ['gmail', 'drive', 'sheets', 'calendar', 'hubspot', 'memory', 'web'];
+// 'enrichment' IS offered: it reaches the deployment's own enrichment lane
+// through the same review-then-grant path as every other source, and it is
+// disabled-by-absence rather than blocked-by-mode — see enrichmentDark below.
+const SOURCES = ['gmail', 'drive', 'sheets', 'calendar', 'hubspot', 'enrichment', 'memory', 'web'];
 // Sources that read through the grantor's own Google connection — a rule
 // watching these skips (with an alert) when that connection is gone.
 const WORKSPACE_SOURCES = new Set(['gmail', 'drive', 'sheets', 'calendar']);
@@ -201,6 +204,9 @@ const SOURCE_TOOLS = {
   sheets: (n) => n.startsWith('ws_sheets_'),
   calendar: (n) => n.startsWith('ws_calendar_'),
   hubspot: (n) => n.startsWith('hs_'),
+  // Mirrors the enrichment clause of tools.js governedTool — one lane, one
+  // definition of what belongs to it.
+  enrichment: (n) => n.startsWith('enrich_') || n === 'verify_email' || n === 'get_enriched_contact',
   web: (n) => n === 'web_search',
   memory: () => false, // memory/notes/escalate are never governed tools
 };
@@ -254,6 +260,26 @@ function touchesWorkspace(rule) {
   } catch { return false; }
 }
 
+// Enrichment is disabled-by-absence: with ED_DISPATCH_URL unset the tools do
+// not exist at all (tools.js toolsForRole), so a rule that reviewed the
+// enrichment source can hold a grant it cannot spend — because the lane was
+// already dark when the owner activated (grant resolved to nothing), because it
+// went dark afterwards, or because the rule's agent role is outside
+// ENRICHMENT_ROLES. All three read the same from the owner's chair: the card
+// says this rule watches enrichment and the run cannot see it.
+//
+// Checks the GRANT, not just the deployment, on purpose. A deploy that lights
+// the lane back up must never widen a snapshot nobody re-consented to — the
+// grant stays whatever it resolved to, and re-activation is the only thing that
+// re-resolves it. So a rule granted empty stays skipped even once ED is wired.
+function enrichmentDark(rule, authz) {
+  if (!ruleSources(rule).includes('enrichment')) return false;
+  if (!require('./enrichment/dispatch').configured()) return true;
+  let granted = [];
+  try { granted = JSON.parse((authz && authz.allowed_tools_json) || '[]'); } catch { /* treat as empty */ }
+  return !(Array.isArray(granted) && granted.some((n) => SOURCE_TOOLS.enrichment(String(n))));
+}
+
 // Server-verified per dispatch, inside the tick tx. Scoping cannot outlive the
 // grantor's access: the grantor must still be allowlisted AND still hold edit
 // access to the rule's canvas. Never invents an interactive user.
@@ -275,6 +301,14 @@ function verifyAuthorization(rule, authz, now = new Date(), { checkWorkspace = t
     // Skip + alert, never a silent failure: the grantor's Google connection is
     // what the run's reads would act as.
     return { ok: false, reason: 'workspace_disconnected', alert: true };
+  }
+  // Same class, same shape, same flag: a live-reachability check the run's
+  // reads depend on. Skipping it would let the rule run against a lane it
+  // cannot read and report "nothing matched" — a lamp faking green. Not fatal:
+  // the lane can be wired back on (and if the grant itself is empty, the alert
+  // is what tells the owner to re-activate).
+  if (checkWorkspace && enrichmentDark(rule, authz)) {
+    return { ok: false, reason: 'enrichment_unavailable', alert: true };
   }
   return { ok: true };
 }
@@ -591,7 +625,7 @@ module.exports = {
   occurrenceKey, nextRunAt, isoWeekKey,
   getRule, ruleView, upsertDraft,
   createAuthorization, currentAuthorization, revokeAuthorization, verifyAuthorization, touchesWorkspace,
-  grantedTools, ruleSources,
+  grantedTools, ruleSources, SOURCE_TOOLS,
   ruleInstruction, rehearsalInstruction, parseMatchedCount,
   finalizeRuleRuns, haltRuleRuns, tick, verifyTickOidc,
   _internal: {
