@@ -10,6 +10,19 @@
 > file had reached 1666 lines and the current-state block was buried under its
 > own history.
 
+## DEPLOY PROVENANCE FOR `00051-94w` (2026-08-16, superseded by the `00052-nbf` deploy)
+
+> Moved from the current-state block when the #199 deploy superseded it.
+
+Deploy provenance, recorded as evidence rather than certainty: a concurrent
+documentation truth-up left files uncommitted while the build ran. The live
+frontend bundle contains the committed string `Export workspace JSON` and not the
+uncommitted `Export operational ledger (JSON)`, which proves that edit did not
+enter the build context. `cloudscheduler.googleapis.com` remains disabled, which
+supports the same timing conclusion for the deploy-script edit. The only
+uncommitted server edit is comment-only, so there is no behavioural ambiguity —
+but this is not a byte-for-byte claim about every server file.
+
 ## P5 MANUAL-PATH ACCEPTANCE TRANSCRIPT (2026-08-16, revision `00051-94w`)
 
 > Moved verbatim out of the current-state `HANDOFF.md` on 2026-08-16.

@@ -68,20 +68,11 @@ value and requires `DEPLOY_PROVIDER_CHANGE=1` to depart from it. Note the deploy
 script's first-deploy default (`vertex`) differs from what production actually
 runs; inheritance is what keeps that difference harmless.
 
-Deploy provenance, recorded as evidence rather than certainty: a concurrent
-documentation truth-up left files uncommitted while the build ran. The live
-frontend bundle contains the committed string `Export workspace JSON` and not the
-uncommitted `Export operational ledger (JSON)`, which proves that edit did not
-enter the build context. `cloudscheduler.googleapis.com` remains disabled, which
-supports the same timing conclusion for the deploy-script edit. The only
-uncommitted server edit is comment-only, so there is no behavioural ambiguity —
-but this is not a byte-for-byte claim about every server file.
-
 | Phase | Repository state | Deployment/acceptance state |
 |---|---|---|
 | Gate 0, P1, P2 | Implemented, merged | Recorded as deployed and live-accepted in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); not replayed since |
-| P3 Evidence Rooms | Implemented, merged | Core journey recorded live-accepted; #194 export screen **deployed** (now on `00052-nbf`); dedicated post-#194 acceptance not recorded |
-| P4 Agent Builder | Implemented, merged, hardened by #197 | **Deployed** (now on `00052-nbf`); dedicated signed-in builder/publish/version/rollback acceptance still outstanding |
+| P3 Evidence Rooms | Implemented, merged | **Live-accepted incl. #194** (2026-08-16, `00052-nbf`): the room's Disclosure Review rendered included/excluded counts, held 3 private-surface Drive sources internal, and content-flagged the fact whose wording names them |
+| P4 Agent Builder | Implemented, merged, hardened by #197 | **Live-accepted** (2026-08-16, `00052-nbf`) — see the P4 acceptance section below |
 | P5 Standing Rules | Implemented, merged, all 14 follow-up findings closed by #198 | **Deployed; manual execution path accepted** (next section). Unattended scheduling intentionally dark and **unaccepted** |
 | P6 Outcomes & reviewed learning | Planned only | Not implemented |
 | P7 Selective integrations | Planned only | Not implemented |
@@ -108,6 +99,25 @@ unproven. A manual owner tick does not satisfy scheduler capability evidence.
 
 The full run-by-run transcript is preserved verbatim in
 [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md).
+
+### P4 acceptance — 2026-08-16, revision `00052-nbf`, signed in as pete@cloudtechgurus.com
+
+Driven in a real Chrome session against production. Observed live: a
+plain-language job description produced a full generated configuration
+("Renewal Risk Analyst", research role, strong tier) with business purpose,
+inputs/outputs, operating instructions, escalation contract, and the authority
+map showing every governed tool — only the three read tools checked, every
+write/draft/MCP tool unchecked, matching the read-only request. **Publish was
+disabled until a rehearsal completed** (the gate held). The rehearsal ran
+read-only end to end and its report recorded `memory_write`/`memory_correct`
+refused per rehearse mode, no records modified, no communications sent. Owner
+publish succeeded; the agent appeared on the canvas. Version history showed the
+publish entry (actor, tier, purpose); **Rollback executed and recorded
+honestly** — "Restored: no fields differed" appended as a new `rollback`
+version with the original publish preserved, no authority widened.
+
+Still outstanding for P5: a scheduler-signed tick (lane deliberately dark),
+pause/expiry under the scheduler, and the clean-zero alert path.
 
 ### What PR #199 changed (deployed on `00052-nbf`)
 
@@ -173,9 +183,10 @@ stays unauthenticated. `/healthz` is kept for local runs. Covered by
    at `62eae86` is deployed as `00052-nbf`; production is NOT behind. The second
    deploy was the first run of the preservation-first script, rehearsed with
    DEPLOY_DRY_RUN=1 first; the environment contract was preserved additively.
-4. **Accept P4 in-app.** Build from plain language, inspect the generated role,
-   rehearse, publish as owner, verify version history/rollback, and confirm no
-   authority widens.
+4. ~~**Accept P4 in-app.**~~ **DONE 2026-08-16** — full journey observed live
+   on `00052-nbf` (section above), including the rehearse gate, version
+   history, rollback, and authority non-expansion. P3 #194 screened export
+   accepted in the same session.
 5. **Accept P5 end to end.** Parse, edit, rehearse, activate, receive a real
    scheduler-signed tick, inspect the run/attention card, then exercise pause,
    revoke, expiry, and rollback. A manual owner tick does not prove scheduling.
