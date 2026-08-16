@@ -15,12 +15,17 @@ since), or **unverified**. A live claim decays — re-probe before depending on 
 
 ## WHERE THINGS STAND (2026-08-16)
 
-**Canonical checkout (git-proven):** `/Users/cpconnor/projects/second-brain`, app
-subtree `agent-canvas/`. `master`, `origin/master`, and `HEAD` all resolve to
-`92fb427ef491a5431740f571bdaf66ae7a45c62f`. PRs #194 through #198 are
-represented on `master`. The truth-up branch merged as
-PR #199, squashed to `62eae86`; the pre-integration dirty state is preserved in
-`stash@{0}` on the canonical checkout.
+**Repository provenance (git-proven, observed 2026-08-16):** this
+documentation truth-up was prepared against synchronized base `72db799`.
+Application code last changed at `62eae86`. Canonical checkout:
+`/Users/cpconnor/projects/second-brain`, app subtree `agent-canvas/`.
+PRs #194 through #198 are represented on `master`. The truth-up branch merged as
+PR #199, squashed to `62eae86` — **the last commit containing application
+changes** (`92fb427` is PR #198, P5 application code, and precedes it).
+Everything after `62eae86` (`127f593` #200, `34ab055` #201, and `72db799` #202)
+is documentation-only; the code deployed to production is `62eae86`'s. The
+pre-integration dirty state is preserved in `stash@{0}` on the canonical
+checkout.
 
 **Verification after this truth-up (`npm run verify`, 2026-08-16):** **362
 backend tests / 0 failures**, **39 frontend tests / 0 failures**, a clean
@@ -39,34 +44,24 @@ The wall clock passed the fixture. Resolved by pinning `Date.now` in
 so `userEvent` and `waitFor` still work. The suite is now a function of its
 fixtures rather than of the day it runs.
 
-**Production evidence — OBSERVED 2026-08-16, NOT re-verified since.** A past
-probe is not proof of present state; treat every line in this paragraph as
-decaying until re-run. At the time of observation, `master` at `92fb427` was
-deployed and the active revision was **`agent-canvas-00051-94w`, serving 100%
-traffic**, probed via Cloud SDK using application-default credentials. It
-carries #194 through #198. All 11 env vars survived the wholesale set;
-`TICK_AUDIENCE` and `TICK_INVOKER_SA` were **deliberately absent**, so the OIDC
-scheduler lane is off. Zero error-severity log entries after deploy.
+**Production — LATEST LIVE OBSERVATION (2026-08-16, direct verification):**
+active revision **`agent-canvas-00053-h2n` at 100% traffic**, running `62eae86`
+code with the two tick env vars added additively (13 env-var names present in
+total). Cloud Scheduler job enabled at `*/10 * * * *`; the dedicated OIDC
+identity holds `run.invoker`; scheduler requests returned **200 at 19:04, 19:10,
+and 19:20 UTC**. `/api/healthz` and `/api/config` both 200. Zero error-severity
+logs since activation. 362 backend and 39 frontend tests pass. A live claim
+decays — re-probe before depending on it.
 
-**Deployed and live-proven (2026-08-16 ~18:30Z):** `master` at `62eae86`
-(PR #199) deployed as revision **`agent-canvas-00052-nbf` at 100% traffic** —
-the first run of the preservation-first deploy script, preceded by a
-`DEPLOY_DRY_RUN=1` rehearsal that listed the five live-only variables it would
-preserve (ED_DISPATCH_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
-HS_OPS_RUNNER_URL, RAPIDAPI_KEY — exactly the ones the old wholesale set would
-have deleted). Post-deploy probes: all eleven env-var names intact,
-`MODEL_PROVIDER=anthropic` inherited (not overwritten), **`/api/healthz` 200**
-with `{"ok":true,"paused":false}`, `/api/config` 200, the live bundle carrying
-both the `Export operational ledger (JSON)` and `Previously authorized by`
-strings, zero error-severity log entries since deploy. `TICK_AUDIENCE` /
-`TICK_INVOKER_SA` remain absent — scheduler lane dark by intent.
-
-**Resolved: the live `MODEL_PROVIDER` is `anthropic` (live-proven 2026-08-16).**
-The wholesale-set hazard did NOT fire on the last deploy — the value survived.
-The hazard itself is retired on this branch: the script now inherits the live
-value and requires `DEPLOY_PROVIDER_CHANGE=1` to depart from it. Note the deploy
-script's first-deploy default (`vertex`) differs from what production actually
-runs; inheritance is what keeps that difference harmless.
+**Historical observations (superseded by `00053-h2n`, preserved as evidence
+only):** earlier on 2026-08-16, `00051-94w` served 100% traffic carrying
+#194–#198 with the scheduler lane deliberately off; then `62eae86` (PR #199)
+deployed as `00052-nbf` via the first run of the preservation-first deploy
+script (dry-run rehearsed; the five live-only env vars preserved;
+`MODEL_PROVIDER=anthropic` inherited, not overwritten; `/api/healthz` and
+`/api/config` 200; zero error logs). The wholesale-set hazard is retired: the
+script inherits the live provider and requires `DEPLOY_PROVIDER_CHANGE=1` to
+depart from it. Full detail in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md).
 
 | Phase | Repository state | Deployment/acceptance state |
 |---|---|---|
@@ -116,10 +111,15 @@ publish entry (actor, tier, purpose); **Rollback executed and recorded
 honestly** — "Restored: no fields differed" appended as a new `rollback`
 version with the original publish preserved, no authority widened.
 
-Still outstanding for P5 after the scheduler wiring (2026-08-16): observing a
-DUE rule dispatched by a scheduled (not forced, not manual) tick — the next
-cadence of the existing rules will exercise this — plus pause/expiry under the
-scheduler and the clean-zero alert path.
+Still outstanding for P5 after the scheduler wiring (2026-08-16): (1) a DUE
+rule dispatched by a scheduled (not forced, not manual) tick, including the
+resulting run and attention card — this needs a rule actually due at a tick,
+not just the cadence running; (2) **pause under scheduler operation** — pause
+is not passive and will not exercise itself; (3) **expiry under scheduler
+operation** — requires an active fixture or a naturally expiring rule; (4) the
+clean-zero alert path live (currently test-only). The scheduler cadence alone
+does not prove these acceptance scenarios. Each requires an eligible rule state
+and observed evidence; pause requires explicit operator action.
 
 ### What PR #199 changed (deployed on `00052-nbf`)
 
