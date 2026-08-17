@@ -1,10 +1,8 @@
 # Agent Canvas roadmap and phase classification
 
-Updated 2026-08-16 against `master` at `948a7a6`. Production was freshly
-observed at `agent-canvas-00054-9cs`, 100% traffic, on
-2026-08-17T01:49Z; its exact source SHA is unverified. The local
-`fix/agent-canvas-remove-demo-artifacts` branch is verified but not merged or
-deployed. This file owns phase intent and dependencies. It does not override
+Updated 2026-08-17 against `master` at `9a6abaf`. Production was freshly
+observed at `agent-canvas-00057-47c`, 100% traffic, on
+2026-08-17T20:19Z. This file owns phase intent and dependencies. It does not override
 the timestamped production evidence in [HANDOFF.md](HANDOFF.md).
 
 ## Status vocabulary
@@ -27,8 +25,9 @@ the timestamped production evidence in [HANDOFF.md](HANDOFF.md).
 | P2 — People and Needs You | Merged | Live-accepted in recorded evidence | Preserve in regression/UAT |
 | P3 — Evidence Rooms | Merged | **Live-accepted including #194** (2026-08-16, `00052-nbf`): screened-export journey observed live | Preserve in regression/UAT |
 | P4 — reviewable plain-language Agent Builder | Merged; hardened through #197 | **Live-accepted** (2026-08-16, `00052-nbf`): build, rehearse gate, publish, version history, rollback, authority non-expansion all observed live | Preserve in regression/UAT |
-| P5 — Standing Rules and briefs | Merged; hardened through #198 | **Deployed on `00053-h2n`; manual path live-accepted; scheduler delivery live-proven** (2026-08-16: job enabled `*/10`, OIDC identity has `run.invoker`, 200s at 19:04/19:10/19:20 UTC). **Not Complete:** no due rule yet dispatched by a scheduled tick; pause and expiry unexercised under the scheduler; clean-zero alert test-only | Observe a scheduled-tick dispatch with its run/card, then exercise pause and expiry under the scheduler, then the clean-zero alert live |
-| Cross-cutting workspace cleanup | Implemented and locally verified on `fix/agent-canvas-remove-demo-artifacts` | Not merged, deployed, or live-accepted | Review/merge, backup + exact retirement dry-run, deploy, then signed-in note/file/removal acceptance |
+| P5 — Standing Rules and briefs | Merged | Scheduled dispatch/card, pause, and clean-zero behavior have historical live evidence. Scheduler is currently paused. **Not Complete:** expiry remains unproven | Exercise expiry with a bounded fixture; resume scheduling only by explicit operator decision |
+| Cross-cutting workspace cleanup | Merged on `9a6abaf` | Deployed on `00057-47c`; replica/bundle/health/log proven, signed-in journey not replayed | Complete signed-in note/file/removal acceptance |
+| Recommended teams, Enrichment, documents, agent removal | Merged on `9a6abaf` | Deployed on `00057-47c`; bundle/replica proven, signed-in journey not replayed | Complete signed-in team/create/upload/enrich/remove acceptance |
 | P6 — Outcomes and reviewed learning | Planned only | Not started | Begin only after P4/P5 acceptance |
 | P7 — selective integrations and portability | Planned only | Not started | Begin only after P6 earns its acceptance evidence |
 
@@ -39,24 +38,13 @@ tick arrives.
 
 ## Immediate release close-out
 
-1. **Release the workspace cleanup first.** Review and merge the local branch;
-   take a fresh backup; repeat the exact replica dry-run; deploy without
-   changing provider, scheduler, environment names, or secrets; then exercise
-   note and file create/read/remove plus view-only boundaries in production.
-2. **P5 acceptance remains separate.** The manual path is done and scheduler
-   delivery is live-proven
-   (job enabled, OIDC 200s at 19:04/19:10/19:20 UTC). **Still outstanding —
-   the scheduler cadence alone does not prove these acceptance scenarios; each
-   requires an eligible rule state and observed evidence, and pause requires
-   explicit operator action:** a due rule dispatched by a scheduled tick with
-   its run and attention card; pause under scheduler operation (not passive);
-   expiry under scheduler operation (needs an active fixture or a naturally
-   expiring rule); the clean-zero alert path live (test-only today — on the
-   live attempt the model omitted its `MATCHED:` contract line and the
-   honest-unknown path fired instead).
-3. Update `HANDOFF.md` with observed production facts. Only after both the
-   cleanup release and the remaining P5 acceptance can P5 be classified
-   complete and P6 begin. P6 and P7 remain planned only.
+1. **Complete signed-in release acceptance.** Exercise recommended-team canvas
+   creation, Enrichment, document upload/read/remove, note lifecycle, view-only
+   boundaries, and safe agent removal on `00057-47c`.
+2. **P5 acceptance remains separate.** Exercise expiry with a bounded fixture.
+   Cloud Scheduler is currently paused and must not be resumed merely to make a
+   roadmap label turn green.
+3. P6 and P7 remain planned only.
 
 ### P5 release follow-up — FIXED and DEPLOYED (`00052-nbf`, 2026-08-16)
 
