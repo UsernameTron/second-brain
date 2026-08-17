@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { rulesApi, timeAgo, short } from './api.js';
+import { SummaryMarkdown, formatContractTail } from './format.jsx';
 
 // P5 Rules & Briefs: a standing rule is a stored instruction + a persisted
 // authorization. Describe it in plain language → review the interpretation
@@ -63,31 +64,15 @@ function nextRunText(rule) {
     : fmtWhen(rule.next_run_at);
 }
 
-// ponytail: headings, bullets, bold, paragraphs — the subset briefs actually
-// use. Everything renders as React text nodes (no HTML injection); add a real
-// renderer if briefs ever need tables or links.
-function boldSpans(text) {
-  const parts = String(text).split(/\*\*([^*]+)\*\*/g);
-  return parts.map((p, i) => (i % 2 ? <b key={i}>{p}</b> : p));
-}
-
-function BriefMarkdown({ text }) {
-  const blocks = [];
-  let list = null;
-  const flush = () => {
-    if (list) { blocks.push(<ul key={`l${blocks.length}`} className="room-list">{list}</ul>); list = null; }
-  };
-  String(text || '').split('\n').forEach((line, i) => {
-    const t = line.trim();
-    if (/^[-*]\s+/.test(t)) { (list = list || []).push(<li key={i}>{boldSpans(t.replace(/^[-*]\s+/, ''))}</li>); return; }
-    flush();
-    if (!t) return;
-    const h = t.match(/^(#{1,4})\s+(.*)$/);
-    if (h) blocks.push(React.createElement(`h${Math.min(6, h[1].length + 3)}`, { key: i }, boldSpans(h[2])));
-    else blocks.push(<p key={i}>{boldSpans(t)}</p>);
-  });
-  flush();
-  return <div className="brief-markdown">{blocks}</div>;
+// The markdown renderer lives in format.jsx now (SummaryMarkdown). Run
+// HISTORY is the one place contract stripping is safe: the MATCHED count is
+// already rendered as its own chip there, so the tail line is duplication.
+// Rehearsals have NO count chip — "NOTHING MATCHED" may be the entire result,
+// so they humanize ("Nothing matched.") and never lose the outcome.
+function RuleNarrative({ text, mode = 'strip' }) {
+  const narrative = formatContractTail(text, mode);
+  if (!narrative.trim()) return <p className="dim">No narrative summary was returned.</p>;
+  return <SummaryMarkdown text={narrative} />;
 }
 
 // Evidence refs arrive as server/evidence.js rowToRef objects
@@ -280,7 +265,7 @@ const RUN_STATE_CHIP = {
   failed: 'run-failed', skipped: 'run-halted',
 };
 
-function RunHistory({ runs, outputType }) {
+function RunHistory({ runs }) {
   return (
     <section className="room-section">
       <h3>Run history<span className="chip">{runs.length}</span></h3>
@@ -294,10 +279,11 @@ function RunHistory({ runs, outputType }) {
               {r.skip_reason ? <span className="dim"> skipped: {r.skip_reason}</span> : null}
               {r.error ? <span className="answer-fail"> {r.error}</span> : null}
               <span className="dim mono"> · {timeAgo(r.created_at)}</span>
+              {/* Strip only when the count chip above actually rendered;
+                  a NULL matched_count means the count is unknown, so the
+                  contract line is the only thing that says what matched. */}
               {r.result_summary ? (
-                outputType === 'brief'
-                  ? <BriefMarkdown text={r.result_summary} />
-                  : <p>{r.result_summary}</p>
+                <RuleNarrative text={r.result_summary} mode={r.matched_count != null ? 'strip' : 'humanize'} />
               ) : null}
               <RefsFooter refs={r.output_refs ?? r.output_refs_json} />
             </li>
@@ -587,7 +573,9 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
             <section className="rehearsal-block">
               <h4>Rehearsal {rehearsal.status === 'running' ? '— running…' : `— ${rehearsal.status}`}</h4>
               {rehearsal.status === 'running' ? <p className="dim">Checking recent data for what WOULD have matched — nothing changes.</p> : null}
-              {rehearsal.summary ? <p className="rehearsal-summary">{rehearsal.summary}</p> : null}
+              {rehearsal.summary ? (
+                <div className="rehearsal-summary"><RuleNarrative text={rehearsal.summary} mode="humanize" /></div>
+              ) : null}
               {rehearsal.error ? <p className="answer-fail">{rehearsal.error}</p> : null}
             </section>
           ) : null}
@@ -618,7 +606,7 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
               </button>
             ) : null}
           </div>
-          <RunHistory runs={detail.runs || []} outputType={rule.output_type} />
+          <RunHistory runs={detail.runs || []} />
         </div>
       </div>
     );

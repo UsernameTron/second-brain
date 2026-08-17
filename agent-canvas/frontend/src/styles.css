@@ -17,14 +17,18 @@
   --ctg-danger: #C4362A;
   --grad-brand: linear-gradient(135deg, var(--ctg-navy-deep), var(--ctg-navy), var(--ctg-blue));
 
-  /* cool light surfaces (bg0 ground → bg4 deepest inset) */
-  --bg0: var(--bg0);
+  /* cool light surfaces (bg0 ground → bg4 deepest inset). These were
+     self-referential (--bg0: var(--bg0)) since the first commit — a circular
+     custom property is invalid, so light mode silently lost every background
+     and border that used them. Real values, anchored to the palette already
+     in this file (surface-inset #eef2f8, hero gradient #e6edf7). */
+  --bg0: #eef2f8;
   --bg1: #ffffff;
-  --bg2: var(--bg2);
-  --bg3: var(--bg3);
-  --bg4: var(--bg4);
-  --line: var(--line);
-  --line-soft: var(--line-soft);
+  --bg2: #f4f7fb;
+  --bg3: #e7edf5;
+  --bg4: #d9e2ee;
+  --line: #c9d4e4;
+  --line-soft: #dfe6f0;
   --text: var(--ctg-navy-ink);
   --text-dim: #45597c;
   --text-faint: #8291ab;
@@ -553,7 +557,7 @@ a:hover { text-decoration: underline; }
 .ny-filters { display: flex; gap: 6px; }
 .ny-list { display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
 .ny-card {
-  background: var(--panel, #16181d);
+  background: var(--bg2);
   border: 1px solid var(--line, #2a2d34);
   border-radius: 10px;
   padding: 12px 14px;
@@ -1300,7 +1304,7 @@ a:hover { text-decoration: underline; }
 .canvas-new-pop {
   position: absolute; top: 46px; left: 220px; z-index: 60;
   display: flex; flex-direction: column; gap: 10px;
-  background: var(--panel, #16181d); border: 1px solid var(--line, #2a2d34);
+  background: var(--bg2); border: 1px solid var(--line, #2a2d34);
   border-radius: 10px; padding: 12px; min-width: 260px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
 }
@@ -1487,3 +1491,25 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .rule-settings fieldset { border: 1px solid var(--line, #333); border-radius: 6px; display: flex; flex-wrap: wrap; gap: 10px; }
 .rule-settings fieldset legend { font-size: 12px; color: var(--text-faint); }
 .rule-settings fieldset label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+/* Rendered model output (format.jsx SummaryMarkdown). Compact rhythm, never
+   page-sized headings, and white-space: normal so a pre-wrap parent (e.g.
+   .answer-body, .rehearsal-summary) doesn't double-space the block layout. */
+.summary-markdown { white-space: normal; line-height: 1.5; overflow-wrap: anywhere; }
+.summary-markdown p, .summary-markdown ul, .summary-markdown ol,
+.summary-markdown h4, .summary-markdown h5, .summary-markdown h6 { margin: 0 0 6px; }
+.summary-markdown > :last-child { margin-bottom: 0; }
+.summary-markdown h4 { font-size: 14px; }
+.summary-markdown h5 { font-size: 13px; }
+.summary-markdown h6 { font-size: 12px; }
+.summary-markdown ul { list-style: disc; }
+.summary-markdown ol { list-style: decimal; }
+.summary-markdown ul, .summary-markdown ol { list-style-position: outside; padding-left: 18px; }
+/* .room-list li sets display:flex on ALL descendant li (rule-history rows) —
+   restore list-item display inside rendered markdown or the markers vanish.
+   Declared after .room-list in this file, so the tie in specificity resolves
+   to these rules. */
+.summary-markdown li { display: list-item; margin: 2px 0; }
+/* Inside rule-history rows (.room-list is a flex row) the rendered summary
+   takes the full row width instead of flowing inline with the chips. */
+.room-list li .summary-markdown { width: 100%; }

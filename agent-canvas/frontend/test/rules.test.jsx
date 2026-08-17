@@ -426,7 +426,7 @@ describe('Rules & Briefs view', () => {
     const briefRun = {
       id: 'rr1', rule_id: 'sr2', state: 'completed', occurrence_key: '2026-W33', matched_count: null,
       skip_reason: null, error: null, cost_usd: 0,
-      result_summary: '## Weekly brief\n- **Acme** renewal moved to legal\nAll quiet otherwise',
+      result_summary: '## Weekly brief\n- **Acme** renewal moved to legal\nAll quiet otherwise\nNOTHING MATCHED',
       output_refs_json: JSON.stringify(refs), output_refs: refs,
       retry_run_ids_json: '[]', retry_run_ids: [],
       created_at: new Date().toISOString(),
@@ -448,9 +448,32 @@ describe('Rules & Briefs view', () => {
     expect(await screen.findByRole('heading', { name: 'Weekly brief' })).toBeInTheDocument();
     expect(screen.getByText('Acme')).toBeInTheDocument(); // **bold** renders as <b>
     expect(screen.getByText('All quiet otherwise')).toBeInTheDocument();
+    // The machine contract line stays in the API payload but never renders.
+    expect(screen.queryByText(/NOTHING MATCHED/)).toBeNull();
     expect(screen.getByText('Evidence: Acme renewal note · https://acme.example/renewal')).toBeInTheDocument();
     expect(screen.getByText(/Authorized by/)).toBeInTheDocument();
     expect(screen.getByText('2026-W33')).toBeInTheDocument();
+  });
+
+  it('a clean-zero rehearsal shows "Nothing matched.", never an empty box', async () => {
+    api.mockImplementation((path) => {
+      if (path === '/api/canvases/c1/standing-rules') return Promise.resolve({ rules: [DRAFT_RULE] });
+      if (path === '/api/standing-rules/sr1/runs') return Promise.resolve({ runs: [] });
+      if (path === '/api/standing-rules/sr1') {
+        return Promise.resolve({
+          rule: { ...DRAFT_RULE, state: 'rehearsed' }, authorization: null, runs: [],
+          rehearsalRun: { id: 'r1', status: 'completed', summary: 'NOTHING MATCHED' },
+        });
+      }
+      return Promise.resolve({});
+    });
+    renderRules();
+    await userEvent.click(await screen.findByText(DRAFT_RULE.instruction));
+    // Rehearsals carry no count chip — the contract line IS the result, so it
+    // is humanized, never stripped to nothing.
+    expect(await screen.findByText('Nothing matched.')).toBeInTheDocument();
+    expect(screen.queryByText(/NOTHING MATCHED/)).toBeNull();
+    expect(screen.queryByText('No narrative summary was returned.')).toBeNull();
   });
 
   // The NEEDS YOU brief_ready card advertises open_rule and shows only ~300
