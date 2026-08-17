@@ -77,10 +77,13 @@ migration is idempotently complete.
 | P6 Outcomes and reviewed learning | Planned only | Not implemented |
 | P7 Selective integrations and portability | Planned only | Not implemented |
 
-P5 is not complete. Scheduled dispatch/card, pause behavior, and clean-zero
-alert behavior have historical live evidence. Expiry under scheduler operation
-remains unproven. The scheduler is currently paused, so no unattended rule can
-run until an operator deliberately resumes it.
+P5 is not complete. Scheduled dispatch/card and pause behavior have historical
+live evidence. **Replica- and log-proven:** on revision `00054-9cs`, a
+scheduler-signed tick at `2026-08-17T02:00:32Z` created rule-B occurrence
+`2026-08-17T02#v2`, which completed with `matched_count=0` and
+`needs_attention=0`; later hourly occurrences repeated that clean-zero result.
+Expiry under scheduler operation remains unproven. The scheduler is currently
+paused, so no unattended rule can run until an operator deliberately resumes it.
 
 ## Release gates
 
