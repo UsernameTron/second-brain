@@ -92,10 +92,11 @@ test('enrich_contact refuses an empty identity rather than paying for a blind lo
 
 test('tools are offered only to the lead-gen roles', () => {
   const names = (role) => toolsForRole(role, { userRole: 'owner' }).map((t) => t.name);
-  for (const role of ['research', 'targeting', 'commercial']) {
+  for (const role of ['research', 'targeting', 'commercial', 'enrichment']) {
     assert.ok(names(role).includes('enrich_contact'), `${role} should have enrichment`);
     assert.ok(names(role).includes('get_enriched_contact'));
   }
+  assert.deepEqual(names('enrichment').sort(), names('targeting').sort(), 'Enrichment receives the same native tool surface as Radar');
   for (const role of ['coding', 'review', 'workspace', 'crm', 'strategic', 'operational']) {
     assert.ok(!names(role).includes('enrich_contact'), `${role} must not have enrichment`);
   }

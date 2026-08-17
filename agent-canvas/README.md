@@ -43,9 +43,10 @@ Key files: `server/memory.js` (contract), `server/orchestrator/runner.js` (run l
   open the Explain Map.
 - **Canvas:** add, edit, pin, and remove notes on a canvas you can edit. Pinned notes are
   intentionally included in future runs on that canvas; removed notes leave
-  the active workspace while their audit history is retained. Use **+ File**
-  for TXT, Markdown, CSV, JSON, or XLSX documents up to 5 MB. Agents can read
-  those files through `read_canvas_files`; removing one excludes it from future
+  the active workspace while their audit history is retained. Use
+  **+ Document** for PDF, Word (`.docx`), TXT, Markdown, CSV, JSON, or XLSX
+  documents up to 5 MB. Agents can read those documents through
+  `read_canvas_files`; removing one excludes it from future
   agent reads while retaining deletion provenance. Connected Drive/Docs remains
   the path for documents that should stay in Google Workspace.
 - **Needs You:** one review queue for decisions, conflicts, approvals, and
@@ -54,6 +55,10 @@ Key files: `server/memory.js` (contract), `server/orchestrator/runner.js` (run l
   export.
 - **Agent Builder:** describe a job, review the generated role and authority,
   rehearse it, then publish a version as owner.
+- **Enrichment:** a roster agent that returns information for every requested
+  lead using Radar's lead-data connections, without requiring the lead to meet
+  Radar's hot-lead threshold. It reports provenance and gaps instead of hiding
+  records that do not qualify.
 - **Standing Rules:** interpret, rehearse, activate, pause, and revoke scheduled
   read-only work. The scheduler must be wired separately; visible UI is not
   proof that scheduled execution is live.
@@ -89,7 +94,7 @@ can drift out of sync.
 
 The former **Workbook**, **Run cleanup**, sample-row, and reviewable-demo-change
 set journey is retired. Those fixtures are not document analysis. Real
-documents enter through the canvas file API or the user's connected Google
+documents enter through **+ Document** or the user's connected Google
 Drive/Docs tools; the relevant source and permission are recorded as evidence.
 Historical ledger records remain exportable for audit, but retired demo content
 does not appear as active workspace content.

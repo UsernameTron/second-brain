@@ -3,6 +3,8 @@
 // a dedicated tool so it can be validated, audited, broadcast, and traced.
 
 const crypto = require('node:crypto');
+const path = require('node:path');
+const { Worker } = require('node:worker_threads');
 const { db, nowIso, tx } = require('../db');
 const { audit } = require('../audit');
 const memory = require('../memory');
@@ -96,12 +98,14 @@ const COMMON_TOOLS = [
   },
   {
     name: 'read_canvas_files',
-    description: 'List files attached to this canvas, or read one attached file by id. Omit file_id to list metadata. Reads are canvas-scoped and read-only. Supported content: UTF-8 text/CSV/JSON and .xlsx workbooks; other formats are reported as unsupported.',
+    description: 'List documents attached to this canvas, or read one by id. Omit file_id to list metadata. Large documents are returned in bounded character ranges: when has_more is true, call again with next_offset until has_more is false. Reads are canvas-scoped, read-only, and evidence-backed. Supported content: PDF, Word .docx, UTF-8 text/Markdown/CSV/JSON, and, when XLSX_READ is enabled, .xlsx workbooks.',
     input_schema: {
       type: 'object',
       properties: {
         file_id: { type: 'string', description: 'File id returned by this tool\'s metadata list. Omit to list files.' },
         limit: { type: 'integer', description: 'Maximum metadata rows when listing (default 50, capped at 100).' },
+        offset: { type: 'integer', description: 'Zero-based character offset when reading a file (default 0). Use the prior result\'s next_offset for the next range.' },
+        length: { type: 'integer', description: 'Characters to return when reading (default 24000, capped at 30000 so the runner never hides the middle).' },
       },
       required: [],
     },
@@ -351,7 +355,15 @@ const ENRICHMENT_TOOLS = [
     input_schema: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] },
   },
 ];
-const ENRICHMENT_ROLES = ['research', 'targeting', 'commercial'];
+const ENRICHMENT_ROLES = ['research', 'targeting', 'commercial', 'enrichment'];
+
+// Enrichment is a distinct user-facing job and may have connectors scoped
+// directly to it, while also inheriting Radar's targeting connector lane.
+// Preserve both roles instead of replacing the first-class role with its
+// compatibility alias.
+function connectorRoles(role) {
+  return role === 'enrichment' ? ['enrichment', 'targeting'] : [role];
+}
 
 // Committed context registries — the ICP scoring contract, CTG's supplier
 // catalogue, and distilled org-context facts. They are refreshed by a new
@@ -379,9 +391,23 @@ const REGISTRIES = {
   },
 };
 const REGISTRY_LIMIT = 25;
-const CANVAS_FILE_TEXT_CAP = 60_000;
 const CANVAS_FILE_LIST_LIMIT = 100;
+// Tool results are retained in the model's message history. Stay comfortably
+// below runner.js's 40k result cap so it never removes a range's middle. The
+// continuation contract makes the full decoded source reachable without one
+// unbounded response.
+const CANVAS_FILE_CHUNK_DEFAULT = 24_000;
+const CANVAS_FILE_CHUNK_MAX = 30_000;
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const PDF_MIME = 'application/pdf';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const DOCUMENT_TEXT_CAP = 120_000;
+const PDF_PAGE_LIMIT = 100;
+const PDF_PARSE_TIMEOUT_MS = Math.min(30_000, Math.max(
+  250,
+  Number.parseInt(process.env.PDF_PARSE_TIMEOUT_MS || '15000', 10) || 15_000,
+));
+const DOCUMENT_UNCOMPRESSED_CAP = 50 * 1024 * 1024;
 const TEXT_EXTENSIONS = new Set(['.txt', '.md', '.csv', '.json']);
 const TEXT_MIMES_BY_EXTENSION = {
   '.txt': new Set(['text/plain', 'application/octet-stream']),
@@ -390,7 +416,7 @@ const TEXT_MIMES_BY_EXTENSION = {
   '.json': new Set(['application/json', 'text/json', 'text/plain', 'application/octet-stream']),
 };
 const KNOWN_UNSUPPORTED_EXTENSIONS = new Set([
-  '.pdf', '.doc', '.docx', '.xls', '.ppt', '.pptx', '.pages', '.numbers', '.key',
+  '.doc', '.xls', '.ppt', '.pptx', '.pages', '.numbers', '.key',
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.zip', '.gz', '.tar',
 ]);
 
@@ -405,6 +431,12 @@ function canvasFileFormat(file) {
   // A known binary/document extension wins over a caller-supplied text MIME.
   // Upload Content-Type is not trustworthy enough to turn a PDF into text.
   if (KNOWN_UNSUPPORTED_EXTENSIONS.has(ext)) return null;
+  if (ext === '.pdf') {
+    return !mime || mime === PDF_MIME || mime === 'application/octet-stream' ? 'pdf' : null;
+  }
+  if (ext === '.docx') {
+    return !mime || mime === DOCX_MIME || mime === 'application/octet-stream' || mime === 'application/zip' ? 'docx' : null;
+  }
   if (ext === '.xlsx') {
     return !mime || mime === XLSX_MIME || mime === 'application/octet-stream' || mime === 'application/zip' ? 'xlsx' : null;
   }
@@ -415,15 +447,45 @@ function canvasFileFormat(file) {
   return null;
 }
 
-function capCanvasFileText(text) {
-  if (text.length <= CANVAS_FILE_TEXT_CAP) return { text, truncated: false };
-  const marker = `\n[...file truncated at the ${CANVAS_FILE_TEXT_CAP}-character cap — later content is missing]`;
-  let end = CANVAS_FILE_TEXT_CAP - marker.length;
-  // Do not split a supplementary Unicode character between its surrogate
-  // halves. Decode first, then cap, so invalid UTF-8 is rejected rather than
-  // silently replaced and the visible prefix always remains valid text.
-  if (end > 0 && /[\uD800-\uDBFF]/.test(text[end - 1]) && /[\uDC00-\uDFFF]/.test(text[end])) end -= 1;
-  return { text: text.slice(0, end) + marker, truncated: true };
+function chunkCanvasFileText(text, options = {}, { sourceTruncated = false } = {}) {
+  const rawOffset = options.offset === undefined ? 0 : Number(options.offset);
+  if (!Number.isSafeInteger(rawOffset) || rawOffset < 0) {
+    throw new Error('offset must be a non-negative integer. Start at 0, then use next_offset from each result.');
+  }
+  const rawLength = options.length === undefined ? CANVAS_FILE_CHUNK_DEFAULT : Number(options.length);
+  if (!Number.isSafeInteger(rawLength) || rawLength < 1) {
+    throw new Error(`length must be a positive integer (maximum ${CANVAS_FILE_CHUNK_MAX}).`);
+  }
+  const length = Math.min(rawLength, CANVAS_FILE_CHUNK_MAX);
+  if (rawOffset > text.length) {
+    throw new Error(`offset ${rawOffset} is beyond the rendered file length (${text.length}). Start at 0, then use next_offset from each result.`);
+  }
+
+  // Offsets are JS/JSON string indices. A caller using our next_offset never
+  // lands within a surrogate pair. If a hand-authored offset does, include the
+  // complete code point and report the actual start rather than emitting half
+  // a character or silently losing it.
+  let start = rawOffset;
+  if (start > 0 && /[\uDC00-\uDFFF]/.test(text[start]) && /[\uD800-\uDBFF]/.test(text[start - 1])) start -= 1;
+  let end = Math.min(text.length, start + length);
+  if (end < text.length && end > start && /[\uD800-\uDBFF]/.test(text[end - 1]) && /[\uDC00-\uDFFF]/.test(text[end])) end -= 1;
+  // A one-character request beginning on a supplementary character still
+  // needs one complete code point. This may exceed requested length by one
+  // UTF-16 code unit, but can never exceed the hard result budget materially.
+  if (end === start && start < text.length) end = Math.min(text.length, start + 2);
+  const hasMore = end < text.length;
+  return {
+    text: text.slice(start, end),
+    offset: start,
+    endOffset: end,
+    nextOffset: hasMore ? end : null,
+    totalCharacters: text.length,
+    hasMore,
+    sourceTruncated,
+    // Evidence must say when this particular read was only part of a source,
+    // including a final continuation chunk that began after offset zero.
+    truncated: start > 0 || hasMore || sourceTruncated,
+  };
 }
 
 function decodeCanvasFile(file) {
@@ -435,20 +497,141 @@ function decodeCanvasFile(file) {
     throw new Error(`"${file.name}" is not valid UTF-8 text. Upload a UTF-8 text, CSV, or JSON copy.`);
   }
   if (text.includes('\u0000')) throw new Error(`"${file.name}" contains binary data and cannot be read as UTF-8 text.`);
-  return capCanvasFileText(text);
+  return text;
 }
 
-async function readCanvasFile(file) {
+function xlsxDisabledMessage(file) {
+  return `"${file.name}" is an uploaded Office file (${file.mime || XLSX_MIME}) whose native workbook reader is disabled (XLSX_READ=0). Open it with Google Sheets/Docs to create a readable converted copy, or export it as CSV, then upload the converted file.`;
+}
+
+function capExtractedDocumentText(text, name, label, reasons) {
+  let rendered = String(text || '').replace(/\u0000/g, '').trim();
+  if (!rendered) {
+    throw new Error(`"${name}" contains no extractable text. If it is a scanned or image-only ${label}, upload a text-searchable copy.`);
+  }
+  if (rendered.length > DOCUMENT_TEXT_CAP) {
+    const marker = `\n[...${label} text truncated at ${DOCUMENT_TEXT_CAP} characters — split the document or upload a narrower source to read the omitted content]`;
+    rendered = rendered.slice(0, DOCUMENT_TEXT_CAP - marker.length) + marker;
+    reasons.add('character_limit');
+  }
+  return rendered;
+}
+
+async function docxToText(bytes, name) {
+  const JSZip = require('jszip');
+  let zip;
+  try {
+    zip = await JSZip.loadAsync(bytes);
+  } catch {
+    throw new Error(`"${name}" could not be read as a Word document (corrupt or not a real .docx).`);
+  }
+  let uncompressed = 0;
+  zip.forEach((_, entry) => { uncompressed += (entry._data && entry._data.uncompressedSize) || 0; });
+  if (!zip.file('word/document.xml')) {
+    throw new Error(`"${name}" could not be read as a Word document (word/document.xml is missing).`);
+  }
+  if (uncompressed > DOCUMENT_UNCOMPRESSED_CAP) {
+    throw new Error(`"${name}" expands to ${Math.round(uncompressed / 1048576)}MB — over the ${DOCUMENT_UNCOMPRESSED_CAP / 1048576}MB Word document safety limit.`);
+  }
+  let result;
+  try {
+    result = await require('mammoth').extractRawText({ buffer: bytes });
+  } catch (err) {
+    throw new Error(`"${name}" could not be read as a Word document: ${String(err.message || err).slice(0, 160)}`);
+  }
+  const reasons = new Set();
+  return {
+    text: capExtractedDocumentText(result.value, name, 'Word document', reasons),
+    sourceTruncated: reasons.size > 0,
+    truncationReasons: [...reasons],
+  };
+}
+
+function pdfTimeoutError(name) {
+  return new Error(`"${name}" took too long to read safely. Try a smaller PDF or export it as searchable text.`);
+}
+
+async function pdfToText(bytes, name) {
+  if (!bytes.subarray(0, 8).toString('latin1').startsWith('%PDF-')) {
+    throw new Error(`"${name}" could not be read as a PDF (missing PDF header).`);
+  }
+  const payload = Uint8Array.from(bytes);
+  const result = await new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(__dirname, 'pdf-extract-worker.js'), {
+      workerData: {
+        bytes: payload.buffer,
+        name,
+        textCap: DOCUMENT_TEXT_CAP,
+        pageLimit: PDF_PAGE_LIMIT,
+      },
+      transferList: [payload.buffer],
+      resourceLimits: {
+        maxOldGenerationSizeMb: 96,
+        maxYoungGenerationSizeMb: 16,
+        stackSizeMb: 4,
+      },
+    });
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+    const timer = setTimeout(() => {
+      void worker.terminate();
+      finish(reject, pdfTimeoutError(name));
+    }, PDF_PARSE_TIMEOUT_MS);
+    if (timer.unref) timer.unref();
+    worker.once('message', (message) => {
+      if (message?.ok) finish(resolve, message);
+      else finish(reject, new Error(message?.error || 'PDF extraction failed'));
+    });
+    worker.once('error', (err) => finish(reject, err));
+    worker.once('exit', (code) => {
+      if (code !== 0) finish(reject, new Error(`PDF parser stopped unexpectedly (${code})`));
+    });
+  }).catch((err) => {
+    if (err === undefined) throw pdfTimeoutError(name);
+    throw new Error(`"${name}" could not be read as a PDF: ${String(err.message || err).slice(0, 160)}`);
+  });
+  if (result.extractedCharacters === 0) {
+    throw new Error(`"${name}" contains no extractable text. If it is a scanned or image-only PDF, upload a text-searchable copy.`);
+  }
+  const reasons = new Set(result.truncationReasons || []);
+  const rendered = capExtractedDocumentText(result.text, name, 'PDF', reasons);
+  return { text: rendered, sourceTruncated: reasons.size > 0, truncationReasons: [...reasons] };
+}
+
+async function readCanvasFile(file, options = {}) {
   const format = canvasFileFormat(file);
   if (!format) {
-    throw new Error(`Unsupported canvas file "${file.name}" (${file.mime || 'unknown type'}). Agents can read UTF-8 text, CSV, JSON, and .xlsx files; PDF, Word, images, and other binary formats are not yet readable.`);
+    throw new Error(`Unsupported canvas document "${file.name}" (${file.mime || 'unknown type'}). Agents can read PDF, Word .docx, UTF-8 text, Markdown, CSV, JSON, and .xlsx files; legacy .doc, images, and other binary formats are not readable.`);
   }
   if (format === 'xlsx') {
+    // Check at CALL time, not module load: operators use this as an emergency
+    // parser kill switch and upload validation shares this exact function.
+    if (process.env.XLSX_READ === '0') throw new Error(xlsxDisabledMessage(file));
     const { xlsxToText } = require('../google/workspace')._internal;
-    const text = await xlsxToText(Buffer.from(file.content || []), file.name);
-    return { text, format, truncated: text.includes('[...output truncated') || text.includes('[...workbook truncated') || text.includes('[...sheet truncated') };
+    const rendered = await xlsxToText(Buffer.from(file.content || []), file.name, { withMetadata: true });
+    return {
+      ...chunkCanvasFileText(rendered.text, options, { sourceTruncated: rendered.sourceTruncated }),
+      format,
+      sourceLimits: rendered.truncationReasons,
+      sourceLimitMessage: 'The workbook renderer reached an explicit sheet, row, cell, or character safety bound. Continuation can retrieve every rendered character; omitted workbook content requires a narrower workbook or CSV export.',
+    };
   }
-  return { ...decodeCanvasFile(file), format };
+  if (format === 'docx' || format === 'pdf') {
+    const bytes = Buffer.from(file.content || []);
+    const rendered = format === 'docx' ? await docxToText(bytes, file.name) : await pdfToText(bytes, file.name);
+    return {
+      ...chunkCanvasFileText(rendered.text, options, { sourceTruncated: rendered.sourceTruncated }),
+      format,
+      sourceLimits: rendered.truncationReasons,
+      sourceLimitMessage: 'The document parser reached an explicit page or character safety bound. Continuation can retrieve every extracted character; omitted source content requires a smaller or split document.',
+    };
+  }
+  return { ...chunkCanvasFileText(decodeCanvasFile(file), options), format };
 }
 
 function readRegistry({ registry, query, limit }) {
@@ -561,11 +744,12 @@ function toolsForRole(role, { userRole = 'member', mode = 'act', authority = nul
   // connectors are offered only to the agent roles the owner named. Both are
   // re-checked at call time — a def leak alone can never authorize a call.
   const mcpClient = require('../mcp/client');
+  const effectiveConnectorRoles = connectorRoles(role);
   const mcpDefs = mcpClient.getCachedDefs().filter((d) => {
     const meta = mcpClient.resolveToolName(d.name);
     if (!meta) return false;
     if (meta.access === 'owner' && userRole !== 'owner') return false;
-    if (meta.roles && meta.roles.length && !meta.roles.includes(role)) return false;
+    if (meta.roles && meta.roles.length && !meta.roles.some((item) => effectiveConnectorRoles.includes(item))) return false;
     return true;
   });
   // In standard scope mode the Gmail tools are absent, not just refusing —
@@ -800,7 +984,7 @@ async function executeTool(name, input, ctx) {
       const file = db.prepare('SELECT * FROM files WHERE id = ? AND canvas_id = ? AND deleted_at IS NULL').get(String(input.file_id), canvas.id);
       if (!file) return { content: 'File not found on this canvas. Omit file_id to list the files available here.', isError: true };
       try {
-        const read = await readCanvasFile(file);
+        const read = await readCanvasFile(file, { offset: input.offset, length: input.length });
         const refId = evidence.recordRef({
           runId: run.id,
           sourceKind: 'canvas_file',
@@ -808,9 +992,29 @@ async function executeTool(name, input, ctx) {
           title: file.name,
           directedBy: run.initiated_by || '',
           visibility: 'canvas',
-          meta: { canvasId: canvas.id, mime: file.mime, size: file.size, format: read.format, truncated: read.truncated },
+          meta: {
+            canvasId: canvas.id, mime: file.mime, size: file.size, format: read.format,
+            truncated: read.truncated, sourceTruncated: read.sourceTruncated,
+            rangeStart: read.offset, rangeEnd: read.endOffset,
+            renderedCharacters: read.totalCharacters, hasMore: read.hasMore,
+            ...(read.sourceLimits ? { sourceLimits: read.sourceLimits } : {}),
+          },
         });
-        const body = `File: ${file.name}\nType: ${file.mime || 'application/octet-stream'}\nSize: ${file.size} bytes\n\n${read.text}`;
+        const chunk = {
+          range_start: read.offset,
+          range_end_exclusive: read.endOffset,
+          returned_characters: read.text.length,
+          rendered_characters: read.totalCharacters,
+          has_more: read.hasMore,
+          next_offset: read.nextOffset,
+          source_complete: !read.sourceTruncated,
+          ...(read.sourceLimits ? { source_limits: read.sourceLimits } : {}),
+          ...(read.hasMore ? {
+            continuation: `Call read_canvas_files again with file_id "${file.id}" and offset ${read.nextOffset}.`,
+          } : {}),
+          ...(read.sourceTruncated ? { source_limit: read.sourceLimitMessage } : {}),
+        };
+        const body = `File: ${file.name}\nType: ${file.mime || 'application/octet-stream'}\nSize: ${file.size} bytes\nChunk metadata: ${JSON.stringify(chunk)}\n\n${read.text}`;
         return { content: externalContent('canvas_file', body) + evidence.refMarker(refId) };
       } catch (err) {
         // File names are user-authored too; keep read/parse errors inside the

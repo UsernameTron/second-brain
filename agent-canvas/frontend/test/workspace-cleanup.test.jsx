@@ -15,7 +15,7 @@ vi.mock('../src/Canvas.jsx', () => ({
         <button key={note.id} onClick={() => onOpen('note', note)}>Open note {note.title}</button>
       ))}
       {files.map((file) => (
-        <button key={file.id} onClick={() => onOpen('file', file)}>Open file {file.name}</button>
+        <button key={file.id} onClick={() => onOpen('file', file)}>Open document {file.name}</button>
       ))}
     </div>
   ),
@@ -168,24 +168,24 @@ describe('user-facing canvas cleanup', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Open note Current note' }));
     expect(screen.queryByRole('button', { name: '+ Note' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '+ File' })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Choose a file to add to this canvas')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Upload document' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Choose a document to add to this canvas')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save note' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Remove note' })).not.toBeInTheDocument();
     expect(screen.getByDisplayValue('Current note')).toHaveAttribute('readonly');
     expect(screen.getByText(/View only/)).toBeInTheDocument();
   });
 
-  it('uploads raw file content, opens file details, and removes the file without a reload', async () => {
+  it('uploads raw document content, opens agent-ready details, and removes it without a reload', async () => {
     renderWorkspace();
-    const input = await screen.findByLabelText('Choose a file to add to this canvas');
-    expect(input).toHaveAttribute('accept', '.txt,.md,.csv,.json,.xlsx');
+    const input = await screen.findByLabelText('Choose a document to add to this canvas');
+    expect(input).toHaveAttribute('accept', '.pdf,.docx,.txt,.md,.csv,.json,.xlsx');
 
     const file = new File(['# Current customer brief'], 'Customer brief.md', { type: 'text/markdown' });
     await userEvent.upload(input, file);
 
-    expect(await screen.findByRole('button', { name: 'Open file Customer brief.md' })).toBeInTheDocument();
-    expect(screen.getByText('Customer brief.md added to this canvas.')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Open document Customer brief.md' })).toBeInTheDocument();
+    expect(screen.getByText('Customer brief.md is ready for agents.')).toBeInTheDocument();
     expect(api).toHaveBeenCalledWith(
       '/api/canvases/c1/files?name=Customer%20brief.md',
       expect.objectContaining({
@@ -195,31 +195,33 @@ describe('user-facing canvas cleanup', () => {
       }),
     );
 
-    expect(screen.getByRole('complementary', { name: 'File details: Customer brief.md' })).toBeInTheDocument();
-    const download = screen.getByRole('link', { name: 'Download file' });
+    expect(screen.getByRole('complementary', { name: 'Document details: Customer brief.md' })).toBeInTheDocument();
+    expect(screen.getByText('Ready for agents')).toBeInTheDocument();
+    expect(screen.getByText(/interpret, summarize, compare, or enrich/i)).toBeInTheDocument();
+    const download = screen.getByRole('link', { name: 'Download original' });
     expect(download).toHaveAttribute('href', '/api/canvases/c1/files/f-new');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remove file' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove document' }));
     expect(screen.getByText(/disappear from this workspace and from future agent reads/i)).toBeInTheDocument();
     expect(screen.getByText(/audit history is retained/i)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Yes, remove file' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, remove document' }));
 
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Open file Customer brief.md' })).not.toBeInTheDocument());
-    expect(screen.queryByRole('complementary', { name: 'File details: Customer brief.md' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Open document Customer brief.md' })).not.toBeInTheDocument());
+    expect(screen.queryByRole('complementary', { name: 'Document details: Customer brief.md' })).not.toBeInTheDocument();
     expect(api).toHaveBeenCalledWith('/api/canvases/c1/files/f-new', { method: 'DELETE' });
   });
 
   it('rejects unsupported and oversized files before upload', async () => {
     renderWorkspace();
-    const input = await screen.findByLabelText('Choose a file to add to this canvas');
+    const input = await screen.findByLabelText('Choose a document to add to this canvas');
 
-    await userEvent.upload(input, new File(['not supported'], 'brief.pdf', { type: 'application/pdf' }), { applyAccept: false });
-    expect(screen.getByRole('alert')).toHaveTextContent('Choose a TXT, Markdown, CSV, JSON, or XLSX file.');
+    await userEvent.upload(input, new File(['not supported'], 'slides.pptx', { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }), { applyAccept: false });
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose a PDF, Word (.docx), TXT, Markdown, CSV, JSON, or XLSX document.');
 
     const tooLarge = new File(['large'], 'large.csv', { type: 'text/csv' });
     Object.defineProperty(tooLarge, 'size', { value: 5 * 1024 * 1024 + 1 });
     await userEvent.upload(input, tooLarge);
-    expect(screen.getByRole('alert')).toHaveTextContent('That file is over the 5 MB upload limit.');
+    expect(screen.getByRole('alert')).toHaveTextContent('That document is over the 5 MB upload limit.');
     expect(api.mock.calls.some(([path, opts]) => path.includes('/files?name=') && opts?.method === 'POST')).toBe(false);
   });
 
@@ -233,18 +235,20 @@ describe('user-facing canvas cleanup', () => {
       return fallback(path, opts);
     });
     renderWorkspace();
-    const input = await screen.findByLabelText('Choose a file to add to this canvas');
+    const input = await screen.findByLabelText('Choose a document to add to this canvas');
     const file = new File(['name,amount\nAcme,10'], 'pipeline.csv', { type: 'text/csv' });
 
     await userEvent.upload(input, file);
-    expect(screen.getByRole('button', { name: 'Uploading…' })).toBeDisabled();
+    const uploadButton = screen.getByRole('button', { name: 'Upload document' });
+    expect(uploadButton).toBeDisabled();
+    expect(uploadButton).toHaveTextContent('Uploading…');
     expect(input).toBeDisabled();
-    expect(screen.getByRole('progressbar', { name: 'File upload in progress' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Document upload in progress' })).toBeInTheDocument();
     expect(screen.getByText('Uploading pipeline.csv…')).toBeInTheDocument();
 
     resolveUpload({ file: fileRecord({ id: 'f-new', name: 'pipeline.csv', mime: 'text/csv', size: file.size }) });
-    await waitFor(() => expect(screen.getByText('pipeline.csv added to this canvas.')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: '+ File' })).toBeEnabled();
+    await waitFor(() => expect(screen.getByText('pipeline.csv is ready for agents.')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Upload document' })).toBeEnabled();
   });
 
   it('keeps view-only file details download-only', async () => {
@@ -252,10 +256,10 @@ describe('user-facing canvas cleanup', () => {
     files = [fileRecord()];
     renderWorkspace();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Open file Customer brief.md' }));
-    expect(screen.getByRole('link', { name: 'Download file' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Remove file' })).not.toBeInTheDocument();
-    expect(screen.getByText(/View only · download is available/i)).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Open document Customer brief.md' }));
+    expect(screen.getByRole('link', { name: 'Download original' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove document' })).not.toBeInTheDocument();
+    expect(screen.getByText(/View only · the original can be downloaded/i)).toBeInTheDocument();
   });
 
   it('offers an obvious create action when no canvases exist', async () => {

@@ -16,6 +16,12 @@ describe('canvas node keyboard access', () => {
     expect(node).toHaveAttribute('tabindex', '0');
   });
 
+  it('describes the Enrichment agent in plain language', () => {
+    render(<AgentNode agent={{ ...AGENT, name: 'Enrichment', role: 'enrichment' }} spend={null} {...shell(vi.fn())} />);
+    const node = screen.getByRole('button', { name: 'Enrichment, lead information agent' });
+    expect(node).toHaveTextContent('lead information');
+  });
+
   it('Enter and Space activate the node click handler', async () => {
     const onClick = vi.fn();
     render(<NoteNode note={{ id: 'n1', title: 'Plan', content: 'text', x: 0, y: 0 }} {...shell(onClick)} />);
@@ -29,8 +35,8 @@ describe('canvas node keyboard access', () => {
   it('opens file details from the file node keyboard target while keeping a real download link', async () => {
     const onClick = vi.fn();
     render(<FileNode file={{ id: 'f1', name: 'brief.md', size: 42, x: 0, y: 0 }} canvasId="c1" {...shell(onClick)} />);
-    const node = screen.getByRole('group', { name: 'File: brief.md' });
-    const download = screen.getByRole('link', { name: '↓ download' });
+    const node = screen.getByRole('group', { name: 'Document: brief.md' });
+    const download = screen.getByRole('link', { name: 'Download' });
 
     node.focus();
     await userEvent.keyboard('{Enter}');

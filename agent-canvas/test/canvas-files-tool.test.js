@@ -12,17 +12,25 @@ const path = require('node:path');
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-files-'));
 process.env.DEV_AUTH = '1';
 process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
+// CI starts this isolated parser under full-suite CPU contention. Keep the
+// bound short enough to prove termination without racing ordinary fixtures.
+process.env.PDF_PARSE_TIMEOUT_MS = '2500';
 
 const ExcelJS = require('exceljs');
+const JSZip = require('jszip');
 const { server } = require('../server/index');
 const { db, nowIso } = require('../server/db');
 const evidence = require('../server/evidence');
 const { executeTool, toolsForRole } = require('../server/orchestrator/tools');
+const { _internal: runnerInternal } = require('../server/orchestrator/runner');
 
 const OWNER = 'pete@cloudtechgurus.com';
 const VIEWER = 'jessica@cloudtechgurus.com';
 const AGENT = 'agent-canvas-file';
 const RUN = 'run-canvas-file';
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const LONG_TEXT = `START\nBEFORE_OLD_40K\n${'a'.repeat(41_000)}\nBETWEEN_OLD_40K_AND_60K\n${'b'.repeat(21_000)}\nAFTER_OLD_60K\n${'c'.repeat(12_000)}\nEND`;
 let base;
 let ownerCookie;
 let viewerCookie;
@@ -60,6 +68,44 @@ function putFile({ id, canvas = canvasId, name, mime, content, uploadedBy = OWNE
     .run(id, canvas, name, mime, bytes.length, bytes, uploadedBy, nowIso());
 }
 
+function simplePdf(text) {
+  // Keep each PDF string operand modest so a large fixture exercises the
+  // parser's streaming character bound rather than a PDF-token edge limit.
+  const operands = String(text).match(/[\s\S]{1,80}/g) || [''];
+  const commands = operands.map((part) => {
+    const escaped = part.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+    return `1 0 0 1 72 720 Tm\n(${escaped}) Tj`;
+  }).join('\n');
+  const stream = `BT\n/F1 14 Tf\n${commands}\nET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let out = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(out));
+    out += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(out);
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) out += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out);
+}
+
+async function simpleDocx(text) {
+  const escaped = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
+  zip.folder('_rels').file('.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
+  zip.folder('word').file('document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${escaped}</w:t></w:r></w:p><w:sectPr/></w:body></w:document>`);
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
 function ctx() {
   return {
     run: db.prepare('SELECT * FROM runs WHERE id = ?').get(RUN),
@@ -93,9 +139,13 @@ test.before(async () => {
   putFile({ id: 'text-1', name: 'brief.txt', mime: 'text/plain', content: 'Alpha brief\nSecond line.' });
   putFile({ id: 'csv-1', name: 'pipeline.CSV', mime: 'text/csv', content: 'company,stage\nAcme,open' });
   putFile({ id: 'json-1', name: 'facts.json', mime: 'application/json', content: '{"active":true}' });
-  putFile({ id: 'pdf-old', name: 'legacy.pdf', mime: 'application/pdf', content: '%PDF historical' });
+  putFile({ id: 'doc-old', name: 'legacy.doc', mime: 'application/msword', content: 'historical binary document' });
   putFile({ id: 'bad-utf8', name: 'broken.txt', mime: 'text/plain', content: Buffer.from([0xc3, 0x28]) });
-  putFile({ id: 'long-1', name: 'long.md', mime: 'text/markdown', content: `START\n${'x'.repeat(70_000)}\nSECRET_TAIL` });
+  putFile({ id: 'long-1', name: 'long.md', mime: 'text/markdown', content: LONG_TEXT });
+  putFile({ id: 'emoji-1', name: 'unicode-boundary.txt', mime: 'text/plain', content: `${'u'.repeat(23_999)}📄TAIL` });
+  putFile({ id: 'pdf-1', name: 'account-brief.pdf', mime: 'application/pdf', content: simplePdf('Acme renewal owner is Jordan Lee') });
+  putFile({ id: 'pdf-large', name: 'large-brief.pdf', mime: 'application/pdf', content: simplePdf(`START ${'p'.repeat(180_000)} END`) });
+  putFile({ id: 'docx-1', name: 'lead-list.docx', mime: DOCX_MIME, content: await simpleDocx('Globex contact is Casey Morgan') });
   putFile({ id: 'other-secret', canvas: otherCanvasId, name: 'other.txt', mime: 'text/plain', content: 'OTHER CANVAS SECRET' });
 
   const wb = new ExcelJS.Workbook();
@@ -103,6 +153,28 @@ test.before(async () => {
   sheet.addRow(['company', 'seats']);
   sheet.addRow(['Acme', 650]);
   putFile({ id: 'xlsx-1', name: 'pipeline.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', content: Buffer.from(await wb.xlsx.writeBuffer()) });
+
+  const longWb = new ExcelJS.Workbook();
+  const longSheet = longWb.addWorksheet('Long');
+  // Keep named evidence on both sides of the runner's old 40k boundary and
+  // beyond the workbook renderer's terminal 60k bound. The first two must be
+  // recoverable by continuation; the last must be called out as source-omitted
+  // rather than implied to exist behind another offset.
+  longSheet.addRow(['BEFORE_XLSX_40K']);
+  longSheet.addRow(['a'.repeat(20_000)]);
+  longSheet.addRow(['a'.repeat(20_000)]);
+  longSheet.addRow(['BETWEEN_XLSX_40K_AND_60K']);
+  longSheet.addRow(['b'.repeat(21_000)]);
+  longSheet.addRow(['AFTER_XLSX_60K']);
+  putFile({ id: 'xlsx-long', name: 'long.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', content: Buffer.from(await longWb.xlsx.writeBuffer()) });
+
+  const manySheetsWb = new ExcelJS.Workbook();
+  for (let i = 0; i < 11; i += 1) manySheetsWb.addWorksheet(`Sheet ${i + 1}`).addRow([`sheet-${i + 1}`]);
+  putFile({ id: 'xlsx-many-sheets', name: 'many-sheets.xlsx', mime: XLSX_MIME, content: Buffer.from(await manySheetsWb.xlsx.writeBuffer()) });
+
+  const markerTextWb = new ExcelJS.Workbook();
+  markerTextWb.addWorksheet('Markers').addRow(['[...sheet truncated at 2000 rows]']);
+  putFile({ id: 'xlsx-marker-text', name: 'marker-text.xlsx', mime: XLSX_MIME, content: Buffer.from(await markerTextWb.xlsx.writeBuffer()) });
 });
 
 test.after(() => new Promise((resolve) => server.close(resolve)));
@@ -113,18 +185,20 @@ test('common tool lists only live metadata from its own canvas', async () => {
   assert.equal(out.isError, undefined);
   assert.match(out.content, /^<external_content source="canvas_file_list">/);
   assert.match(out.content, /brief\.txt/);
-  assert.match(out.content, /legacy\.pdf/, 'historical unsupported files remain listable');
+  assert.match(out.content, /legacy\.doc/, 'historical unsupported files remain listable');
   assert.ok(!out.content.includes('other-secret'));
   assert.ok(!out.content.includes('OTHER CANVAS SECRET'));
   assert.equal(evidence.refsForRun(RUN).length, 0, 'metadata listing is not represented as reading an artifact');
 });
 
-test('text, CSV, JSON, and XLSX reads are untrusted and evidence-backed', async () => {
+test('PDF, Word, text, CSV, JSON, and XLSX reads are untrusted and evidence-backed', async () => {
   for (const [id, expected] of [
     ['text-1', 'Alpha brief'],
     ['csv-1', 'Acme,open'],
     ['json-1', '{"active":true}'],
     ['xlsx-1', 'Acme,650'],
+    ['pdf-1', 'Acme renewal owner is Jordan Lee'],
+    ['docx-1', 'Globex contact is Casey Morgan'],
   ]) {
     const out = await executeTool('read_canvas_files', { file_id: id }, ctx());
     assert.ok(!out.isError, out.content);
@@ -134,9 +208,24 @@ test('text, CSV, JSON, and XLSX reads are untrusted and evidence-backed', async 
     assert.match(out.content, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
   const refs = evidence.refsForRun(RUN).filter((ref) => ref.sourceKind === 'canvas_file');
-  assert.deepEqual(refs.map((ref) => ref.sourceId).sort(), ['csv-1', 'json-1', 'text-1', 'xlsx-1']);
+  assert.deepEqual(refs.map((ref) => ref.sourceId).sort(), ['csv-1', 'docx-1', 'json-1', 'pdf-1', 'text-1', 'xlsx-1']);
   assert.ok(refs.every((ref) => ref.meta.canvasId === canvasId));
   assert.ok(refs.every((ref) => ref.visibility === 'canvas'));
+});
+
+test('pathological PDF expansion is isolated behind decoded-text and parser resource bounds', async () => {
+  const started = Date.now();
+  const out = await executeTool('read_canvas_files', { file_id: 'pdf-large', length: 30_000 }, ctx());
+  if (out.isError) {
+    assert.match(out.content, /took too long to read safely/);
+  } else {
+    const chunk = parseChunk(out);
+    assert.equal(chunk.meta.source_complete, false);
+    assert.ok(chunk.meta.source_limits.includes('character_limit'));
+    assert.match(chunk.meta.source_limit_message, /smaller or split document/);
+    assert.equal(runnerInternal.capToolResult(out.content), out.content);
+  }
+  assert.ok(Date.now() - started < 5000, 'pathological parse returns within the configured worker timeout');
 });
 
 test('cross-canvas ids and unsupported or invalid formats reveal no content and mint no evidence', async () => {
@@ -147,10 +236,10 @@ test('cross-canvas ids and unsupported or invalid formats reveal no content and 
   assert.ok(!cross.content.includes('other.txt'));
   assert.ok(!cross.content.includes('OTHER CANVAS SECRET'));
 
-  const pdf = await executeTool('read_canvas_files', { file_id: 'pdf-old' }, ctx());
-  assert.equal(pdf.isError, true);
-  assert.match(pdf.content, /Unsupported canvas file/);
-  assert.match(pdf.content, /PDF, Word, images/);
+  const legacy = await executeTool('read_canvas_files', { file_id: 'doc-old' }, ctx());
+  assert.equal(legacy.isError, true);
+  assert.match(legacy.content, /Unsupported canvas document/);
+  assert.match(legacy.content, /legacy \.doc, images/);
 
   const invalid = await executeTool('read_canvas_files', { file_id: 'bad-utf8' }, ctx());
   assert.equal(invalid.isError, true);
@@ -158,29 +247,128 @@ test('cross-canvas ids and unsupported or invalid formats reveal no content and 
   assert.equal(evidence.refsForRun(RUN).length, before, 'failed reads do not mint evidence');
 });
 
-test('large text is visibly capped without leaking the omitted tail and records truncation', async () => {
-  const out = await executeTool('read_canvas_files', { file_id: 'long-1' }, ctx());
-  assert.ok(!out.isError, out.content);
-  assert.match(out.content, /file truncated at the 60000-character cap/);
-  assert.ok(!out.content.includes('SECRET_TAIL'));
-  assert.ok(out.content.length < 61_000, `bounded tool result was ${out.content.length} chars`);
-  const ref = evidence.refsForRun(RUN).find((item) => item.sourceId === 'long-1');
-  assert.ok(ref);
-  assert.equal(ref.meta.truncated, true);
+function parseChunk(out) {
+  const match = /Chunk metadata: (\{[^\n]+\})\n\n/.exec(out.content);
+  assert.ok(match, `missing chunk metadata in: ${out.content.slice(0, 300)}`);
+  const start = match.index + match[0].length;
+  const end = out.content.indexOf('\n</external_content>', start);
+  assert.ok(end >= start, 'chunk stays inside the external-content boundary');
+  return { meta: JSON.parse(match[1]), text: out.content.slice(start, end) };
+}
+
+test('large text is fully retrievable through bounded continuations that the runner does not re-cap', async () => {
+  let offset = 0;
+  let reconstructed = '';
+  let calls = 0;
+  do {
+    const out = await executeTool('read_canvas_files', { file_id: 'long-1', offset, length: 24_000 }, ctx());
+    assert.ok(!out.isError, out.content);
+    assert.equal(runnerInternal.capToolResult(out.content), out.content, 'runner cap must never alter a bounded file chunk');
+    assert.ok(out.content.length < runnerInternal.TOOL_RESULT_CHAR_CAP, `tool result was ${out.content.length} chars`);
+    const chunk = parseChunk(out);
+    assert.equal(chunk.meta.range_start, offset);
+    assert.equal(chunk.meta.returned_characters, chunk.text.length);
+    assert.equal(chunk.meta.rendered_characters, LONG_TEXT.length);
+    assert.equal(chunk.meta.source_complete, true);
+    reconstructed += chunk.text;
+    calls += 1;
+    if (!chunk.meta.has_more) break;
+    assert.equal(chunk.meta.next_offset, chunk.meta.range_end_exclusive);
+    assert.match(chunk.meta.continuation, new RegExp(`offset ${chunk.meta.next_offset}`));
+    offset = chunk.meta.next_offset;
+  } while (calls < 10);
+
+  assert.equal(reconstructed, LONG_TEXT);
+  assert.match(reconstructed, /BEFORE_OLD_40K/);
+  assert.match(reconstructed, /BETWEEN_OLD_40K_AND_60K/);
+  assert.match(reconstructed, /AFTER_OLD_60K/);
+  assert.match(reconstructed, /\nEND$/);
+  assert.ok(calls >= 4, `expected multiple bounded reads, got ${calls}`);
+
+  const refs = evidence.refsForRun(RUN).filter((item) => item.sourceId === 'long-1');
+  assert.equal(refs.length, calls);
+  assert.ok(refs.every((ref) => ref.meta.renderedCharacters === LONG_TEXT.length));
+  assert.ok(refs.every((ref) => ref.meta.truncated === true), 'each range is evidence-marked as a partial-source read');
 });
 
-test('upload accepts only readable supported files and rejects dead artifacts before persistence', async () => {
+test('range arguments are bounded and invalid offsets fail without minting evidence', async () => {
+  const bounded = await executeTool('read_canvas_files', { file_id: 'long-1', offset: 0, length: 9_999_999 }, ctx());
+  assert.ok(!bounded.isError, bounded.content);
+  const chunk = parseChunk(bounded);
+  assert.ok(chunk.meta.returned_characters <= 30_000);
+  assert.equal(runnerInternal.capToolResult(bounded.content), bounded.content);
+
+  const before = evidence.refsForRun(RUN).length;
+  for (const offset of [-1, LONG_TEXT.length + 1]) {
+    const invalid = await executeTool('read_canvas_files', { file_id: 'long-1', offset }, ctx());
+    assert.equal(invalid.isError, true);
+    assert.match(invalid.content, /offset/);
+  }
+  assert.equal(evidence.refsForRun(RUN).length, before);
+});
+
+test('continuation offsets never split or lose a supplementary Unicode character', async () => {
+  const first = parseChunk(await executeTool('read_canvas_files', { file_id: 'emoji-1', offset: 0, length: 24_000 }, ctx()));
+  assert.equal(first.meta.next_offset, 23_999, 'range stops before the surrogate pair');
+  assert.ok(!first.text.includes('\uFFFD'));
+  const second = parseChunk(await executeTool('read_canvas_files', { file_id: 'emoji-1', offset: first.meta.next_offset, length: 24_000 }, ctx()));
+  assert.equal(first.text + second.text, `${'u'.repeat(23_999)}📄TAIL`);
+  assert.equal(second.meta.has_more, false);
+});
+
+test('XLSX renderer limits are terminal, explicit, and never misrepresented as complete continuation', async () => {
+  let offset = 0;
+  let rendered = '';
+  let finalMeta;
+  for (let calls = 0; calls < 5; calls += 1) {
+    const out = await executeTool('read_canvas_files', { file_id: 'xlsx-long', offset, length: 30_000 }, ctx());
+    assert.ok(!out.isError, out.content);
+    assert.equal(runnerInternal.capToolResult(out.content), out.content);
+    const chunk = parseChunk(out);
+    rendered += chunk.text;
+    finalMeta = chunk.meta;
+    if (!chunk.meta.has_more) break;
+    offset = chunk.meta.next_offset;
+  }
+  assert.equal(finalMeta.has_more, false);
+  assert.equal(finalMeta.source_complete, false);
+  assert.match(finalMeta.source_limit, /safety bound/);
+  assert.match(rendered, /BEFORE_XLSX_40K/);
+  assert.ok(rendered.indexOf('BETWEEN_XLSX_40K_AND_60K') > 40_000, 'continuation recovers workbook text after the runner\'s old cap');
+  assert.ok(!rendered.includes('AFTER_XLSX_60K'), 'the parser-bounded tail is not misrepresented as retrievable');
+  assert.match(rendered, /output truncated at the 60000-character cap/);
+
+  const sheetLimited = parseChunk(await executeTool('read_canvas_files', { file_id: 'xlsx-many-sheets' }, ctx()));
+  assert.equal(sheetLimited.meta.has_more, false);
+  assert.equal(sheetLimited.meta.source_complete, false);
+  assert.match(sheetLimited.meta.source_limit, /safety bound/);
+  assert.match(sheetLimited.text, /1 more sheet\(s\) not shown/);
+
+  const markerText = parseChunk(await executeTool('read_canvas_files', { file_id: 'xlsx-marker-text' }, ctx()));
+  assert.equal(markerText.meta.source_complete, true, 'user cell text cannot forge parser truncation metadata');
+  assert.deepEqual(markerText.meta.source_limits, []);
+  assert.match(markerText.text, /sheet truncated at 2000 rows/);
+});
+
+test('upload accepts readable PDF and Word documents and rejects dead artifacts before persistence', async () => {
   const before = db.prepare('SELECT COUNT(*) AS n FROM files WHERE canvas_id = ?').get(canvasId).n;
-  const pdf = await upload(ownerCookie, canvasId, 'new.pdf', 'application/pdf', '%PDF');
-  assert.equal(pdf.status, 415);
-  assert.match(pdf.data.error, /\.txt, \.md, \.csv, \.json, or \.xlsx/);
+  const pdf = await upload(ownerCookie, canvasId, 'new.pdf', 'application/pdf', simplePdf('Northwind lead owner is Avery Smith'));
+  assert.equal(pdf.status, 200, JSON.stringify(pdf.data));
+  const docx = await upload(ownerCookie, canvasId, 'new.docx', DOCX_MIME, await simpleDocx('Contoso lead owner is Morgan Reyes'));
+  assert.equal(docx.status, 200, JSON.stringify(docx.data));
+  const badPdf = await upload(ownerCookie, canvasId, 'bad.pdf', 'application/pdf', '%PDF broken');
+  assert.equal(badPdf.status, 415);
+  assert.match(badPdf.data.error, /could not be read as a PDF/);
+  const badDocx = await upload(ownerCookie, canvasId, 'bad.docx', DOCX_MIME, 'not a Word archive');
+  assert.equal(badDocx.status, 415);
+  assert.match(badDocx.data.error, /could not be read as a Word document/);
   const disguised = await upload(ownerCookie, canvasId, 'binary.txt', 'text/plain', Buffer.from([0xc3, 0x28]));
   assert.equal(disguised.status, 415);
   assert.match(disguised.data.error, /not valid UTF-8/);
   const corrupt = await upload(ownerCookie, canvasId, 'corrupt.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'not a workbook');
   assert.equal(corrupt.status, 415);
   assert.match(corrupt.data.error, /could not be read as a workbook/);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM files WHERE canvas_id = ?').get(canvasId).n, before);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM files WHERE canvas_id = ?').get(canvasId).n, before + 2);
 
   const good = await upload(ownerCookie, canvasId, 'operator.md', 'text/markdown', '# Operator brief');
   assert.equal(good.status, 200, JSON.stringify(good.data));
@@ -188,6 +376,36 @@ test('upload accepts only readable supported files and rejects dead artifacts be
   const json = await upload(ownerCookie, canvasId, 'operator.json', 'application/json', '{"account":"Acme"}');
   assert.equal(json.status, 200, JSON.stringify(json.data));
   assert.equal(json.data.file.mime, 'application/json', 'JSON uploads bypass the app JSON parser and retain their real MIME type');
+
+  const dotted = await upload(ownerCookie, canvasId, 'customer..final.csv', 'text/csv', 'company,stage\nAcme,open');
+  assert.equal(dotted.status, 200, JSON.stringify(dotted.data));
+  assert.equal(dotted.data.file.name, 'customer..final.csv');
+});
+
+test('XLSX_READ=0 rejects both upload validation and agent reads with conversion guidance', async () => {
+  const previous = process.env.XLSX_READ;
+  const workbook = db.prepare('SELECT content FROM files WHERE id = ?').get('xlsx-1');
+  const beforeFiles = db.prepare('SELECT COUNT(*) AS n FROM files WHERE canvas_id = ?').get(canvasId).n;
+  const beforeEvidence = evidence.refsForRun(RUN).length;
+  process.env.XLSX_READ = '0';
+  try {
+    const read = await executeTool('read_canvas_files', { file_id: 'xlsx-1' }, ctx());
+    assert.equal(read.isError, true);
+    assert.match(read.content, /native workbook reader is disabled \(XLSX_READ=0\)/);
+    assert.match(read.content, /Open it with Google Sheets\/Docs/);
+    assert.match(read.content, /export it as CSV/);
+
+    const uploaded = await upload(ownerCookie, canvasId, 'disabled.xlsx', XLSX_MIME, Buffer.from(workbook.content));
+    assert.equal(uploaded.status, 415);
+    assert.match(uploaded.data.error, /native workbook reader is disabled \(XLSX_READ=0\)/);
+    assert.match(uploaded.data.error, /Open it with Google Sheets\/Docs/);
+    assert.match(uploaded.data.error, /export it as CSV/);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM files WHERE canvas_id = ?').get(canvasId).n, beforeFiles);
+    assert.equal(evidence.refsForRun(RUN).length, beforeEvidence, 'disabled reads mint no evidence');
+  } finally {
+    if (previous === undefined) delete process.env.XLSX_READ;
+    else process.env.XLSX_READ = previous;
+  }
 });
 
 test('Unicode filenames download with an ASCII fallback and RFC 5987 name', async () => {

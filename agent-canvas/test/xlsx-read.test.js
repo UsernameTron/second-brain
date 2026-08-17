@@ -63,6 +63,44 @@ test('row and sheet budgets truncate with explicit markers', async () => {
   const text = await xlsxToText(buf, 'big.xlsx');
   assert.match(text, new RegExp(`truncated at ${XLSX_LIMITS.rowsPerSheet} rows`));
   assert.match(text, /more sheet\(s\) not shown/);
+
+  const rendered = await xlsxToText(buf, 'big.xlsx', { withMetadata: true });
+  assert.equal(rendered.sourceTruncated, true);
+  assert.ok(rendered.truncationReasons.includes('row_limit'));
+  assert.ok(rendered.truncationReasons.includes('sheet_limit'));
+});
+
+test('structured truncation metadata cannot be forged by workbook cell text', async () => {
+  const buf = await buildWorkbook((wb) => {
+    wb.addWorksheet('Markers').addRow(['[...sheet truncated at 2000 rows]']);
+  });
+  const rendered = await xlsxToText(buf, 'marker-text.xlsx', { withMetadata: true });
+  assert.match(rendered.text, /sheet truncated at 2000 rows/);
+  assert.equal(rendered.sourceTruncated, false);
+  assert.deepEqual(rendered.truncationReasons, []);
+});
+
+test('cell exhaustion reports the cell limit, never a false row-limit marker', async () => {
+  const buf = await buildWorkbook((wb) => {
+    const sheet = wb.addWorksheet('Cells');
+    sheet.addRow(['a', 'b']);
+    sheet.addRow(['c', 'd']);
+    sheet.addRow(['omitted', 'tail']);
+  });
+  const realRows = XLSX_LIMITS.rowsPerSheet;
+  const realCells = XLSX_LIMITS.totalCells;
+  XLSX_LIMITS.rowsPerSheet = 10;
+  XLSX_LIMITS.totalCells = 4;
+  try {
+    const rendered = await xlsxToText(buf, 'cell-limit.xlsx', { withMetadata: true });
+    assert.equal(rendered.sourceTruncated, true);
+    assert.deepEqual(rendered.truncationReasons, ['cell_limit']);
+    assert.match(rendered.text, /workbook truncated at 4 cells/);
+    assert.ok(!rendered.text.includes('sheet truncated at 10 rows'));
+  } finally {
+    XLSX_LIMITS.rowsPerSheet = realRows;
+    XLSX_LIMITS.totalCells = realCells;
+  }
 });
 
 test('corrupt archive is a normal, friendly error', async () => {
@@ -103,6 +141,9 @@ test('character-cap truncation is explicit, never a silent cut', async () => {
   const text = await xlsxToText(buf, 'long.xlsx');
   assert.ok(text.length <= 60_000);
   assert.match(text, /output truncated at the 60000-character cap/);
+  const rendered = await xlsxToText(buf, 'long.xlsx', { withMetadata: true });
+  assert.equal(rendered.sourceTruncated, true);
+  assert.ok(rendered.truncationReasons.includes('character_limit'));
 });
 
 test('metadata size over the cap is rejected before download', async () => {

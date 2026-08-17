@@ -6,12 +6,28 @@
 // can express anything but a relative path on this origin's own API.
 const API_PATH = /^\/api(?:\/[A-Za-z0-9._~-]+)*\/?(?:\?[A-Za-z0-9._~=&%-]*)?$/;
 
+function hasUnsafePathSegment(candidate) {
+  const pathname = candidate.split('?', 1)[0];
+  return pathname.split('/').some((segment) => {
+    let decoded = segment;
+    // Reject traversal after either one or two decode passes. The second pass
+    // closes the common %252E%252E double-encoding variant; query values are
+    // deliberately not inspected because they cannot change URL path shape.
+    for (let i = 0; i < 2; i += 1) {
+      try { decoded = decodeURIComponent(decoded); } catch { return true; }
+      if (decoded === '.' || decoded === '..' || decoded.includes('/') || decoded.includes('\\')) return true;
+      if (!decoded.includes('%')) break;
+    }
+    return false;
+  });
+}
+
 export async function api(path, opts = {}) {
   // Requests can only ever target this origin's API surface. The path is
   // allowlist-validated (no scheme, host, backslash, or dot segment can pass),
   // then the request URL is rebuilt from a constant prefix.
   const candidate = String(path);
-  if (!API_PATH.test(candidate) || candidate.includes('..')) {
+  if (!API_PATH.test(candidate) || hasUnsafePathSegment(candidate)) {
     throw Object.assign(new Error('invalid API path'), { status: 0 });
   }
   const url = `/api${candidate.slice(4)}`;

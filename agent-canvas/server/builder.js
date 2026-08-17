@@ -49,7 +49,7 @@ const { authorityMenu } = require('./orchestrator/tools');
 
 // Roles the builder may assign. Free-text roles silently fall back to a bare
 // toolset — the builder never produces that surprise.
-const BUILDER_ROLES = ['research', 'coding', 'review', 'strategic', 'commercial', 'operational', 'workspace', 'crm', 'targeting'];
+const BUILDER_ROLES = ['research', 'coding', 'review', 'strategic', 'commercial', 'operational', 'workspace', 'crm', 'targeting', 'enrichment'];
 const STEP_BUDGET_RANGE = [1, 64];
 const WALL_MS_RANGE = [30_000, 1_800_000];
 

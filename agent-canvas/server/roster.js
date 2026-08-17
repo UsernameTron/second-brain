@@ -180,6 +180,33 @@ ESCALATION: escalating is not failure; guessing is. Registry drift — a title o
 DELEGATION / LANES: ranked lists → Darren's lane (commercial). CRM record legwork → Gauge. You score; you do not sell.
 ${CONFIDENTIALITY_GUARD}`;
 
+const ENRICHMENT_PROMPT = `You are Enrichment, the lead-information agent for Cloud Tech Gurus canvases. Your job stated plainly: turn a named person, company, uploaded document, or lead list into useful contact and company information without deciding whether anyone is a hot lead.
+
+MISSION: complete, source-labeled lead intelligence for the people and companies the user asked about — no ICP gate, no silent filtering, and no invented fields.
+
+PRIORITIES (ranked — every action must advance one):
+1. Coverage — preserve every requested record and the user's input order. Report missing records instead of dropping them.
+2. Free before paid — check already-enriched records first; spend enrichment credits only for fields that are still missing.
+3. Provenance — return each useful field with its source and confidence when the tool provides them.
+4. Honest gaps — distinguish unavailable, conflicting, and unverified values. Never fill a blank from intuition.
+
+NO HOT-LEAD GATE:
+- Do not classify, filter, rank, suppress, or discard a person because of an ICP score. Do not call anyone hot, warm, or cold unless the user explicitly asks for qualification.
+- If the user explicitly asks for an ICP score, add it as a separate labeled field; still return every requested record.
+- Discovery-tool scores are retrieval metadata, not a verdict. If a lead-finder tool requires a minimum score, use the lowest accepted value and state the tool's registry version; never substitute Radar's ${HOT_MIN_SCORE} hot-lead cutoff.
+
+OPERATING RULES:
+- For an uploaded list or brief, call read_canvas_files, extract the people and companies requested, and enrich those records. Keep the source document and row or section visible in the result.
+- For a known record key or email, call get_enriched_contact first because it is free. Call enrich_contact or enrich_company only when needed, with the narrowest fields and a maximum of 3 credits per call. Never repeat a paid call for the same identity in one run.
+- For more than 10 new paid enrichments, first state the record count and likely maximum credit use, then stop for confirmation unless the user's instruction explicitly approved the full batch.
+- Return a compact table or list with: input identity, resolved person/company, title, company/domain, email and LinkedIn when available, requested firmographics, source/confidence, and any unresolved fields.
+- Write reusable verified facts to memory with evidence references. Do not write an enrichment result as verified when its own confidence or provenance is missing.
+
+ESCALATION: escalating is not failure; guessing is. Two plausible identity matches, a credit ceiling, or conflicting authoritative values → ask the human with the candidates and the consequence of choosing each.
+
+DELEGATION / LANES: ICP qualification and ranked hot-lead lists → Radar. Commercial outreach judgment → Darren. CRM updates → Gauge through preview and approval. You gather and reconcile lead information; you do not qualify or sell.
+${CONFIDENTIALITY_GUARD}`;
+
 // ---------- the roster, seed order ----------
 const ROSTER_AGENTS = [
   { name: 'Fred', role: 'strategic', color: '#104080', model_tier: 'strong', system_prompt: execPrompt('Fred'), companion_note_key: null, enabled: 1, default_on: 1 },
@@ -191,7 +218,34 @@ const ROSTER_AGENTS = [
   { name: 'Sentinel', role: 'review', color: '#0F8A5F', model_tier: 'strong', system_prompt: SENTINEL_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { name: 'Gauge', role: 'crm', color: '#D96A2B', model_tier: 'fast', system_prompt: GAUGE_PROMPT, companion_note_key: null, enabled: 0, default_on: 0 },
   { name: 'Radar', role: 'targeting', color: '#6B4FBB', model_tier: 'fast', system_prompt: RADAR_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
+  { name: 'Enrichment', role: 'enrichment', color: '#0B7B83', model_tier: 'fast', system_prompt: ENRICHMENT_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
 ];
+
+// seedRoster() is intentionally one-shot. This separately versioned additive
+// seed makes the Enrichment template appear in already-running workspaces
+// without rewriting an owner-created entry with the same name.
+const ENRICHMENT_ROSTER_KEY = 'seed_roster_enrichment_v1';
+
+function seedEnrichmentAgent() {
+  if (getSetting(ENRICHMENT_ROSTER_KEY)) return { inserted: 0 };
+  const entry = ROSTER_AGENTS.find((item) => item.name === 'Enrichment');
+  const existing = db.prepare('SELECT id FROM roster_agents WHERE name = ?').get(entry.name);
+  let inserted = 0;
+  const ts = nowIso();
+  tx(() => {
+    if (!existing) {
+      const sort = db.prepare('SELECT COALESCE(MAX(sort), 0) + 1 AS n FROM roster_agents').get().n;
+      db.prepare(
+        'INSERT INTO roster_agents (id, name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(crypto.randomUUID(), entry.name, entry.role, entry.color, entry.model_tier, entry.system_prompt,
+        entry.companion_note_key, entry.enabled, entry.default_on, sort, ts, ts);
+      inserted = 1;
+    }
+    setSetting(ENRICHMENT_ROSTER_KEY, ts);
+  });
+  if (inserted) audit('system', 'seed', 'workspace.seed_enrichment_agent', { name: entry.name, role: entry.role });
+  return { inserted };
+}
 
 // ---------- seeding (idempotent, versioned settings-key guard) ----------
 function seedRoster() {
@@ -327,8 +381,80 @@ function supersedeStaleIcpMemory(ownerEmail) {
 const LEGACY_ROSTER_PROMPTS = require('./config/legacy-roster-prompts.json').prompts;
 const RESEED_KEY = 'seed_roster_prompts_v6'; // v6: remove demo change-set/note dependencies; registry is a tool
 
+// Companion notes were generated from exact committed templates before v6.
+// Their rows have no provenance column, so the migration uses a deliberately
+// narrow signature: title + byte-exact content + original pin state, and only
+// version 1 rows on a canvas staffed from the corresponding legacy templates.
+// A title-only match would erase user work; a version greater than 1 proves a
+// person has edited the note even if they later restored the original text.
+//
+// Hashes were generated from the shipped ROSTER_NOTES templates at:
+//   6953f5b — Synthesis protocol + sr-icp-v5
+//   98f7a5f^ — Synthesis protocol + sr-icp-v6
+// Keep the historical rows (and their content) for export/audit: retirement is
+// a tombstone, never a DELETE.
+const COMPANION_RETIRE_KEY = 'retire_roster_companion_notes_v1';
+const LEGACY_COMPANION_NOTE_SIGNATURES = new Map([
+  ['9bd6ae819695edf8c99c5c8a5b6058d532aac9f384b4719614286ef3105694eb', ['Fred', 'Darren', 'Jess']],
+  ['df7e8859cc6d79a138598b62a47b3c6cc4a59de8f194b75319192c2f65ecc884', ['Radar']],
+  ['813f7b8ff2a8dfadf89d93e01cd86d63762db6e000bff7b8d445472d9992d500', ['Radar']],
+]);
+
+function companionNoteFingerprint(note) {
+  return crypto.createHash('sha256')
+    .update([note.title, note.content, note.pinned ? 1 : 0].join('\0'))
+    .digest('hex');
+}
+
+function retireRosterCompanionNotes(actor = 'seed') {
+  if (getSetting(COMPANION_RETIRE_KEY)) return { retired: 0, rosterKeysCleared: 0, noteIds: [] };
+  const ts = nowIso();
+  const retired = [];
+  let rosterKeysCleared = 0;
+  tx(() => {
+    const candidates = db.prepare(`SELECT id, canvas_id, title, content, pinned, version
+      FROM notes WHERE deleted_at IS NULL AND version = 1`).all();
+    for (const note of candidates) {
+      const legacyHolders = LEGACY_COMPANION_NOTE_SIGNATURES.get(companionNoteFingerprint(note));
+      if (!legacyHolders) continue;
+      // The old instantiator created a note only when a canvas contained an
+      // agent copied from one of the static roster templates that carried it.
+      // Use surviving roster identity, not companion_note_key: the original
+      // buggy v6 migration may already have cleared every key before this
+      // separately versioned repair gets a chance to run.
+      const holderPlaceholders = legacyHolders.map(() => '?').join(', ');
+      const generatedContext = db.prepare(`SELECT 1
+        FROM agents a JOIN roster_agents r ON r.id = a.roster_id
+        WHERE a.canvas_id = ? AND r.name IN (${holderPlaceholders}) LIMIT 1`).get(note.canvas_id, ...legacyHolders);
+      if (!generatedContext) continue;
+      const changed = db.prepare(`UPDATE notes
+        SET pinned = 0, deleted_at = ?, deleted_by = ?, updated_by = ?, updated_at = ?, version = version + 1
+        WHERE id = ? AND deleted_at IS NULL AND version = 1 AND title = ? AND content = ? AND pinned = ?`)
+        .run(ts, actor, actor, ts, note.id, note.title, note.content, note.pinned).changes;
+      if (changed) retired.push({ noteId: note.id, canvasId: note.canvas_id });
+    }
+    rosterKeysCleared = db.prepare(`UPDATE roster_agents
+      SET companion_note_key = NULL, updated_at = ?
+      WHERE companion_note_key IN ('synthesis_protocol', 'icp_registry')`).run(ts).changes;
+    setSetting(COMPANION_RETIRE_KEY, ts);
+    if (retired.length || rosterKeysCleared) {
+      audit('system', actor, 'workspace.roster_companion_notes_retire', {
+        count: retired.length,
+        noteIds: retired.map((item) => item.noteId),
+        canvasIds: [...new Set(retired.map((item) => item.canvasId))],
+        rosterKeysCleared,
+      });
+    }
+  });
+  return { retired: retired.length, rosterKeysCleared, noteIds: retired.map((item) => item.noteId) };
+}
+
 function reseedRosterPrompts() {
-  if (getSetting(RESEED_KEY)) return { updated: 0 };
+  // This has its own key on purpose: a workspace that booted the original v6
+  // migration (which only cleared roster metadata) must still retire the
+  // generated notes on its next upgrade.
+  const companionRetirement = retireRosterCompanionNotes();
+  if (getSetting(RESEED_KEY)) return { updated: 0, retiredCompanionNotes: companionRetirement.retired };
   const updated = [];
   tx(() => {
     for (const entry of ROSTER_AGENTS) {
@@ -336,7 +462,7 @@ function reseedRosterPrompts() {
       if (!prev || prev === entry.system_prompt) continue; // prompt unchanged for this agent
       // Roster row: adopt the new text only if it still holds the old template
       // (a PATCH via Admin → Roster would have changed it — leave that alone).
-      const row = db.prepare('SELECT id, system_prompt, companion_note_key FROM roster_agents WHERE name = ?').get(entry.name);
+      const row = db.prepare('SELECT id, system_prompt FROM roster_agents WHERE name = ?').get(entry.name);
       if (row && row.system_prompt === prev) {
         db.prepare('UPDATE roster_agents SET system_prompt = ?, updated_at = ? WHERE id = ?').run(entry.system_prompt, nowIso(), row.id);
       }
@@ -346,23 +472,18 @@ function reseedRosterPrompts() {
         db.prepare('UPDATE agents SET system_prompt = ? WHERE id = ?').run(entry.system_prompt, agent.id);
         updated.push({ name: entry.name, agentId: agent.id, canvasId: agent.canvas_id });
       }
-      // Companion notes were a demo-era transport for system reference data.
-      // Clear the stored key so old roster rows cannot imply that adding an
-      // agent will create a visible note.
-      if (row && row.companion_note_key) {
-        db.prepare('UPDATE roster_agents SET companion_note_key = NULL, updated_at = ? WHERE id = ?')
-          .run(nowIso(), row.id);
-      }
     }
     setSetting(RESEED_KEY, nowIso());
   });
   if (updated.length) {
     audit('system', 'seed', 'workspace.roster_reseed', { agents: updated.length, names: [...new Set(updated.map((u) => u.name))] });
   }
-  return { updated: updated.length, detail: updated };
+  return { updated: updated.length, detail: updated, retiredCompanionNotes: companionRetirement.retired };
 }
 
 module.exports = {
   ROSTER_AGENTS, ICP, LEGACY_EXEC_PROMPTS, LEGACY_ROSTER_PROMPTS, STALE_ICP_MEMORY, HOT_MIN_SCORE,
-  seedRoster, linkExecAgents, healExecAgents, reseedRosterPrompts, supersedeStaleIcpMemory, instantiateOnCanvas,
+  COMPANION_RETIRE_KEY, LEGACY_COMPANION_NOTE_SIGNATURES, ENRICHMENT_ROSTER_KEY,
+  seedRoster, seedEnrichmentAgent, linkExecAgents, healExecAgents, reseedRosterPrompts, retireRosterCompanionNotes,
+  supersedeStaleIcpMemory, instantiateOnCanvas,
 };

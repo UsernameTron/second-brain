@@ -28,6 +28,12 @@ const { db } = require('../db');
 const PROTOCOL_VERSION = '2025-06-18';
 const NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const OUTPUT_CAP = 30_000;
+// Cache refresh is background maintenance, not part of a connector save. One
+// unreachable server must not leave a refresh running forever; the ordinary
+// tool-call timeout remains longer because an explicitly requested call has a
+// different latency contract.
+const DEFS_REFRESH_TIMEOUT_MS = Math.max(100, Math.min(30_000,
+  Number(process.env.MCP_DEFS_REFRESH_TIMEOUT_MS) || 10_000));
 
 // Connectors are read lanes. The live hubspot-crm connector reaches the REAL
 // portal 243103424, and its read-only-ness rested entirely on the scopes set
@@ -175,6 +181,8 @@ function maskHeaderValue(value) {
   return v.length <= 4 ? '••••' : `••••${v.slice(-4)}`;
 }
 let servers = loadConfig();
+let activeConfigFingerprint = JSON.stringify(servers.filter((srv) => srv.enabledTools.length));
+let configGeneration = 0;
 // configError means ONE thing: the connector config could not be loaded, so
 // nothing is active. Refused write tools are NOT that — the connector loads
 // fine and keeps every read tool — and folding them in here made the systems
@@ -188,7 +196,25 @@ function listServers() {
     headers: Object.fromEntries(Object.entries(srv.headers).map(([k, v]) => [k, maskHeaderValue(v)])),
   }));
 }
-function reload() { servers = loadConfig(); sessions.clear(); toolCache.clear(); }
+function reload() {
+  const next = loadConfig();
+  const nextActiveFingerprint = JSON.stringify(next.filter((srv) => srv.enabledTools.length));
+  const activeConfigChanged = nextActiveFingerprint !== activeConfigFingerprint;
+  servers = next;
+  // A probe/discovery after any edit must not reuse a session or inventory
+  // from the old URL/header configuration, including an inert connector.
+  sessions.clear();
+  toolCache.clear();
+  if (activeConfigChanged) {
+    activeConfigFingerprint = nextActiveFingerprint;
+    configGeneration += 1;
+    // Authorization is fail-closed synchronously: a removed or narrowed tool
+    // disappears before the save response. The replacement inventory is
+    // populated by the serialized background refresh below.
+    clearDefsCache();
+    if (activeRefreshController) activeRefreshController.abort();
+  }
+}
 
 function serverByName(name) {
   return servers.find((srv) => srv.name === name) || null;
@@ -211,7 +237,7 @@ async function parseBody(res) {
 
 const sessions = new Map(); // server name -> session id
 let rpcId = 0;
-async function rpc(srv, method, params, { notify = false } = {}) {
+async function rpc(srv, method, params, { notify = false, signal } = {}) {
   const headers = {
     'content-type': 'application/json',
     accept: 'application/json, text/event-stream',
@@ -234,7 +260,9 @@ async function rpc(srv, method, params, { notify = false } = {}) {
   // A server that accepts the connection and never answers would otherwise
   // pin an agent step forever — the bridge protects its own child process,
   // but nothing protected this hop.
-  const res = await fetch(srv.url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(30_000) });
+  const timeoutSignal = AbortSignal.timeout(30_000);
+  const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+  const res = await fetch(srv.url, { method: 'POST', headers, body: JSON.stringify(body), signal: requestSignal });
   const newSid = res.headers.get('mcp-session-id');
   if (newSid) sessions.set(srv.name, newSid);
   if (notify) return null;
@@ -246,34 +274,40 @@ async function rpc(srv, method, params, { notify = false } = {}) {
   return payload.result;
 }
 
-async function ensureSession(srv) {
+async function ensureSession(srv, { signal } = {}) {
   if (sessions.has(srv.name)) return;
   await rpc(srv, 'initialize', {
     protocolVersion: PROTOCOL_VERSION,
     capabilities: {},
     clientInfo: { name: 'agent-canvas', version: '1.0.0' },
-  });
-  await rpc(srv, 'notifications/initialized', {}, { notify: true }).catch(() => {});
+  }, { signal });
+  await rpc(srv, 'notifications/initialized', {}, { notify: true, signal }).catch(() => {});
 }
 
 const toolCache = new Map(); // server name -> { tools, at }
-async function listTools(srv) {
+async function listTools(srv, { signal } = {}) {
   const cached = toolCache.get(srv.name);
   if (cached && Date.now() - cached.at < 5 * 60_000) return cached.tools;
-  await ensureSession(srv);
-  const result = await rpc(srv, 'tools/list', {});
+  await ensureSession(srv, { signal });
+  const result = await rpc(srv, 'tools/list', {}, { signal });
   const tools = (result?.tools || []).filter((t) => NAME_RE.test(String(t.name || '')));
   toolCache.set(srv.name, { tools, at: Date.now() });
   return tools;
 }
 
 // Agent-facing defs: ONLY owner-enabled tools, namespaced mcp_<server>_<tool>.
-async function enabledToolDefs() {
-  const defs = [];
-  for (const srv of servers) {
-    if (!srv.enabledTools.length) continue;
+async function enabledToolDefs(serverSnapshot = servers, { signal, timeoutMs = DEFS_REFRESH_TIMEOUT_MS } = {}) {
+  // Servers are independent. Discover them in parallel so N unreachable
+  // connectors cost one bounded refresh window, not N sequential windows.
+  // Each server owns its timeout: one hanging connector must not abort the
+  // healthy definitions already returned by another connector.
+  const groups = await Promise.all(serverSnapshot.map(async (srv) => {
+    if (!srv.enabledTools.length) return [];
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
+    const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
     let tools;
-    try { tools = await listTools(srv); } catch { continue; } // unreachable server = no tools, lamp shows it
+    try { tools = await listTools(srv, { signal: requestSignal }); } catch { return []; } // unreachable server = no tools, lamp shows it
+    const defs = [];
     for (const t of tools) {
       if (!srv.enabledTools.includes(t.name)) continue;
       defs.push({
@@ -283,8 +317,9 @@ async function enabledToolDefs() {
         _mcp: { server: srv.name, tool: t.name, access: srv.access, roles: srv.roles },
       });
     }
-  }
-  return defs;
+    return defs;
+  }));
+  return groups.flat();
 }
 
 async function callTool({ server, tool, args, actorEmail }) {
@@ -344,21 +379,68 @@ async function probeServer(name) {
 // tools until it recovers — the lamp on the systems board says why.
 let defsCache = [];
 const defsByName = new Map();
-async function refreshDefs() {
-  try {
-    const defs = await enabledToolDefs();
-    defsCache = defs.map(({ _mcp, ...d }) => d);
-    defsByName.clear();
-    for (const d of defs) defsByName.set(d.name, d._mcp);
-  } catch { /* keep last good snapshot */ }
+let refreshPromise = null;
+let refreshQueued = false;
+let activeRefreshController = null;
+
+function clearDefsCache() {
+  defsCache = [];
+  defsByName.clear();
+}
+
+function publishDefs(defs) {
+  const nextCache = defs.map(({ _mcp, ...d }) => d);
+  const nextByName = new Map(defs.map((d) => [d.name, d._mcp]));
+  // Publish both views together after all discovery completes; synchronous
+  // readers never observe names from two different refresh generations.
+  defsCache = nextCache;
+  defsByName.clear();
+  for (const [name, meta] of nextByName) defsByName.set(name, meta);
+}
+
+async function runRefreshQueue() {
+  while (refreshQueued) {
+    refreshQueued = false;
+    const generation = configGeneration;
+    const snapshot = servers.slice();
+    const controller = new AbortController();
+    activeRefreshController = controller;
+    try {
+      const defs = await enabledToolDefs(snapshot, { signal: controller.signal });
+      // Generation is the authority boundary. A config reload increments it,
+      // so stale discovery can never resurrect removed tools. Connector-local
+      // timeouts may abort their own request signals, but the completed defs
+      // from healthy connectors still belong to this generation and publish.
+      if (generation === configGeneration) publishDefs(defs);
+    } catch { /* keep the current (or synchronously invalidated) snapshot */ }
+    finally {
+      if (activeRefreshController === controller) activeRefreshController = null;
+    }
+  }
+}
+
+function refreshDefs() {
+  // Coalesce bursts to at most the running refresh plus one latest-generation
+  // pass. The returned promise always absorbs transport failures, so callers
+  // may intentionally fire-and-forget without creating unhandled rejections.
+  refreshQueued = true;
+  if (!refreshPromise) {
+    refreshPromise = runRefreshQueue()
+      .catch(() => {})
+      .finally(() => {
+        refreshPromise = null;
+        // A request can arrive after the loop observes false but before this
+        // finally runs. Start its pass rather than stranding the queue.
+        if (refreshQueued) refreshDefs();
+      });
+  }
+  return refreshPromise;
 }
 function getCachedDefs() { return defsCache; }
 function resolveToolName(name) { return defsByName.get(name) || null; }
-if (servers.some((srv) => srv.enabledTools.length)) {
-  refreshDefs();
-  const t = setInterval(refreshDefs, 5 * 60_000);
-  if (t.unref) t.unref();
-}
+if (servers.some((srv) => srv.enabledTools.length)) refreshDefs();
+const refreshTimer = setInterval(refreshDefs, 5 * 60_000);
+if (refreshTimer.unref) refreshTimer.unref();
 
 module.exports = {
   listServers, configError, reload, enabledToolDefs, callTool, probeServer, discoverTools,

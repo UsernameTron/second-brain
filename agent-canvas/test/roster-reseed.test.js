@@ -60,15 +60,100 @@ test('re-seed updates a pristine roster row and its pristine live agents, once',
   assert.equal(roster.reseedRosterPrompts().updated, 0, 'idempotent — the guard blocks a second run');
 });
 
-test('re-seed clears a legacy companion-note key without creating visible notes', () => {
-  db.prepare("UPDATE roster_agents SET system_prompt = ?, companion_note_key = 'icp_registry' WHERE name = 'Radar'").run(OLD);
-  setSetting('seed_roster_prompts_v6', '');
-  const before = db.prepare('SELECT COUNT(*) AS n FROM notes').get().n;
-  roster.reseedRosterPrompts();
-  const radar = db.prepare("SELECT system_prompt, companion_note_key FROM roster_agents WHERE name = 'Radar'").get();
-  assert.equal(radar.system_prompt, NEW, 'the pristine template still migrates');
-  assert.equal(radar.companion_note_key, null, 'legacy note transport metadata is retired');
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM notes').get().n, before, 'no registry note is synthesized');
+test('upgrade tombstones only pristine generated companion notes, even after prompt v6 already ran', () => {
+  const icp = roster.ICP;
+  const title = `ICP registry — ${icp.icp_version}`;
+  const generatedContent = `# ${title}
+Version: ${icp.icp_version} — source of truth: ${icp.source_of_truth} (exported by scripts/export_icp.py, ctg-signal-radar). The lists below are authoritative for scoring; prompts carry only the arithmetic digest. A fresh export is a new commit of the config/icp-sr-icp-<version>.json artifact.
+
+\`\`\`json
+${JSON.stringify(icp, null, 2)}
+\`\`\``;
+  const synthesisContent = `# Synthesis protocol — how the three voices resolve (pinned)
+
+Three voices, three lanes. Not a vote, not a veto.
+- Fred (strategic): positioning, brand, funding posture, AI differentiation
+- Darren (commercial): pipeline, deal tactics, pricing, ICP, commercial-finance (no CFO voice exists)
+- Jess (operational): governance, vendor-neutrality rigor, LOA compliance, feasibility
+
+Tension cases:
+1. Fred vs Darren — Fred holds on brand/positioning; Darren holds on individual-deal tactics. Deal-tactical question → lead with Darren; brand question → lead with Fred.
+2. Fred vs Jess — Fred's direction holds. Jess flags feasibility ON THE RECORD (risk, mitigation cost, failure mode) but does not block.
+3. Darren vs Jess — Jess's governance holds on vendor-neutrality, LOA discipline, commission transparency. Darren wins on ICP and outreach tactics.
+
+Roundtable chain: dispatch the question to Fred → Fred writes his strategic frame to memory, hands off to Darren → Darren adds commercial motion, hands off to Jess → Jess adds governance/feasibility, then writes the synthesis: what, who holds the call (name the case), why each voice aligns or flags. The synthesis is a decision, not a summary. Attribute any overridden voice by name.
+
+Single-lane questions skip the chain: dispatch directly to the right voice.`;
+  const signature = crypto.createHash('sha256').update([title, generatedContent, 0].join('\0')).digest('hex');
+  assert.ok(roster.LEGACY_COMPANION_NOTE_SIGNATURES.has(signature), 'fixture is the exact previously shipped v6 note');
+  const synthesisSignature = crypto.createHash('sha256').update(['Synthesis protocol', synthesisContent, 1].join('\0')).digest('hex');
+  assert.ok(roster.LEGACY_COMPANION_NOTE_SIGNATURES.has(synthesisSignature), 'fixture is the exact pinned protocol note');
+
+  const canvasId = 'c-companion-upgrade';
+  const unrelatedCanvasId = 'c-companion-unrelated';
+  db.prepare("INSERT INTO canvases (id, name, created_at) VALUES (?, 'CompanionUpgrade', ?)").run(canvasId, nowIso());
+  db.prepare("INSERT INTO canvases (id, name, created_at) VALUES (?, 'CompanionUnrelated', ?)").run(unrelatedCanvasId, nowIso());
+  const radar = db.prepare("SELECT id FROM roster_agents WHERE name = 'Radar'").get();
+  const fred = db.prepare("SELECT id FROM roster_agents WHERE name = 'Fred'").get();
+  db.prepare('UPDATE roster_agents SET companion_note_key = NULL').run();
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM roster_agents WHERE companion_note_key IS NOT NULL').get().n, 0,
+    'fixture starts after the buggy v6 migration already cleared every key');
+  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at, roster_id) VALUES (?, ?, 'Radar', 'targeting', '#6B4FBB', 'fast', ?, 0, 0, ?, ?)")
+    .run(crypto.randomUUID(), canvasId, NEW, nowIso(), radar.id);
+  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at, roster_id) VALUES (?, ?, 'Fred', 'strategic', '#104080', 'strong', '', 0, 0, ?, ?)")
+    .run(crypto.randomUUID(), canvasId, nowIso(), fred.id);
+
+  const pristineId = crypto.randomUUID();
+  const pinnedProtocolId = crypto.randomUUID();
+  const editedId = crypto.randomUUID();
+  const versionedId = crypto.randomUUID();
+  const unrelatedId = crypto.randomUUID();
+  const insertNote = db.prepare('INSERT INTO notes (id, canvas_id, title, content, pinned, version, x, y, updated_by, updated_at) VALUES (?, ?, ?, ?, 0, ?, 0, 0, ?, ?)');
+  insertNote.run(pristineId, canvasId, title, generatedContent, 1, 'roster', nowIso());
+  insertNote.run(editedId, canvasId, title, `${generatedContent}\nHuman annotation`, 1, 'pete@example.com', nowIso());
+  insertNote.run(versionedId, canvasId, title, generatedContent, 2, 'pete@example.com', nowIso());
+  insertNote.run(unrelatedId, unrelatedCanvasId, title, generatedContent, 1, 'pete@example.com', nowIso());
+  db.prepare('INSERT INTO notes (id, canvas_id, title, content, pinned, version, x, y, updated_by, updated_at) VALUES (?, ?, ?, ?, 1, 1, 0, 0, ?, ?)')
+    .run(pinnedProtocolId, canvasId, 'Synthesis protocol', synthesisContent, 'roster', nowIso());
+
+  // Simulate an installation that already ran the original PR's prompt v6
+  // migration but not this separately versioned companion cleanup.
+  setSetting('seed_roster_prompts_v6', nowIso());
+  setSetting(roster.COMPANION_RETIRE_KEY, '');
+  const result = roster.reseedRosterPrompts();
+  assert.equal(result.updated, 0, 'prompt migration remains guarded');
+  assert.equal(result.retiredCompanionNotes, 2, 'the independent upgrade retires both exact generated note types');
+
+  const pristine = db.prepare('SELECT * FROM notes WHERE id = ?').get(pristineId);
+  assert.ok(pristine.deleted_at, 'generated note is hidden');
+  assert.equal(pristine.deleted_by, 'seed');
+  assert.equal(pristine.pinned, 0, 'retired context cannot remain injected');
+  assert.equal(pristine.version, 2, 'tombstone is recorded as a versioned transition');
+  assert.equal(pristine.content, generatedContent, 'historical content stays exportable');
+  const pinnedProtocol = db.prepare('SELECT * FROM notes WHERE id = ?').get(pinnedProtocolId);
+  assert.ok(pinnedProtocol.deleted_at, 'the generated synthesis protocol is hidden');
+  assert.equal(pinnedProtocol.pinned, 0, 'the retired protocol can no longer inject into every run');
+  assert.equal(pinnedProtocol.content, synthesisContent, 'protocol history is retained verbatim');
+  for (const id of [editedId, versionedId, unrelatedId]) {
+    assert.equal(db.prepare('SELECT deleted_at FROM notes WHERE id = ?').get(id).deleted_at, null,
+      `${id} is not classified as a pristine generated companion`);
+  }
+  assert.equal(db.prepare('SELECT companion_note_key FROM roster_agents WHERE id = ?').get(radar.id).companion_note_key, null,
+    'legacy transport metadata is cleared');
+
+  const auditRow = db.prepare("SELECT detail FROM audit_log WHERE action = 'workspace.roster_companion_notes_retire' ORDER BY seq DESC LIMIT 1").get();
+  const detail = JSON.parse(auditRow.detail);
+  assert.equal(detail.count, 2);
+  assert.deepEqual([...detail.noteIds].sort(), [pristineId, pinnedProtocolId].sort());
+  assert.equal(detail.rosterKeysCleared, 0, 'repair did not depend on still-present companion metadata');
+  assert.ok(!auditRow.detail.includes('Version:'), 'audit records ids and counts, never note content');
+
+  const versionAfterFirstRun = pristine.version;
+  assert.equal(roster.reseedRosterPrompts().retiredCompanionNotes, 0, 'separate migration guard is idempotent');
+  assert.equal(db.prepare('SELECT version FROM notes WHERE id = ?').get(pristineId).version, versionAfterFirstRun,
+    'rerun does not mutate history twice');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'workspace.roster_companion_notes_retire'").get().n, 1,
+    'rerun emits no duplicate audit event');
 });
 
 test('re-seed does NOT touch a hand-edited roster row', () => {

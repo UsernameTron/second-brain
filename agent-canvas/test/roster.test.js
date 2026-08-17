@@ -53,20 +53,32 @@ test.before(async () => {
 
 test.after(() => new Promise((resolve) => server.close(resolve)));
 
-test('roster seeds exactly once with 9 entries in order', () => {
+test('roster seeds exactly once with 10 entries in order', () => {
   assert.ok(getSetting('seed_roster_v1'), 'seed guard key set');
   const rows = db.prepare('SELECT * FROM roster_agents ORDER BY sort').all();
-  assert.equal(rows.length, 9);
+  assert.equal(rows.length, 10);
   assert.deepEqual(rows.map((r) => r.name),
-    ['Fred', 'Darren', 'Jess', 'Atlas', 'Scout', 'Forge', 'Sentinel', 'Gauge', 'Radar']);
+    ['Fred', 'Darren', 'Jess', 'Atlas', 'Scout', 'Forge', 'Sentinel', 'Gauge', 'Radar', 'Enrichment']);
   const again = roster.seedRoster();
   assert.equal(again.seeded, false, 'second call must be a no-op');
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM roster_agents').get().n, 9);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM roster_agents').get().n, 10);
   // The proven exec set is pre-checked for new canvases; nothing else is.
   assert.deepEqual(rows.filter((r) => r.default_on).map((r) => r.name), ['Fred', 'Darren', 'Jess', 'Atlas']);
   // Gauge ships disabled until the owner turns it on.
   const gauge = rows.find((r) => r.name === 'Gauge');
   assert.equal(gauge.enabled, 0);
+});
+
+test('the additive Enrichment seed upgrades an existing roster without overwriting user content', () => {
+  db.prepare("DELETE FROM settings WHERE key = ?").run(roster.ENRICHMENT_ROSTER_KEY);
+  db.prepare("DELETE FROM roster_agents WHERE name = 'Enrichment'").run();
+  const result = roster.seedEnrichmentAgent();
+  assert.equal(result.inserted, 1);
+  const entry = db.prepare("SELECT * FROM roster_agents WHERE name = 'Enrichment'").get();
+  assert.equal(entry.role, 'enrichment');
+  assert.equal(entry.enabled, 1);
+  assert.match(entry.system_prompt, /without deciding whether anyone is a hot lead/i);
+  assert.equal(roster.seedEnrichmentAgent().inserted, 0, 'the versioned migration is idempotent');
 });
 
 test('fresh boot creates no demo canvas or other product content', () => {
@@ -75,8 +87,8 @@ test('fresh boot creates no demo canvas or other product content', () => {
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM agents').get().n, 0);
 });
 
-test('every roster prompt carries the guard; no excluded vendor is ever named; Radar is version-stamped', () => {
-  const rows = db.prepare('SELECT name, system_prompt FROM roster_agents').all();
+test('every roster prompt carries the guard; Radar qualifies while Enrichment preserves every requested lead', () => {
+  const rows = db.prepare('SELECT name, role, system_prompt FROM roster_agents').all();
   for (const row of rows) {
     assert.match(row.system_prompt, /CONFIDENTIALITY RULE/, `${row.name} must carry the confidentiality guard`);
     for (const domain of ICP_FILE.excluded_vendor_domains) {
@@ -102,6 +114,13 @@ test('every roster prompt carries the guard; no excluded vendor is ever named; R
   // job outlives the run — the two defects behind the $0.92 burn.
   assert.match(radar.system_prompt, /After TWO waits, STOP/i, 'polling is bounded');
   assert.match(radar.system_prompt, /outcome "incomplete"/, 'an unfinished search is filed incomplete, never as done');
+
+  const enrichment = rows.find((r) => r.name === 'Enrichment');
+  assert.equal(enrichment.role, 'enrichment');
+  assert.match(enrichment.system_prompt, /preserve every requested record/i);
+  assert.match(enrichment.system_prompt, /Do not classify, filter, rank, suppress, or discard/i);
+  assert.match(enrichment.system_prompt, /do not qualify or sell/i);
+  assert.ok(!enrichment.system_prompt.includes('HOT LEADS ONLY (what you return)'), 'Enrichment never inherits Radar\'s output gate');
 });
 
 test('the ICP source of truth is the committed read_registry surface, not a canvas note', () => {
@@ -115,10 +134,10 @@ test('the ICP source of truth is the committed read_registry surface, not a canv
 test('GET /api/roster: members see enabled only; owner sees all', async () => {
   const asMember = await call('GET', '/api/roster', memberCookie);
   assert.equal(asMember.status, 200);
-  assert.equal(asMember.data.roster.length, 8, 'disabled Gauge hidden from members');
+  assert.equal(asMember.data.roster.length, 9, 'disabled Gauge hidden from members');
   assert.ok(!asMember.data.roster.some((r) => r.name === 'Gauge'));
   const asOwner = await call('GET', '/api/roster', ownerCookie);
-  assert.equal(asOwner.data.roster.length, 9, 'owner sees disabled entries too');
+  assert.equal(asOwner.data.roster.length, 10, 'owner sees disabled entries too');
 });
 
 test('roster mutation is owner-only', async () => {

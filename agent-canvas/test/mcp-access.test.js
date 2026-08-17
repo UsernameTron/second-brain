@@ -13,6 +13,7 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-mcpac
 process.env.DEV_AUTH = '1';
 process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
 process.env.TEST_MCP_SECRET = 'sk-test-9876';
+process.env.MCP_DEFS_REFRESH_TIMEOUT_MS = '100';
 delete process.env.MCP_SERVERS; // force the DB path
 
 const { server } = require('../server/index'); // boots + seeds (incl. seed_mcp_v1)
@@ -58,9 +59,54 @@ const mock = http.createServer((req, res) => {
   });
 });
 
+// A connector whose first initialize never answers. The save-race test uses
+// this gate to prove the HTTP mutation has completed before discovery can, then
+// changes the connector generation and lets the serialized replacement pass
+// answer normally.
+let slowInitializeCount = 0;
+let resolveFirstSlowInitialize;
+let resolveFirstSlowClose;
+const firstSlowInitialize = new Promise((resolve) => { resolveFirstSlowInitialize = resolve; });
+const firstSlowClose = new Promise((resolve) => { resolveFirstSlowClose = resolve; });
+const slowMock = http.createServer((req, res) => {
+  res.setHeader('content-type', 'application/json');
+  let body = '';
+  req.on('data', (c) => { body += c; });
+  req.on('end', () => {
+    const rpc = JSON.parse(body);
+    if (rpc.method === 'initialize') {
+      slowInitializeCount += 1;
+      if (slowInitializeCount === 1) {
+        resolveFirstSlowInitialize();
+        res.on('close', resolveFirstSlowClose);
+        return; // held until reload aborts the stale refresh generation
+      }
+    }
+    const result = rpc.method === 'initialize' ? { capabilities: {} }
+      : rpc.method === 'tools/list' ? { tools: [{ name: 'search', description: 'latest search', inputSchema: { type: 'object', properties: {} } }] }
+      : { content: [{ type: 'text', text: 'ok' }] };
+    res.end(JSON.stringify(rpc.id === undefined ? {} : { jsonrpc: '2.0', id: rpc.id, result }));
+  });
+});
+
+// A permanently hanging connector used to prove that definition discovery is
+// isolated per server. Its request is closed by the per-connector timeout.
+const hangingMock = http.createServer((req) => {
+  req.resume();
+});
+
+function within(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(label)), ms);
+    promise.then((value) => { clearTimeout(timer); resolve(value); }, (err) => { clearTimeout(timer); reject(err); });
+  });
+}
+
 test.before(async () => {
   await new Promise((resolve) => server.listen(0, resolve));
   await new Promise((resolve) => mock.listen(0, resolve));
+  await new Promise((resolve) => slowMock.listen(0, resolve));
+  await new Promise((resolve) => hangingMock.listen(0, resolve));
   base = `http://127.0.0.1:${server.address().port}`;
   ownerCookie = await signIn('pete@cloudtechgurus.com');
   memberCookie = await signIn('fred@cloudtechgurus.com');
@@ -68,6 +114,8 @@ test.before(async () => {
 test.after(() => Promise.all([
   new Promise((resolve) => server.close(resolve)),
   new Promise((resolve) => mock.close(resolve)),
+  new Promise((resolve) => slowMock.close(resolve)),
+  new Promise((resolve) => hangingMock.close(resolve)),
 ]));
 
 test('seed: LinkedIn + lead-finder connectors present, tools EMPTY, idempotent', () => {
@@ -136,6 +184,40 @@ test('header resolution: \${ENV:NAME} resolves per request; requests carry all h
   assert.ok(defs.some((d) => d.name === 'mcp_mock_search'), 'enabled tool becomes an agent def');
 });
 
+test('one timed-out connector does not hide definitions from reachable connectors', async () => {
+  const common = { headers: {}, enabledTools: ['search'], access: 'members', roles: [] };
+  const defs = await within(mcp.enabledToolDefs([
+    { ...common, name: 'reachable', url: `http://127.0.0.1:${mock.address().port}/mcp` },
+    { ...common, name: 'hanging', url: `http://127.0.0.1:${hangingMock.address().port}/mcp` },
+  ], { timeoutMs: 100 }), 1000, 'per-connector refresh did not finish inside its bound');
+  assert.deepEqual(defs.map((item) => item.name), ['mcp_reachable_search']);
+});
+
+test('background refresh publishes reachable definitions when another connector times out', async () => {
+  const ts = nowIso();
+  const enabledBefore = db.prepare('SELECT id, enabled FROM mcp_servers').all();
+  db.prepare("UPDATE mcp_servers SET enabled = 0").run();
+  db.prepare(`INSERT INTO mcp_servers
+    (id, name, url, headers_json, enabled_tools_json, access, roles_json, enabled, created_at, updated_at)
+    VALUES ('refresh-reachable', 'refresh-reachable', ?, '{}', '[\"search\"]', 'members', '[]', 1, ?, ?)`)
+    .run(`http://127.0.0.1:${mock.address().port}/mcp`, ts, ts);
+  db.prepare(`INSERT INTO mcp_servers
+    (id, name, url, headers_json, enabled_tools_json, access, roles_json, enabled, created_at, updated_at)
+    VALUES ('refresh-hanging', 'refresh-hanging', ?, '{}', '[\"search\"]', 'members', '[]', 1, ?, ?)`)
+    .run(`http://127.0.0.1:${hangingMock.address().port}/mcp`, ts, ts);
+  mcp.reload();
+
+  await within(mcp.refreshDefs(), 1000, 'background refresh exceeded its per-connector bound');
+  assert.ok(mcp.getCachedDefs().some((item) => item.name === 'mcp_refresh_reachable_search'),
+    'healthy connector remains available when its peer times out');
+
+  db.prepare("DELETE FROM mcp_servers WHERE id IN ('refresh-reachable', 'refresh-hanging')").run();
+  const restoreEnabled = db.prepare('UPDATE mcp_servers SET enabled = ? WHERE id = ?');
+  for (const row of enabledBefore) restoreEnabled.run(row.enabled, row.id);
+  mcp.reload();
+  await mcp.refreshDefs();
+});
+
 test('def filtering: owner-only connectors and role scoping', async () => {
   // 'intel' (owner-only) has enabledTools ['search'] but its host is fake —
   // its defs never load. Use metadata via resolveToolName on the mock instead:
@@ -151,6 +233,22 @@ test('def filtering: owner-only connectors and role scoping', async () => {
   assert.ok(!asOwnerStrategic.includes('mcp_mock_search'), 'role scope excludes non-listed agent roles');
   const defaultCall = toolsForRole('research').map((t) => t.name);
   assert.ok(!defaultCall.includes('mcp_mock_search'), 'no userRole = least privilege (member)');
+
+  db.prepare("UPDATE mcp_servers SET roles_json = ? WHERE name = 'mock'").run(JSON.stringify(['targeting']));
+  mcp.reload();
+  await mcp.refreshDefs();
+  const asOwnerEnrichment = toolsForRole('enrichment', { userRole: 'owner' }).map((t) => t.name);
+  assert.ok(asOwnerEnrichment.includes('mcp_mock_search'), 'Enrichment inherits Radar targeting connectors');
+  const researchAfterRetarget = toolsForRole('research', { userRole: 'owner' }).map((t) => t.name);
+  assert.ok(!researchAfterRetarget.includes('mcp_mock_search'), 'the Radar connector does not leak to unrelated roles');
+
+  db.prepare("UPDATE mcp_servers SET roles_json = ? WHERE name = 'mock'").run(JSON.stringify(['enrichment']));
+  mcp.reload();
+  await mcp.refreshDefs();
+  const directlyScopedEnrichment = toolsForRole('enrichment', { userRole: 'owner' }).map((t) => t.name);
+  assert.ok(directlyScopedEnrichment.includes('mcp_mock_search'), 'Enrichment also honors connectors scoped directly to its first-class role');
+  const targetingAfterDirectScope = toolsForRole('targeting', { userRole: 'owner' }).map((t) => t.name);
+  assert.ok(!targetingAfterDirectScope.includes('mcp_mock_search'), 'an Enrichment-only connector does not leak back to Radar');
 });
 
 test('management routes are owner-only; probe returns tool inventory; mutation reloads', async () => {
@@ -174,6 +272,37 @@ test('management routes are owner-only; probe returns tool inventory; mutation r
   assert.equal(db.prepare("SELECT access FROM mcp_servers WHERE id = ?").get(mockRow.id).access, 'members');
   const audits = db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'mcp.server_update'").get();
   assert.ok(audits.n >= 1, 'mutations audited');
+});
+
+test('connector saves return before unreachable discovery and latest serialized refresh wins', async () => {
+  // Remove the intentionally fake internet host from this timing test and
+  // establish one known cached def that reload must invalidate synchronously.
+  db.prepare("UPDATE mcp_servers SET enabled = 0 WHERE name = 'intel'").run();
+  db.prepare("UPDATE mcp_servers SET access = 'members', roles_json = '[]', enabled_tools_json = '[\"search\"]', enabled = 1 WHERE name = 'mock'").run();
+  mcp.reload();
+  await mcp.refreshDefs();
+  assert.equal(mcp.resolveToolName('mcp_mock_search').access, 'members', 'precondition: old snapshot is populated');
+
+  const port = slowMock.address().port;
+  const savePromise = call('POST', '/api/mcp/servers', ownerCookie, {
+    name: 'slow-save', url: `http://127.0.0.1:${port}/mcp`, enabledTools: ['search'], access: 'members', roles: [],
+  });
+  await within(firstSlowInitialize, 1000, 'background discovery never reached the slow connector');
+  const saved = await within(savePromise, 500, 'connector save waited for an unreachable MCP handshake');
+  assert.equal(saved.status, 200, 'persisted connector is reported as saved immediately');
+  assert.equal(mcp.resolveToolName('mcp_mock_search'), null,
+    'reload fail-closes old defs before the background replacement is ready');
+
+  const patched = await within(call('PATCH', `/api/mcp/servers/${saved.data.id}`, ownerCookie, { access: 'owner' }), 500,
+    'connector update waited for the stale MCP handshake');
+  assert.equal(patched.status, 200);
+  await within(firstSlowClose, 1000, 'new generation did not abort the stale refresh');
+  await within(mcp.refreshDefs(), 2000, 'latest connector generation did not refresh');
+
+  const latest = mcp.resolveToolName('mcp_slow_save_search');
+  assert.ok(latest, 'reachable replacement pass publishes the enabled tool');
+  assert.equal(latest.access, 'owner', 'stale members-generation metadata never wins the refresh race');
+  assert.equal(slowInitializeCount, 2, 'refresh cycles are serialized and the coalesced latest generation runs once');
 });
 
 test('call-time re-check refuses a member on an owner-only connector even with a leaked def', async () => {
