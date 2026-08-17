@@ -59,6 +59,8 @@ test('roster seeds exactly once with 10 entries in order', () => {
   assert.equal(rows.length, 10);
   assert.deepEqual(rows.map((r) => r.name),
     ['Fred', 'Darren', 'Jess', 'Atlas', 'Scout', 'Forge', 'Sentinel', 'Gauge', 'Radar', 'Enrichment']);
+  assert.deepEqual(rows.map((r) => r.template_key),
+    ['fred', 'darren', 'jess', 'atlas', 'scout', 'forge', 'sentinel', 'gauge', 'radar', 'enrichment']);
   const again = roster.seedRoster();
   assert.equal(again.seeded, false, 'second call must be a no-op');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM roster_agents').get().n, 10);
@@ -67,6 +69,22 @@ test('roster seeds exactly once with 10 entries in order', () => {
   // Gauge ships disabled until the owner turns it on.
   const gauge = rows.find((r) => r.name === 'Gauge');
   assert.equal(gauge.enabled, 0);
+});
+
+test('built-in template identity survives a rename and ignores a duplicate display name', () => {
+  const builtIn = db.prepare("SELECT id, system_prompt FROM roster_agents WHERE template_key = 'darren'").get();
+  db.prepare("UPDATE roster_agents SET template_key = NULL, name = 'Commercial lead' WHERE id = ?").run(builtIn.id);
+  const duplicateId = 'duplicate-commercial-name';
+  db.prepare(`INSERT INTO roster_agents
+    (id, name, role, color, model_tier, system_prompt, enabled, default_on, sort, created_at, updated_at)
+    VALUES (?, 'Commercial lead', 'research', '#2080D0', 'fast', 'custom', 1, 0, 99, datetime('now'), datetime('now'))`).run(duplicateId);
+
+  assert.equal(roster.backfillRosterTemplateKeys().updated, 1);
+  assert.equal(db.prepare('SELECT template_key FROM roster_agents WHERE id = ?').get(builtIn.id).template_key, 'darren');
+  assert.equal(db.prepare('SELECT template_key FROM roster_agents WHERE id = ?').get(duplicateId).template_key, null);
+
+  db.prepare('DELETE FROM roster_agents WHERE id = ?').run(duplicateId);
+  db.prepare("UPDATE roster_agents SET name = 'Darren' WHERE id = ?").run(builtIn.id);
 });
 
 test('the additive Enrichment seed upgrades an existing roster without overwriting user content', () => {
@@ -149,6 +167,10 @@ test('roster mutation is owner-only', async () => {
   const patched = await call('PATCH', `/api/roster/${created.data.entry.id}`, ownerCookie, { enabled: false, sort: 99 });
   assert.equal(patched.status, 200);
   assert.equal(patched.data.entry.enabled, 0);
+  const builtIn = db.prepare("SELECT id FROM roster_agents WHERE template_key = 'darren'").get();
+  const renamed = await call('PATCH', `/api/roster/${builtIn.id}`, ownerCookie, { name: 'Commercial lead', template_key: 'hijacked' });
+  assert.equal(renamed.data.entry.template_key, 'darren', 'the stable team-template key is not owner-editable');
+  await call('PATCH', `/api/roster/${builtIn.id}`, ownerCookie, { name: 'Darren' });
 });
 
 let canvasId;

@@ -15,6 +15,7 @@ import NeedsYouView from './NeedsYouView.jsx';
 import AdminModal from './AdminModal.jsx';
 import AddAgentModal from './AddAgentModal.jsx';
 import CapabilitiesModal from './CapabilitiesModal.jsx';
+import { TEAM_TEMPLATES, rosterIdsForTeam, teamIdForRosterSelection } from './teamTemplates.js';
 
 let liveSeq = 0;
 
@@ -53,6 +54,20 @@ export default function Workspace() {
   const [newCanvasName, setNewCanvasName] = useState('');
   const [roster, setRoster] = useState([]);
   const [rosterChecked, setRosterChecked] = useState(null); // null until roster loads
+  const enabledRoster = useMemo(() => roster.filter((entry) => entry.enabled), [roster]);
+  const availableTeams = useMemo(
+    () => TEAM_TEMPLATES.filter((team) => rosterIdsForTeam(team.id, roster).length > 0),
+    [roster],
+  );
+  const selectedTeamId = useMemo(
+    () => teamIdForRosterSelection(rosterChecked, roster),
+    [roster, rosterChecked],
+  );
+  const selectedTeam = availableTeams.find((team) => team.id === selectedTeamId);
+  const selectedRosterMembers = useMemo(
+    () => enabledRoster.filter((entry) => rosterChecked && rosterChecked.has(entry.id)),
+    [enabledRoster, rosterChecked],
+  );
   const [addAgentOpen, setAddAgentOpen] = useState(false);
   const [addPersonOpen, setAddPersonOpen] = useState(false);
   const [newPersonEmail, setNewPersonEmail] = useState('');
@@ -393,6 +408,10 @@ export default function Workspace() {
       case 'agent_status':
         setState((s) => s && ({ ...s, agents: s.agents.map((a) => (a.id === ev.agentId ? { ...a, status: ev.status } : a)) }));
         break;
+      case 'agent_removed':
+        setState((s) => s && ({ ...s, agents: (s.agents || []).filter((a) => a.id !== ev.agentId) }));
+        setPanel((current) => (current?.type === 'agent' && current.id === ev.agentId ? null : current));
+        break;
       case 'run_status':
         setRunTick((t) => t + 1);
         setState((s) => {
@@ -700,6 +719,21 @@ export default function Workspace() {
     }
   }, [state?.access, toast]);
 
+  const removeAgent = useCallback(async (agent) => {
+    if (!agent || state?.access === 'view' || !canvasIdRef.current) return false;
+    const cid = canvasIdRef.current;
+    try {
+      await api(`/api/canvases/${cid}/agents/${agent.id}`, { method: 'DELETE' });
+      setState((s) => (s?.canvas?.id === cid ? { ...s, agents: (s.agents || []).filter((a) => a.id !== agent.id) } : s));
+      setPanel((current) => (current?.type === 'agent' && current.id === agent.id ? null : current));
+      toast(`${agent.name} removed from this canvas. History was retained.`, 'ok');
+      return true;
+    } catch (e) {
+      toast(e.message);
+      return false;
+    }
+  }, [state?.access, toast]);
+
   const uploadFile = useCallback(async (event) => {
     const input = event.currentTarget;
     const file = input.files && input.files[0];
@@ -975,6 +1009,7 @@ export default function Workspace() {
             try { await dispatchToAgent(panel.id, instruction); toast(`Sent to ${agentsById[panel.id].name}`, 'ok'); }
             catch (e) { toast(e.message); }
           }}
+          onRemove={state.access !== 'view' ? removeAgent : null}
           fetchRunEvents={fetchRunEvents}
           fetchRunReceipt={fetchRunReceipt}
           onFeedback={async (runId, verdict, note) => {
@@ -1049,15 +1084,24 @@ export default function Workspace() {
           <span className="brand-glyph" />
           Agent&nbsp;Canvas
         </div>
-        <select
-          className="canvas-switch"
-          value={canvasId || ''}
-          onChange={(e) => setCanvasId(e.target.value)}
-          title="Switch canvas"
-        >
-          {canvases.length === 0 ? <option value="">no canvases</option> : null}
-          {canvases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        {canvases.length > 1 ? (
+          <label className="canvas-switch-wrap">
+            <span>Canvas</span>
+            <select
+              className="canvas-switch"
+              value={canvasId || ''}
+              onChange={(e) => setCanvasId(e.target.value)}
+              aria-label="Switch canvas"
+            >
+              {canvases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+        ) : canvases.length === 1 ? (
+          <span className="canvas-current" aria-label={`Current canvas: ${canvases[0].name}`}>
+            <span>Canvas</span>
+            <strong>{canvases[0].name}</strong>
+          </span>
+        ) : null}
         {newCanvasOpen ? (
           <div className="canvas-new-pop">
             <input
@@ -1071,34 +1115,66 @@ export default function Workspace() {
                 if (e.key === 'Escape') { setNewCanvasOpen(false); setNewCanvasName(''); }
               }}
             />
-            {roster.filter((r) => r.enabled).length ? (
-              <div className="canvas-new-roster">
-                <span className="dim">Staff from the roster:</span>
-                {roster.filter((r) => r.enabled).map((r) => (
-                  <label key={r.id} className="roster-check">
-                    <input
-                      type="checkbox"
-                      checked={rosterChecked ? rosterChecked.has(r.id) : false}
-                      onChange={() => setRosterChecked((prev) => {
-                        const next = new Set(prev || []);
-                        if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
-                        return next;
-                      })}
-                    />
-                    <span className="roster-dot" style={{ background: r.color }} />
-                    {r.name} <span className="dim">{r.role === 'enrichment' ? 'lead information' : r.role}</span>
-                  </label>
-                ))}
-              </div>
+            {enabledRoster.length ? (
+              <fieldset className="canvas-team-picker">
+                <legend className="canvas-team-label">Choose a starting team</legend>
+                <div className="canvas-team-options">
+                  {availableTeams.map((team) => (
+                    <button
+                      key={team.id}
+                      type="button"
+                      className={`canvas-team-option ${selectedTeamId === team.id ? 'selected' : ''}`}
+                      aria-pressed={selectedTeamId === team.id}
+                      onClick={() => setRosterChecked(new Set(rosterIdsForTeam(team.id, roster)))}
+                    >
+                      <strong>{team.name}</strong>
+                      <span>{team.description}</span>
+                    </button>
+                  ))}
+                </div>
+                {!selectedTeam ? <p className="canvas-team-description">Custom team selected.</p> : null}
+                <div className="canvas-team-members" aria-live="polite">
+                  {selectedRosterMembers.map((entry) => (
+                    <span className="canvas-team-member" key={entry.id}>
+                      <span className="roster-dot" style={{ background: entry.color }} />
+                      {entry.name}
+                    </span>
+                  ))}
+                  {selectedRosterMembers.length === 0 ? <span className="dim">No agents selected</span> : null}
+                </div>
+                <details className="canvas-team-customize">
+                  <summary>Customize agents ({selectedRosterMembers.length})</summary>
+                  <div className="canvas-new-roster">
+                    {enabledRoster.map((r) => (
+                      <label key={r.id} className="roster-check">
+                        <input
+                          type="checkbox"
+                          checked={rosterChecked ? rosterChecked.has(r.id) : false}
+                          onChange={() => setRosterChecked((prev) => {
+                            const next = new Set(prev || []);
+                            if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
+                            return next;
+                          })}
+                        />
+                        <span className="roster-dot" style={{ background: r.color }} />
+                        {r.name} <span className="dim">{r.role === 'enrichment' ? 'lead information' : r.role}</span>
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              </fieldset>
             ) : null}
             <div className="canvas-new-actions">
               <button className="btn ghost small" onClick={() => { setNewCanvasOpen(false); setNewCanvasName(''); }}>Cancel</button>
               <button className="btn primary small" disabled={!newCanvasName.trim()} onClick={createCanvas}>Create</button>
             </div>
           </div>
-        ) : (
-          <button className="icon-btn" title="New canvas" onClick={() => setNewCanvasOpen(true)}>+</button>
-        )}
+        ) : null}
+        <button
+          className="btn ghost small new-canvas-btn"
+          aria-expanded={newCanvasOpen}
+          onClick={() => setNewCanvasOpen(true)}
+        >New canvas</button>
         {canvasId && state && state.access !== 'view' ? (
           <button className="icon-btn agent-add-btn" title="Add an agent to this canvas" onClick={() => setAddAgentOpen(true)}>+ Agent</button>
         ) : null}

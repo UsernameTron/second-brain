@@ -870,8 +870,51 @@ router.post('/canvases/:canvasId/agents', auth.requireCanvas, (req, res) => {
   res.json({ agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(id) });
 });
 
-router.patch('/canvases/:canvasId/agents/:agentId', auth.requireCanvas, (req, res) => {
+// Removing an agent is a recoverable retirement, never a row delete. Historical
+// runs, memory authorship, handoffs, versions, and audit lineage keep their
+// agent id; every active read path already filters lifecycle='active'.
+router.delete('/canvases/:canvasId/agents/:agentId', auth.requireCanvas, (req, res) => {
   const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND canvas_id = ?').get(req.params.agentId, req.params.canvasId);
+  if (!agent) return res.status(404).json({ error: 'agent not found' });
+  if (agent.lifecycle === 'retired') {
+    return res.json({ ok: true, alreadyRemoved: true, agent });
+  }
+  if (agent.lifecycle !== 'active') return res.status(409).json({ error: 'only an active agent can be removed from a canvas' });
+
+  const linkedRules = db.prepare(`SELECT COUNT(*) AS n FROM standing_rules
+    WHERE canvas_id = ? AND agent_id = ? AND state NOT IN ('revoked', 'expired')`)
+    .get(agent.canvas_id, agent.id).n;
+  if (linkedRules > 0) {
+    return res.status(409).json({
+      error: `${agent.name} is still assigned to ${linkedRules} standing ${linkedRules === 1 ? 'rule' : 'rules'}. Revoke or reassign ${linkedRules === 1 ? 'it' : 'them'} before removing this agent.`,
+    });
+  }
+
+  const queued = db.prepare("SELECT id FROM runs WHERE agent_id = ? AND canvas_id = ? AND status = 'queued'").all(agent.id, agent.canvas_id);
+  const running = db.prepare("SELECT id FROM runs WHERE agent_id = ? AND canvas_id = ? AND status = 'running'").all(agent.id, agent.canvas_id);
+  const retiredAt = nowIso();
+  tx(() => {
+    db.prepare("UPDATE agents SET lifecycle = 'retired', status = 'idle', retired_at = ?, retired_by = ? WHERE id = ? AND lifecycle = 'active'")
+      .run(retiredAt, req.user.email, agent.id);
+    db.prepare("UPDATE runs SET status = 'failed', error = 'agent removed from canvas', ended_at = ? WHERE agent_id = ? AND canvas_id = ? AND status IN ('queued', 'running')")
+      .run(retiredAt, agent.id, agent.canvas_id);
+    audit('user', req.user.email, 'agent.remove', {
+      agentId: agent.id,
+      canvasId: agent.canvas_id,
+      name: agent.name,
+      queuedRunsStopped: queued.length,
+      runningRunsStopped: running.length,
+    });
+  });
+  for (const run of running) control.abortRun(run.id, 'agent removed from canvas');
+  const retired = db.prepare('SELECT * FROM agents WHERE id = ?').get(agent.id);
+  bus.emit('event', { type: 'agent_removed', canvasId: agent.canvas_id, agentId: agent.id, by: req.user.email });
+  bus.emit('event', { type: 'canvas_structure', canvasId: agent.canvas_id });
+  res.json({ ok: true, agent: retired, stopped: { queued: queued.length, running: running.length } });
+});
+
+router.patch('/canvases/:canvasId/agents/:agentId', auth.requireCanvas, (req, res) => {
+  const agent = db.prepare("SELECT * FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(req.params.agentId, req.params.canvasId);
   if (!agent) return res.status(404).json({ error: 'agent not found' });
   const { x, y, system_prompt, model_tier, name, color } = req.body;
   // Finding 11 (both halves): a system-prompt rewrite changes what an agent
@@ -922,7 +965,7 @@ router.get('/canvases/:canvasId/agents/:agentId/versions', auth.requireCanvas, (
 });
 
 router.post('/canvases/:canvasId/agents/:agentId/rollback/:versionId', auth.requireOwner, (req, res) => {
-  const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND canvas_id = ?').get(req.params.agentId, req.params.canvasId);
+  const agent = db.prepare("SELECT * FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(req.params.agentId, req.params.canvasId);
   if (!agent) return res.status(404).json({ error: 'agent not found' });
   const version = builder.getVersion(req.params.versionId);
   if (!version || version.agent_id !== agent.id) return res.status(404).json({ error: 'version not found for this agent' });
@@ -1528,7 +1571,7 @@ router.post('/standing-rule-runs/:ruleRunId/acknowledge', (req, res) => {
 // Owner-only: re-copy prompt + tier from the source roster entry. Name and
 // color stay — they are per-canvas identity the owner may have customized.
 router.post('/canvases/:canvasId/agents/:agentId/resync', auth.requireOwner, (req, res) => {
-  const agent = db.prepare('SELECT * FROM agents WHERE id = ? AND canvas_id = ?').get(req.params.agentId, req.params.canvasId);
+  const agent = db.prepare("SELECT * FROM agents WHERE id = ? AND canvas_id = ? AND lifecycle = 'active'").get(req.params.agentId, req.params.canvasId);
   if (!agent) return res.status(404).json({ error: 'agent not found' });
   if (!agent.roster_id) return res.status(404).json({ error: 'agent has no roster provenance' });
   const entry = db.prepare('SELECT * FROM roster_agents WHERE id = ?').get(agent.roster_id);

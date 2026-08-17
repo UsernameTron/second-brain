@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../src/api.js', async (importOriginal) => {
@@ -9,8 +9,11 @@ vi.mock('../src/api.js', async (importOriginal) => {
 });
 
 vi.mock('../src/Canvas.jsx', () => ({
-  default: ({ notes, files, onOpen }) => (
+  default: ({ agents, notes, files, onOpen }) => (
     <div aria-label="Canvas contents">
+      {agents.map((agent) => (
+        <button key={agent.id} onClick={() => onOpen('agent', agent)}>Open agent {agent.name}</button>
+      ))}
       {notes.map((note) => (
         <button key={note.id} onClick={() => onOpen('note', note)}>Open note {note.title}</button>
       ))}
@@ -34,6 +37,7 @@ let access;
 let canvasList;
 let notes;
 let files;
+let rosterEntries;
 
 function note(overrides = {}) {
   return {
@@ -62,8 +66,9 @@ function canvasState() {
 function installApi() {
   api.mockImplementation((path, opts = {}) => {
     if (path === '/api/canvases' && !opts.method) return Promise.resolve({ canvases: canvasList, archived: [] });
+    if (path === '/api/canvases' && opts.method === 'POST') return Promise.resolve({ canvas: { id: 'c2', name: opts.body.name } });
     if (path === '/api/control/status') return Promise.resolve(BUDGET);
-    if (path === '/api/roster') return Promise.resolve({ roster: [] });
+    if (path === '/api/roster') return Promise.resolve({ roster: rosterEntries });
     if (path === '/api/capabilities') return Promise.resolve({ connected: false });
     if (path === '/api/health/integrations') return Promise.resolve({ aggregate: 'ready', integrations: [], queue: { queued: 0 } });
     if (path === '/api/canvases/c1' && !opts.method) return Promise.resolve(canvasState());
@@ -71,6 +76,7 @@ function installApi() {
       canvasList = [];
       return Promise.resolve({ canvas: { id: 'c1', archived: 1 } });
     }
+    if (path === '/api/canvases/c1/agents/a1' && opts.method === 'DELETE') return Promise.resolve({ ok: true, agent: { id: 'a1', lifecycle: 'retired' } });
     if (path === '/api/canvases/c1/memory') return Promise.resolve({ entries: [] });
     if (path === '/api/canvases/c1/activity?limit=300') return Promise.resolve({ events: [] });
     if (path === '/api/canvases/c1/spend') return Promise.resolve({ daily: BUDGET, perAgent: [] });
@@ -116,6 +122,7 @@ beforeEach(() => {
   canvasList = [{ id: 'c1', name: 'Customer work' }];
   notes = [];
   files = [];
+  rosterEntries = [];
   api.mockReset();
   installApi();
   class TestWebSocket {
@@ -149,6 +156,20 @@ describe('user-facing canvas cleanup', () => {
     expect(api).toHaveBeenCalledWith('/api/canvases/c1/notes/n-new', { method: 'DELETE' });
   });
 
+  it('clearly removes an agent from the canvas while preserving its history', async () => {
+    renderWorkspace();
+    await userEvent.click(await screen.findByRole('button', { name: 'Open agent Scout' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove from canvas' }));
+    expect(screen.getByText('Remove Scout from this canvas?')).toBeInTheDocument();
+    expect(screen.getByText(/Existing runs, memory, handoffs, versions, and audit history will be retained/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, remove Scout' }));
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Open agent Scout' })).not.toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Remove from canvas' })).not.toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith('/api/canvases/c1/agents/a1', { method: 'DELETE' });
+  });
+
   it('gives a pinned note an explicit live-context warning before removal', async () => {
     const onRemove = vi.fn().mockResolvedValue(true);
     render(<NotePanel note={note({ pinned: 1 })} pinnedNotes={[note({ id: 'n-other', title: 'Client constraints', pinned: 1 })]} onSave={vi.fn()} onRemove={onRemove} onClose={vi.fn()} />);
@@ -166,6 +187,8 @@ describe('user-facing canvas cleanup', () => {
     notes = [note()];
     renderWorkspace();
 
+    await userEvent.click(await screen.findByRole('button', { name: 'Open agent Scout' }));
+    expect(screen.queryByRole('button', { name: 'Remove from canvas' })).not.toBeInTheDocument();
     await userEvent.click(await screen.findByRole('button', { name: 'Open note Current note' }));
     expect(screen.queryByRole('button', { name: '+ Note' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Upload document' })).not.toBeInTheDocument();
@@ -269,6 +292,79 @@ describe('user-facing canvas cleanup', () => {
     expect(await screen.findByRole('heading', { name: 'Start with a canvas' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Create a canvas' }));
     expect(screen.getByPlaceholderText('New canvas name…')).toBeInTheDocument();
+  });
+
+  it('staffs a new canvas from a small recommended-team dropdown while keeping customization available', async () => {
+    rosterEntries = [
+      { id: 'fred', template_key: 'fred', name: 'Fred', role: 'strategic', color: '#104080', enabled: 1, default_on: 1 },
+      { id: 'darren', template_key: 'darren', name: 'Darren', role: 'commercial', color: '#D98A14', enabled: 1, default_on: 1 },
+      { id: 'jess', template_key: 'jess', name: 'Jess', role: 'operational', color: '#169E6A', enabled: 1, default_on: 1 },
+      { id: 'atlas', template_key: 'atlas', name: 'Atlas', role: 'workspace', color: '#30A0F0', enabled: 1, default_on: 1 },
+      { id: 'scout', template_key: 'scout', name: 'Scout', role: 'research', color: '#2080D0', enabled: 1, default_on: 0 },
+      { id: 'forge', template_key: 'forge', name: 'Forge', role: 'coding', color: '#0E6BA8', enabled: 1, default_on: 0 },
+      { id: 'sentinel', template_key: 'sentinel', name: 'Sentinel', role: 'review', color: '#0F8A5F', enabled: 1, default_on: 0 },
+      { id: 'radar', template_key: 'radar', name: 'Radar', role: 'targeting', color: '#6B4FBB', enabled: 1, default_on: 0 },
+      { id: 'enrichment', template_key: 'enrichment', name: 'Enrichment', role: 'enrichment', color: '#8B5CF6', enabled: 1, default_on: 0 },
+    ];
+    renderWorkspace();
+
+    expect(await screen.findByLabelText('Current canvas: Customer work')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Switch canvas' })).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
+    const teamPicker = screen.getByRole('group', { name: 'Choose a starting team' });
+    const choices = within(teamPicker).getAllByRole('button');
+    expect(choices).toHaveLength(5);
+    expect(within(teamPicker).getByRole('button', { name: /Leadership & decisions/ })).toHaveAttribute('aria-pressed', 'true');
+
+    const targetContact = within(teamPicker).getByRole('button', { name: /Target contact research/ });
+    await userEvent.click(targetContact);
+    expect(targetContact).toHaveAttribute('aria-pressed', 'true');
+    for (const name of ['Enrichment', 'Darren']) {
+      expect(screen.getByText(name, { selector: '.canvas-team-member' })).toBeInTheDocument();
+    }
+    expect(screen.queryByText('Fred', { selector: '.canvas-team-member' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Radar', { selector: '.canvas-team-member' })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('Customize agents (2)'));
+    await userEvent.click(screen.getByRole('checkbox', { name: /Fred strategic/ }));
+    expect(targetContact).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('Custom team selected.')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Target account');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => {
+      const createCall = api.mock.calls.find(([path, options]) => path === '/api/canvases' && options?.method === 'POST');
+      expect(createCall).toBeTruthy();
+      expect(createCall[1].body.name).toBe('Target account');
+      expect(createCall[1].body.roster_ids).toHaveLength(3);
+      expect(createCall[1].body.roster_ids).toEqual(expect.arrayContaining(['fred', 'darren', 'enrichment']));
+    });
+  });
+
+  it('keeps a recommended team bound to stable roster identities after renames and hides empty teams', async () => {
+    rosterEntries = [
+      { id: 'commercial-built-in', template_key: 'darren', name: 'Commercial lead', role: 'commercial', color: '#D98A14', enabled: 1, default_on: 0 },
+      { id: 'duplicate-name', template_key: null, name: 'Commercial lead', role: 'research', color: '#2080D0', enabled: 1, default_on: 0 },
+      { id: 'enrichment-built-in', template_key: 'enrichment', name: 'Contact finder', role: 'enrichment', color: '#0B7B83', enabled: 1, default_on: 0 },
+      { id: 'scout-disabled', template_key: 'scout', name: 'Scout', role: 'research', color: '#2080D0', enabled: 0, default_on: 0 },
+      { id: 'forge-disabled', template_key: 'forge', name: 'Forge', role: 'coding', color: '#0E6BA8', enabled: 0, default_on: 0 },
+      { id: 'sentinel-disabled', template_key: 'sentinel', name: 'Sentinel', role: 'review', color: '#0F8A5F', enabled: 0, default_on: 0 },
+    ];
+    renderWorkspace();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
+    const teamPicker = screen.getByRole('group', { name: 'Choose a starting team' });
+    expect(within(teamPicker).queryByRole('button', { name: /Research, build & review/ })).not.toBeInTheDocument();
+
+    await userEvent.click(within(teamPicker).getByRole('button', { name: /Target contact research/ }));
+    expect(screen.getByText('Commercial lead', { selector: '.canvas-team-member' })).toBeInTheDocument();
+    expect(screen.getByText('Contact finder', { selector: '.canvas-team-member' })).toBeInTheDocument();
+    await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Renamed team');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => {
+      const createCall = api.mock.calls.find(([path, options]) => path === '/api/canvases' && options?.method === 'POST');
+      expect(createCall[1].body.roster_ids).toEqual(['commercial-built-in', 'enrichment-built-in']);
+    });
   });
 
   it('clears the last canvas completely after archive and leaves only the empty-state action', async () => {

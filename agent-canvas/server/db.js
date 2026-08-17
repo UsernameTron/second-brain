@@ -340,6 +340,7 @@ try { db.exec('ALTER TABLE notes ADD COLUMN deleted_by TEXT'); } catch { /* alre
 try { db.exec('ALTER TABLE files ADD COLUMN deleted_at TEXT'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE files ADD COLUMN deleted_by TEXT'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE agents ADD COLUMN roster_id TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE roster_agents ADD COLUMN template_key TEXT'); } catch { /* already present */ }
 // Wave 3: typed/scoped/temporal memory. Enum validation lives in memory.js
 // (SQLite can't retro-add CHECK constraints); canvas_id stays the security
 // boundary — applies_to_* is retrieval applicability only, never access control.
@@ -356,6 +357,7 @@ try { db.exec('ALTER TABLE memory_entries ADD COLUMN review_at TEXT'); } catch {
 db.exec(`
 CREATE TABLE IF NOT EXISTS roster_agents (
   id TEXT PRIMARY KEY,
+  template_key TEXT,
   name TEXT NOT NULL,
   role TEXT NOT NULL,
   color TEXT NOT NULL,
@@ -369,6 +371,7 @@ CREATE TABLE IF NOT EXISTS roster_agents (
   updated_at TEXT NOT NULL
 );
 `);
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_roster_agents_template_key ON roster_agents(template_key) WHERE template_key IS NOT NULL');
 
 // ===== P1 evidence spine: entry → external artifact provenance =====
 // citations stays entry→entry; evidence_refs records the external artifacts a
@@ -512,6 +515,8 @@ CREATE INDEX IF NOT EXISTS idx_room_refreshes_room ON room_refreshes(room_id, cr
 // rehearsals run on — invisible everywhere except the builder. step/wall
 // budgets become per-agent dispatch defaults (enum/shape validated in JS).
 try { db.exec("ALTER TABLE agents ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'active'"); } catch { /* already present */ }
+try { db.exec('ALTER TABLE agents ADD COLUMN retired_at TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE agents ADD COLUMN retired_by TEXT'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE agents ADD COLUMN tools_json TEXT'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE agents ADD COLUMN step_budget INTEGER'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE agents ADD COLUMN wall_ms_budget INTEGER'); } catch { /* already present */ }
