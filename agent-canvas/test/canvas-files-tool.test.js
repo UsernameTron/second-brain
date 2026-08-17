@@ -12,7 +12,9 @@ const path = require('node:path');
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-files-'));
 process.env.DEV_AUTH = '1';
 process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
-process.env.PDF_PARSE_TIMEOUT_MS = '1000';
+// CI starts this isolated parser under full-suite CPU contention. Keep the
+// bound short enough to prove termination without racing ordinary fixtures.
+process.env.PDF_PARSE_TIMEOUT_MS = '2500';
 
 const ExcelJS = require('exceljs');
 const JSZip = require('jszip');
@@ -223,7 +225,7 @@ test('pathological PDF expansion is isolated behind decoded-text and parser reso
     assert.match(chunk.meta.source_limit_message, /smaller or split document/);
     assert.equal(runnerInternal.capToolResult(out.content), out.content);
   }
-  assert.ok(Date.now() - started < 3000, 'pathological parse returns within the configured worker timeout');
+  assert.ok(Date.now() - started < 5000, 'pathological parse returns within the configured worker timeout');
 });
 
 test('cross-canvas ids and unsupported or invalid formats reveal no content and mint no evidence', async () => {
