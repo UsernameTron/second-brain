@@ -34,6 +34,7 @@ let access;
 let canvasList;
 let notes;
 let files;
+let rosterEntries;
 
 function note(overrides = {}) {
   return {
@@ -62,8 +63,9 @@ function canvasState() {
 function installApi() {
   api.mockImplementation((path, opts = {}) => {
     if (path === '/api/canvases' && !opts.method) return Promise.resolve({ canvases: canvasList, archived: [] });
+    if (path === '/api/canvases' && opts.method === 'POST') return Promise.resolve({ canvas: { id: 'c2', name: opts.body.name } });
     if (path === '/api/control/status') return Promise.resolve(BUDGET);
-    if (path === '/api/roster') return Promise.resolve({ roster: [] });
+    if (path === '/api/roster') return Promise.resolve({ roster: rosterEntries });
     if (path === '/api/capabilities') return Promise.resolve({ connected: false });
     if (path === '/api/health/integrations') return Promise.resolve({ aggregate: 'ready', integrations: [], queue: { queued: 0 } });
     if (path === '/api/canvases/c1' && !opts.method) return Promise.resolve(canvasState());
@@ -116,6 +118,7 @@ beforeEach(() => {
   canvasList = [{ id: 'c1', name: 'Customer work' }];
   notes = [];
   files = [];
+  rosterEntries = [];
   api.mockReset();
   installApi();
   class TestWebSocket {
@@ -269,6 +272,53 @@ describe('user-facing canvas cleanup', () => {
     expect(await screen.findByRole('heading', { name: 'Start with a canvas' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Create a canvas' }));
     expect(screen.getByPlaceholderText('New canvas name…')).toBeInTheDocument();
+  });
+
+  it('staffs a new canvas from a small recommended-team dropdown while keeping customization available', async () => {
+    rosterEntries = [
+      { id: 'fred', name: 'Fred', role: 'strategic', color: '#104080', enabled: 1, default_on: 1 },
+      { id: 'darren', name: 'Darren', role: 'commercial', color: '#D98A14', enabled: 1, default_on: 1 },
+      { id: 'jess', name: 'Jess', role: 'operational', color: '#169E6A', enabled: 1, default_on: 1 },
+      { id: 'atlas', name: 'Atlas', role: 'workspace', color: '#30A0F0', enabled: 1, default_on: 1 },
+      { id: 'scout', name: 'Scout', role: 'research', color: '#2080D0', enabled: 1, default_on: 0 },
+      { id: 'forge', name: 'Forge', role: 'coding', color: '#0E6BA8', enabled: 1, default_on: 0 },
+      { id: 'sentinel', name: 'Sentinel', role: 'review', color: '#0F8A5F', enabled: 1, default_on: 0 },
+      { id: 'radar', name: 'Radar', role: 'targeting', color: '#6B4FBB', enabled: 1, default_on: 0 },
+      { id: 'enrichment', name: 'Enrichment', role: 'enrichment', color: '#8B5CF6', enabled: 1, default_on: 0 },
+    ];
+    renderWorkspace();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
+    const teamSelect = screen.getByRole('combobox', { name: 'Start with a team' });
+    expect(teamSelect).toHaveValue('leadership');
+    expect(Array.from(teamSelect.options).map((option) => option.text)).toEqual([
+      'Leadership & decisions',
+      'Revenue & business development',
+      'Marketing & content',
+      'Research, build & review',
+    ]);
+
+    await userEvent.selectOptions(teamSelect, 'revenue');
+    expect(screen.getByText('Find and enrich prospects, qualify fit, and prepare the commercial next step.')).toBeInTheDocument();
+    for (const name of ['Scout', 'Enrichment', 'Radar', 'Darren']) {
+      expect(screen.getByText(name, { selector: '.canvas-team-member' })).toBeInTheDocument();
+    }
+    expect(screen.queryByText('Fred', { selector: '.canvas-team-member' })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('Customize agents (4)'));
+    await userEvent.click(screen.getByRole('checkbox', { name: /Fred strategic/ }));
+    expect(teamSelect).toHaveValue('custom');
+    expect(screen.getByText('Choose exactly which agents belong on this canvas.')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Revenue sprint');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => {
+      const createCall = api.mock.calls.find(([path, options]) => path === '/api/canvases' && options?.method === 'POST');
+      expect(createCall).toBeTruthy();
+      expect(createCall[1].body.name).toBe('Revenue sprint');
+      expect(createCall[1].body.roster_ids).toHaveLength(5);
+      expect(createCall[1].body.roster_ids).toEqual(expect.arrayContaining(['fred', 'darren', 'scout', 'radar', 'enrichment']));
+    });
   });
 
   it('clears the last canvas completely after archive and leaves only the empty-state action', async () => {

@@ -15,6 +15,7 @@ import NeedsYouView from './NeedsYouView.jsx';
 import AdminModal from './AdminModal.jsx';
 import AddAgentModal from './AddAgentModal.jsx';
 import CapabilitiesModal from './CapabilitiesModal.jsx';
+import { TEAM_TEMPLATES, rosterIdsForTeam, teamIdForRosterSelection } from './teamTemplates.js';
 
 let liveSeq = 0;
 
@@ -53,6 +54,16 @@ export default function Workspace() {
   const [newCanvasName, setNewCanvasName] = useState('');
   const [roster, setRoster] = useState([]);
   const [rosterChecked, setRosterChecked] = useState(null); // null until roster loads
+  const enabledRoster = useMemo(() => roster.filter((entry) => entry.enabled), [roster]);
+  const selectedTeamId = useMemo(
+    () => teamIdForRosterSelection(rosterChecked, roster),
+    [roster, rosterChecked],
+  );
+  const selectedTeam = TEAM_TEMPLATES.find((team) => team.id === selectedTeamId);
+  const selectedRosterMembers = useMemo(
+    () => enabledRoster.filter((entry) => rosterChecked && rosterChecked.has(entry.id)),
+    [enabledRoster, rosterChecked],
+  );
   const [addAgentOpen, setAddAgentOpen] = useState(false);
   const [addPersonOpen, setAddPersonOpen] = useState(false);
   const [newPersonEmail, setNewPersonEmail] = useState('');
@@ -1071,24 +1082,53 @@ export default function Workspace() {
                 if (e.key === 'Escape') { setNewCanvasOpen(false); setNewCanvasName(''); }
               }}
             />
-            {roster.filter((r) => r.enabled).length ? (
-              <div className="canvas-new-roster">
-                <span className="dim">Staff from the roster:</span>
-                {roster.filter((r) => r.enabled).map((r) => (
-                  <label key={r.id} className="roster-check">
-                    <input
-                      type="checkbox"
-                      checked={rosterChecked ? rosterChecked.has(r.id) : false}
-                      onChange={() => setRosterChecked((prev) => {
-                        const next = new Set(prev || []);
-                        if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
-                        return next;
-                      })}
-                    />
-                    <span className="roster-dot" style={{ background: r.color }} />
-                    {r.name} <span className="dim">{r.role === 'enrichment' ? 'lead information' : r.role}</span>
-                  </label>
-                ))}
+            {enabledRoster.length ? (
+              <div className="canvas-team-picker">
+                <label className="canvas-team-label" htmlFor="canvas-team-template">Start with a team</label>
+                <select
+                  id="canvas-team-template"
+                  className="canvas-new-input canvas-team-select"
+                  value={selectedTeamId}
+                  onChange={(e) => {
+                    if (e.target.value === 'custom') return;
+                    setRosterChecked(new Set(rosterIdsForTeam(e.target.value, roster)));
+                  }}
+                >
+                  {TEAM_TEMPLATES.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+                  {selectedTeamId === 'custom' ? <option value="custom">Custom selection</option> : null}
+                </select>
+                <p className="canvas-team-description">
+                  {selectedTeam ? selectedTeam.description : 'Choose exactly which agents belong on this canvas.'}
+                </p>
+                <div className="canvas-team-members" aria-live="polite">
+                  {selectedRosterMembers.map((entry) => (
+                    <span className="canvas-team-member" key={entry.id}>
+                      <span className="roster-dot" style={{ background: entry.color }} />
+                      {entry.name}
+                    </span>
+                  ))}
+                  {selectedRosterMembers.length === 0 ? <span className="dim">No agents selected</span> : null}
+                </div>
+                <details className="canvas-team-customize">
+                  <summary>Customize agents ({selectedRosterMembers.length})</summary>
+                  <div className="canvas-new-roster">
+                    {enabledRoster.map((r) => (
+                      <label key={r.id} className="roster-check">
+                        <input
+                          type="checkbox"
+                          checked={rosterChecked ? rosterChecked.has(r.id) : false}
+                          onChange={() => setRosterChecked((prev) => {
+                            const next = new Set(prev || []);
+                            if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
+                            return next;
+                          })}
+                        />
+                        <span className="roster-dot" style={{ background: r.color }} />
+                        {r.name} <span className="dim">{r.role === 'enrichment' ? 'lead information' : r.role}</span>
+                      </label>
+                    ))}
+                  </div>
+                </details>
               </div>
             ) : null}
             <div className="canvas-new-actions">
@@ -1097,7 +1137,7 @@ export default function Workspace() {
             </div>
           </div>
         ) : (
-          <button className="icon-btn" title="New canvas" onClick={() => setNewCanvasOpen(true)}>+</button>
+          <button className="icon-btn" title="New canvas" aria-label="New canvas" onClick={() => setNewCanvasOpen(true)}>+</button>
         )}
         {canvasId && state && state.access !== 'view' ? (
           <button className="icon-btn agent-add-btn" title="Add an agent to this canvas" onClick={() => setAddAgentOpen(true)}>+ Agent</button>
