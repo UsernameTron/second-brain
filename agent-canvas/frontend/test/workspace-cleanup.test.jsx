@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../src/api.js', async (importOriginal) => {
@@ -288,19 +288,17 @@ describe('user-facing canvas cleanup', () => {
     ];
     renderWorkspace();
 
+    expect(await screen.findByLabelText('Current canvas: Customer work')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Switch canvas' })).not.toBeInTheDocument();
     await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
-    const teamSelect = screen.getByRole('combobox', { name: 'Start with a team' });
-    expect(teamSelect).toHaveValue('leadership');
-    expect(Array.from(teamSelect.options).map((option) => option.text)).toEqual([
-      'Leadership & decisions',
-      'Revenue & business development',
-      'Target contact research',
-      'Marketing & content',
-      'Research, build & review',
-    ]);
+    const teamPicker = screen.getByRole('group', { name: 'Choose a starting team' });
+    const choices = within(teamPicker).getAllByRole('button');
+    expect(choices).toHaveLength(5);
+    expect(within(teamPicker).getByRole('button', { name: /Leadership & decisions/ })).toHaveAttribute('aria-pressed', 'true');
 
-    await userEvent.selectOptions(teamSelect, 'target-contact');
-    expect(screen.getByText('Find verified information about a specific person or company, then prepare the commercial next step—without screening the target out.')).toBeInTheDocument();
+    const targetContact = within(teamPicker).getByRole('button', { name: /Target contact research/ });
+    await userEvent.click(targetContact);
+    expect(targetContact).toHaveAttribute('aria-pressed', 'true');
     for (const name of ['Enrichment', 'Darren']) {
       expect(screen.getByText(name, { selector: '.canvas-team-member' })).toBeInTheDocument();
     }
@@ -309,8 +307,8 @@ describe('user-facing canvas cleanup', () => {
 
     await userEvent.click(screen.getByText('Customize agents (2)'));
     await userEvent.click(screen.getByRole('checkbox', { name: /Fred strategic/ }));
-    expect(teamSelect).toHaveValue('custom');
-    expect(screen.getByText('Choose exactly which agents belong on this canvas.')).toBeInTheDocument();
+    expect(targetContact).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('Custom team selected.')).toBeInTheDocument();
 
     await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Target account');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
@@ -335,10 +333,10 @@ describe('user-facing canvas cleanup', () => {
     renderWorkspace();
 
     await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
-    const teamSelect = screen.getByRole('combobox', { name: 'Start with a team' });
-    expect(Array.from(teamSelect.options).map((option) => option.text)).not.toContain('Research, build & review');
+    const teamPicker = screen.getByRole('group', { name: 'Choose a starting team' });
+    expect(within(teamPicker).queryByRole('button', { name: /Research, build & review/ })).not.toBeInTheDocument();
 
-    await userEvent.selectOptions(teamSelect, 'target-contact');
+    await userEvent.click(within(teamPicker).getByRole('button', { name: /Target contact research/ }));
     expect(screen.getByText('Commercial lead', { selector: '.canvas-team-member' })).toBeInTheDocument();
     expect(screen.getByText('Contact finder', { selector: '.canvas-team-member' })).toBeInTheDocument();
     await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Renamed team');

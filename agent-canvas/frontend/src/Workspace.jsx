@@ -1064,15 +1064,24 @@ export default function Workspace() {
           <span className="brand-glyph" />
           Agent&nbsp;Canvas
         </div>
-        <select
-          className="canvas-switch"
-          value={canvasId || ''}
-          onChange={(e) => setCanvasId(e.target.value)}
-          title="Switch canvas"
-        >
-          {canvases.length === 0 ? <option value="">no canvases</option> : null}
-          {canvases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        {canvases.length > 1 ? (
+          <label className="canvas-switch-wrap">
+            <span>Canvas</span>
+            <select
+              className="canvas-switch"
+              value={canvasId || ''}
+              onChange={(e) => setCanvasId(e.target.value)}
+              aria-label="Switch canvas"
+            >
+              {canvases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+        ) : canvases.length === 1 ? (
+          <span className="canvas-current" aria-label={`Current canvas: ${canvases[0].name}`}>
+            <span>Canvas</span>
+            <strong>{canvases[0].name}</strong>
+          </span>
+        ) : null}
         {newCanvasOpen ? (
           <div className="canvas-new-pop">
             <input
@@ -1087,23 +1096,23 @@ export default function Workspace() {
               }}
             />
             {enabledRoster.length ? (
-              <div className="canvas-team-picker">
-                <label className="canvas-team-label" htmlFor="canvas-team-template">Start with a team</label>
-                <select
-                  id="canvas-team-template"
-                  className="canvas-new-input canvas-team-select"
-                  value={selectedTeamId}
-                  onChange={(e) => {
-                    if (e.target.value === 'custom') return;
-                    setRosterChecked(new Set(rosterIdsForTeam(e.target.value, roster)));
-                  }}
-                >
-                  {availableTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-                  {selectedTeamId === 'custom' ? <option value="custom">Custom selection</option> : null}
-                </select>
-                <p className="canvas-team-description">
-                  {selectedTeam ? selectedTeam.description : 'Choose exactly which agents belong on this canvas.'}
-                </p>
+              <fieldset className="canvas-team-picker">
+                <legend className="canvas-team-label">Choose a starting team</legend>
+                <div className="canvas-team-options">
+                  {availableTeams.map((team) => (
+                    <button
+                      key={team.id}
+                      type="button"
+                      className={`canvas-team-option ${selectedTeamId === team.id ? 'selected' : ''}`}
+                      aria-pressed={selectedTeamId === team.id}
+                      onClick={() => setRosterChecked(new Set(rosterIdsForTeam(team.id, roster)))}
+                    >
+                      <strong>{team.name}</strong>
+                      <span>{team.description}</span>
+                    </button>
+                  ))}
+                </div>
+                {!selectedTeam ? <p className="canvas-team-description">Custom team selected.</p> : null}
                 <div className="canvas-team-members" aria-live="polite">
                   {selectedRosterMembers.map((entry) => (
                     <span className="canvas-team-member" key={entry.id}>
@@ -1133,16 +1142,19 @@ export default function Workspace() {
                     ))}
                   </div>
                 </details>
-              </div>
+              </fieldset>
             ) : null}
             <div className="canvas-new-actions">
               <button className="btn ghost small" onClick={() => { setNewCanvasOpen(false); setNewCanvasName(''); }}>Cancel</button>
               <button className="btn primary small" disabled={!newCanvasName.trim()} onClick={createCanvas}>Create</button>
             </div>
           </div>
-        ) : (
-          <button className="icon-btn" title="New canvas" aria-label="New canvas" onClick={() => setNewCanvasOpen(true)}>+</button>
-        )}
+        ) : null}
+        <button
+          className="btn ghost small new-canvas-btn"
+          aria-expanded={newCanvasOpen}
+          onClick={() => setNewCanvasOpen(true)}
+        >New canvas</button>
         {canvasId && state && state.access !== 'view' ? (
           <button className="icon-btn agent-add-btn" title="Add an agent to this canvas" onClick={() => setAddAgentOpen(true)}>+ Agent</button>
         ) : null}
