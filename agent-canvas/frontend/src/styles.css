@@ -31,7 +31,7 @@
   --line-soft: #dfe6f0;
   --text: var(--ctg-navy-ink);
   --text-dim: #45597c;
-  --text-faint: #8291ab;
+  --text-faint: #5d6f8c;
 
   /* semantic accents, mapped onto the original variable names so every
      component keeps working. teal=primary interactive, amber=warning,
@@ -1334,8 +1334,35 @@ a:hover { text-decoration: underline; }
   position: absolute; top: 46px; left: 220px; z-index: 60;
   display: flex; flex-direction: column; gap: 10px;
   background: var(--bg2); border: 1px solid var(--line, #2a2d34);
+  color: var(--text);
   border-radius: 10px; padding: 12px; min-width: 260px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+.topbar .canvas-new-pop .canvas-new-input {
+  background: var(--bg1);
+  border-color: var(--text-faint);
+  color: var(--text);
+}
+.topbar .canvas-new-pop .canvas-new-input::placeholder {
+  color: var(--text-dim);
+  opacity: 1;
+}
+.topbar .canvas-new-pop .btn {
+  background: var(--bg1);
+  border-color: var(--text-faint);
+  color: var(--text);
+}
+.topbar .canvas-new-pop .btn.primary {
+  background: var(--ctg-navy);
+  border-color: var(--ctg-navy);
+  color: var(--cream);
+}
+.topbar .canvas-new-pop .btn:disabled {
+  background: var(--bg3);
+  border-color: var(--text-faint);
+  color: var(--text-dim);
+  cursor: not-allowed;
+  opacity: 1;
 }
 .canvas-new-roster { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
 .roster-check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
@@ -1357,6 +1384,48 @@ a:hover { text-decoration: underline; }
 }
 .roster-pick:hover { border-color: var(--accent, #30a0f0); }
 .roster-pick-name { font-weight: 600; margin-right: auto; }
+.add-agent-modal { color: var(--text); }
+.add-agent-modal .modal-body { background: var(--bg1); }
+.add-agent-modal h3 { color: var(--blue); }
+.add-agent-modal .modal-tabs button.active {
+  box-shadow: inset 0 -3px 0 var(--blue);
+}
+.add-agent-modal .tier-fast { color: var(--magenta); }
+.add-agent-modal .tier-strong { color: var(--blue); }
+.add-agent-modal .roster-pick {
+  background: var(--bg2);
+  border-color: var(--text-faint);
+  color: var(--text);
+}
+.add-agent-modal .roster-pick:hover { border-color: var(--teal); background: var(--bg3); }
+.add-agent-modal .builder-flow > section {
+  background: var(--bg2);
+  border: 1px solid var(--text-faint);
+  border-radius: 8px;
+  padding: 10px;
+}
+.add-agent-modal .authority-list {
+  background: var(--bg1);
+  border: 1px solid var(--text-faint);
+  border-radius: 6px;
+  margin-top: 8px;
+  padding: 8px;
+}
+.add-agent-modal input:not([type="checkbox"]):not([type="color"]),
+.add-agent-modal textarea,
+.add-agent-modal select {
+  background: var(--bg1);
+  border-color: var(--text-faint);
+  color: var(--text);
+}
+.add-agent-modal .btn:disabled {
+  background: var(--bg3);
+  border-color: var(--text-faint);
+  box-shadow: none;
+  color: var(--text-dim);
+  cursor: not-allowed;
+  opacity: 1;
+}
 .add-agent-row { display: flex; gap: 8px; margin-bottom: 8px; }
 .add-agent-row input, .add-agent-row select { flex: 1; min-width: 0; }
 .add-agent-row input[type="color"] { flex: 0 0 44px; padding: 2px; }
@@ -1496,7 +1565,7 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .authority-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; }
 .authority-line { display: flex; align-items: baseline; gap: 8px; font-size: 13px; cursor: pointer; }
 .authority-name { flex: 0 0 auto; }
-.authority-desc { color: var(--dim, #888); }
+.authority-desc { color: var(--text-dim); }
 .rehearsal-block { border: 1px solid var(--line, #333); border-radius: 8px; padding: 10px; }
 .rehearsal-summary { white-space: pre-wrap; font-size: 13px; }
 .builder-warnings { border: 1px solid #b45309; border-radius: 8px; padding: 10px; font-size: 13px; }
