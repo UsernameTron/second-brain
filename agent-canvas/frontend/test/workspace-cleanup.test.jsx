@@ -9,8 +9,11 @@ vi.mock('../src/api.js', async (importOriginal) => {
 });
 
 vi.mock('../src/Canvas.jsx', () => ({
-  default: ({ notes, files, onOpen }) => (
+  default: ({ agents, notes, files, onOpen }) => (
     <div aria-label="Canvas contents">
+      {agents.map((agent) => (
+        <button key={agent.id} onClick={() => onOpen('agent', agent)}>Open agent {agent.name}</button>
+      ))}
       {notes.map((note) => (
         <button key={note.id} onClick={() => onOpen('note', note)}>Open note {note.title}</button>
       ))}
@@ -73,6 +76,7 @@ function installApi() {
       canvasList = [];
       return Promise.resolve({ canvas: { id: 'c1', archived: 1 } });
     }
+    if (path === '/api/canvases/c1/agents/a1' && opts.method === 'DELETE') return Promise.resolve({ ok: true, agent: { id: 'a1', lifecycle: 'retired' } });
     if (path === '/api/canvases/c1/memory') return Promise.resolve({ entries: [] });
     if (path === '/api/canvases/c1/activity?limit=300') return Promise.resolve({ events: [] });
     if (path === '/api/canvases/c1/spend') return Promise.resolve({ daily: BUDGET, perAgent: [] });
@@ -152,6 +156,20 @@ describe('user-facing canvas cleanup', () => {
     expect(api).toHaveBeenCalledWith('/api/canvases/c1/notes/n-new', { method: 'DELETE' });
   });
 
+  it('clearly removes an agent from the canvas while preserving its history', async () => {
+    renderWorkspace();
+    await userEvent.click(await screen.findByRole('button', { name: 'Open agent Scout' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove from canvas' }));
+    expect(screen.getByText('Remove Scout from this canvas?')).toBeInTheDocument();
+    expect(screen.getByText(/Existing runs, memory, handoffs, versions, and audit history will be retained/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, remove Scout' }));
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Open agent Scout' })).not.toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Remove from canvas' })).not.toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith('/api/canvases/c1/agents/a1', { method: 'DELETE' });
+  });
+
   it('gives a pinned note an explicit live-context warning before removal', async () => {
     const onRemove = vi.fn().mockResolvedValue(true);
     render(<NotePanel note={note({ pinned: 1 })} pinnedNotes={[note({ id: 'n-other', title: 'Client constraints', pinned: 1 })]} onSave={vi.fn()} onRemove={onRemove} onClose={vi.fn()} />);
@@ -169,6 +187,8 @@ describe('user-facing canvas cleanup', () => {
     notes = [note()];
     renderWorkspace();
 
+    await userEvent.click(await screen.findByRole('button', { name: 'Open agent Scout' }));
+    expect(screen.queryByRole('button', { name: 'Remove from canvas' })).not.toBeInTheDocument();
     await userEvent.click(await screen.findByRole('button', { name: 'Open note Current note' }));
     expect(screen.queryByRole('button', { name: '+ Note' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Upload document' })).not.toBeInTheDocument();

@@ -71,9 +71,11 @@ const RUN_STATUS_CLASS = {
   halted_paused: 'run-halted', halted_budget: 'run-halted',
 };
 
-export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvasId, onDispatch, fetchRunEvents, fetchRunReceipt, onFeedback, onSelectEntry, onClose }) {
+export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvasId, onDispatch, onRemove, fetchRunEvents, fetchRunReceipt, onFeedback, onSelectEntry, onClose }) {
   const [instruction, setInstruction] = useState('');
   const [sending, setSending] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [runSel, setRunSel] = useState(initialRunId);
   const [events, setEvents] = useState(null);
   const [receipt, setReceipt] = useState(null);
@@ -111,6 +113,17 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
 
   const selRun = runSel ? runs.find((r) => r.id === runSel) : null;
 
+  const remove = async () => {
+    if (!onRemove || removing) return;
+    setRemoving(true);
+    try {
+      const removed = await onRemove(agent);
+      if (removed !== false) onClose();
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   return (
     <Panel
       title={<span><span className="dot-inline" style={{ background: agent.color }} />{agent.name}</span>}
@@ -143,6 +156,25 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
       </form>
 
       {canvasId ? <AgentVersions canvasId={canvasId} agentId={agent.id} /> : null}
+      {onRemove ? (
+        <div className="agent-remove">
+          <button className="btn ghost danger-link" type="button" disabled={removing} onClick={() => setConfirmRemove(true)}>
+            Remove from canvas
+          </button>
+          {confirmRemove ? (
+            <div className="agent-remove-confirm" role="alert">
+              <strong>Remove {agent.name} from this canvas?</strong>
+              <span>{agent.name} will stop receiving new work. Existing runs, memory, handoffs, versions, and audit history will be retained.</span>
+              <div className="note-actions">
+                <button className="btn danger" type="button" disabled={removing} onClick={remove}>
+                  {removing ? 'Removing…' : `Yes, remove ${agent.name}`}
+                </button>
+                <button className="btn ghost" type="button" disabled={removing} onClick={() => setConfirmRemove(false)}>Keep agent</button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {selRun ? (
         <div className="run-detail">
           <button className="btn ghost small" onClick={() => setRunSel(null)}>← all runs</button>

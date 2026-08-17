@@ -515,6 +515,8 @@ CREATE INDEX IF NOT EXISTS idx_room_refreshes_room ON room_refreshes(room_id, cr
 // rehearsals run on — invisible everywhere except the builder. step/wall
 // budgets become per-agent dispatch defaults (enum/shape validated in JS).
 try { db.exec("ALTER TABLE agents ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'active'"); } catch { /* already present */ }
+try { db.exec('ALTER TABLE agents ADD COLUMN retired_at TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE agents ADD COLUMN retired_by TEXT'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE agents ADD COLUMN tools_json TEXT'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE agents ADD COLUMN step_budget INTEGER'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE agents ADD COLUMN wall_ms_budget INTEGER'); } catch { /* already present */ }

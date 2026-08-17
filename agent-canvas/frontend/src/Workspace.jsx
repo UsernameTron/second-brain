@@ -408,6 +408,10 @@ export default function Workspace() {
       case 'agent_status':
         setState((s) => s && ({ ...s, agents: s.agents.map((a) => (a.id === ev.agentId ? { ...a, status: ev.status } : a)) }));
         break;
+      case 'agent_removed':
+        setState((s) => s && ({ ...s, agents: (s.agents || []).filter((a) => a.id !== ev.agentId) }));
+        setPanel((current) => (current?.type === 'agent' && current.id === ev.agentId ? null : current));
+        break;
       case 'run_status':
         setRunTick((t) => t + 1);
         setState((s) => {
@@ -715,6 +719,21 @@ export default function Workspace() {
     }
   }, [state?.access, toast]);
 
+  const removeAgent = useCallback(async (agent) => {
+    if (!agent || state?.access === 'view' || !canvasIdRef.current) return false;
+    const cid = canvasIdRef.current;
+    try {
+      await api(`/api/canvases/${cid}/agents/${agent.id}`, { method: 'DELETE' });
+      setState((s) => (s?.canvas?.id === cid ? { ...s, agents: (s.agents || []).filter((a) => a.id !== agent.id) } : s));
+      setPanel((current) => (current?.type === 'agent' && current.id === agent.id ? null : current));
+      toast(`${agent.name} removed from this canvas. History was retained.`, 'ok');
+      return true;
+    } catch (e) {
+      toast(e.message);
+      return false;
+    }
+  }, [state?.access, toast]);
+
   const uploadFile = useCallback(async (event) => {
     const input = event.currentTarget;
     const file = input.files && input.files[0];
@@ -990,6 +1009,7 @@ export default function Workspace() {
             try { await dispatchToAgent(panel.id, instruction); toast(`Sent to ${agentsById[panel.id].name}`, 'ok'); }
             catch (e) { toast(e.message); }
           }}
+          onRemove={state.access !== 'view' ? removeAgent : null}
           fetchRunEvents={fetchRunEvents}
           fetchRunReceipt={fetchRunReceipt}
           onFeedback={async (runId, verdict, note) => {
