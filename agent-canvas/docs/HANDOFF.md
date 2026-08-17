@@ -1,4 +1,4 @@
-# Agent Canvas — Current Handoff (2026-08-16)
+# Agent Canvas — Current Handoff (2026-08-17)
 
 This file is the concise current-state authority. Historical implementation and
 incident detail lives in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); phase intent
@@ -11,32 +11,32 @@ evidence is an observation at one instant, not a permanent property.
 
 ## Repository and verification
 
-**Git-proven (observed 2026-08-16):** canonical repository
+**Git-proven (observed 2026-08-17):** canonical repository
 `/Users/cpconnor/projects/second-brain`; application subtree `agent-canvas/`.
-`master` and the cached `origin/master` are at `948a7a6`. The local branch
-`fix/agent-canvas-remove-demo-artifacts` is based there and contains the cleanup
-described below. It is not merged or deployed.
+`master` and `origin/master` are at `9a6abaf`. PR #207 merged as `049bb81`;
+PR #208 merged as `9a6abaf`.
 
-**Test-proven (2026-08-16):** `npm run verify` passes **372 backend tests** and
-**93 frontend tests**, the frontend production build, deploy-script syntax, and
-the deploy preflight self-test. `git diff --check` is clean. These are local
-source/build facts, not production acceptance.
+**Test-proven (2026-08-17, merged SHA `9a6abaf`):** `npm run verify` passes
+**385 backend tests** and **107 frontend tests**, the frontend production
+build, deploy-script syntax, and the deploy preflight self-test. Both production
+dependency audits report zero vulnerabilities.
 
 ## Latest production observation
 
-**Live-proven at 2026-08-17T01:49Z:** Cloud Run revision
-`agent-canvas-00054-9cs` served 100% of traffic; `/api/healthz` and
-`/api/config` returned 200; scheduler-signed ticks returned 200 at 01:20,
-01:30, and 01:40 UTC; no ERROR-severity log entries were found for that
-revision during the probe window.
+**Live-proven at 2026-08-17T20:19Z:** Cloud Run revision
+`agent-canvas-00057-47c` serves 100% of traffic. `/api/healthz` and
+`/api/config` return 200; the revision restored the replicated database,
+started successfully, and produced no ERROR-severity logs during the release
+probe. The deploy inherited `MODEL_PROVIDER=anthropic` and preserved the exact
+13-name environment/secret binding set from `00056-qtc`. Cloud Scheduler job
+`agent-canvas-standing-rules` remains **PAUSED**; the deploy did not change it.
 
-The deployed bundle still contains **Workbook** and **Run cleanup** and lacks
-the cleanup branch's file-upload and note-context wording. Therefore the
-cleanup is **not deployed**. The serving image does not expose an immutable Git
-SHA, so its exact source commit is **unverified**; do not infer it from the
-revision number.
+The live bundle contains New canvas, recommended starting-team selection,
+document upload/removal, and agent removal. Workbook and Run cleanup are
+absent. A fresh replica confirms the Enrichment template is enabled and the
+one-time cleanup is stamped. Signed-in journey acceptance remains outstanding.
 
-## Cleanup release on the local branch
+## Released workspace cleanup
 
 **Git-proven and test-proven:** the cleanup removes the hardcoded Workbook,
 Run cleanup command, sample-row flow, demo kickoff route, demo changeset
@@ -57,12 +57,12 @@ remove them recoverably. Authorized agents use `read_canvas_files`; file text
 is marked as external evidence, bounded, and excluded after removal. View-only
 users can download but cannot upload or remove.
 
-**Test-proven against a disposable copy of the latest production replica:** the
-legacy-retirement migration would hide 8 proven demo/test canvases, 15 notes,
-and 1 file and revoke 3 non-revoked standing rules. It leaves all physical
-ledger rows intact: 8 canvases, 15 notes, 1 file, 50 runs, 98 memory entries,
-and 5 standing rules. A second run changes zero rows. Production itself was not
-mutated by this rehearsal.
+**Live-proven from a fresh production replica:** the cleanup ran once at
+`2026-08-17T19:29:24.865Z` and recoverably retired the 8 proven demo/test
+canvases. One real canvas remains active. A pre-`00057` backup passed SQLite
+integrity checking and was copied to the release-backups prefix. Re-running the
+retirement against its disposable copy changed zero rows, proving the live
+migration is idempotently complete.
 
 ## Phase classification
 
@@ -72,31 +72,30 @@ mutated by this rehearsal.
 | P3 Evidence Rooms | Merged | Historical live acceptance including #194; not replayed |
 | P4 Agent Builder | Merged | Historical live acceptance on 2026-08-16; not replayed |
 | P5 Standing Rules | Merged | Scheduler delivery is live-proven; manual path historically accepted; remaining scenarios below |
-| Cleanup: truthful workspace content | Implemented and locally verified | Not merged, deployed, or live-accepted |
+| Cleanup: truthful workspace content | Merged and deployed | Bundle, replica, health, and log checks pass; signed-in journey not replayed |
+| Recommended teams, Enrichment, document intake, agent removal | Merged and deployed | Bundle/replica proven; signed-in journey not replayed |
 | P6 Outcomes and reviewed learning | Planned only | Not implemented |
 | P7 Selective integrations and portability | Planned only | Not implemented |
 
-P5 is not complete. Historical evidence still leaves four explicit acceptance
-gaps: a due rule dispatched by a scheduled tick with its resulting run/card;
-pause under scheduler operation; expiry under scheduler operation; and a live
-clean-zero alert path. Scheduler cadence alone does not exercise those states.
+P5 is not complete. Scheduled dispatch/card and pause behavior have historical
+live evidence. **Replica- and log-proven:** on revision `00054-9cs`, a
+scheduler-signed tick at `2026-08-17T02:00:32Z` created rule-B occurrence
+`2026-08-17T02#v2`, which completed with `matched_count=0` and
+`needs_attention=0`; later hourly occurrences repeated that clean-zero result.
+Expiry under scheduler operation remains unproven. The scheduler is currently
+paused, so no unattended rule can run until an operator deliberately resumes it.
 
 ## Release gates
 
-1. Review the cleanup diff and preserve the recoverable-retirement boundary.
-2. Commit locally, push a review branch, run CI, and merge only after approval.
-3. Before deployment, take and verify a fresh database backup; run the exact
-   retirement dry-run again and compare IDs/counts with this record.
-4. Deploy separately with the preservation-first script. Do not alter the
-   scheduler, provider, environment names, or secret bindings as a side effect.
-   After migration, use a forward fix rather than routing to a pre-cleanup
-   revision, whose readers do not understand the new tombstones.
-5. In a signed-in production session, verify: empty workspace; no Workbook or
+1. In a signed-in production session, verify: no Workbook or
    Run cleanup surface; create/edit/pin/remove note; upload/read/remove a file;
    view-only restrictions; a new agent run whose receipt names the canvas file;
-   removed note/file text absent from subsequent agent context.
-6. Re-probe revision, traffic, health, config, scheduler ticks, and error logs;
-   update this file with only observed facts.
+   removed note/file text absent from subsequent agent context; recommended-team
+   creation; Enrichment availability; and safe agent removal.
+2. Exercise P5 expiry with an explicitly bounded fixture before calling P5
+   complete. Resume Cloud Scheduler only with separate operator intent.
+3. After the cleanup migration, use forward fixes rather than routing traffic
+   to a pre-cleanup reader.
 
 No push, merge, deployment, scheduler change, or production-data mutation is
 authorized by this handoff alone.
