@@ -32,7 +32,8 @@ const OUTPUT_CAP = 30_000;
 // unreachable server must not leave a refresh running forever; the ordinary
 // tool-call timeout remains longer because an explicitly requested call has a
 // different latency contract.
-const DEFS_REFRESH_TIMEOUT_MS = 10_000;
+const DEFS_REFRESH_TIMEOUT_MS = Math.max(100, Math.min(30_000,
+  Number(process.env.MCP_DEFS_REFRESH_TIMEOUT_MS) || 10_000));
 
 // Connectors are read lanes. The live hubspot-crm connector reaches the REAL
 // portal 243103424, and its read-only-ness rested entirely on the scopes set
@@ -406,9 +407,11 @@ async function runRefreshQueue() {
     activeRefreshController = controller;
     try {
       const defs = await enabledToolDefs(snapshot, { signal: controller.signal });
-      // A save may have reloaded config while discovery was in flight. Never
-      // let that older inventory win the race and resurrect stale authority.
-      if (!controller.signal.aborted && generation === configGeneration) publishDefs(defs);
+      // Generation is the authority boundary. A config reload increments it,
+      // so stale discovery can never resurrect removed tools. Connector-local
+      // timeouts may abort their own request signals, but the completed defs
+      // from healthy connectors still belong to this generation and publish.
+      if (generation === configGeneration) publishDefs(defs);
     } catch { /* keep the current (or synchronously invalidated) snapshot */ }
     finally {
       if (activeRefreshController === controller) activeRefreshController = null;

@@ -13,6 +13,7 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-mcpac
 process.env.DEV_AUTH = '1';
 process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
 process.env.TEST_MCP_SECRET = 'sk-test-9876';
+process.env.MCP_DEFS_REFRESH_TIMEOUT_MS = '100';
 delete process.env.MCP_SERVERS; // force the DB path
 
 const { server } = require('../server/index'); // boots + seeds (incl. seed_mcp_v1)
@@ -190,6 +191,31 @@ test('one timed-out connector does not hide definitions from reachable connector
     { ...common, name: 'hanging', url: `http://127.0.0.1:${hangingMock.address().port}/mcp` },
   ], { timeoutMs: 100 }), 1000, 'per-connector refresh did not finish inside its bound');
   assert.deepEqual(defs.map((item) => item.name), ['mcp_reachable_search']);
+});
+
+test('background refresh publishes reachable definitions when another connector times out', async () => {
+  const ts = nowIso();
+  const enabledBefore = db.prepare('SELECT id, enabled FROM mcp_servers').all();
+  db.prepare("UPDATE mcp_servers SET enabled = 0").run();
+  db.prepare(`INSERT INTO mcp_servers
+    (id, name, url, headers_json, enabled_tools_json, access, roles_json, enabled, created_at, updated_at)
+    VALUES ('refresh-reachable', 'refresh-reachable', ?, '{}', '[\"search\"]', 'members', '[]', 1, ?, ?)`)
+    .run(`http://127.0.0.1:${mock.address().port}/mcp`, ts, ts);
+  db.prepare(`INSERT INTO mcp_servers
+    (id, name, url, headers_json, enabled_tools_json, access, roles_json, enabled, created_at, updated_at)
+    VALUES ('refresh-hanging', 'refresh-hanging', ?, '{}', '[\"search\"]', 'members', '[]', 1, ?, ?)`)
+    .run(`http://127.0.0.1:${hangingMock.address().port}/mcp`, ts, ts);
+  mcp.reload();
+
+  await within(mcp.refreshDefs(), 1000, 'background refresh exceeded its per-connector bound');
+  assert.ok(mcp.getCachedDefs().some((item) => item.name === 'mcp_refresh_reachable_search'),
+    'healthy connector remains available when its peer times out');
+
+  db.prepare("DELETE FROM mcp_servers WHERE id IN ('refresh-reachable', 'refresh-hanging')").run();
+  const restoreEnabled = db.prepare('UPDATE mcp_servers SET enabled = ? WHERE id = ?');
+  for (const row of enabledBefore) restoreEnabled.run(row.enabled, row.id);
+  mcp.reload();
+  await mcp.refreshDefs();
 });
 
 test('def filtering: owner-only connectors and role scoping', async () => {
