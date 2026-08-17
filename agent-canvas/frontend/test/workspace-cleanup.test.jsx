@@ -276,15 +276,15 @@ describe('user-facing canvas cleanup', () => {
 
   it('staffs a new canvas from a small recommended-team dropdown while keeping customization available', async () => {
     rosterEntries = [
-      { id: 'fred', name: 'Fred', role: 'strategic', color: '#104080', enabled: 1, default_on: 1 },
-      { id: 'darren', name: 'Darren', role: 'commercial', color: '#D98A14', enabled: 1, default_on: 1 },
-      { id: 'jess', name: 'Jess', role: 'operational', color: '#169E6A', enabled: 1, default_on: 1 },
-      { id: 'atlas', name: 'Atlas', role: 'workspace', color: '#30A0F0', enabled: 1, default_on: 1 },
-      { id: 'scout', name: 'Scout', role: 'research', color: '#2080D0', enabled: 1, default_on: 0 },
-      { id: 'forge', name: 'Forge', role: 'coding', color: '#0E6BA8', enabled: 1, default_on: 0 },
-      { id: 'sentinel', name: 'Sentinel', role: 'review', color: '#0F8A5F', enabled: 1, default_on: 0 },
-      { id: 'radar', name: 'Radar', role: 'targeting', color: '#6B4FBB', enabled: 1, default_on: 0 },
-      { id: 'enrichment', name: 'Enrichment', role: 'enrichment', color: '#8B5CF6', enabled: 1, default_on: 0 },
+      { id: 'fred', template_key: 'fred', name: 'Fred', role: 'strategic', color: '#104080', enabled: 1, default_on: 1 },
+      { id: 'darren', template_key: 'darren', name: 'Darren', role: 'commercial', color: '#D98A14', enabled: 1, default_on: 1 },
+      { id: 'jess', template_key: 'jess', name: 'Jess', role: 'operational', color: '#169E6A', enabled: 1, default_on: 1 },
+      { id: 'atlas', template_key: 'atlas', name: 'Atlas', role: 'workspace', color: '#30A0F0', enabled: 1, default_on: 1 },
+      { id: 'scout', template_key: 'scout', name: 'Scout', role: 'research', color: '#2080D0', enabled: 1, default_on: 0 },
+      { id: 'forge', template_key: 'forge', name: 'Forge', role: 'coding', color: '#0E6BA8', enabled: 1, default_on: 0 },
+      { id: 'sentinel', template_key: 'sentinel', name: 'Sentinel', role: 'review', color: '#0F8A5F', enabled: 1, default_on: 0 },
+      { id: 'radar', template_key: 'radar', name: 'Radar', role: 'targeting', color: '#6B4FBB', enabled: 1, default_on: 0 },
+      { id: 'enrichment', template_key: 'enrichment', name: 'Enrichment', role: 'enrichment', color: '#8B5CF6', enabled: 1, default_on: 0 },
     ];
     renderWorkspace();
 
@@ -320,6 +320,32 @@ describe('user-facing canvas cleanup', () => {
       expect(createCall[1].body.name).toBe('Target account');
       expect(createCall[1].body.roster_ids).toHaveLength(3);
       expect(createCall[1].body.roster_ids).toEqual(expect.arrayContaining(['fred', 'darren', 'enrichment']));
+    });
+  });
+
+  it('keeps a recommended team bound to stable roster identities after renames and hides empty teams', async () => {
+    rosterEntries = [
+      { id: 'commercial-built-in', template_key: 'darren', name: 'Commercial lead', role: 'commercial', color: '#D98A14', enabled: 1, default_on: 0 },
+      { id: 'duplicate-name', template_key: null, name: 'Commercial lead', role: 'research', color: '#2080D0', enabled: 1, default_on: 0 },
+      { id: 'enrichment-built-in', template_key: 'enrichment', name: 'Contact finder', role: 'enrichment', color: '#0B7B83', enabled: 1, default_on: 0 },
+      { id: 'scout-disabled', template_key: 'scout', name: 'Scout', role: 'research', color: '#2080D0', enabled: 0, default_on: 0 },
+      { id: 'forge-disabled', template_key: 'forge', name: 'Forge', role: 'coding', color: '#0E6BA8', enabled: 0, default_on: 0 },
+      { id: 'sentinel-disabled', template_key: 'sentinel', name: 'Sentinel', role: 'review', color: '#0F8A5F', enabled: 0, default_on: 0 },
+    ];
+    renderWorkspace();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
+    const teamSelect = screen.getByRole('combobox', { name: 'Start with a team' });
+    expect(Array.from(teamSelect.options).map((option) => option.text)).not.toContain('Research, build & review');
+
+    await userEvent.selectOptions(teamSelect, 'target-contact');
+    expect(screen.getByText('Commercial lead', { selector: '.canvas-team-member' })).toBeInTheDocument();
+    expect(screen.getByText('Contact finder', { selector: '.canvas-team-member' })).toBeInTheDocument();
+    await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Renamed team');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => {
+      const createCall = api.mock.calls.find(([path, options]) => path === '/api/canvases' && options?.method === 'POST');
+      expect(createCall[1].body.roster_ids).toEqual(['commercial-built-in', 'enrichment-built-in']);
     });
   });
 

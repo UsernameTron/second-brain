@@ -55,11 +55,15 @@ export default function Workspace() {
   const [roster, setRoster] = useState([]);
   const [rosterChecked, setRosterChecked] = useState(null); // null until roster loads
   const enabledRoster = useMemo(() => roster.filter((entry) => entry.enabled), [roster]);
+  const availableTeams = useMemo(
+    () => TEAM_TEMPLATES.filter((team) => rosterIdsForTeam(team.id, roster).length > 0),
+    [roster],
+  );
   const selectedTeamId = useMemo(
     () => teamIdForRosterSelection(rosterChecked, roster),
     [roster, rosterChecked],
   );
-  const selectedTeam = TEAM_TEMPLATES.find((team) => team.id === selectedTeamId);
+  const selectedTeam = availableTeams.find((team) => team.id === selectedTeamId);
   const selectedRosterMembers = useMemo(
     () => enabledRoster.filter((entry) => rosterChecked && rosterChecked.has(entry.id)),
     [enabledRoster, rosterChecked],
@@ -1094,7 +1098,7 @@ export default function Workspace() {
                     setRosterChecked(new Set(rosterIdsForTeam(e.target.value, roster)));
                   }}
                 >
-                  {TEAM_TEMPLATES.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+                  {availableTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
                   {selectedTeamId === 'custom' ? <option value="custom">Custom selection</option> : null}
                 </select>
                 <p className="canvas-team-description">

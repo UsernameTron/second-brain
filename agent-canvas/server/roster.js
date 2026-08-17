@@ -209,16 +209,16 @@ ${CONFIDENTIALITY_GUARD}`;
 
 // ---------- the roster, seed order ----------
 const ROSTER_AGENTS = [
-  { name: 'Fred', role: 'strategic', color: '#104080', model_tier: 'strong', system_prompt: execPrompt('Fred'), companion_note_key: null, enabled: 1, default_on: 1 },
-  { name: 'Darren', role: 'commercial', color: '#D98A14', model_tier: 'strong', system_prompt: execPrompt('Darren'), companion_note_key: null, enabled: 1, default_on: 1 },
-  { name: 'Jess', role: 'operational', color: '#169E6A', model_tier: 'strong', system_prompt: execPrompt('Jess'), companion_note_key: null, enabled: 1, default_on: 1 },
-  { name: 'Atlas', role: 'workspace', color: '#30A0F0', model_tier: 'fast', system_prompt: execPrompt('Atlas'), companion_note_key: null, enabled: 1, default_on: 1 },
-  { name: 'Scout', role: 'research', color: '#2080D0', model_tier: 'strong', system_prompt: SCOUT_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
-  { name: 'Forge', role: 'coding', color: '#0E6BA8', model_tier: 'fast', system_prompt: FORGE_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
-  { name: 'Sentinel', role: 'review', color: '#0F8A5F', model_tier: 'strong', system_prompt: SENTINEL_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
-  { name: 'Gauge', role: 'crm', color: '#D96A2B', model_tier: 'fast', system_prompt: GAUGE_PROMPT, companion_note_key: null, enabled: 0, default_on: 0 },
-  { name: 'Radar', role: 'targeting', color: '#6B4FBB', model_tier: 'fast', system_prompt: RADAR_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
-  { name: 'Enrichment', role: 'enrichment', color: '#0B7B83', model_tier: 'fast', system_prompt: ENRICHMENT_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
+  { template_key: 'fred', name: 'Fred', role: 'strategic', color: '#104080', model_tier: 'strong', system_prompt: execPrompt('Fred'), companion_note_key: null, enabled: 1, default_on: 1 },
+  { template_key: 'darren', name: 'Darren', role: 'commercial', color: '#D98A14', model_tier: 'strong', system_prompt: execPrompt('Darren'), companion_note_key: null, enabled: 1, default_on: 1 },
+  { template_key: 'jess', name: 'Jess', role: 'operational', color: '#169E6A', model_tier: 'strong', system_prompt: execPrompt('Jess'), companion_note_key: null, enabled: 1, default_on: 1 },
+  { template_key: 'atlas', name: 'Atlas', role: 'workspace', color: '#30A0F0', model_tier: 'fast', system_prompt: execPrompt('Atlas'), companion_note_key: null, enabled: 1, default_on: 1 },
+  { template_key: 'scout', name: 'Scout', role: 'research', color: '#2080D0', model_tier: 'strong', system_prompt: SCOUT_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
+  { template_key: 'forge', name: 'Forge', role: 'coding', color: '#0E6BA8', model_tier: 'fast', system_prompt: FORGE_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
+  { template_key: 'sentinel', name: 'Sentinel', role: 'review', color: '#0F8A5F', model_tier: 'strong', system_prompt: SENTINEL_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
+  { template_key: 'gauge', name: 'Gauge', role: 'crm', color: '#D96A2B', model_tier: 'fast', system_prompt: GAUGE_PROMPT, companion_note_key: null, enabled: 0, default_on: 0 },
+  { template_key: 'radar', name: 'Radar', role: 'targeting', color: '#6B4FBB', model_tier: 'fast', system_prompt: RADAR_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
+  { template_key: 'enrichment', name: 'Enrichment', role: 'enrichment', color: '#0B7B83', model_tier: 'fast', system_prompt: ENRICHMENT_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
 ];
 
 // seedRoster() is intentionally one-shot. This separately versioned additive
@@ -236,8 +236,8 @@ function seedEnrichmentAgent() {
     if (!existing) {
       const sort = db.prepare('SELECT COALESCE(MAX(sort), 0) + 1 AS n FROM roster_agents').get().n;
       db.prepare(
-        'INSERT INTO roster_agents (id, name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(crypto.randomUUID(), entry.name, entry.role, entry.color, entry.model_tier, entry.system_prompt,
+        'INSERT INTO roster_agents (id, template_key, name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(crypto.randomUUID(), entry.template_key, entry.name, entry.role, entry.color, entry.model_tier, entry.system_prompt,
         entry.companion_note_key, entry.enabled, entry.default_on, sort, ts, ts);
       inserted = 1;
     }
@@ -253,13 +253,36 @@ function seedRoster() {
   const ts = nowIso();
   ROSTER_AGENTS.forEach((entry, i) => {
     db.prepare(
-      'INSERT INTO roster_agents (id, name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(crypto.randomUUID(), entry.name, entry.role, entry.color, entry.model_tier, entry.system_prompt,
+      'INSERT INTO roster_agents (id, template_key, name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(crypto.randomUUID(), entry.template_key, entry.name, entry.role, entry.color, entry.model_tier, entry.system_prompt,
       entry.companion_note_key, entry.enabled, entry.default_on, i + 1, ts, ts);
   });
   setSetting('seed_roster_v1', ts);
   audit('system', 'seed', 'workspace.seed_roster', { agents: ROSTER_AGENTS.length, icp: ICP.icp_version });
   return { seeded: true, agents: ROSTER_AGENTS.length };
+}
+
+// Stable built-in identity for user-facing team templates. Display name, role,
+// prompt, and sort order are owner-editable; template_key is not. Existing
+// workspaces are backfilled by the shipped prompt first so a renamed built-in
+// remains identifiable. A name match is only the compatibility fallback for a
+// pristine legacy row. Custom and duplicate display names stay unkeyed.
+function backfillRosterTemplateKeys() {
+  let updated = 0;
+  tx(() => {
+    for (const entry of ROSTER_AGENTS) {
+      if (db.prepare('SELECT 1 FROM roster_agents WHERE template_key = ?').get(entry.template_key)) continue;
+      const row = db.prepare(`SELECT id FROM roster_agents
+        WHERE template_key IS NULL AND (system_prompt = ? OR name = ?)
+        ORDER BY CASE WHEN system_prompt = ? THEN 0 ELSE 1 END, sort, created_at
+        LIMIT 1`).get(entry.system_prompt, entry.name, entry.system_prompt);
+      if (!row) continue;
+      updated += db.prepare('UPDATE roster_agents SET template_key = ?, updated_at = ? WHERE id = ? AND template_key IS NULL')
+        .run(entry.template_key, nowIso(), row.id).changes;
+    }
+  });
+  if (updated) audit('system', 'seed', 'workspace.roster_template_keys', { updated });
+  return { updated };
 }
 
 // One-time backfill: stamp roster provenance on pre-roster canvas agents whose
@@ -484,6 +507,6 @@ function reseedRosterPrompts() {
 module.exports = {
   ROSTER_AGENTS, ICP, LEGACY_EXEC_PROMPTS, LEGACY_ROSTER_PROMPTS, STALE_ICP_MEMORY, HOT_MIN_SCORE,
   COMPANION_RETIRE_KEY, LEGACY_COMPANION_NOTE_SIGNATURES, ENRICHMENT_ROSTER_KEY,
-  seedRoster, seedEnrichmentAgent, linkExecAgents, healExecAgents, reseedRosterPrompts, retireRosterCompanionNotes,
+  seedRoster, seedEnrichmentAgent, backfillRosterTemplateKeys, linkExecAgents, healExecAgents, reseedRosterPrompts, retireRosterCompanionNotes,
   supersedeStaleIcpMemory, instantiateOnCanvas,
 };
