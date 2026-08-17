@@ -956,6 +956,7 @@ function disconnectGoogle(email) {
 test('a Gmail rule whose scopes go standard mid-life skips with an alert naming gmail, stays active, and resumes when the scopes return', async () => {
   db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
   const { rule } = withScopes('full', () => mkActiveRule({ sources: ['gmail', 'memory'] }));
+  const firstDue = rule.next_run_at;
   connectGoogle(OWNER);
   try {
     // 1. Scopes flipped to standard: the tools left the menu under a live grant.
@@ -975,10 +976,14 @@ test('a Gmail rule whose scopes go standard mid-life skips with an alert naming 
     assert.ok(after.next_run_at > new Date().toISOString(), 'the schedule advanced rather than stalling');
 
     // 3. Scopes restored: the very next occurrence runs normally, no re-grant.
-    // A day earlier, so this is a genuinely new daily occurrence key rather
-    // than a duplicate delivery of the one that just skipped.
+    // Exactly one day before the FIRST due time, not before now. The daily
+    // occurrence key is the UTC date of the due time (occurrenceKey in
+    // server/standing-rules.js), and the first due was PAST() = now - 1h, so
+    // anchoring to `now` put the two keys 23 hours apart — inside the
+    // 00:00-01:00 UTC hour both landed on the same date, the second claim was
+    // deduped as a duplicate delivery, and this test failed one hour a day.
     db.prepare('UPDATE standing_rules SET next_run_at = ? WHERE id = ?')
-      .run(new Date(Date.now() - 86_400_000).toISOString(), rule.id);
+      .run(new Date(Date.parse(firstDue) - 86_400_000).toISOString(), rule.id);
     withScopes('full', () => standingRules.tick({ source: 'owner', actor: OWNER }));
     const all = ruleRuns(rule.id);
     assert.equal(all.length, 2, 'a second occurrence was claimed');
