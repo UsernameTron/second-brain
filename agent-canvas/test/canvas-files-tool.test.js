@@ -14,6 +14,7 @@ process.env.DEV_AUTH = '1';
 process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
 
 const ExcelJS = require('exceljs');
+const JSZip = require('jszip');
 const { server } = require('../server/index');
 const { db, nowIso } = require('../server/db');
 const evidence = require('../server/evidence');
@@ -25,6 +26,7 @@ const VIEWER = 'jessica@cloudtechgurus.com';
 const AGENT = 'agent-canvas-file';
 const RUN = 'run-canvas-file';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const LONG_TEXT = `START\nBEFORE_OLD_40K\n${'a'.repeat(41_000)}\nBETWEEN_OLD_40K_AND_60K\n${'b'.repeat(21_000)}\nAFTER_OLD_60K\n${'c'.repeat(12_000)}\nEND`;
 let base;
 let ownerCookie;
@@ -63,6 +65,38 @@ function putFile({ id, canvas = canvasId, name, mime, content, uploadedBy = OWNE
     .run(id, canvas, name, mime, bytes.length, bytes, uploadedBy, nowIso());
 }
 
+function simplePdf(text) {
+  const escaped = String(text).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const stream = `BT\n/F1 14 Tf\n72 720 Td\n(${escaped}) Tj\nET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let out = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(out));
+    out += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(out);
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) out += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out);
+}
+
+async function simpleDocx(text) {
+  const escaped = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
+  zip.folder('_rels').file('.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
+  zip.folder('word').file('document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${escaped}</w:t></w:r></w:p><w:sectPr/></w:body></w:document>`);
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
 function ctx() {
   return {
     run: db.prepare('SELECT * FROM runs WHERE id = ?').get(RUN),
@@ -96,10 +130,12 @@ test.before(async () => {
   putFile({ id: 'text-1', name: 'brief.txt', mime: 'text/plain', content: 'Alpha brief\nSecond line.' });
   putFile({ id: 'csv-1', name: 'pipeline.CSV', mime: 'text/csv', content: 'company,stage\nAcme,open' });
   putFile({ id: 'json-1', name: 'facts.json', mime: 'application/json', content: '{"active":true}' });
-  putFile({ id: 'pdf-old', name: 'legacy.pdf', mime: 'application/pdf', content: '%PDF historical' });
+  putFile({ id: 'doc-old', name: 'legacy.doc', mime: 'application/msword', content: 'historical binary document' });
   putFile({ id: 'bad-utf8', name: 'broken.txt', mime: 'text/plain', content: Buffer.from([0xc3, 0x28]) });
   putFile({ id: 'long-1', name: 'long.md', mime: 'text/markdown', content: LONG_TEXT });
   putFile({ id: 'emoji-1', name: 'unicode-boundary.txt', mime: 'text/plain', content: `${'u'.repeat(23_999)}📄TAIL` });
+  putFile({ id: 'pdf-1', name: 'account-brief.pdf', mime: 'application/pdf', content: simplePdf('Acme renewal owner is Jordan Lee') });
+  putFile({ id: 'docx-1', name: 'lead-list.docx', mime: DOCX_MIME, content: await simpleDocx('Globex contact is Casey Morgan') });
   putFile({ id: 'other-secret', canvas: otherCanvasId, name: 'other.txt', mime: 'text/plain', content: 'OTHER CANVAS SECRET' });
 
   const wb = new ExcelJS.Workbook();
@@ -139,18 +175,20 @@ test('common tool lists only live metadata from its own canvas', async () => {
   assert.equal(out.isError, undefined);
   assert.match(out.content, /^<external_content source="canvas_file_list">/);
   assert.match(out.content, /brief\.txt/);
-  assert.match(out.content, /legacy\.pdf/, 'historical unsupported files remain listable');
+  assert.match(out.content, /legacy\.doc/, 'historical unsupported files remain listable');
   assert.ok(!out.content.includes('other-secret'));
   assert.ok(!out.content.includes('OTHER CANVAS SECRET'));
   assert.equal(evidence.refsForRun(RUN).length, 0, 'metadata listing is not represented as reading an artifact');
 });
 
-test('text, CSV, JSON, and XLSX reads are untrusted and evidence-backed', async () => {
+test('PDF, Word, text, CSV, JSON, and XLSX reads are untrusted and evidence-backed', async () => {
   for (const [id, expected] of [
     ['text-1', 'Alpha brief'],
     ['csv-1', 'Acme,open'],
     ['json-1', '{"active":true}'],
     ['xlsx-1', 'Acme,650'],
+    ['pdf-1', 'Acme renewal owner is Jordan Lee'],
+    ['docx-1', 'Globex contact is Casey Morgan'],
   ]) {
     const out = await executeTool('read_canvas_files', { file_id: id }, ctx());
     assert.ok(!out.isError, out.content);
@@ -160,7 +198,7 @@ test('text, CSV, JSON, and XLSX reads are untrusted and evidence-backed', async 
     assert.match(out.content, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
   const refs = evidence.refsForRun(RUN).filter((ref) => ref.sourceKind === 'canvas_file');
-  assert.deepEqual(refs.map((ref) => ref.sourceId).sort(), ['csv-1', 'json-1', 'text-1', 'xlsx-1']);
+  assert.deepEqual(refs.map((ref) => ref.sourceId).sort(), ['csv-1', 'docx-1', 'json-1', 'pdf-1', 'text-1', 'xlsx-1']);
   assert.ok(refs.every((ref) => ref.meta.canvasId === canvasId));
   assert.ok(refs.every((ref) => ref.visibility === 'canvas'));
 });
@@ -173,10 +211,10 @@ test('cross-canvas ids and unsupported or invalid formats reveal no content and 
   assert.ok(!cross.content.includes('other.txt'));
   assert.ok(!cross.content.includes('OTHER CANVAS SECRET'));
 
-  const pdf = await executeTool('read_canvas_files', { file_id: 'pdf-old' }, ctx());
-  assert.equal(pdf.isError, true);
-  assert.match(pdf.content, /Unsupported canvas file/);
-  assert.match(pdf.content, /PDF, Word, images/);
+  const legacy = await executeTool('read_canvas_files', { file_id: 'doc-old' }, ctx());
+  assert.equal(legacy.isError, true);
+  assert.match(legacy.content, /Unsupported canvas document/);
+  assert.match(legacy.content, /legacy \.doc, images/);
 
   const invalid = await executeTool('read_canvas_files', { file_id: 'bad-utf8' }, ctx());
   assert.equal(invalid.isError, true);
@@ -287,18 +325,25 @@ test('XLSX renderer limits are terminal, explicit, and never misrepresented as c
   assert.match(markerText.text, /sheet truncated at 2000 rows/);
 });
 
-test('upload accepts only readable supported files and rejects dead artifacts before persistence', async () => {
+test('upload accepts readable PDF and Word documents and rejects dead artifacts before persistence', async () => {
   const before = db.prepare('SELECT COUNT(*) AS n FROM files WHERE canvas_id = ?').get(canvasId).n;
-  const pdf = await upload(ownerCookie, canvasId, 'new.pdf', 'application/pdf', '%PDF');
-  assert.equal(pdf.status, 415);
-  assert.match(pdf.data.error, /\.txt, \.md, \.csv, \.json, or \.xlsx/);
+  const pdf = await upload(ownerCookie, canvasId, 'new.pdf', 'application/pdf', simplePdf('Northwind lead owner is Avery Smith'));
+  assert.equal(pdf.status, 200, JSON.stringify(pdf.data));
+  const docx = await upload(ownerCookie, canvasId, 'new.docx', DOCX_MIME, await simpleDocx('Contoso lead owner is Morgan Reyes'));
+  assert.equal(docx.status, 200, JSON.stringify(docx.data));
+  const badPdf = await upload(ownerCookie, canvasId, 'bad.pdf', 'application/pdf', '%PDF broken');
+  assert.equal(badPdf.status, 415);
+  assert.match(badPdf.data.error, /could not be read as a PDF/);
+  const badDocx = await upload(ownerCookie, canvasId, 'bad.docx', DOCX_MIME, 'not a Word archive');
+  assert.equal(badDocx.status, 415);
+  assert.match(badDocx.data.error, /could not be read as a Word document/);
   const disguised = await upload(ownerCookie, canvasId, 'binary.txt', 'text/plain', Buffer.from([0xc3, 0x28]));
   assert.equal(disguised.status, 415);
   assert.match(disguised.data.error, /not valid UTF-8/);
   const corrupt = await upload(ownerCookie, canvasId, 'corrupt.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'not a workbook');
   assert.equal(corrupt.status, 415);
   assert.match(corrupt.data.error, /could not be read as a workbook/);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM files WHERE canvas_id = ?').get(canvasId).n, before);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM files WHERE canvas_id = ?').get(canvasId).n, before + 2);
 
   const good = await upload(ownerCookie, canvasId, 'operator.md', 'text/markdown', '# Operator brief');
   assert.equal(good.status, 200, JSON.stringify(good.data));

@@ -69,7 +69,7 @@ export default function AddAgentModal({ canvasId, roster, builderOn, isOwner, on
                   <button className="roster-pick" disabled={busy} onClick={() => addFromRoster(entry)}>
                     <span className="roster-dot big" style={{ background: entry.color }} />
                     <span className="roster-pick-name">{entry.name}</span>
-                    <span className="chip">{entry.role}</span>
+                    <span className="chip">{entry.role === 'enrichment' ? 'lead information' : entry.role}</span>
                     <span className={`chip tier-${entry.model_tier}`}>{entry.model_tier}</span>
                   </button>
                 </li>

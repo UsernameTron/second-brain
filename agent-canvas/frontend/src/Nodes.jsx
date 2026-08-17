@@ -76,11 +76,12 @@ function NodeShell({ kind, id, x, y, z, className = '', style, selColor, mine, l
 }
 
 export function AgentNode({ agent, spend, amber, paused, ...shell }) {
+  const roleLabel = agent.role === 'enrichment' ? 'lead information' : agent.role;
   return (
     <NodeShell
       kind="agent"
       id={agent.id}
-      label={`${agent.name}, ${agent.role} agent`}
+      label={`${agent.name}, ${roleLabel} agent`}
       x={agent.x}
       y={agent.y}
       className={`agent-node st-${agent.status} ${amber ? 'amber-glow' : ''} ${paused ? 'frozen' : ''}`}
@@ -90,7 +91,7 @@ export function AgentNode({ agent, spend, amber, paused, ...shell }) {
       <div className="agent-head">
         <span className="agent-orb" />
         <span className="agent-name">{agent.name}</span>
-        <span className="chip role-chip">{agent.role}</span>
+        <span className="chip role-chip">{roleLabel}</span>
       </div>
       <div className="agent-sub">
         <span className={`chip tier-chip tier-${agent.model_tier}`}>{agent.model_tier}</span>
@@ -171,17 +172,17 @@ export function FileNode({ file, canvasId, ...shell }) {
     <NodeShell
       kind="file"
       id={file.id}
-      label={`File: ${file.name}`}
+      label={`Document: ${file.name}`}
       x={file.x}
       y={file.y}
       className="file-node"
       {...shell}
     >
-      <div className="node-title"><span className="file-mark">▤</span> {short(file.name, 26)}</div>
+      <div className="node-title"><span className="file-kind">DOCUMENT</span> {short(file.name, 26)}</div>
       <div className="file-meta mono">
         {fmtBytes(file.size)}
         <a href={`/api/canvases/${encodeURIComponent(canvasId)}/files/${encodeURIComponent(file.id)}`} download={file.name} title={`Download ${file.name}`}>
-          ↓ download
+          Download
         </a>
       </div>
     </NodeShell>

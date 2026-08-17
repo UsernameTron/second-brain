@@ -18,9 +18,11 @@ import CapabilitiesModal from './CapabilitiesModal.jsx';
 
 let liveSeq = 0;
 
-const FILE_ACCEPT = '.txt,.md,.csv,.json,.xlsx';
+const FILE_ACCEPT = '.pdf,.docx,.txt,.md,.csv,.json,.xlsx';
 const FILE_LIMIT_BYTES = 5 * 1024 * 1024;
 const FILE_MIME = {
+  '.pdf': 'application/pdf',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   '.txt': 'text/plain',
   '.md': 'text/markdown',
   '.csv': 'text/csv',
@@ -708,17 +710,17 @@ export default function Workspace() {
 
     const ext = fileExtension(file.name);
     if (!Object.hasOwn(FILE_MIME, ext)) {
-      setFileUpload({ kind: 'error', message: 'Choose a TXT, Markdown, CSV, JSON, or XLSX file.' });
+      setFileUpload({ kind: 'error', message: 'Choose a PDF, Word (.docx), TXT, Markdown, CSV, JSON, or XLSX document.' });
       input.value = '';
       return;
     }
     if (file.size === 0) {
-      setFileUpload({ kind: 'error', message: 'That file is empty. Choose a file with content.' });
+      setFileUpload({ kind: 'error', message: 'That document is empty. Choose one with content.' });
       input.value = '';
       return;
     }
     if (file.size > FILE_LIMIT_BYTES) {
-      setFileUpload({ kind: 'error', message: 'That file is over the 5 MB upload limit.' });
+      setFileUpload({ kind: 'error', message: 'That document is over the 5 MB upload limit.' });
       input.value = '';
       return;
     }
@@ -736,7 +738,7 @@ export default function Workspace() {
         headers: { 'Content-Type': FILE_MIME[ext] },
         body: file,
       });
-      if (!d?.file?.id) throw new Error('The upload completed without a file record.');
+      if (!d?.file?.id) throw new Error('The upload completed without a document record.');
       const uploaded = {
         ...d.file,
         canvas_id: cid,
@@ -751,8 +753,8 @@ export default function Workspace() {
       if (canvasIdRef.current === cid) {
         setView('canvas');
         setPanel({ type: 'file', id: uploaded.id });
-        setFileUpload({ kind: 'success', message: `${file.name} added to this canvas.` });
-        toast('File added', 'ok');
+        setFileUpload({ kind: 'success', message: `${file.name} is ready for agents.` });
+        toast('Document ready for agents', 'ok');
       } else {
         toast(`${file.name} was added to the canvas where the upload began.`, 'ok');
       }
@@ -761,10 +763,10 @@ export default function Workspace() {
       // separately; a placement failure does not undo or hide the upload.
       api(`/api/canvases/${cid}/positions`, {
         method: 'POST', body: { kind: 'file', id: uploaded.id, x, y },
-      }).catch(() => toast('File added, but its canvas position could not be saved.', 'warn'));
+      }).catch(() => toast('Document added, but its canvas position could not be saved.', 'warn'));
     } catch (e) {
-      setFileUpload({ kind: 'error', message: e.message || 'File upload failed.' });
-      toast(e.message || 'File upload failed');
+      setFileUpload({ kind: 'error', message: e.message || 'Document upload failed.' });
+      toast(e.message || 'Document upload failed');
     } finally {
       input.value = '';
     }
@@ -780,7 +782,7 @@ export default function Workspace() {
         setPanel((current) => (current?.type === 'file' && current.id === file.id ? null : current));
         setFileUpload({ kind: 'success', message: `${file.name} removed from this canvas.` });
       }
-      toast('File removed', 'ok');
+      toast('Document removed', 'ok');
       return true;
     } catch (e) {
       toast(e.message);
@@ -1084,7 +1086,7 @@ export default function Workspace() {
                       })}
                     />
                     <span className="roster-dot" style={{ background: r.color }} />
-                    {r.name} <span className="dim">{r.role}</span>
+                    {r.name} <span className="dim">{r.role === 'enrichment' ? 'lead information' : r.role}</span>
                   </label>
                 ))}
               </div>
@@ -1141,13 +1143,14 @@ export default function Workspace() {
               className="file-input-hidden"
               type="file"
               accept={FILE_ACCEPT}
-              aria-label="Choose a file to add to this canvas"
+              aria-label="Choose a document to add to this canvas"
               disabled={fileUpload.kind === 'busy'}
               onChange={uploadFile}
             />
             <button
               className="icon-btn"
-              title="Add a TXT, Markdown, CSV, JSON, or XLSX file (5 MB maximum)"
+              aria-label="Upload document"
+              title="Upload a PDF, Word (.docx), TXT, Markdown, CSV, JSON, or XLSX document for agents to read (5 MB maximum)"
               disabled={fileUpload.kind === 'busy'}
               aria-describedby={fileUpload.message ? 'file-upload-status' : undefined}
               onClick={() => {
@@ -1155,7 +1158,7 @@ export default function Workspace() {
                 fileInputRef.current?.click();
               }}
             >
-              {fileUpload.kind === 'busy' ? 'Uploading…' : '+ File'}
+              {fileUpload.kind === 'busy' ? 'Uploading…' : '+ Document'}
             </button>
           </>
         ) : null}
@@ -1167,7 +1170,7 @@ export default function Workspace() {
             aria-live={fileUpload.kind === 'error' ? 'assertive' : 'polite'}
             aria-atomic="true"
           >
-            {fileUpload.kind === 'busy' ? <progress aria-label="File upload in progress" /> : null}
+            {fileUpload.kind === 'busy' ? <progress aria-label="Document upload in progress" /> : null}
             <span>{fileUpload.message}</span>
           </span>
         ) : null}
@@ -1492,13 +1495,13 @@ function FilePanel({ file, canvasId, editable, onRemove, onClose }) {
   };
 
   return (
-    <aside className="panel file-panel" aria-label={`File details: ${file.name}`}>
+    <aside className="panel file-panel" aria-label={`Document details: ${file.name}`}>
       <header className="panel-head">
-        <h2>File</h2>
-        <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close file details">×</button>
+        <h2>Document</h2>
+        <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close document details">×</button>
       </header>
       <div className="panel-body file-panel-body">
-        <div className="file-panel-mark" aria-hidden="true">▤</div>
+        <div className="file-panel-status"><strong>Ready for agents</strong><span>Ask an agent to interpret, summarize, compare, or enrich the people and companies in this document.</span></div>
         <div className="file-panel-name">{file.name}</div>
         <div className="file-panel-meta mono">
           <span>{fmtBytes(file.size)}</span>
@@ -1509,25 +1512,25 @@ function FilePanel({ file, canvasId, editable, onRemove, onClose }) {
           href={`/api/canvases/${encodeURIComponent(canvasId)}/files/${encodeURIComponent(file.id)}`}
           download={file.name}
         >
-          Download file
+          Download original
         </a>
 
         {editable && !confirming ? (
-          <button className="link-btn danger-link file-remove-link" onClick={() => setConfirming(true)}>Remove file</button>
+          <button className="link-btn danger-link file-remove-link" onClick={() => setConfirming(true)}>Remove document</button>
         ) : null}
         {editable && confirming ? (
           <div className="file-remove-confirm" role="alert">
-            <strong>Remove this file?</strong>
+            <strong>Remove this document?</strong>
             <span>It will disappear from this workspace and from future agent reads. Audit history is retained.</span>
             <div className="note-actions">
               <button className="btn ghost small" disabled={removing} onClick={() => setConfirming(false)}>Cancel</button>
               <button className="btn danger small" disabled={removing} onClick={confirmRemove}>
-                {removing ? 'Removing…' : 'Yes, remove file'}
+                {removing ? 'Removing…' : 'Yes, remove document'}
               </button>
             </div>
           </div>
         ) : null}
-        {!editable ? <p className="file-readonly dim">View only · download is available; changing files is not.</p> : null}
+        {!editable ? <p className="file-readonly dim">View only · the original can be downloaded; changing documents is not available.</p> : null}
       </div>
     </aside>
   );

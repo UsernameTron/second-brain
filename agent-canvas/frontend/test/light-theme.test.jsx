@@ -53,6 +53,15 @@ function contrast(foreground, background) {
 }
 
 describe('light-theme CSS contracts', () => {
+  it('contains wide navigation inside the topbar and keeps mobile panels above the review tray', () => {
+    const topbar = rule('.topbar');
+    expect(declaration(topbar, 'max-width')).toBe('100vw');
+    expect(declaration(topbar, 'overflow-x')).toBe('auto');
+    expect(declaration(topbar, 'overflow-y')).toBe('hidden');
+    expect(declaration(rule('.canvas-new-pop'), 'position')).toBe('fixed');
+    expect(css).toMatch(/\.panel, \.panel-wide \{[^}]*z-index:\s*70;/);
+  });
+
   it('resets topbar styling inside both light-surface creation popovers', () => {
     const popover = rule('.canvas-new-pop');
     expect(declaration(popover, 'color')).toBe('var(--text)');

@@ -3,6 +3,8 @@
 // a dedicated tool so it can be validated, audited, broadcast, and traced.
 
 const crypto = require('node:crypto');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { db, nowIso, tx } = require('../db');
 const { audit } = require('../audit');
 const memory = require('../memory');
@@ -96,7 +98,7 @@ const COMMON_TOOLS = [
   },
   {
     name: 'read_canvas_files',
-    description: 'List files attached to this canvas, or read one attached file by id. Omit file_id to list metadata. Large files are returned in bounded character ranges: when has_more is true, call again with next_offset until has_more is false. Reads are canvas-scoped and read-only. Supported content: UTF-8 text/CSV/JSON and, when XLSX_READ is enabled, .xlsx workbooks; other formats are reported as unsupported.',
+    description: 'List documents attached to this canvas, or read one by id. Omit file_id to list metadata. Large documents are returned in bounded character ranges: when has_more is true, call again with next_offset until has_more is false. Reads are canvas-scoped, read-only, and evidence-backed. Supported content: PDF, Word .docx, UTF-8 text/Markdown/CSV/JSON, and, when XLSX_READ is enabled, .xlsx workbooks.',
     input_schema: {
       type: 'object',
       properties: {
@@ -353,7 +355,14 @@ const ENRICHMENT_TOOLS = [
     input_schema: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] },
   },
 ];
-const ENRICHMENT_ROLES = ['research', 'targeting', 'commercial'];
+const ENRICHMENT_ROLES = ['research', 'targeting', 'commercial', 'enrichment'];
+
+// Enrichment is a distinct user-facing job, but it deliberately inherits
+// Radar's connector lane. This keeps the tool surface identical without
+// relabeling the agent as a targeting/qualification agent in the UI.
+function connectorRole(role) {
+  return role === 'enrichment' ? 'targeting' : role;
+}
 
 // Committed context registries — the ICP scoring contract, CTG's supplier
 // catalogue, and distilled org-context facts. They are refreshed by a new
@@ -389,6 +398,11 @@ const CANVAS_FILE_LIST_LIMIT = 100;
 const CANVAS_FILE_CHUNK_DEFAULT = 24_000;
 const CANVAS_FILE_CHUNK_MAX = 30_000;
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const PDF_MIME = 'application/pdf';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const DOCUMENT_TEXT_CAP = 120_000;
+const PDF_PAGE_LIMIT = 100;
+const DOCUMENT_UNCOMPRESSED_CAP = 50 * 1024 * 1024;
 const TEXT_EXTENSIONS = new Set(['.txt', '.md', '.csv', '.json']);
 const TEXT_MIMES_BY_EXTENSION = {
   '.txt': new Set(['text/plain', 'application/octet-stream']),
@@ -397,7 +411,7 @@ const TEXT_MIMES_BY_EXTENSION = {
   '.json': new Set(['application/json', 'text/json', 'text/plain', 'application/octet-stream']),
 };
 const KNOWN_UNSUPPORTED_EXTENSIONS = new Set([
-  '.pdf', '.doc', '.docx', '.xls', '.ppt', '.pptx', '.pages', '.numbers', '.key',
+  '.doc', '.xls', '.ppt', '.pptx', '.pages', '.numbers', '.key',
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.zip', '.gz', '.tar',
 ]);
 
@@ -412,6 +426,12 @@ function canvasFileFormat(file) {
   // A known binary/document extension wins over a caller-supplied text MIME.
   // Upload Content-Type is not trustworthy enough to turn a PDF into text.
   if (KNOWN_UNSUPPORTED_EXTENSIONS.has(ext)) return null;
+  if (ext === '.pdf') {
+    return !mime || mime === PDF_MIME || mime === 'application/octet-stream' ? 'pdf' : null;
+  }
+  if (ext === '.docx') {
+    return !mime || mime === DOCX_MIME || mime === 'application/octet-stream' || mime === 'application/zip' ? 'docx' : null;
+  }
   if (ext === '.xlsx') {
     return !mime || mime === XLSX_MIME || mime === 'application/octet-stream' || mime === 'application/zip' ? 'xlsx' : null;
   }
@@ -479,10 +499,108 @@ function xlsxDisabledMessage(file) {
   return `"${file.name}" is an uploaded Office file (${file.mime || XLSX_MIME}) whose native workbook reader is disabled (XLSX_READ=0). Open it with Google Sheets/Docs to create a readable converted copy, or export it as CSV, then upload the converted file.`;
 }
 
+function capExtractedDocumentText(text, name, label, reasons) {
+  let rendered = String(text || '').replace(/\u0000/g, '').trim();
+  if (!rendered) {
+    throw new Error(`"${name}" contains no extractable text. If it is a scanned or image-only ${label}, upload a text-searchable copy.`);
+  }
+  if (rendered.length > DOCUMENT_TEXT_CAP) {
+    const marker = `\n[...${label} text truncated at ${DOCUMENT_TEXT_CAP} characters — split the document or upload a narrower source to read the omitted content]`;
+    rendered = rendered.slice(0, DOCUMENT_TEXT_CAP - marker.length) + marker;
+    reasons.add('character_limit');
+  }
+  return rendered;
+}
+
+async function docxToText(bytes, name) {
+  const JSZip = require('jszip');
+  let zip;
+  try {
+    zip = await JSZip.loadAsync(bytes);
+  } catch {
+    throw new Error(`"${name}" could not be read as a Word document (corrupt or not a real .docx).`);
+  }
+  let uncompressed = 0;
+  zip.forEach((_, entry) => { uncompressed += (entry._data && entry._data.uncompressedSize) || 0; });
+  if (!zip.file('word/document.xml')) {
+    throw new Error(`"${name}" could not be read as a Word document (word/document.xml is missing).`);
+  }
+  if (uncompressed > DOCUMENT_UNCOMPRESSED_CAP) {
+    throw new Error(`"${name}" expands to ${Math.round(uncompressed / 1048576)}MB — over the ${DOCUMENT_UNCOMPRESSED_CAP / 1048576}MB Word document safety limit.`);
+  }
+  let result;
+  try {
+    result = await require('mammoth').extractRawText({ buffer: bytes });
+  } catch (err) {
+    throw new Error(`"${name}" could not be read as a Word document: ${String(err.message || err).slice(0, 160)}`);
+  }
+  const reasons = new Set();
+  return {
+    text: capExtractedDocumentText(result.value, name, 'Word document', reasons),
+    sourceTruncated: reasons.size > 0,
+    truncationReasons: [...reasons],
+  };
+}
+
+async function pdfToText(bytes, name) {
+  if (!bytes.subarray(0, 8).toString('latin1').startsWith('%PDF-')) {
+    throw new Error(`"${name}" could not be read as a PDF (missing PDF header).`);
+  }
+  let pdf;
+  try {
+    const pdfModulePath = require.resolve('pdfjs-dist/legacy/build/pdf.mjs');
+    const standardFontDataUrl = `${pathToFileURL(
+      path.resolve(path.dirname(pdfModulePath), '../../standard_fonts/'),
+    ).href}/`;
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    pdf = await getDocument({
+      data: new Uint8Array(bytes),
+      isEvalSupported: false,
+      useSystemFonts: false,
+      standardFontDataUrl,
+      stopAtErrors: true,
+    }).promise;
+  } catch (err) {
+    throw new Error(`"${name}" could not be read as a PDF: ${String(err.message || err).slice(0, 160)}`);
+  }
+
+  const reasons = new Set();
+  const lines = [`PDF "${name}" (${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'}):`];
+  const pages = Math.min(pdf.numPages, PDF_PAGE_LIMIT);
+  let extractedCharacters = 0;
+  try {
+    for (let pageNumber = 1; pageNumber <= pages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const pageText = content.items.map((item) => {
+        const value = typeof item.str === 'string' ? item.str : '';
+        return item.hasEOL ? `${value}\n` : `${value} `;
+      }).join('').replace(/[ \t]+\n/g, '\n').trim();
+      extractedCharacters += pageText.length;
+      lines.push(`\n## Page ${pageNumber}\n${pageText}`);
+      page.cleanup();
+      if (lines.join('\n').length > DOCUMENT_TEXT_CAP) {
+        reasons.add('character_limit');
+        break;
+      }
+    }
+    if (pdf.numPages > pages) reasons.add('page_limit');
+  } catch (err) {
+    throw new Error(`"${name}" could not be read as a PDF: ${String(err.message || err).slice(0, 160)}`);
+  } finally {
+    await pdf.destroy().catch(() => {});
+  }
+  if (extractedCharacters === 0) {
+    throw new Error(`"${name}" contains no extractable text. If it is a scanned or image-only PDF, upload a text-searchable copy.`);
+  }
+  const rendered = capExtractedDocumentText(lines.join('\n'), name, 'PDF', reasons);
+  return { text: rendered, sourceTruncated: reasons.size > 0, truncationReasons: [...reasons] };
+}
+
 async function readCanvasFile(file, options = {}) {
   const format = canvasFileFormat(file);
   if (!format) {
-    throw new Error(`Unsupported canvas file "${file.name}" (${file.mime || 'unknown type'}). Agents can read UTF-8 text, CSV, JSON, and .xlsx files; PDF, Word, images, and other binary formats are not yet readable.`);
+    throw new Error(`Unsupported canvas document "${file.name}" (${file.mime || 'unknown type'}). Agents can read PDF, Word .docx, UTF-8 text, Markdown, CSV, JSON, and .xlsx files; legacy .doc, images, and other binary formats are not readable.`);
   }
   if (format === 'xlsx') {
     // Check at CALL time, not module load: operators use this as an emergency
@@ -494,6 +612,17 @@ async function readCanvasFile(file, options = {}) {
       ...chunkCanvasFileText(rendered.text, options, { sourceTruncated: rendered.sourceTruncated }),
       format,
       sourceLimits: rendered.truncationReasons,
+      sourceLimitMessage: 'The workbook renderer reached an explicit sheet, row, cell, or character safety bound. Continuation can retrieve every rendered character; omitted workbook content requires a narrower workbook or CSV export.',
+    };
+  }
+  if (format === 'docx' || format === 'pdf') {
+    const bytes = Buffer.from(file.content || []);
+    const rendered = format === 'docx' ? await docxToText(bytes, file.name) : await pdfToText(bytes, file.name);
+    return {
+      ...chunkCanvasFileText(rendered.text, options, { sourceTruncated: rendered.sourceTruncated }),
+      format,
+      sourceLimits: rendered.truncationReasons,
+      sourceLimitMessage: 'The document parser reached an explicit page or character safety bound. Continuation can retrieve every extracted character; omitted source content requires a smaller or split document.',
     };
   }
   return { ...chunkCanvasFileText(decodeCanvasFile(file), options), format };
@@ -609,11 +738,12 @@ function toolsForRole(role, { userRole = 'member', mode = 'act', authority = nul
   // connectors are offered only to the agent roles the owner named. Both are
   // re-checked at call time — a def leak alone can never authorize a call.
   const mcpClient = require('../mcp/client');
+  const effectiveConnectorRole = connectorRole(role);
   const mcpDefs = mcpClient.getCachedDefs().filter((d) => {
     const meta = mcpClient.resolveToolName(d.name);
     if (!meta) return false;
     if (meta.access === 'owner' && userRole !== 'owner') return false;
-    if (meta.roles && meta.roles.length && !meta.roles.includes(role)) return false;
+    if (meta.roles && meta.roles.length && !meta.roles.includes(effectiveConnectorRole)) return false;
     return true;
   });
   // In standard scope mode the Gmail tools are absent, not just refusing —
@@ -876,9 +1006,7 @@ async function executeTool(name, input, ctx) {
           ...(read.hasMore ? {
             continuation: `Call read_canvas_files again with file_id "${file.id}" and offset ${read.nextOffset}.`,
           } : {}),
-          ...(read.sourceTruncated ? {
-            source_limit: 'The workbook renderer reached an explicit sheet/row/cell/character safety bound. Continuation can retrieve every rendered character, but omitted workbook content requires a narrower workbook or CSV export.',
-          } : {}),
+          ...(read.sourceTruncated ? { source_limit: read.sourceLimitMessage } : {}),
         };
         const body = `File: ${file.name}\nType: ${file.mime || 'application/octet-stream'}\nSize: ${file.size} bytes\nChunk metadata: ${JSON.stringify(chunk)}\n\n${read.text}`;
         return { content: externalContent('canvas_file', body) + evidence.refMarker(refId) };

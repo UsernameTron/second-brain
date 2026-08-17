@@ -1984,7 +1984,7 @@ router.post('/canvases/:canvasId/files', auth.requireCanvas, express.raw({ type:
   const mime = String(req.headers['content-type'] || 'application/octet-stream').slice(0, 128);
   const candidate = { name, mime, size, content: bytes };
   if (!canvasFileFormat(candidate)) {
-    return res.status(415).json({ error: `Unsupported file "${name}" (${mime}). Upload a .txt, .md, .csv, .json, or .xlsx file.` });
+    return res.status(415).json({ error: `Unsupported document "${name}" (${mime}). Upload a PDF, Word .docx, .txt, .md, .csv, .json, or .xlsx file.` });
   }
   // Validate readability before persistence. A binary renamed .txt or a
   // corrupt .xlsx would otherwise create the same dead-end artifact this

@@ -57,14 +57,15 @@ channel by sending `{type:'join', canvasId}` after opening `/ws`.
   **Include in every agent run**. Pinned notes get a bright live-context
   treatment. Note saves use optimistic versioning via `PUT`; removal uses
   `DELETE /api/canvases/:canvasId/notes/:noteId`, takes the note out of future
-  context, and retains the audit record. Editors can upload TXT, Markdown, CSV,
-  JSON, or XLSX files up to 5 MB through **+ File**. Files show name and size,
+  context, and retains the audit record. Editors can upload PDF, Word (`.docx`),
+  TXT, Markdown, CSV, JSON, or XLSX files up to 5 MB through **+ Document**.
+  Documents show name and size,
   open into a detail panel, and remain downloadable at
   `GET /api/canvases/:id/files/:fileId`. Authorized agents list or read them
   with `read_canvas_files`. Confirmed removal excludes a file from the canvas
   and future agent reads while preserving its audit and deletion metadata;
   view-only users retain download access but cannot upload or remove.
-- **Documents** — canvas Files and connected Google Drive/Docs are the document
+- **Documents** — **+ Document** and connected Google Drive/Docs are the document
   paths. The old Workbook was a sample-row demo, not a general document reader.
   Do not expose its rows, cleanup command, changesets, or pending-change cards.
 - **Epistemic shape encoding (memory panel)** — a "Memory" side panel listing entries from `GET /api/canvases/:id/memory`. Each entry rendered with BOTH color and **shape**: `verified` = solid border + filled dot; `inference` = dashed border + half-filled dot; `assumption` = dotted/hollow border + hollow dot. Legend at top. Superseded toggle (`?include_superseded=1`) shows struck-through history. `tainted: true` entries get an amber "⚠ built on corrected info" flag. Each entry shows provenance line (author name, source, time, run link) + epistemic label; a **"Trace lineage"** action opens the lineage view.

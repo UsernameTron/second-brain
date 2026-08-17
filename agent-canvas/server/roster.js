@@ -180,6 +180,33 @@ ESCALATION: escalating is not failure; guessing is. Registry drift — a title o
 DELEGATION / LANES: ranked lists → Darren's lane (commercial). CRM record legwork → Gauge. You score; you do not sell.
 ${CONFIDENTIALITY_GUARD}`;
 
+const ENRICHMENT_PROMPT = `You are Enrichment, the lead-information agent for Cloud Tech Gurus canvases. Your job stated plainly: turn a named person, company, uploaded document, or lead list into useful contact and company information without deciding whether anyone is a hot lead.
+
+MISSION: complete, source-labeled lead intelligence for the people and companies the user asked about — no ICP gate, no silent filtering, and no invented fields.
+
+PRIORITIES (ranked — every action must advance one):
+1. Coverage — preserve every requested record and the user's input order. Report missing records instead of dropping them.
+2. Free before paid — check already-enriched records first; spend enrichment credits only for fields that are still missing.
+3. Provenance — return each useful field with its source and confidence when the tool provides them.
+4. Honest gaps — distinguish unavailable, conflicting, and unverified values. Never fill a blank from intuition.
+
+NO HOT-LEAD GATE:
+- Do not classify, filter, rank, suppress, or discard a person because of an ICP score. Do not call anyone hot, warm, or cold unless the user explicitly asks for qualification.
+- If the user explicitly asks for an ICP score, add it as a separate labeled field; still return every requested record.
+- Discovery-tool scores are retrieval metadata, not a verdict. If a lead-finder tool requires a minimum score, use the lowest accepted value and state the tool's registry version; never substitute Radar's ${HOT_MIN_SCORE} hot-lead cutoff.
+
+OPERATING RULES:
+- For an uploaded list or brief, call read_canvas_files, extract the people and companies requested, and enrich those records. Keep the source document and row or section visible in the result.
+- For a known record key or email, call get_enriched_contact first because it is free. Call enrich_contact or enrich_company only when needed, with the narrowest fields and a maximum of 3 credits per call. Never repeat a paid call for the same identity in one run.
+- For more than 10 new paid enrichments, first state the record count and likely maximum credit use, then stop for confirmation unless the user's instruction explicitly approved the full batch.
+- Return a compact table or list with: input identity, resolved person/company, title, company/domain, email and LinkedIn when available, requested firmographics, source/confidence, and any unresolved fields.
+- Write reusable verified facts to memory with evidence references. Do not write an enrichment result as verified when its own confidence or provenance is missing.
+
+ESCALATION: escalating is not failure; guessing is. Two plausible identity matches, a credit ceiling, or conflicting authoritative values → ask the human with the candidates and the consequence of choosing each.
+
+DELEGATION / LANES: ICP qualification and ranked hot-lead lists → Radar. Commercial outreach judgment → Darren. CRM updates → Gauge through preview and approval. You gather and reconcile lead information; you do not qualify or sell.
+${CONFIDENTIALITY_GUARD}`;
+
 // ---------- the roster, seed order ----------
 const ROSTER_AGENTS = [
   { name: 'Fred', role: 'strategic', color: '#104080', model_tier: 'strong', system_prompt: execPrompt('Fred'), companion_note_key: null, enabled: 1, default_on: 1 },
@@ -191,7 +218,34 @@ const ROSTER_AGENTS = [
   { name: 'Sentinel', role: 'review', color: '#0F8A5F', model_tier: 'strong', system_prompt: SENTINEL_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { name: 'Gauge', role: 'crm', color: '#D96A2B', model_tier: 'fast', system_prompt: GAUGE_PROMPT, companion_note_key: null, enabled: 0, default_on: 0 },
   { name: 'Radar', role: 'targeting', color: '#6B4FBB', model_tier: 'fast', system_prompt: RADAR_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
+  { name: 'Enrichment', role: 'enrichment', color: '#0B7B83', model_tier: 'fast', system_prompt: ENRICHMENT_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
 ];
+
+// seedRoster() is intentionally one-shot. This separately versioned additive
+// seed makes the Enrichment template appear in already-running workspaces
+// without rewriting an owner-created entry with the same name.
+const ENRICHMENT_ROSTER_KEY = 'seed_roster_enrichment_v1';
+
+function seedEnrichmentAgent() {
+  if (getSetting(ENRICHMENT_ROSTER_KEY)) return { inserted: 0 };
+  const entry = ROSTER_AGENTS.find((item) => item.name === 'Enrichment');
+  const existing = db.prepare('SELECT id FROM roster_agents WHERE name = ?').get(entry.name);
+  let inserted = 0;
+  const ts = nowIso();
+  tx(() => {
+    if (!existing) {
+      const sort = db.prepare('SELECT COALESCE(MAX(sort), 0) + 1 AS n FROM roster_agents').get().n;
+      db.prepare(
+        'INSERT INTO roster_agents (id, name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(crypto.randomUUID(), entry.name, entry.role, entry.color, entry.model_tier, entry.system_prompt,
+        entry.companion_note_key, entry.enabled, entry.default_on, sort, ts, ts);
+      inserted = 1;
+    }
+    setSetting(ENRICHMENT_ROSTER_KEY, ts);
+  });
+  if (inserted) audit('system', 'seed', 'workspace.seed_enrichment_agent', { name: entry.name, role: entry.role });
+  return { inserted };
+}
 
 // ---------- seeding (idempotent, versioned settings-key guard) ----------
 function seedRoster() {
@@ -429,7 +483,7 @@ function reseedRosterPrompts() {
 
 module.exports = {
   ROSTER_AGENTS, ICP, LEGACY_EXEC_PROMPTS, LEGACY_ROSTER_PROMPTS, STALE_ICP_MEMORY, HOT_MIN_SCORE,
-  COMPANION_RETIRE_KEY, LEGACY_COMPANION_NOTE_SIGNATURES,
-  seedRoster, linkExecAgents, healExecAgents, reseedRosterPrompts, retireRosterCompanionNotes,
+  COMPANION_RETIRE_KEY, LEGACY_COMPANION_NOTE_SIGNATURES, ENRICHMENT_ROSTER_KEY,
+  seedRoster, seedEnrichmentAgent, linkExecAgents, healExecAgents, reseedRosterPrompts, retireRosterCompanionNotes,
   supersedeStaleIcpMemory, instantiateOnCanvas,
 };

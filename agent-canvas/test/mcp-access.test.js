@@ -190,6 +190,14 @@ test('def filtering: owner-only connectors and role scoping', async () => {
   assert.ok(!asOwnerStrategic.includes('mcp_mock_search'), 'role scope excludes non-listed agent roles');
   const defaultCall = toolsForRole('research').map((t) => t.name);
   assert.ok(!defaultCall.includes('mcp_mock_search'), 'no userRole = least privilege (member)');
+
+  db.prepare("UPDATE mcp_servers SET roles_json = ? WHERE name = 'mock'").run(JSON.stringify(['targeting']));
+  mcp.reload();
+  await mcp.refreshDefs();
+  const asOwnerEnrichment = toolsForRole('enrichment', { userRole: 'owner' }).map((t) => t.name);
+  assert.ok(asOwnerEnrichment.includes('mcp_mock_search'), 'Enrichment inherits Radar targeting connectors');
+  const researchAfterRetarget = toolsForRole('research', { userRole: 'owner' }).map((t) => t.name);
+  assert.ok(!researchAfterRetarget.includes('mcp_mock_search'), 'the Radar connector does not leak to unrelated roles');
 });
 
 test('management routes are owner-only; probe returns tool inventory; mutation reloads', async () => {
