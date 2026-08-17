@@ -12,6 +12,12 @@ export const TEAM_TEMPLATES = Object.freeze([
     agentNames: Object.freeze(['Scout', 'Enrichment', 'Radar', 'Darren']),
   }),
   Object.freeze({
+    id: 'target-contact',
+    name: 'Target contact research',
+    description: 'Find verified information about a specific person or company, then prepare the commercial next step—without screening the target out.',
+    agentNames: Object.freeze(['Enrichment', 'Darren']),
+  }),
+  Object.freeze({
     id: 'marketing',
     name: 'Marketing & content',
     description: 'Research an audience, shape the message, and create Workspace-ready content.',

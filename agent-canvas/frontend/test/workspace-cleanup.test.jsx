@@ -294,30 +294,32 @@ describe('user-facing canvas cleanup', () => {
     expect(Array.from(teamSelect.options).map((option) => option.text)).toEqual([
       'Leadership & decisions',
       'Revenue & business development',
+      'Target contact research',
       'Marketing & content',
       'Research, build & review',
     ]);
 
-    await userEvent.selectOptions(teamSelect, 'revenue');
-    expect(screen.getByText('Find and enrich prospects, qualify fit, and prepare the commercial next step.')).toBeInTheDocument();
-    for (const name of ['Scout', 'Enrichment', 'Radar', 'Darren']) {
+    await userEvent.selectOptions(teamSelect, 'target-contact');
+    expect(screen.getByText('Find verified information about a specific person or company, then prepare the commercial next step—without screening the target out.')).toBeInTheDocument();
+    for (const name of ['Enrichment', 'Darren']) {
       expect(screen.getByText(name, { selector: '.canvas-team-member' })).toBeInTheDocument();
     }
     expect(screen.queryByText('Fred', { selector: '.canvas-team-member' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Radar', { selector: '.canvas-team-member' })).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByText('Customize agents (4)'));
+    await userEvent.click(screen.getByText('Customize agents (2)'));
     await userEvent.click(screen.getByRole('checkbox', { name: /Fred strategic/ }));
     expect(teamSelect).toHaveValue('custom');
     expect(screen.getByText('Choose exactly which agents belong on this canvas.')).toBeInTheDocument();
 
-    await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Revenue sprint');
+    await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Target account');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => {
       const createCall = api.mock.calls.find(([path, options]) => path === '/api/canvases' && options?.method === 'POST');
       expect(createCall).toBeTruthy();
-      expect(createCall[1].body.name).toBe('Revenue sprint');
-      expect(createCall[1].body.roster_ids).toHaveLength(5);
-      expect(createCall[1].body.roster_ids).toEqual(expect.arrayContaining(['fred', 'darren', 'scout', 'radar', 'enrichment']));
+      expect(createCall[1].body.name).toBe('Target account');
+      expect(createCall[1].body.roster_ids).toHaveLength(3);
+      expect(createCall[1].body.roster_ids).toEqual(expect.arrayContaining(['fred', 'darren', 'enrichment']));
     });
   });
 
