@@ -88,6 +88,12 @@ const slowMock = http.createServer((req, res) => {
   });
 });
 
+// A permanently hanging connector used to prove that definition discovery is
+// isolated per server. Its request is closed by the per-connector timeout.
+const hangingMock = http.createServer((req) => {
+  req.resume();
+});
+
 function within(promise, ms, label) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(label)), ms);
@@ -99,6 +105,7 @@ test.before(async () => {
   await new Promise((resolve) => server.listen(0, resolve));
   await new Promise((resolve) => mock.listen(0, resolve));
   await new Promise((resolve) => slowMock.listen(0, resolve));
+  await new Promise((resolve) => hangingMock.listen(0, resolve));
   base = `http://127.0.0.1:${server.address().port}`;
   ownerCookie = await signIn('pete@cloudtechgurus.com');
   memberCookie = await signIn('fred@cloudtechgurus.com');
@@ -107,6 +114,7 @@ test.after(() => Promise.all([
   new Promise((resolve) => server.close(resolve)),
   new Promise((resolve) => mock.close(resolve)),
   new Promise((resolve) => slowMock.close(resolve)),
+  new Promise((resolve) => hangingMock.close(resolve)),
 ]));
 
 test('seed: LinkedIn + lead-finder connectors present, tools EMPTY, idempotent', () => {
@@ -175,6 +183,15 @@ test('header resolution: \${ENV:NAME} resolves per request; requests carry all h
   assert.ok(defs.some((d) => d.name === 'mcp_mock_search'), 'enabled tool becomes an agent def');
 });
 
+test('one timed-out connector does not hide definitions from reachable connectors', async () => {
+  const common = { headers: {}, enabledTools: ['search'], access: 'members', roles: [] };
+  const defs = await within(mcp.enabledToolDefs([
+    { ...common, name: 'reachable', url: `http://127.0.0.1:${mock.address().port}/mcp` },
+    { ...common, name: 'hanging', url: `http://127.0.0.1:${hangingMock.address().port}/mcp` },
+  ], { timeoutMs: 100 }), 1000, 'per-connector refresh did not finish inside its bound');
+  assert.deepEqual(defs.map((item) => item.name), ['mcp_reachable_search']);
+});
+
 test('def filtering: owner-only connectors and role scoping', async () => {
   // 'intel' (owner-only) has enabledTools ['search'] but its host is fake —
   // its defs never load. Use metadata via resolveToolName on the mock instead:
@@ -198,6 +215,14 @@ test('def filtering: owner-only connectors and role scoping', async () => {
   assert.ok(asOwnerEnrichment.includes('mcp_mock_search'), 'Enrichment inherits Radar targeting connectors');
   const researchAfterRetarget = toolsForRole('research', { userRole: 'owner' }).map((t) => t.name);
   assert.ok(!researchAfterRetarget.includes('mcp_mock_search'), 'the Radar connector does not leak to unrelated roles');
+
+  db.prepare("UPDATE mcp_servers SET roles_json = ? WHERE name = 'mock'").run(JSON.stringify(['enrichment']));
+  mcp.reload();
+  await mcp.refreshDefs();
+  const directlyScopedEnrichment = toolsForRole('enrichment', { userRole: 'owner' }).map((t) => t.name);
+  assert.ok(directlyScopedEnrichment.includes('mcp_mock_search'), 'Enrichment also honors connectors scoped directly to its first-class role');
+  const targetingAfterDirectScope = toolsForRole('targeting', { userRole: 'owner' }).map((t) => t.name);
+  assert.ok(!targetingAfterDirectScope.includes('mcp_mock_search'), 'an Enrichment-only connector does not leak back to Radar');
 });
 
 test('management routes are owner-only; probe returns tool inventory; mutation reloads', async () => {

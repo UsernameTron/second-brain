@@ -12,6 +12,7 @@ const path = require('node:path');
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-files-'));
 process.env.DEV_AUTH = '1';
 process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
+process.env.PDF_PARSE_TIMEOUT_MS = '1000';
 
 const ExcelJS = require('exceljs');
 const JSZip = require('jszip');
@@ -66,8 +67,14 @@ function putFile({ id, canvas = canvasId, name, mime, content, uploadedBy = OWNE
 }
 
 function simplePdf(text) {
-  const escaped = String(text).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
-  const stream = `BT\n/F1 14 Tf\n72 720 Td\n(${escaped}) Tj\nET`;
+  // Keep each PDF string operand modest so a large fixture exercises the
+  // parser's streaming character bound rather than a PDF-token edge limit.
+  const operands = String(text).match(/[\s\S]{1,80}/g) || [''];
+  const commands = operands.map((part) => {
+    const escaped = part.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+    return `1 0 0 1 72 720 Tm\n(${escaped}) Tj`;
+  }).join('\n');
+  const stream = `BT\n/F1 14 Tf\n${commands}\nET`;
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
@@ -135,6 +142,7 @@ test.before(async () => {
   putFile({ id: 'long-1', name: 'long.md', mime: 'text/markdown', content: LONG_TEXT });
   putFile({ id: 'emoji-1', name: 'unicode-boundary.txt', mime: 'text/plain', content: `${'u'.repeat(23_999)}📄TAIL` });
   putFile({ id: 'pdf-1', name: 'account-brief.pdf', mime: 'application/pdf', content: simplePdf('Acme renewal owner is Jordan Lee') });
+  putFile({ id: 'pdf-large', name: 'large-brief.pdf', mime: 'application/pdf', content: simplePdf(`START ${'p'.repeat(180_000)} END`) });
   putFile({ id: 'docx-1', name: 'lead-list.docx', mime: DOCX_MIME, content: await simpleDocx('Globex contact is Casey Morgan') });
   putFile({ id: 'other-secret', canvas: otherCanvasId, name: 'other.txt', mime: 'text/plain', content: 'OTHER CANVAS SECRET' });
 
@@ -201,6 +209,21 @@ test('PDF, Word, text, CSV, JSON, and XLSX reads are untrusted and evidence-back
   assert.deepEqual(refs.map((ref) => ref.sourceId).sort(), ['csv-1', 'docx-1', 'json-1', 'pdf-1', 'text-1', 'xlsx-1']);
   assert.ok(refs.every((ref) => ref.meta.canvasId === canvasId));
   assert.ok(refs.every((ref) => ref.visibility === 'canvas'));
+});
+
+test('pathological PDF expansion is isolated behind decoded-text and parser resource bounds', async () => {
+  const started = Date.now();
+  const out = await executeTool('read_canvas_files', { file_id: 'pdf-large', length: 30_000 }, ctx());
+  if (out.isError) {
+    assert.match(out.content, /took too long to read safely/);
+  } else {
+    const chunk = parseChunk(out);
+    assert.equal(chunk.meta.source_complete, false);
+    assert.ok(chunk.meta.source_limits.includes('character_limit'));
+    assert.match(chunk.meta.source_limit_message, /smaller or split document/);
+    assert.equal(runnerInternal.capToolResult(out.content), out.content);
+  }
+  assert.ok(Date.now() - started < 3000, 'pathological parse returns within the configured worker timeout');
 });
 
 test('cross-canvas ids and unsupported or invalid formats reveal no content and mint no evidence', async () => {

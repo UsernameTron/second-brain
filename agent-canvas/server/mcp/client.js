@@ -295,13 +295,17 @@ async function listTools(srv, { signal } = {}) {
 }
 
 // Agent-facing defs: ONLY owner-enabled tools, namespaced mcp_<server>_<tool>.
-async function enabledToolDefs(serverSnapshot = servers, { signal } = {}) {
+async function enabledToolDefs(serverSnapshot = servers, { signal, timeoutMs = DEFS_REFRESH_TIMEOUT_MS } = {}) {
   // Servers are independent. Discover them in parallel so N unreachable
   // connectors cost one bounded refresh window, not N sequential windows.
+  // Each server owns its timeout: one hanging connector must not abort the
+  // healthy definitions already returned by another connector.
   const groups = await Promise.all(serverSnapshot.map(async (srv) => {
     if (!srv.enabledTools.length) return [];
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
+    const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
     let tools;
-    try { tools = await listTools(srv, { signal }); } catch { return []; } // unreachable server = no tools, lamp shows it
+    try { tools = await listTools(srv, { signal: requestSignal }); } catch { return []; } // unreachable server = no tools, lamp shows it
     const defs = [];
     for (const t of tools) {
       if (!srv.enabledTools.includes(t.name)) continue;
@@ -400,8 +404,6 @@ async function runRefreshQueue() {
     const snapshot = servers.slice();
     const controller = new AbortController();
     activeRefreshController = controller;
-    const timeout = setTimeout(() => controller.abort(), DEFS_REFRESH_TIMEOUT_MS);
-    if (timeout.unref) timeout.unref();
     try {
       const defs = await enabledToolDefs(snapshot, { signal: controller.signal });
       // A save may have reloaded config while discovery was in flight. Never
@@ -409,7 +411,6 @@ async function runRefreshQueue() {
       if (!controller.signal.aborted && generation === configGeneration) publishDefs(defs);
     } catch { /* keep the current (or synchronously invalidated) snapshot */ }
     finally {
-      clearTimeout(timeout);
       if (activeRefreshController === controller) activeRefreshController = null;
     }
   }

@@ -4,7 +4,7 @@
 
 const crypto = require('node:crypto');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
+const { Worker } = require('node:worker_threads');
 const { db, nowIso, tx } = require('../db');
 const { audit } = require('../audit');
 const memory = require('../memory');
@@ -357,11 +357,12 @@ const ENRICHMENT_TOOLS = [
 ];
 const ENRICHMENT_ROLES = ['research', 'targeting', 'commercial', 'enrichment'];
 
-// Enrichment is a distinct user-facing job, but it deliberately inherits
-// Radar's connector lane. This keeps the tool surface identical without
-// relabeling the agent as a targeting/qualification agent in the UI.
-function connectorRole(role) {
-  return role === 'enrichment' ? 'targeting' : role;
+// Enrichment is a distinct user-facing job and may have connectors scoped
+// directly to it, while also inheriting Radar's targeting connector lane.
+// Preserve both roles instead of replacing the first-class role with its
+// compatibility alias.
+function connectorRoles(role) {
+  return role === 'enrichment' ? ['enrichment', 'targeting'] : [role];
 }
 
 // Committed context registries — the ICP scoring contract, CTG's supplier
@@ -402,6 +403,10 @@ const PDF_MIME = 'application/pdf';
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const DOCUMENT_TEXT_CAP = 120_000;
 const PDF_PAGE_LIMIT = 100;
+const PDF_PARSE_TIMEOUT_MS = Math.min(30_000, Math.max(
+  250,
+  Number.parseInt(process.env.PDF_PARSE_TIMEOUT_MS || '15000', 10) || 15_000,
+));
 const DOCUMENT_UNCOMPRESSED_CAP = 50 * 1024 * 1024;
 const TEXT_EXTENSIONS = new Set(['.txt', '.md', '.csv', '.json']);
 const TEXT_MIMES_BY_EXTENSION = {
@@ -542,58 +547,59 @@ async function docxToText(bytes, name) {
   };
 }
 
+function pdfTimeoutError(name) {
+  return new Error(`"${name}" took too long to read safely. Try a smaller PDF or export it as searchable text.`);
+}
+
 async function pdfToText(bytes, name) {
   if (!bytes.subarray(0, 8).toString('latin1').startsWith('%PDF-')) {
     throw new Error(`"${name}" could not be read as a PDF (missing PDF header).`);
   }
-  let pdf;
-  try {
-    const pdfModulePath = require.resolve('pdfjs-dist/legacy/build/pdf.mjs');
-    const standardFontDataUrl = `${pathToFileURL(
-      path.resolve(path.dirname(pdfModulePath), '../../standard_fonts/'),
-    ).href}/`;
-    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
-    pdf = await getDocument({
-      data: new Uint8Array(bytes),
-      isEvalSupported: false,
-      useSystemFonts: false,
-      standardFontDataUrl,
-      stopAtErrors: true,
-    }).promise;
-  } catch (err) {
+  const payload = Uint8Array.from(bytes);
+  const result = await new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(__dirname, 'pdf-extract-worker.js'), {
+      workerData: {
+        bytes: payload.buffer,
+        name,
+        textCap: DOCUMENT_TEXT_CAP,
+        pageLimit: PDF_PAGE_LIMIT,
+      },
+      transferList: [payload.buffer],
+      resourceLimits: {
+        maxOldGenerationSizeMb: 96,
+        maxYoungGenerationSizeMb: 16,
+        stackSizeMb: 4,
+      },
+    });
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+    const timer = setTimeout(() => {
+      void worker.terminate();
+      finish(reject, pdfTimeoutError(name));
+    }, PDF_PARSE_TIMEOUT_MS);
+    if (timer.unref) timer.unref();
+    worker.once('message', (message) => {
+      if (message?.ok) finish(resolve, message);
+      else finish(reject, new Error(message?.error || 'PDF extraction failed'));
+    });
+    worker.once('error', (err) => finish(reject, err));
+    worker.once('exit', (code) => {
+      if (code !== 0) finish(reject, new Error(`PDF parser stopped unexpectedly (${code})`));
+    });
+  }).catch((err) => {
+    if (err === undefined) throw pdfTimeoutError(name);
     throw new Error(`"${name}" could not be read as a PDF: ${String(err.message || err).slice(0, 160)}`);
-  }
-
-  const reasons = new Set();
-  const lines = [`PDF "${name}" (${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'}):`];
-  const pages = Math.min(pdf.numPages, PDF_PAGE_LIMIT);
-  let extractedCharacters = 0;
-  try {
-    for (let pageNumber = 1; pageNumber <= pages; pageNumber += 1) {
-      const page = await pdf.getPage(pageNumber);
-      const content = await page.getTextContent();
-      const pageText = content.items.map((item) => {
-        const value = typeof item.str === 'string' ? item.str : '';
-        return item.hasEOL ? `${value}\n` : `${value} `;
-      }).join('').replace(/[ \t]+\n/g, '\n').trim();
-      extractedCharacters += pageText.length;
-      lines.push(`\n## Page ${pageNumber}\n${pageText}`);
-      page.cleanup();
-      if (lines.join('\n').length > DOCUMENT_TEXT_CAP) {
-        reasons.add('character_limit');
-        break;
-      }
-    }
-    if (pdf.numPages > pages) reasons.add('page_limit');
-  } catch (err) {
-    throw new Error(`"${name}" could not be read as a PDF: ${String(err.message || err).slice(0, 160)}`);
-  } finally {
-    await pdf.destroy().catch(() => {});
-  }
-  if (extractedCharacters === 0) {
+  });
+  if (result.extractedCharacters === 0) {
     throw new Error(`"${name}" contains no extractable text. If it is a scanned or image-only PDF, upload a text-searchable copy.`);
   }
-  const rendered = capExtractedDocumentText(lines.join('\n'), name, 'PDF', reasons);
+  const reasons = new Set(result.truncationReasons || []);
+  const rendered = capExtractedDocumentText(result.text, name, 'PDF', reasons);
   return { text: rendered, sourceTruncated: reasons.size > 0, truncationReasons: [...reasons] };
 }
 
@@ -738,12 +744,12 @@ function toolsForRole(role, { userRole = 'member', mode = 'act', authority = nul
   // connectors are offered only to the agent roles the owner named. Both are
   // re-checked at call time — a def leak alone can never authorize a call.
   const mcpClient = require('../mcp/client');
-  const effectiveConnectorRole = connectorRole(role);
+  const effectiveConnectorRoles = connectorRoles(role);
   const mcpDefs = mcpClient.getCachedDefs().filter((d) => {
     const meta = mcpClient.resolveToolName(d.name);
     if (!meta) return false;
     if (meta.access === 'owner' && userRole !== 'owner') return false;
-    if (meta.roles && meta.roles.length && !meta.roles.includes(effectiveConnectorRole)) return false;
+    if (meta.roles && meta.roles.length && !meta.roles.some((item) => effectiveConnectorRoles.includes(item))) return false;
     return true;
   });
   // In standard scope mode the Gmail tools are absent, not just refusing —
