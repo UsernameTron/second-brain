@@ -43,7 +43,7 @@ function setAgentStatus(agentId, canvasId, status) {
 }
 
 function buildSystemPrompt(agent, canvas, run) {
-  const pinned = db.prepare('SELECT title, content FROM notes WHERE canvas_id = ? AND pinned = 1 ORDER BY updated_at DESC').all(canvas.id);
+  const pinned = db.prepare('SELECT title, content FROM notes WHERE canvas_id = ? AND pinned = 1 AND deleted_at IS NULL ORDER BY updated_at DESC').all(canvas.id);
   const pinnedBlock = pinned.length
     ? `\n## Pinned working context (live notes on this canvas — treat as current ground rules)\n${pinned.map((n) => `### ${n.title}\n${n.content}`).join('\n\n')}\n`
     : '';
@@ -78,7 +78,7 @@ ${modeBlock}
 
 ## Working rules
 - You have a hard budget of ${run.step_budget} model steps and ${Math.round(run.wall_ms_budget / 1000)}s wall clock for this run. Batch your tool calls; do not re-read what you already know.
-- Escalate ONLY decisions that genuinely need a human (real ambiguity the intake rules and memory cannot resolve). After escalating an item, continue with your other items.
+- Escalate ONLY decisions that genuinely need a human (real ambiguity the operator's instruction, current canvas context, and memory cannot resolve). After escalating an item, continue with your other items.
 - Hand off work with a self-contained message plus the memory entry IDs the target needs — the target does not see your conversation.
 - Finish by calling complete with a short summary. Progress claims in your summary must match what you actually did with tools this run.
 ${pinnedBlock}`;

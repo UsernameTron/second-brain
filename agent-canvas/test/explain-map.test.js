@@ -90,10 +90,13 @@ test('evidence lens: supported and contradicted verbs; map and receipt share the
 });
 
 test('flow lens keeps actions and outputs; steps read as an ordered chronology', () => {
+  db.prepare("INSERT INTO changesets (id, canvas_id, run_id, agent_id, status, created_at) VALUES ('legacy-explain-cs', ?, ?, ?, 'proposed', ?)")
+    .run(canvasId, RUN, AGENT, nowIso());
   const map = buildExplainMap(RUN, { lens: 'flow' });
   assert.ok(map.nodes.some((n) => n.type === 'question'));
   assert.ok(map.nodes.some((n) => n.type === 'action' && /web search/.test(n.label)));
   assert.ok(!map.nodes.some((n) => n.type === 'evidence'), 'evidence nodes belong to the evidence lens');
+  assert.ok(!map.nodes.some((n) => /changeset/i.test(n.label)), 'preserved demo changesets are not presented as current work');
   assert.match(map.steps[0], /was asked/);
   assert.match(map.steps[map.steps.length - 1], /Run completed/);
 });

@@ -1,7 +1,7 @@
 'use strict';
 // P2 attention projection: ONE read-time union over the authoritative records
 // that can demand a human — open escalations, unresolved memory conflicts,
-// overdue reviews, failed runs, and proposed changesets. No table backs this
+// overdue reviews, failed runs, and standing-rule outcomes. No table backs this
 // module; every card resolves through its SOURCE record's own endpoint, so
 // nothing here can drift from the truth it projects. Per-canvas by design:
 // the route walks the caller's accessible canvases, so access is decided
@@ -153,21 +153,6 @@ function failedRunCards(canvasId) {
   }));
 }
 
-function changesetCards(canvasId) {
-  const rows = db.prepare("SELECT * FROM changesets WHERE status = 'proposed' AND canvas_id = ? ORDER BY created_at DESC LIMIT 50").all(canvasId);
-  return rows.map((cs) => card({
-    type: 'pending_changeset',
-    decision: 'Proposed workbook changes are waiting for verification.',
-    context: `Changeset ${String(cs.id).slice(0, 8)}${cs.agent_id ? ` proposed by agent ${cs.agent_id}` : ''}.`,
-    consequence: 'Unverified changes never reach the workbook rows.',
-    recommendation: 'Open the workbook and verify or reject the changes.',
-    owner: { agentId: cs.agent_id },
-    actions: ['open_workbook'],
-    sourceRef: { kind: 'changeset', id: cs.id, canvasId: cs.canvas_id },
-    createdAt: cs.created_at,
-  }));
-}
-
 // P5 (D4): unacknowledged standing-rule outcomes that demand a human — alert
 // matches (matched_count > 0), failures after retries, workspace-disconnected
 // skips, and finished briefs (which always surface once, as brief_ready).
@@ -233,7 +218,6 @@ function canvasAttention(canvasId, nowIsoStr, scopeOpts) {
     ...conflictCards(canvasId),
     ...overdueReviewCards(canvasId, nowIsoStr),
     ...failedRunCards(canvasId),
-    ...changesetCards(canvasId),
     ...standingRuleCards(canvasId),
   ];
 }

@@ -36,8 +36,18 @@ Key files: `server/memory.js` (contract), `server/orchestrator/runner.js` (run l
 
 ## Current source surfaces
 
+- **Workspace:** a fresh installation starts empty. Create a canvas, choose the
+  agents that belong on it, and add the people and context needed for that
+  piece of work; the product does not manufacture a sample project.
 - **Home:** ask in plain language, read the answer first, inspect evidence and
   open the Explain Map.
+- **Canvas:** add, edit, pin, and remove notes on a canvas you can edit. Pinned notes are
+  intentionally included in future runs on that canvas; removed notes leave
+  the active workspace while their audit history is retained. Use **+ File**
+  for TXT, Markdown, CSV, JSON, or XLSX documents up to 5 MB. Agents can read
+  those files through `read_canvas_files`; removing one excludes it from future
+  agent reads while retaining deletion provenance. Connected Drive/Docs remains
+  the path for documents that should stay in Google Workspace.
 - **Needs You:** one review queue for decisions, conflicts, approvals, and
   scheduled-rule attention.
 - **Rooms:** maintain bounded evidence collections with refresh and screened
@@ -67,4 +77,19 @@ was red, so do not read it as a green light. Before proposing a commit, add
 Documentation map: [docs/README.md](docs/README.md). Production deploy:
 `deploy/deploy.sh` — see [docs/DEPLOY.md](docs/DEPLOY.md).
 
-The workspace seeds itself on first boot with the demo canvas **"Conference Lead Cleanup"**: 12 sample lead rows (junk fields, format problems, and two genuinely ambiguous rows), a pinned intake-rules note that feeds every agent run as live context, and three agents — **Scout** (research, strong tier), **Forge** (coding, fast tier), **Sentinel** (review, strong tier). Press **Run cleanup**: Scout triages rows and escalates the ambiguous ones to the needs-you tray, Forge turns findings into a reviewable change set, Sentinel verifies every change against the intake rules before rows are marked done.
+## Workspace content contract
+
+First boot creates access and durable system configuration, but no user
+workspace content: no demo canvas, sample rows, sample runs, fabricated
+memories, pinned instructions, or kickoff task. Users create a canvas and staff
+it from the agent roster. Canvas notes are user-authored context, not a hidden
+configuration channel; the canonical ICP taxonomy is the committed registry
+exposed to authorized agents through `read_registry`, not a visible note that
+can drift out of sync.
+
+The former **Workbook**, **Run cleanup**, sample-row, and reviewable-demo-change
+set journey is retired. Those fixtures are not document analysis. Real
+documents enter through the canvas file API or the user's connected Google
+Drive/Docs tools; the relevant source and permission are recorded as evidence.
+Historical ledger records remain exportable for audit, but retired demo content
+does not appear as active workspace content.

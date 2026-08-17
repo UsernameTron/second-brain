@@ -29,7 +29,7 @@ const CORPUS = [
   'Playvox integration is blocked on OAuth scope approval',
   'Escalations resolve through the needs-you tray, never email',
   'Enrichment dispatch requires ED_DISPATCH_URL to be exported on deploy',
-  'The workbook demo uses conference lead rows from the Vegas event',
+  'The uploaded event brief includes conference lead details from Las Vegas',
   'Litestream replicates SQLite to GCS every write',
   'Voice commands parse through the fast model before dispatch',
 ];

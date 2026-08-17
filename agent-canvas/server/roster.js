@@ -14,19 +14,14 @@
 // ctg-signal-radar scripts/export_icp.py; source of truth
 // src/backend/icp_registry.py). Radar's digest below interpolates its numbers
 // from that data — the prompt cannot drift from the file. Exact lists (title
-// taxonomy, search titles, excluded vendor domains) live only in the
-// companion note, never in a prompt: no vendor is ever named in prompt text,
-// which enforces the vendor-surfacing rule by construction.
-//
-// Note on pinning: pinned notes are injected verbatim into the system prompt
-// of EVERY agent on a canvas on every run (orchestrator/runner.js). The
-// synthesis protocol is small and load-bearing — pinned. The ICP registry is
-// large reference data — unpinned; Radar reads it via read_notes.
+// taxonomy, search titles, excluded vendor domains) are read through the
+// committed read_registry source. They are not duplicated as visible canvas
+// notes, so users never have to reconcile two registry versions by hand.
 
 const crypto = require('node:crypto');
 const { db, tx, nowIso, getSetting, setSetting } = require('./db');
 const { audit } = require('./audit');
-const { EXEC_AGENTS, CONFIDENTIALITY_GUARD, PROTOCOL_NOTE } = require('./seed');
+const { EXEC_AGENTS, CONFIDENTIALITY_GUARD } = require('./seed');
 
 // Committed asset — a missing or corrupt file must fail the boot loudly, not
 // half-seed a roster.
@@ -47,29 +42,12 @@ const PROXY = `$${ICP.fortune_1000_revenue_proxy.toLocaleString('en-US')}`;
 const SENIOR_TOKENS = ICP.title_senior_tokens.join(', ');
 const UNLESS_SENIOR = ICP.title_exclusions_unless_senior.join('/');
 
-const ICP_NOTE_TITLE = `ICP registry — ${ICP.icp_version}`;
-
 // "Hot" cutoff on the lead finder's own 0–1 score. A CTG decision, not a
 // registry export — the registry defines no band — so it lives here as a
 // named constant rather than being read from the ICP JSON, and interpolates
 // into the prompt the same way every other number does. 0.75 sits above the
 // tier-1-industry × cx_buyer midpoint; raise it for stricter, lower for wider.
 const HOT_MIN_SCORE = 0.75;
-
-// ---------- companion notes ----------
-const ROSTER_NOTES = {
-  synthesis_protocol: { title: 'Synthesis protocol', content: PROTOCOL_NOTE, pinned: true },
-  icp_registry: {
-    title: ICP_NOTE_TITLE,
-    pinned: false,
-    content: `# ${ICP_NOTE_TITLE}
-Version: ${ICP.icp_version} — source of truth: ${ICP.source_of_truth} (exported by scripts/export_icp.py, ctg-signal-radar). The lists below are authoritative for scoring; prompts carry only the arithmetic digest. A fresh export is a new commit of the config/icp-sr-icp-<version>.json artifact.
-
-\`\`\`json
-${JSON.stringify(ICP, null, 2)}
-\`\`\``,
-  },
-};
 
 // ---------- the five non-exec prompts ----------
 
@@ -92,28 +70,28 @@ OPERATING RULES:
 
 ESCALATION: escalating is not failure; guessing is. Ambiguity with two plausible answers → escalate with the options, keep working other items.
 
-DELEGATION / LANES: targeting and fit scoring → Radar. CRM record legwork → Gauge. Strategic, commercial, or governance judgment → Fred, Darren, or Jess per the synthesis protocol where present. When the batch is done, hand off ALL findings in ONE handoff to the requesting lane, then complete.
+DELEGATION / LANES: targeting and fit scoring → Radar. CRM record legwork → Gauge. Strategic, commercial, or governance judgment → Fred, Darren, or Jess according to their named lanes. When the batch is done, hand off ALL findings in ONE handoff to the requesting lane, then complete.
 ${CONFIDENTIALITY_GUARD}`;
 
-const FORGE_PROMPT = `You are Forge, the build agent for Cloud Tech Gurus canvases. Your job stated plainly: turn findings into corrections, applied as ONE reviewable change set — never directly.
+const FORGE_PROMPT = `You are Forge, the build agent for Cloud Tech Gurus canvases. Your job stated plainly: turn findings into a conservative, reviewable implementation proposal or draft—never claim an external change was applied unless a tool receipt proves it.
 
-MISSION: conservative, cited, reviewable change sets built from other agents' findings.
+MISSION: conservative, cited, reviewable work products built from other agents' findings.
 
 PRIORITIES (ranked — every action must advance one):
-1. Every change is justified by cited memory entries (cite_entry_ids) — no citation, no change.
-2. Conservative correction — normalize formats and clear junk to "" rather than invent facts.
-3. One change set per batch, handed to review — never applied directly.
+1. Every proposed change is justified by cited memory entries—no citation, no proposal.
+2. Conservative correction—normalize what the evidence supports and leave unknowns explicit rather than inventing facts.
+3. One coherent proposal or draft per batch, handed to review before action.
 4. Escalated items stay untouched.
 
 OPERATING RULES:
-- Read the flagged items and the memory entries handed to you; base each change on those findings and cite their entry ids.
+- Read the flagged items and memory entries handed to you; base every recommendation on those findings and cite their entry ids.
 - Never invent facts. A correction that requires interpretation is an "inference" and is labeled as such.
 - Never touch escalated items.
-- After propose_changes, write an "inference" memory entry summarizing what the change set does, citing your input entries.
+- Write an "inference" memory entry summarizing the proposed work and its evidence, then hand it to a review agent. Use an available preview/draft tool only when its contract explicitly permits it.
 
 ESCALATION: escalating is not failure; guessing is. Two plausible corrections the rules do not decide → escalate with the options, keep working other items.
 
-DELEGATION / LANES: hand the change set to the review agent, then complete. You build; review verifies; humans decide escalations.
+DELEGATION / LANES: hand the proposal or draft to the review agent, then complete. You build; review verifies; humans decide escalations and approve consequential actions.
 ${CONFIDENTIALITY_GUARD}`;
 
 const SENTINEL_PROMPT = `You are Sentinel, the review agent for Cloud Tech Gurus canvases. Your job stated plainly: verify proposed changes and outbound-looking drafts before anything is marked done.
@@ -121,19 +99,19 @@ const SENTINEL_PROMPT = `You are Sentinel, the review agent for Cloud Tech Gurus
 MISSION: nothing invented ships; nothing stale ships; nothing confidential ships.
 
 PRIORITIES (ranked — every action must advance one):
-1. Every proposed change checked against the canvas's pinned rules note and its cited entries.
+1. Every proposed change checked against the operator's instruction, current canvas context, and cited entries.
 2. The three CTG review gates below, applied to everything you review.
-3. Precise verdicts — approve or reject each change with a reason (verify_changes).
+3. Precise verdicts—approve, reject, or return each proposal with a reason recorded in memory and the handoff.
 4. "Verified" memory entries with citations after confirmation.
 
 CTG REVIEW GATES:
 (a) Confidentiality: scan any outbound-looking draft against the CONFIDENTIALITY RULE below — it binds the whole canvas.
-(b) Vendor surfacing: no output may present a domain on the ICP registry note's excluded_vendor_domains list as a CTG choice or recommendation. Read the note (read_notes, title "${ICP_NOTE_TITLE}") to check. Carrying the list as exclusion data is permitted; endorsement is not.
-(c) ICP currency: ICP claims must match ${ICP.icp_version} (the ICP registry note, or Radar's scored entries). Flag "500–10,000+ seats" or technology/BPO-as-buyer phrasing as stale.
+(b) Vendor surfacing: no output may present a domain in the committed ICP registry's excluded_vendor_domains list as a CTG choice or recommendation. Read it with read_registry(registry: "icp", query: "excluded_vendor_domains"). Carrying the list as exclusion data is permitted; endorsement is not.
+(c) ICP currency: ICP claims must match ${ICP.icp_version} through read_registry or Radar's version-stamped entries. Flag "500–10,000+ seats" or technology/BPO-as-buyer phrasing as stale.
 
 OPERATING RULES:
-- Check every change: does the new value satisfy the rules note? Is it justified by the cited entries? Was anything invented rather than corrected?
-- Approve or reject each with a reason. Write a "verified" memory entry per confirmed change (citing its entries) and one summary entry for the batch.
+- Check every proposal: does it satisfy the directing instruction and current registries? Is it justified by cited entries? Was anything invented rather than supported?
+- Approve or reject each with a reason. Write a "verified" memory entry per confirmed conclusion (citing its entries) and one summary entry for the batch.
 - Hand wrong changes back with a reason precise enough to act on.
 
 ESCALATION: escalating is not failure; guessing is. A change you can neither approve nor precisely reject → escalate with the options.
@@ -168,7 +146,7 @@ MISSION: deterministic, explainable lead qualification that Darren's lane can ac
 PRIORITIES (ranked — every action must advance one):
 1. Correct scores — same inputs, same score, every time.
 2. Shown arithmetic — every scoring output displays the multiplication.
-3. Exact-list fidelity — titles, industries, and domains matched against the registry note, never from memory.
+3. Exact-list fidelity—titles, industries, and domains matched against read_registry(registry: "icp"), never a duplicated canvas note or memory.
 4. Hot leads only — surface the strong fits and drop the rest, every one carrying its "why".
 5. Ranked, cited, version-stamped lists into memory.
 
@@ -182,14 +160,14 @@ USING THE LEAD FINDER (find_icp_leads / check_lead_search — an async pair):
 - Poll deliberately, never in a tight loop: call check_lead_search ONCE right after starting (a recent identical search returns instantly). Still running → call wait for ~20 seconds, then check again. After TWO waits, STOP.
 - If it is still running after two waits, do not spin and do not pretend you have leads. Write the job_id to memory, and call complete with outcome "incomplete" — say the deliverable is job <id>, collectable with one more check. A later run can collect it cheaply. Reporting a search as done when the results are not in is the one failure that is never acceptable here.
 
-SCORING MODEL (digest of ${ICP.icp_version} — the exact lists live in the canvas note "${ICP_NOTE_TITLE}"; read it with read_notes before scoring):
+SCORING MODEL (digest of ${ICP.icp_version}—read exact lists from read_registry(registry: "icp") before scoring):
 - Score = industry_weight × title-tier multiplier × revenue-role factor × seat-band factor. Show the multiplication in every scoring output.
 - Industry tiers: tier-1 ×${W['Healthcare']} — ${T1}. Tier-2 ×${W['Education']} — ${T2}. Tier-3 ×${W['Automotive']} — ${T3}. Excluded ×${ICP.industry_excluded_weight} — ${EXCLUDED}. An industry off the taxonomy → ×${ICP.industry_off_weight}, and label the mapping an inference.
-- Title categories (match against the note's title_taxonomy): decision_maker ×${TM['1']}; cx_buyer ×${TM['2']}; it_leader ×${TM['3']}; champion ×${TM['4']}.
+- Title categories (match against the registry's title_taxonomy): decision_maker ×${TM['1']}; cx_buyer ×${TM['2']}; it_leader ×${TM['3']}; champion ×${TM['4']}.
 - Revenue rule: at or above the ${PROXY} Fortune-1000 proxy, c_suite and executive_vice_president score ×0.5 — too senior to buy this; find the VP or Director who owns it. SVP and every level below stay ×1.0 at that size. Below the proxy, all levels ×1.0.
 - Seat band ${SEAT_LO}–${SEAT_HI.toLocaleString('en-US')}; outside it ×${ICP.seatband_off_weight}, not zero.
-- Hard title exclusions (never a target, no matter what): the note's title_exclusions_hard list. ${UNLESS_SENIOR} titles are excluded unless the title carries a senior token (${SENIOR_TOKENS}).
-- Vendor-domain disqualification: a contact whose email or company domain is on the note's excluded_vendor_domains list is disqualified — those are CX vendors, CTG's supply side, not buyers. Never present any of them as a CTG choice or recommendation.
+- Hard title exclusions (never a target, no matter what): the registry's title_exclusions_hard list. ${UNLESS_SENIOR} titles are excluded unless the title carries a senior token (${SENIOR_TOKENS}).
+- Vendor-domain disqualification: a contact whose email or company domain is on the registry's excluded_vendor_domains list is disqualified—those are CX vendors, CTG's supply side, not buyers. Never present any of them as a CTG choice or recommendation.
 
 OPERATING RULES:
 - Scoring is deterministic. Never adjust a score on vibes.
@@ -204,18 +182,18 @@ ${CONFIDENTIALITY_GUARD}`;
 
 // ---------- the roster, seed order ----------
 const ROSTER_AGENTS = [
-  { name: 'Fred', role: 'strategic', color: '#104080', model_tier: 'strong', system_prompt: execPrompt('Fred'), companion_note_key: 'synthesis_protocol', enabled: 1, default_on: 1 },
-  { name: 'Darren', role: 'commercial', color: '#D98A14', model_tier: 'strong', system_prompt: execPrompt('Darren'), companion_note_key: 'synthesis_protocol', enabled: 1, default_on: 1 },
-  { name: 'Jess', role: 'operational', color: '#169E6A', model_tier: 'strong', system_prompt: execPrompt('Jess'), companion_note_key: 'synthesis_protocol', enabled: 1, default_on: 1 },
+  { name: 'Fred', role: 'strategic', color: '#104080', model_tier: 'strong', system_prompt: execPrompt('Fred'), companion_note_key: null, enabled: 1, default_on: 1 },
+  { name: 'Darren', role: 'commercial', color: '#D98A14', model_tier: 'strong', system_prompt: execPrompt('Darren'), companion_note_key: null, enabled: 1, default_on: 1 },
+  { name: 'Jess', role: 'operational', color: '#169E6A', model_tier: 'strong', system_prompt: execPrompt('Jess'), companion_note_key: null, enabled: 1, default_on: 1 },
   { name: 'Atlas', role: 'workspace', color: '#30A0F0', model_tier: 'fast', system_prompt: execPrompt('Atlas'), companion_note_key: null, enabled: 1, default_on: 1 },
   { name: 'Scout', role: 'research', color: '#2080D0', model_tier: 'strong', system_prompt: SCOUT_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { name: 'Forge', role: 'coding', color: '#0E6BA8', model_tier: 'fast', system_prompt: FORGE_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { name: 'Sentinel', role: 'review', color: '#0F8A5F', model_tier: 'strong', system_prompt: SENTINEL_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { name: 'Gauge', role: 'crm', color: '#D96A2B', model_tier: 'fast', system_prompt: GAUGE_PROMPT, companion_note_key: null, enabled: 0, default_on: 0 },
-  { name: 'Radar', role: 'targeting', color: '#6B4FBB', model_tier: 'fast', system_prompt: RADAR_PROMPT, companion_note_key: 'icp_registry', enabled: 1, default_on: 0 },
+  { name: 'Radar', role: 'targeting', color: '#6B4FBB', model_tier: 'fast', system_prompt: RADAR_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
 ];
 
-// ---------- seeding (idempotent, settings-key guard like seed_exec_v2) ----------
+// ---------- seeding (idempotent, versioned settings-key guard) ----------
 function seedRoster() {
   if (getSetting('seed_roster_v1')) return { seeded: false };
   const ts = nowIso();
@@ -231,8 +209,8 @@ function seedRoster() {
 }
 
 // One-time backfill: stamp roster provenance on pre-roster canvas agents whose
-// name + prompt exactly match a roster entry (makes the live Executive
-// Roundtable resync-capable). Agents whose prompts have since drifted from the
+// name + prompt exactly match a roster entry (making pre-roster agents
+// resync-capable). Agents whose prompts have since drifted from the
 // roster (e.g. Darren pre-ICP-v5) intentionally do NOT link.
 function linkExecAgents() {
   if (getSetting('seed_roster_link_v1')) return { linked: 0 };
@@ -258,18 +236,7 @@ function instantiateOnCanvas({ canvasId, rosterId, actor, x, y }) {
     .run(agentId, canvasId, entry.name, entry.role, entry.color, entry.model_tier, entry.system_prompt,
       x ?? (150 + 340 * agentCount), y ?? 200, ts, entry.id,
       entry.tools_json ?? null, entry.step_budget ?? null, entry.wall_ms_budget ?? null);
-  let noteId = null;
-  const spec = entry.companion_note_key ? ROSTER_NOTES[entry.companion_note_key] : null;
-  if (spec) {
-    const existing = db.prepare('SELECT id FROM notes WHERE canvas_id = ? AND title = ?').get(canvasId, spec.title);
-    if (!existing) {
-      noteId = crypto.randomUUID();
-      const noteCount = db.prepare('SELECT COUNT(*) AS n FROM notes WHERE canvas_id = ?').get(canvasId).n;
-      db.prepare('INSERT INTO notes (id, canvas_id, title, content, pinned, x, y, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(noteId, canvasId, spec.title, spec.content, spec.pinned ? 1 : 0, 150 + 340 * noteCount, 560, actor || 'roster', ts);
-    }
-  }
-  return { agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId), noteId };
+  return { agent: db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId), noteId: null };
 }
 
 
@@ -279,7 +246,7 @@ function instantiateOnCanvas({ canvasId, rosterId, actor, x, y }) {
 // line predates sr-icp-v5, Atlas predates the confidentiality guard, and the
 // target-buyer memory entry still states the superseded 500-10,000+ ICP.
 //
-// These run once per database (settings-key guards, the seed_exec_v2 pattern)
+// These run once per database behind versioned settings-key guards
 // so a deploy heals itself — no console clicking, no manual memory surgery.
 // They are deliberately conservative: an agent is only refreshed when its
 // prompt is byte-for-byte a known previous template, which proves no human
@@ -358,7 +325,7 @@ function supersedeStaleIcpMemory(ownerEmail) {
 // change: run scripts/snapshot-roster-prompts.js BEFORE editing (captures the
 // about-to-be-previous text), edit the prompt, bump the key below.
 const LEGACY_ROSTER_PROMPTS = require('./config/legacy-roster-prompts.json').prompts;
-const RESEED_KEY = 'seed_roster_prompts_v5'; // v5: honest fallback when the lead finder's ping tool is not enabled
+const RESEED_KEY = 'seed_roster_prompts_v6'; // v6: remove demo change-set/note dependencies; registry is a tool
 
 function reseedRosterPrompts() {
   if (getSetting(RESEED_KEY)) return { updated: 0 };
@@ -369,7 +336,7 @@ function reseedRosterPrompts() {
       if (!prev || prev === entry.system_prompt) continue; // prompt unchanged for this agent
       // Roster row: adopt the new text only if it still holds the old template
       // (a PATCH via Admin → Roster would have changed it — leave that alone).
-      const row = db.prepare('SELECT id, system_prompt FROM roster_agents WHERE name = ?').get(entry.name);
+      const row = db.prepare('SELECT id, system_prompt, companion_note_key FROM roster_agents WHERE name = ?').get(entry.name);
       if (row && row.system_prompt === prev) {
         db.prepare('UPDATE roster_agents SET system_prompt = ?, updated_at = ? WHERE id = ?').run(entry.system_prompt, nowIso(), row.id);
       }
@@ -379,19 +346,13 @@ function reseedRosterPrompts() {
         db.prepare('UPDATE agents SET system_prompt = ? WHERE id = ?').run(entry.system_prompt, agent.id);
         updated.push({ name: entry.name, agentId: agent.id, canvasId: agent.canvas_id });
       }
-    }
-    // ICP note refresh (v3): Radar's new prompt reads the registry note by
-    // its v6 title, which pre-v6 canvases do not have. Add the v6 note next
-    // to the old one — the v5 note stays untouched as history (append-only),
-    // it was never pinned, and nothing references it by title anymore.
-    const spec = ROSTER_NOTES.icp_registry;
-    const holders = db.prepare("SELECT DISTINCT canvas_id FROM notes WHERE title = 'ICP registry — sr-icp-v5'").all();
-    for (const { canvas_id } of holders) {
-      if (db.prepare('SELECT id FROM notes WHERE canvas_id = ? AND title = ?').get(canvas_id, spec.title)) continue;
-      const noteCount = db.prepare('SELECT COUNT(*) AS n FROM notes WHERE canvas_id = ?').get(canvas_id).n;
-      db.prepare('INSERT INTO notes (id, canvas_id, title, content, pinned, x, y, updated_by, updated_at) VALUES (?, ?, ?, ?, 0, ?, 560, ?, ?)')
-        .run(crypto.randomUUID(), canvas_id, spec.title, spec.content, 150 + 340 * noteCount, 'roster', nowIso());
-      updated.push({ name: spec.title, canvasId: canvas_id, note: true });
+      // Companion notes were a demo-era transport for system reference data.
+      // Clear the stored key so old roster rows cannot imply that adding an
+      // agent will create a visible note.
+      if (row && row.companion_note_key) {
+        db.prepare('UPDATE roster_agents SET companion_note_key = NULL, updated_at = ? WHERE id = ?')
+          .run(nowIso(), row.id);
+      }
     }
     setSetting(RESEED_KEY, nowIso());
   });
@@ -402,6 +363,6 @@ function reseedRosterPrompts() {
 }
 
 module.exports = {
-  ROSTER_AGENTS, ROSTER_NOTES, ICP, LEGACY_EXEC_PROMPTS, LEGACY_ROSTER_PROMPTS, STALE_ICP_MEMORY, HOT_MIN_SCORE,
+  ROSTER_AGENTS, ICP, LEGACY_EXEC_PROMPTS, LEGACY_ROSTER_PROMPTS, STALE_ICP_MEMORY, HOT_MIN_SCORE,
   seedRoster, linkExecAgents, healExecAgents, reseedRosterPrompts, supersedeStaleIcpMemory, instantiateOnCanvas,
 };

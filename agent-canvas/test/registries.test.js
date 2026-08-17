@@ -14,6 +14,7 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-regis
 process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
 
 const { readRegistry, toolsForRole } = require('../server/orchestrator/tools');
+const icp = require('../server/config/icp-sr-icp-v6.json');
 const suppliers = require('../server/config/supplier-catalog.json');
 const orgContext = require('../server/config/org-context.json');
 const { buildSuppliers, buildOrgContext } = require('../scripts/build-registries');
@@ -103,6 +104,17 @@ test('read_registry filters with AND, caps its output, and says when it truncate
   const org = readRegistry({ registry: 'org_context', query: 'commission' });
   assert.ok(org.frozen_at, 'org-context results always carry the freeze date');
   assert.match(org.authority_note, /live source wins/i);
+});
+
+test('ICP registry returns exact committed top-level values by key', () => {
+  for (const key of ['excluded_vendor_domains', 'title_taxonomy']) {
+    const result = readRegistry({ registry: 'icp', query: key });
+    assert.equal(result.registry, 'icp');
+    assert.equal(result.source_of_truth, icp.source_of_truth);
+    assert.equal(result.matched, 1);
+    assert.equal(result.results[0].key, key);
+    assert.deepEqual(result.results[0].value, icp[key]);
+  }
 });
 
 test('read_registry refuses an unknown registry and prototype keys', () => {

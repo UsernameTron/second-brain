@@ -18,7 +18,7 @@ const bus = require('./bus');
 const auth = require('./auth');
 const control = require('./orchestrator/control');
 const { dispatchRun, resumePump, queueState, RUN_MODES } = require('./orchestrator/queue');
-const { createEscalation } = require('./orchestrator/tools');
+const { createEscalation, canvasFileFormat, readCanvasFile } = require('./orchestrator/tools');
 const { callModel, tierConfig, FAST_MODEL, STRONG_MODEL, currentProvider } = require('./orchestrator/anthropic');
 
 const { rateLimit } = require('./ratelimit');
@@ -40,6 +40,26 @@ function asyncRoute(fn) {
 function qstr(value, fallback = undefined) {
   if (Array.isArray(value)) value = value[0];
   return value === undefined || value === null ? fallback : String(value);
+}
+
+// Node rejects non-Latin-1 response-header characters. Keep a conservative
+// ASCII filename for older clients and add the real UTF-8 name through RFC
+// 5987. Never interpolate the caller-controlled name directly into a header.
+function attachmentDisposition(name) {
+  const original = String(name || 'download');
+  const extension = original.match(/\.[A-Za-z0-9]{1,10}$/)?.[0] || '';
+  let fallback = original
+    .replace(/[^\x20-\x7e]/g, '')
+    .replace(/["\\/;=?]/g, '_')
+    .trim();
+  const stem = extension && fallback.endsWith(extension)
+    ? fallback.slice(0, -extension.length)
+    : fallback;
+  if (!/[A-Za-z0-9]/.test(stem)) fallback = `download${extension}`;
+  fallback = (fallback || 'download').slice(0, 120);
+  const encoded = encodeURIComponent(original)
+    .replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 
 // Broad safety net for all API routes; tighter buckets on sensitive ones below.
@@ -518,7 +538,7 @@ function splitMutating(enabledTools) {
   return { kept: list.filter((t) => !mcp.isMutatingToolName(t)), refused: list.filter((t) => mcp.isMutatingToolName(t)) };
 }
 
-router.post('/mcp/servers', auth.requireOwner, (req, res) => {
+router.post('/mcp/servers', auth.requireOwner, asyncRoute(async (req, res) => {
   const { name, url, headers = {}, enabledTools = [], access = 'members', roles = [], enabled = true } = req.body || {};
   const bad = mcpValidate({ name: name || '', url: url || '', access });
   if (!name || !url || bad) return res.status(400).json({ error: bad || 'name and url required' });
@@ -530,11 +550,11 @@ router.post('/mcp/servers', auth.requireOwner, (req, res) => {
     .run(id, name, url, JSON.stringify(headers), JSON.stringify(tools.kept), access, JSON.stringify(roles), enabled ? 1 : 0, ts, ts);
   audit('user', req.user.email, 'mcp.server_create', { serverId: id, name, access, refusedTools: tools.refused });
   mcp.reload();
-  mcp.refreshDefs();
+  await mcp.refreshDefs();
   res.json({ ok: true, id, refusedTools: tools.refused });
-});
+}));
 
-router.patch('/mcp/servers/:id', auth.requireOwner, (req, res) => {
+router.patch('/mcp/servers/:id', auth.requireOwner, asyncRoute(async (req, res) => {
   const row = db.prepare('SELECT * FROM mcp_servers WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'connector not found' });
   const { name, url, headers, enabledTools, access, roles, enabled } = req.body || {};
@@ -551,9 +571,9 @@ router.patch('/mcp/servers/:id', auth.requireOwner, (req, res) => {
       nowIso(), row.id);
   audit('user', req.user.email, 'mcp.server_update', { serverId: row.id, name: name ?? row.name, refusedTools: tools ? tools.refused : [] });
   mcp.reload();
-  mcp.refreshDefs();
+  await mcp.refreshDefs();
   res.json({ ok: true, refusedTools: tools ? tools.refused : [] });
-});
+}));
 
 // Probe: fresh handshake + tools/list, returning the tool inventory so the
 // admin tab can render per-tool enable checkboxes. Probing enables NOTHING.
@@ -574,7 +594,7 @@ router.post('/mcp/servers/:id/probe', auth.requireOwner, asyncRoute(async (req, 
 
 // ---------- canvases ----------
 router.get('/canvases', (req, res) => {
-  const all = db.prepare('SELECT * FROM canvases ORDER BY created_at').all();
+  const all = db.prepare('SELECT * FROM canvases WHERE removed_at IS NULL ORDER BY created_at').all();
   // Effective access rides along so the client can render view-only sessions.
   const visible = all
     .map((c) => ({ canvas: c, check: auth.canAccessCanvas(req.user, c.id) }))
@@ -593,7 +613,7 @@ router.post('/canvases', (req, res) => {
   const rosterIds = Array.isArray(req.body.roster_ids) ? req.body.roster_ids : [];
   const id = crypto.randomUUID();
   try {
-    // Canvas + staffed agents + companion notes land atomically or not at all.
+    // Canvas + selected agents land atomically or not at all.
     tx(() => {
       db.prepare('INSERT INTO canvases (id, name, description, access_mode, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
         .run(id, req.body.name || 'Untitled canvas', req.body.description || '', 'workspace', req.user.email, nowIso());
@@ -611,12 +631,10 @@ router.post('/canvases', (req, res) => {
 router.get('/canvases/:canvasId', auth.requireCanvas, (req, res) => {
   const canvasId = req.params.canvasId;
   const agents = db.prepare("SELECT * FROM agents WHERE canvas_id = ? AND lifecycle = 'active'").all(canvasId);
-  const notes = db.prepare('SELECT * FROM notes WHERE canvas_id = ?').all(canvasId);
+  const notes = db.prepare('SELECT * FROM notes WHERE canvas_id = ? AND deleted_at IS NULL').all(canvasId);
   const tasks = db.prepare('SELECT * FROM tasks WHERE canvas_id = ?').all(canvasId);
   const people = db.prepare('SELECT * FROM canvas_people WHERE canvas_id = ?').all(canvasId);
-  const files = db.prepare('SELECT id, canvas_id, name, mime, size, x, y, uploaded_by, created_at FROM files WHERE canvas_id = ?').all(canvasId);
-  const rows = db.prepare('SELECT id, row_index, data, status, notes FROM sheet_rows WHERE canvas_id = ? ORDER BY row_index').all(canvasId)
-    .map((r) => ({ ...r, data: JSON.parse(r.data) }));
+  const files = db.prepare('SELECT id, canvas_id, name, mime, size, x, y, uploaded_by, created_at FROM files WHERE canvas_id = ? AND deleted_at IS NULL').all(canvasId);
   const escalations = db.prepare(`SELECT * FROM escalations e WHERE e.canvas_id = ?
     AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.id = e.agent_id AND a.lifecycle = 'draft')
     ORDER BY e.created_at DESC LIMIT 50`).all(canvasId)
@@ -624,14 +642,8 @@ router.get('/canvases/:canvasId', auth.requireCanvas, (req, res) => {
   const handoffs = db.prepare('SELECT * FROM handoffs WHERE canvas_id = ? ORDER BY ts DESC LIMIT 100').all(canvasId)
     .map((h) => ({ ...h, payload_entry_ids: JSON.parse(h.payload_entry_ids) }));
   const runs = db.prepare('SELECT id, agent_id, status, trigger_kind, instruction, steps_used, step_budget, model, input_tokens, output_tokens, cost_usd, summary, error, started_at, ended_at, created_at FROM runs WHERE canvas_id = ? ORDER BY created_at DESC LIMIT 100').all(canvasId);
-  const changesets = db.prepare('SELECT * FROM changesets WHERE canvas_id = ? ORDER BY created_at DESC LIMIT 20').all(canvasId)
-    .map((cs) => ({
-      ...cs,
-      changes: db.prepare('SELECT c.*, r.row_index FROM changes c JOIN sheet_rows r ON r.id = c.row_id WHERE c.changeset_id = ?').all(cs.id)
-        .map((c) => ({ ...c, cite_entry_ids: JSON.parse(c.cite_entry_ids) })),
-    }));
   res.json({
-    canvas: req.canvas, access: req.canvasAccess, agents, notes, tasks, people, files, rows, escalations, handoffs, runs, changesets,
+    canvas: req.canvas, access: req.canvasAccess, agents, notes, tasks, people, files, escalations, handoffs, runs,
     budget: control.getDailyUsage(), queue: queueState(),
   });
 });
@@ -1814,7 +1826,7 @@ router.post('/canvases/:canvasId/notes', auth.requireCanvas, (req, res) => {
 
 // Versioned update with a three-way merge so simultaneous edits never clobber.
 router.put('/canvases/:canvasId/notes/:noteId', auth.requireCanvas, (req, res) => {
-  const note = db.prepare('SELECT * FROM notes WHERE id = ? AND canvas_id = ?').get(req.params.noteId, req.params.canvasId);
+  const note = db.prepare('SELECT * FROM notes WHERE id = ? AND canvas_id = ? AND deleted_at IS NULL').get(req.params.noteId, req.params.canvasId);
   if (!note) return res.status(404).json({ error: 'note not found' });
   const { content, base_version, base_content, title, pinned } = req.body;
   let finalContent = content ?? note.content;
@@ -1830,6 +1842,26 @@ router.put('/canvases/:canvasId/notes/:noteId', auth.requireCanvas, (req, res) =
   const updated = db.prepare('SELECT * FROM notes WHERE id = ?').get(note.id);
   bus.emit('event', { type: 'note_update', canvasId: req.params.canvasId, note: updated, by: req.user.email, merged });
   res.json({ note: updated, merged });
+});
+
+// Notes are working context, not an immutable belief ledger. Removal is
+// user-visible and immediate, but recoverable in the operational export:
+// tombstone the row, force it unpinned, and keep its version/history intact.
+router.delete('/canvases/:canvasId/notes/:noteId', auth.requireCanvas, (req, res) => {
+  const note = db.prepare('SELECT * FROM notes WHERE id = ? AND canvas_id = ?').get(req.params.noteId, req.params.canvasId);
+  if (!note) return res.status(404).json({ error: 'note not found' });
+  if (note.deleted_at) return res.json({ ok: true, alreadyRemoved: true, note: { id: note.id, deleted_at: note.deleted_at } });
+  const ts = nowIso();
+  tx(() => {
+    db.prepare('UPDATE notes SET pinned = 0, deleted_at = ?, deleted_by = ?, version = version + 1, updated_by = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL')
+      .run(ts, req.user.email, req.user.email, ts, note.id);
+    audit('user', req.user.email, 'note.remove', {
+      noteId: note.id, canvasId: req.params.canvasId, title: note.title, wasPinned: Boolean(note.pinned),
+    });
+  });
+  bus.emit('event', { type: 'note_removed', canvasId: req.params.canvasId, noteId: note.id, by: req.user.email });
+  bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
+  res.json({ ok: true, note: { id: note.id, deleted_at: ts } });
 });
 
 // Concurrent-edit merge: apply both sides when they touch different regions;
@@ -1933,11 +1965,10 @@ router.post('/canvases/:canvasId/positions', auth.requireCanvas, (req, res) => {
 });
 
 // ---------- files ----------
-router.post('/canvases/:canvasId/files', auth.requireCanvas, express.raw({ type: '*/*', limit: '5mb' }), (req, res) => {
-  // The TYPE of req.body is caller-controlled: the app-level JSON parser runs
-  // before this router, so a JSON content-type yields a parsed object/array
-  // here instead of a Buffer, and express.raw() then skips. Validate at the
-  // boundary rather than trusting the middleware to have produced a Buffer.
+router.post('/canvases/:canvasId/files', auth.requireCanvas, express.raw({ type: '*/*', limit: '5mb' }), asyncRoute(async (req, res) => {
+  // The TYPE of req.body is caller-controlled. The main app deliberately skips
+  // its JSON parser for this path so legitimate JSON documents reach the raw
+  // parser, but alternate mounts/tests may not. Validate the boundary anyway.
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
     return res.status(400).json({ error: 'upload requires a non-empty binary body; do not send a JSON content-type' });
   }
@@ -1948,21 +1979,52 @@ router.post('/canvases/:canvasId/files', auth.requireCanvas, express.raw({ type:
   const id = crypto.randomUUID();
   const name = qstr(req.query.name, 'file.bin').slice(0, 200);
   const mime = String(req.headers['content-type'] || 'application/octet-stream').slice(0, 128);
+  const candidate = { name, mime, size, content: bytes };
+  if (!canvasFileFormat(candidate)) {
+    return res.status(415).json({ error: `Unsupported file "${name}" (${mime}). Upload a .txt, .md, .csv, .json, or .xlsx file.` });
+  }
+  // Validate readability before persistence. A binary renamed .txt or a
+  // corrupt .xlsx would otherwise create the same dead-end artifact this
+  // endpoint is meant to replace.
+  try {
+    await readCanvasFile(candidate);
+  } catch (err) {
+    return res.status(415).json({ error: String(err.message || err) });
+  }
   db.prepare('INSERT INTO files (id, canvas_id, name, mime, size, content, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     .run(id, req.params.canvasId, name, mime, size, bytes, req.user.email, nowIso());
   audit('user', req.user.email, 'file.upload', { fileId: id, name, size });
   bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
   res.json({ file: { id, name, mime, size } });
-});
+}));
 
 router.get('/canvases/:canvasId/files/:fileId', auth.requireCanvas, (req, res) => {
-  const file = db.prepare('SELECT * FROM files WHERE id = ? AND canvas_id = ?').get(req.params.fileId, req.params.canvasId);
+  const file = db.prepare('SELECT * FROM files WHERE id = ? AND canvas_id = ? AND deleted_at IS NULL').get(req.params.fileId, req.params.canvasId);
   if (!file) return res.status(404).json({ error: 'file not found' });
   res.setHeader('Content-Type', file.mime);
-  res.setHeader('Content-Disposition', `attachment; filename="${file.name.replace(/"/g, '')}"`);
+  res.setHeader('Content-Disposition', attachmentDisposition(file.name));
   // SQLite returns BLOBs as Uint8Array; res.send() would JSON-serialize that
   // ({"0":104,...}) instead of sending bytes. Convert to a Buffer.
   res.send(Buffer.from(file.content));
+});
+
+// Removal is recoverable and export-visible: the bytes stay in the ledger,
+// while every active read surface filters the tombstone immediately.
+router.delete('/canvases/:canvasId/files/:fileId', auth.requireCanvas, (req, res) => {
+  const file = db.prepare('SELECT * FROM files WHERE id = ? AND canvas_id = ?').get(req.params.fileId, req.params.canvasId);
+  if (!file) return res.status(404).json({ error: 'file not found' });
+  if (file.deleted_at) return res.json({ ok: true, alreadyRemoved: true, file: { id: file.id, deleted_at: file.deleted_at } });
+  const ts = nowIso();
+  tx(() => {
+    db.prepare('UPDATE files SET deleted_at = ?, deleted_by = ? WHERE id = ? AND deleted_at IS NULL')
+      .run(ts, req.user.email, file.id);
+    audit('user', req.user.email, 'file.remove', {
+      fileId: file.id, canvasId: req.params.canvasId, name: file.name, size: file.size,
+    });
+  });
+  bus.emit('event', { type: 'file_removed', canvasId: req.params.canvasId, fileId: file.id, by: req.user.email });
+  bus.emit('event', { type: 'canvas_structure', canvasId: req.params.canvasId });
+  res.json({ ok: true, file: { id: file.id, deleted_at: ts } });
 });
 
 // ---------- escalations (the needs-you tray) ----------
@@ -1974,8 +2036,8 @@ router.get('/escalations', (req, res) => {
 });
 
 // P2: unified NEEDS YOU — a projection over authoritative records (open
-// escalations, memory conflicts, overdue reviews, failed runs, proposed
-// changesets). Access is decided per canvas BEFORE reading rows.
+// escalations, memory conflicts, overdue reviews, failed runs, and scheduled
+// rule output. Access is decided per canvas before projecting any records.
 router.get('/attention', (req, res) => {
   const scopeRaw = qstr(req.query.scope); // repeated ?scope= arrives as an array — normalize first
   const scope = ['mine', 'team', 'all'].includes(scopeRaw) ? scopeRaw : 'all';
@@ -2090,7 +2152,7 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
       const contextIds = Array.isArray(context.entry_ids) ? context.entry_ids : [];
       run = dispatchRun({
         agentId, canvasId: escalation.canvas_id,
-        instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}\nHuman decision (${req.user.email}): ${answer}\nThe decision is already recorded as verified memory (entry ${decisionEntry.id}) — do not re-record it. Apply it now: if it fixes workbook fields, apply them with apply_row_fix using escalation_id ${escalation.id}. Then complete. Your summary must state exactly what you changed — nothing more.`,
+        instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}\nHuman decision (${req.user.email}): ${answer}\nThe decision is already recorded as verified memory (entry ${decisionEntry.id}) — do not re-record it. Apply the decision using only your currently granted tools, then complete. Your summary must state exactly what you changed — nothing more.`,
         triggerKind: 'escalation_resume', actor: req.user.email, initiatedBy: req.user.email,
         // Carry the escalating run as parent so the resume INHERITS its mode —
         // resolving an ask/rehearse run's question must not silently produce
@@ -2274,7 +2336,7 @@ router.post('/canvases/:canvasId/intent', rateLimit('model'), auth.requireCanvas
     provider: fastTier.provider,
     model: fastTier.model,
     signal: abort.signal,
-    system: `You parse spoken/typed commands for a multi-agent canvas. Available agents:\n${agents.map((a) => `- ${a.name} (${a.role}, id ${a.id})`).join('\n')}\nReturn ONLY a JSON object, no prose: {"action": "dispatch"|"pause"|"resume"|"unknown", "agent_id": "<id or null>", "agent_name": "<name or null>", "instruction": "<what the agent should do, cleaned up>", "echo": "<short confirmation of what will happen, e.g. 'Ask Scout (research) to re-check rows 3-5'>"}. If the command names no agent but implies a role, pick the matching agent. If genuinely unclear, action "unknown" with echo explaining why.`,
+    system: `You parse spoken/typed commands for a multi-agent canvas. Available agents:\n${agents.map((a) => `- ${a.name} (${a.role}, id ${a.id})`).join('\n')}\nReturn ONLY a JSON object, no prose: {"action": "dispatch"|"pause"|"resume"|"unknown", "agent_id": "<id or null>", "agent_name": "<name or null>", "instruction": "<what the agent should do, cleaned up>", "echo": "<short confirmation of what will happen, e.g. 'Ask Scout (research) to review the uploaded brief'>"}. If the command names no agent but implies a role, pick the matching agent. If genuinely unclear, action "unknown" with echo explaining why.`,
     messages: [{ role: 'user', content: text }],
     maxTokens: 300,
     });
@@ -2400,7 +2462,7 @@ router.get('/export', auth.requireOwner, (req, res) => {
     agents: db.prepare('SELECT * FROM agents').all(),
     notes: db.prepare('SELECT * FROM notes').all(),
     tasks: db.prepare('SELECT * FROM tasks').all(),
-    files: db.prepare('SELECT id, canvas_id, name, mime, size, uploaded_by, created_at FROM files').all(),
+    files: db.prepare('SELECT id, canvas_id, name, mime, size, uploaded_by, created_at, deleted_at, deleted_by FROM files').all(),
     memory_entries: db.prepare('SELECT * FROM memory_entries').all(),
     citations: db.prepare('SELECT * FROM citations').all(),
     run_reads: db.prepare('SELECT * FROM run_reads').all(),

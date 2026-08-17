@@ -261,12 +261,18 @@ export function ContextReceipt({ receipt, onFeedback }) {
 
 const runEventPreview = (ev) => formatRunEventPreview(ev, 'detail');
 
-export function NotePanel({ note, task, people = [], agents = [], onAssignTask, onSave, onClose }) {
+export function NotePanel({ note, task, people = [], agents = [], pinnedNotes = [], editable = true, onAssignTask, onSave, onRemove, onClose }) {
   const [draft, setDraft] = useState(() => (note ? { title: note.title, content: note.content, pinned: !!note.pinned } : null));
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   useEffect(() => {
-    if (note) setDraft({ title: note.title, content: note.content, pinned: !!note.pinned });
+    if (note) {
+      setDraft({ title: note.title, content: note.content, pinned: !!note.pinned });
+      setConfirmRemove(false);
+      setRemoving(false);
+    }
   }, [note?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (task) {
@@ -299,13 +305,24 @@ export function NotePanel({ note, task, people = [], agents = [], onAssignTask, 
 
   const save = async (e) => {
     e.preventDefault();
-    if (saving) return;
+    if (!editable || saving || !onSave) return;
     setSaving(true);
     try {
       const d = await onSave(note, draft);
       if (d && d.note) setDraft({ title: d.note.title, content: d.note.content, pinned: !!d.note.pinned });
     } catch { /* toast raised upstream */ }
     setSaving(false);
+  };
+
+  const remove = async () => {
+    if (!editable || removing || !onRemove) return;
+    setRemoving(true);
+    try {
+      const removed = await onRemove(note);
+      if (removed !== false) onClose();
+    } finally {
+      setRemoving(false);
+    }
   };
 
   return (
@@ -317,25 +334,62 @@ export function NotePanel({ note, task, people = [], agents = [], onAssignTask, 
       <form className="note-form" onSubmit={save}>
         <input
           className="note-title-input"
+          aria-label="Note title"
           value={draft.title}
+          readOnly={!editable}
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
         />
         <textarea
+          aria-label="Note content"
           rows="14"
           value={draft.content}
+          readOnly={!editable}
           onChange={(e) => setDraft({ ...draft, content: e.target.value })}
         />
         <label className="pin-toggle">
           <input
             type="checkbox"
             checked={draft.pinned}
+            disabled={!editable}
             onChange={(e) => setDraft({ ...draft, pinned: e.target.checked })}
           />
           <span className="pin-slider" />
-          Pin as live context <span className="pin-hint">(pinned notes feed every agent run)</span>
+          Include in every agent run
         </label>
+        {draft.pinned ? (
+          <div className="pin-context-note">
+            {pinnedNotes.length ? (
+              <>This note will be added alongside {pinnedNotes.length} other live-context {pinnedNotes.length === 1 ? 'note' : 'notes'}: {pinnedNotes.map((n) => n.title || 'Untitled note').join(', ')}.</>
+            ) : 'This note will be included in every future agent run on this canvas.'}
+          </div>
+        ) : null}
         <div className="note-meta mono">v{note.version} · {note.updated_by || '—'} · {timeAgo(note.updated_at)}</div>
-        <button className="btn primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save note'}</button>
+        {editable ? (
+          <div className="note-actions">
+            <button className="btn primary" type="submit" disabled={saving || removing}>{saving ? 'Saving…' : 'Save note'}</button>
+            {onRemove ? (
+              <button className="btn ghost danger-link" type="button" disabled={saving || removing} onClick={() => setConfirmRemove(true)}>
+                Remove note
+              </button>
+            ) : null}
+          </div>
+        ) : <div className="note-readonly dim">View only — you can read this note, but you cannot change it.</div>}
+        {confirmRemove ? (
+          <div className="note-remove-confirm" role="alert">
+            <strong>{note.pinned ? 'This note is pinned as live context.' : 'Remove this note?'}</strong>
+            <span>
+              {note.pinned
+                ? 'It will disappear from this canvas and stop being included in future agent runs. Audit history is retained.'
+                : 'It will disappear from this canvas. Audit history is retained.'}
+            </span>
+            <div className="note-actions">
+              <button className="btn danger" type="button" disabled={removing} onClick={remove}>
+                {removing ? 'Removing…' : 'Yes, remove note'}
+              </button>
+              <button className="btn ghost" type="button" disabled={removing} onClick={() => setConfirmRemove(false)}>Keep note</button>
+            </div>
+          </div>
+        ) : null}
       </form>
     </Panel>
   );

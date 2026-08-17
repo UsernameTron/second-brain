@@ -1,9 +1,8 @@
 'use strict';
-// Live-workspace healing. A database seeded before the roster existed carries
-// pre-roster exec prompts (Darren's ICP predates sr-icp-v5, Atlas predates the
-// confidentiality guard) and a superseded target-buyer memory anchor. The heal
-// migrations bring such a workspace current on boot — while refusing to touch
-// anything a human has edited.
+// Live-workspace healing remains supported for historical databases even
+// though fresh workspaces no longer create demo canvases. This fixture builds
+// the legacy rows explicitly, then proves migrations update only known seed
+// text and never overwrite a human edit.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -18,22 +17,24 @@ process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
 
 const { db, nowIso } = require('../server/db');
 const memory = require('../server/memory');
-const { seedIfEmpty, seedExecCanvas, OWNER_EMAIL } = require('../server/seed');
+const { seedIfEmpty, EXEC_AGENTS, OWNER_EMAIL } = require('../server/seed');
 const roster = require('../server/roster');
 
 const LEGACY = Object.fromEntries(roster.LEGACY_EXEC_PROMPTS.map((p) => [p.name, p.system_prompt]));
 
 seedIfEmpty();
-const exec = seedExecCanvas(OWNER_EMAIL);
+const canvasId = 'legacy-exec-fixture';
+db.prepare("INSERT INTO canvases (id, name, created_by, created_at) VALUES (?, 'Legacy exec fixture', ?, ?)")
+  .run(canvasId, OWNER_EMAIL, nowIso());
 
-// Rewind this database to its pre-roster state: exec agents carrying the
-// prompts PR #99 shipped, and the superseded target-buyer anchor.
-for (const [name, prompt] of Object.entries(LEGACY)) {
-  db.prepare('UPDATE agents SET system_prompt = ?, roster_id = NULL WHERE canvas_id = ? AND name = ?')
-    .run(prompt, exec.canvasId, name);
+// Build the exact pre-roster agent state rather than calling a product seed.
+for (const [i, entry] of EXEC_AGENTS.entries()) {
+  db.prepare('INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at, roster_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)')
+    .run(crypto.randomUUID(), canvasId, entry.name, entry.role, entry.color, entry.model_tier,
+      LEGACY[entry.name], entry.x ?? (150 + 340 * i), entry.y ?? 200, nowIso());
 }
 const staleEntry = memory.writeEntry({
-  canvasId: exec.canvasId, content: roster.STALE_ICP_MEMORY, epistemic: 'verified',
+  canvasId, content: roster.STALE_ICP_MEMORY, epistemic: 'verified',
   authorType: 'user', authorId: OWNER_EMAIL, authorName: 'Pete Connor (seed)',
   source: 'CTG Constants Registry (reviewed 2026-04-15), uploaded by Pete Connor 2026-08-11',
 });
@@ -41,18 +42,24 @@ const staleEntry = memory.writeEntry({
 const EDITED = 'You are Darren. Custom prompt Pete wrote by hand — do not clobber this.';
 const editedId = crypto.randomUUID();
 db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at) VALUES (?, ?, 'Darren', 'commercial', '#D98A14', 'strong', ?, 0, 0, ?)")
-  .run(editedId, exec.canvasId, EDITED, nowIso());
+  .run(editedId, canvasId, EDITED, nowIso());
 
 roster.seedRoster();
+// A pristine current agent exercises the provenance-only linker separately
+// from the legacy healer.
+const scout = roster.ROSTER_AGENTS.find((entry) => entry.name === 'Scout');
+const scoutId = crypto.randomUUID();
+db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at, roster_id) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, NULL)")
+  .run(scoutId, canvasId, scout.name, scout.role, scout.color, scout.model_tier, scout.system_prompt, nowIso());
 const healResult = roster.healExecAgents();
 const linkResult = roster.linkExecAgents();
 const icpResult = roster.supersedeStaleIcpMemory(OWNER_EMAIL);
 
-const agentByName = (name) => db.prepare('SELECT * FROM agents WHERE canvas_id = ? AND name = ? AND id != ?').get(exec.canvasId, name, editedId);
+const agentByName = (name) => db.prepare('SELECT * FROM agents WHERE canvas_id = ? AND name = ? AND id != ?').get(canvasId, name, editedId);
 
 test('drifted seed prompts are healed to the current template', () => {
-  assert.equal(healResult.healed, 2, 'exactly Darren and Atlas drifted');
-  assert.deepEqual([...new Set(healResult.detail.map((h) => h.name))].sort(), ['Atlas', 'Darren']);
+  assert.equal(healResult.healed, 4, 'all four known legacy templates drifted and were healed');
+  assert.deepEqual([...new Set(healResult.detail.map((h) => h.name))].sort(), ['Atlas', 'Darren', 'Fred', 'Jess']);
 
   const darren = agentByName('Darren');
   // The template interpolates the shipped registry's own version — assert
@@ -67,10 +74,10 @@ test('drifted seed prompts are healed to the current template', () => {
   assert.match(atlas.system_prompt, /CONFIDENTIALITY RULE/, 'Atlas now carries the guard');
 });
 
-test('untouched templates are left alone; hand-edited agents are never clobbered', () => {
-  // Fred and Jess prompts did not change with the roster, so they need no heal.
+test('known legacy templates update while hand-edited agents are never clobbered', () => {
   for (const name of ['Fred', 'Jess']) {
-    assert.equal(agentByName(name).system_prompt, LEGACY[name], `${name} prompt unchanged`);
+    assert.equal(agentByName(name).system_prompt, roster.ROSTER_AGENTS.find((entry) => entry.name === name).system_prompt,
+      `${name} adopts the current template`);
   }
   const edited = db.prepare('SELECT * FROM agents WHERE id = ?').get(editedId);
   assert.equal(edited.system_prompt, EDITED, 'a hand-written prompt survives the migration verbatim');
@@ -78,7 +85,8 @@ test('untouched templates are left alone; hand-edited agents are never clobbered
 });
 
 test('every seed-descended exec agent ends up resyncable', () => {
-  assert.ok(linkResult.linked >= 2, 'link stamps the agents heal did not');
+  assert.equal(linkResult.linked, 1, 'link stamps the pristine current Scout fixture');
+  assert.ok(db.prepare('SELECT roster_id FROM agents WHERE id = ?').get(scoutId).roster_id, 'Scout is linked');
   for (const name of ['Fred', 'Darren', 'Jess', 'Atlas']) {
     const agent = agentByName(name);
     assert.ok(agent.roster_id, `${name} carries roster provenance and can be resynced`);

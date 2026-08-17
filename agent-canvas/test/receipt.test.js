@@ -101,7 +101,11 @@ test('receipt separates provided, retrieved (with query/rank/score), and cited',
   const hit = data.searches[0].results.find((r) => r.entry.id === searchable.id);
   assert.ok(hit, 'searched entry appears in the search results');
   assert.equal(hit.rank, 1);
-  assert.ok(hit.score >= 2, 'multi-token score recorded');
+  // Scores are engine-native: the LIKE fallback reports matched-token counts,
+  // while FTS5 reports a BM25-derived relevance value. The receipt contract
+  // is that the numeric score is preserved, not that both engines share a
+  // scale.
+  assert.ok(Number.isFinite(hit.score), 'retrieval score recorded');
 
   // cited: what the run wrote, carrying its cites
   assert.ok(data.cited.some((e) => e.id === written.id && e.cites.includes(searchable.id)));

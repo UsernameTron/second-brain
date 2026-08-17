@@ -132,7 +132,7 @@ export default function CommandBar({ paused, onParse, onConfirm, toast }) {
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={listening ? 'Listening…' : 'Tell an agent what to do — "have Scout re-check rows 3–5"'}
+          placeholder={listening ? 'Listening…' : 'Tell an agent what to do — “have Scout review the uploaded brief”'}
         />
         <button className="btn primary" type="submit" disabled={busy || !text.trim()}>
           {busy ? '…' : 'Send'}

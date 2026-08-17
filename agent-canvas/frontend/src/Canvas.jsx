@@ -309,7 +309,7 @@ export default function Canvas({
             mine={mySelection === f.id}
             onMoveLive={onMoveLive}
             onMoveEnd={onMoveEnd}
-            onClick={() => onSelect(f.id)}
+            onClick={() => { onSelect(f.id); onOpen('file', f); }}
           />
         ))}
 
