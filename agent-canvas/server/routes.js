@@ -550,7 +550,10 @@ router.post('/mcp/servers', auth.requireOwner, asyncRoute(async (req, res) => {
     .run(id, name, url, JSON.stringify(headers), JSON.stringify(tools.kept), access, JSON.stringify(roles), enabled ? 1 : 0, ts, ts);
   audit('user', req.user.email, 'mcp.server_create', { serverId: id, name, access, refusedTools: tools.refused });
   mcp.reload();
-  await mcp.refreshDefs();
+  // Persistence is the save contract. Discovery is bounded, serialized cache
+  // maintenance; an unreachable connector must not make a successful insert
+  // look failed to the client. reload() already invalidated stale defs.
+  void mcp.refreshDefs();
   res.json({ ok: true, id, refusedTools: tools.refused });
 }));
 
@@ -571,7 +574,7 @@ router.patch('/mcp/servers/:id', auth.requireOwner, asyncRoute(async (req, res) 
       nowIso(), row.id);
   audit('user', req.user.email, 'mcp.server_update', { serverId: row.id, name: name ?? row.name, refusedTools: tools ? tools.refused : [] });
   mcp.reload();
-  await mcp.refreshDefs();
+  void mcp.refreshDefs();
   res.json({ ok: true, refusedTools: tools ? tools.refused : [] });
 }));
 

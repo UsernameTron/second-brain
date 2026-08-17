@@ -351,7 +351,7 @@ function xlsxCellText(v) {
   return String(v);
 }
 
-async function xlsxToText(buf, name) {
+async function xlsxToText(buf, name, options = {}) {
   await assertUncompressedSize(buf, name);
   const ExcelJS = require('exceljs');
   const wb = new ExcelJS.Workbook();
@@ -368,37 +368,57 @@ async function xlsxToText(buf, name) {
     throw new Error(`"${name}" could not be read as a workbook (corrupt or not a real .xlsx): ${String(err.message).slice(0, 120)}`);
   }
   const lines = [`Workbook "${name}" (formulas render their cached values):`];
+  const truncationReasons = new Set();
   let cells = 0;
   let sheetsShown = 0;
   let cellsOmitted = false;
   wb.eachSheet((sheet) => {
-    if (sheetsShown >= XLSX_LIMITS.sheets || cells >= XLSX_LIMITS.totalCells) return;
+    if (sheetsShown >= XLSX_LIMITS.sheets) { truncationReasons.add('sheet_limit'); return; }
+    if (cells >= XLSX_LIMITS.totalCells) { truncationReasons.add('cell_limit'); return; }
     sheetsShown += 1;
     lines.push(`\n## Sheet: ${sheet.name}`);
     let rows = 0;
     // Markers fire only when data was actually OMITTED — a sheet with exactly
     // the limit must not claim truncation it didn't perform.
-    let rowsOmitted = false;
+    let rowLimitOmitted = false;
     sheet.eachRow({ includeEmpty: false }, (row) => {
-      if (rows >= XLSX_LIMITS.rowsPerSheet || cells >= XLSX_LIMITS.totalCells) { rowsOmitted = true; return; }
+      if (rows >= XLSX_LIMITS.rowsPerSheet) { rowLimitOmitted = true; truncationReasons.add('row_limit'); return; }
+      if (cells >= XLSX_LIMITS.totalCells) { truncationReasons.add('cell_limit'); return; }
       rows += 1;
       // Clamp the row to the REMAINING cell budget — a maximum-width row at
       // 49,999 cells must not blow past the advertised hard total.
       let vals = row.values.slice(1).map((v) => csvCell(xlsxCellText(v)));
       const remaining = XLSX_LIMITS.totalCells - cells;
-      if (vals.length > remaining) { vals = vals.slice(0, remaining); cellsOmitted = true; }
+      if (vals.length > remaining) {
+        vals = vals.slice(0, remaining);
+        cellsOmitted = true;
+        truncationReasons.add('cell_limit');
+      }
       cells += vals.length;
       lines.push(vals.join(','));
     });
-    if (rowsOmitted) { lines.push(`[...sheet truncated at ${XLSX_LIMITS.rowsPerSheet} rows]`); cellsOmitted = cellsOmitted || cells >= XLSX_LIMITS.totalCells; }
+    if (rowLimitOmitted) lines.push(`[...sheet truncated at ${XLSX_LIMITS.rowsPerSheet} rows]`);
   });
   if (wb.worksheets.length > sheetsShown) lines.push(`\n[...${wb.worksheets.length - sheetsShown} more sheet(s) not shown]`);
-  if (cellsOmitted && cells >= XLSX_LIMITS.totalCells) lines.push(`[...workbook truncated at ${XLSX_LIMITS.totalCells} cells]`);
-  const text = lines.join('\n');
-  if (text.length <= TEXT_CAP) return text;
-  // Character-cap truncation must be visible, not a silent mid-cell cut.
-  const marker = `\n[...output truncated at the ${TEXT_CAP}-character cap — later rows/sheets are missing; ask for a narrower range or a CSV export]`;
-  return text.slice(0, TEXT_CAP - marker.length) + marker;
+  if ((cellsOmitted || truncationReasons.has('cell_limit')) && cells >= XLSX_LIMITS.totalCells) {
+    lines.push(`[...workbook truncated at ${XLSX_LIMITS.totalCells} cells]`);
+  }
+  let text = lines.join('\n');
+  if (text.length > TEXT_CAP) {
+    // Character-cap truncation must be visible, not a silent mid-cell cut.
+    const marker = `\n[...output truncated at the ${TEXT_CAP}-character cap — later rows/sheets are missing; ask for a narrower range or a CSV export]`;
+    text = text.slice(0, TEXT_CAP - marker.length) + marker;
+    truncationReasons.add('character_limit');
+  }
+  // Existing Drive/tool callers receive the same string as before. Canvas
+  // files opt into structured parser metadata so a user-authored cell that
+  // resembles one of our visible markers can never forge source completeness.
+  if (!options.withMetadata) return text;
+  return {
+    text,
+    sourceTruncated: truncationReasons.size > 0,
+    truncationReasons: [...truncationReasons],
+  };
 }
 
 async function driveReadText({ email, fileId }) {

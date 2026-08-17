@@ -327,8 +327,80 @@ function supersedeStaleIcpMemory(ownerEmail) {
 const LEGACY_ROSTER_PROMPTS = require('./config/legacy-roster-prompts.json').prompts;
 const RESEED_KEY = 'seed_roster_prompts_v6'; // v6: remove demo change-set/note dependencies; registry is a tool
 
+// Companion notes were generated from exact committed templates before v6.
+// Their rows have no provenance column, so the migration uses a deliberately
+// narrow signature: title + byte-exact content + original pin state, and only
+// version 1 rows on a canvas staffed from the corresponding legacy templates.
+// A title-only match would erase user work; a version greater than 1 proves a
+// person has edited the note even if they later restored the original text.
+//
+// Hashes were generated from the shipped ROSTER_NOTES templates at:
+//   6953f5b — Synthesis protocol + sr-icp-v5
+//   98f7a5f^ — Synthesis protocol + sr-icp-v6
+// Keep the historical rows (and their content) for export/audit: retirement is
+// a tombstone, never a DELETE.
+const COMPANION_RETIRE_KEY = 'retire_roster_companion_notes_v1';
+const LEGACY_COMPANION_NOTE_SIGNATURES = new Map([
+  ['9bd6ae819695edf8c99c5c8a5b6058d532aac9f384b4719614286ef3105694eb', ['Fred', 'Darren', 'Jess']],
+  ['df7e8859cc6d79a138598b62a47b3c6cc4a59de8f194b75319192c2f65ecc884', ['Radar']],
+  ['813f7b8ff2a8dfadf89d93e01cd86d63762db6e000bff7b8d445472d9992d500', ['Radar']],
+]);
+
+function companionNoteFingerprint(note) {
+  return crypto.createHash('sha256')
+    .update([note.title, note.content, note.pinned ? 1 : 0].join('\0'))
+    .digest('hex');
+}
+
+function retireRosterCompanionNotes(actor = 'seed') {
+  if (getSetting(COMPANION_RETIRE_KEY)) return { retired: 0, rosterKeysCleared: 0, noteIds: [] };
+  const ts = nowIso();
+  const retired = [];
+  let rosterKeysCleared = 0;
+  tx(() => {
+    const candidates = db.prepare(`SELECT id, canvas_id, title, content, pinned, version
+      FROM notes WHERE deleted_at IS NULL AND version = 1`).all();
+    for (const note of candidates) {
+      const legacyHolders = LEGACY_COMPANION_NOTE_SIGNATURES.get(companionNoteFingerprint(note));
+      if (!legacyHolders) continue;
+      // The old instantiator created a note only when a canvas contained an
+      // agent copied from one of the static roster templates that carried it.
+      // Use surviving roster identity, not companion_note_key: the original
+      // buggy v6 migration may already have cleared every key before this
+      // separately versioned repair gets a chance to run.
+      const holderPlaceholders = legacyHolders.map(() => '?').join(', ');
+      const generatedContext = db.prepare(`SELECT 1
+        FROM agents a JOIN roster_agents r ON r.id = a.roster_id
+        WHERE a.canvas_id = ? AND r.name IN (${holderPlaceholders}) LIMIT 1`).get(note.canvas_id, ...legacyHolders);
+      if (!generatedContext) continue;
+      const changed = db.prepare(`UPDATE notes
+        SET pinned = 0, deleted_at = ?, deleted_by = ?, updated_by = ?, updated_at = ?, version = version + 1
+        WHERE id = ? AND deleted_at IS NULL AND version = 1 AND title = ? AND content = ? AND pinned = ?`)
+        .run(ts, actor, actor, ts, note.id, note.title, note.content, note.pinned).changes;
+      if (changed) retired.push({ noteId: note.id, canvasId: note.canvas_id });
+    }
+    rosterKeysCleared = db.prepare(`UPDATE roster_agents
+      SET companion_note_key = NULL, updated_at = ?
+      WHERE companion_note_key IN ('synthesis_protocol', 'icp_registry')`).run(ts).changes;
+    setSetting(COMPANION_RETIRE_KEY, ts);
+    if (retired.length || rosterKeysCleared) {
+      audit('system', actor, 'workspace.roster_companion_notes_retire', {
+        count: retired.length,
+        noteIds: retired.map((item) => item.noteId),
+        canvasIds: [...new Set(retired.map((item) => item.canvasId))],
+        rosterKeysCleared,
+      });
+    }
+  });
+  return { retired: retired.length, rosterKeysCleared, noteIds: retired.map((item) => item.noteId) };
+}
+
 function reseedRosterPrompts() {
-  if (getSetting(RESEED_KEY)) return { updated: 0 };
+  // This has its own key on purpose: a workspace that booted the original v6
+  // migration (which only cleared roster metadata) must still retire the
+  // generated notes on its next upgrade.
+  const companionRetirement = retireRosterCompanionNotes();
+  if (getSetting(RESEED_KEY)) return { updated: 0, retiredCompanionNotes: companionRetirement.retired };
   const updated = [];
   tx(() => {
     for (const entry of ROSTER_AGENTS) {
@@ -336,7 +408,7 @@ function reseedRosterPrompts() {
       if (!prev || prev === entry.system_prompt) continue; // prompt unchanged for this agent
       // Roster row: adopt the new text only if it still holds the old template
       // (a PATCH via Admin → Roster would have changed it — leave that alone).
-      const row = db.prepare('SELECT id, system_prompt, companion_note_key FROM roster_agents WHERE name = ?').get(entry.name);
+      const row = db.prepare('SELECT id, system_prompt FROM roster_agents WHERE name = ?').get(entry.name);
       if (row && row.system_prompt === prev) {
         db.prepare('UPDATE roster_agents SET system_prompt = ?, updated_at = ? WHERE id = ?').run(entry.system_prompt, nowIso(), row.id);
       }
@@ -346,23 +418,18 @@ function reseedRosterPrompts() {
         db.prepare('UPDATE agents SET system_prompt = ? WHERE id = ?').run(entry.system_prompt, agent.id);
         updated.push({ name: entry.name, agentId: agent.id, canvasId: agent.canvas_id });
       }
-      // Companion notes were a demo-era transport for system reference data.
-      // Clear the stored key so old roster rows cannot imply that adding an
-      // agent will create a visible note.
-      if (row && row.companion_note_key) {
-        db.prepare('UPDATE roster_agents SET companion_note_key = NULL, updated_at = ? WHERE id = ?')
-          .run(nowIso(), row.id);
-      }
     }
     setSetting(RESEED_KEY, nowIso());
   });
   if (updated.length) {
     audit('system', 'seed', 'workspace.roster_reseed', { agents: updated.length, names: [...new Set(updated.map((u) => u.name))] });
   }
-  return { updated: updated.length, detail: updated };
+  return { updated: updated.length, detail: updated, retiredCompanionNotes: companionRetirement.retired };
 }
 
 module.exports = {
   ROSTER_AGENTS, ICP, LEGACY_EXEC_PROMPTS, LEGACY_ROSTER_PROMPTS, STALE_ICP_MEMORY, HOT_MIN_SCORE,
-  seedRoster, linkExecAgents, healExecAgents, reseedRosterPrompts, supersedeStaleIcpMemory, instantiateOnCanvas,
+  COMPANION_RETIRE_KEY, LEGACY_COMPANION_NOTE_SIGNATURES,
+  seedRoster, linkExecAgents, healExecAgents, reseedRosterPrompts, retireRosterCompanionNotes,
+  supersedeStaleIcpMemory, instantiateOnCanvas,
 };
