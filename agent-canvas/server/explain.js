@@ -1,7 +1,7 @@
 'use strict';
 // P1 Explain Map: a run-centric graph composed from existing records only —
 // run_events, memory_retrievals, memory entries + citations, evidence refs,
-// handoffs/escalations/changesets, child runs, downstream cites. The user's
+// handoffs, escalations, child runs, and downstream cites. The user's
 // question (the run instruction) is the anchor. Deterministic: fixed columns
 // by node type, stable ordering, a hard node cap with a "+N more" collapse.
 // Lenses are filters over ONE graph build; flow = what happened, evidence =
@@ -101,8 +101,9 @@ function buildExplainMap(runId, { lens = 'flow' } = {}) {
     }
   }
 
-  // Impact (depth 1): human approvals, handoffs out, changesets, child runs,
-  // and entries elsewhere that cite this run's entries.
+  // Impact (depth 1): human approvals, handoffs out, child runs, and entries
+  // elsewhere that cite this run's entries. Historical demo changesets stay
+  // in the operational ledger but are not current product work.
   db.prepare("SELECT id, kind, status, question FROM escalations WHERE run_id = ? ORDER BY created_at").all(run.id).forEach((es) => {
     const id = node({ id: `esc:${es.id}`, type: 'output', label: `escalation: ${short(es.question, 60)}`, meta: { status: es.status } });
     edge(aId, id, es.status === 'accepted' || es.status === 'redirected' ? 'approved' : 'created');
@@ -111,10 +112,6 @@ function buildExplainMap(runId, { lens = 'flow' } = {}) {
     const to = db.prepare('SELECT name FROM agents WHERE id = ?').get(h.to_agent_id);
     const id = node({ id: `handoff:${h.id}`, type: 'output', label: `handed “${short(h.item_key, 30)}” to ${to ? to.name : 'agent'}`, meta: {} });
     edge(aId, id, 'created');
-  });
-  db.prepare('SELECT id, status FROM changesets WHERE run_id = ? ORDER BY created_at').all(run.id).forEach((cs) => {
-    const id = node({ id: `cs:${cs.id}`, type: 'output', label: `changeset (${cs.status})`, meta: { changesetId: cs.id } });
-    edge(aId, id, cs.status === 'verified' ? 'approved' : 'created');
   });
   db.prepare('SELECT id, agent_id, status, instruction FROM runs WHERE parent_run_id = ? ORDER BY created_at').all(run.id).forEach((child) => {
     const id = node({ id: `run:${child.id}`, type: 'impact', label: `child run: ${short(child.instruction, 60)}`, meta: { runId: child.id, status: child.status } });

@@ -11,10 +11,6 @@ const { rateLimit: expressRateLimit } = require('express-rate-limit');
 const BUCKETS = {
   auth: { windowMs: 60_000, limit: 10 },
   model: { windowMs: 60_000, limit: 30 },
-  // The demo-kickoff route asked for 10/min in its (silently discarded)
-  // arguments and got the shared model bucket's 30. Honouring the intent
-  // it wrote down, as a bucket, which is the only thing this table reads.
-  demo: { windowMs: 60_000, limit: 10 },
   // Health probes shared the auth bucket and locked out SIGN-IN: probing the
   // ~14 systems-board lamps (which finding 8 made necessary after every
   // deploy) burned the 10/min that credential attempts live in. Probes are

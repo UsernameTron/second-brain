@@ -1,7 +1,7 @@
 'use strict';
 // P2.1: view vs edit membership is enforced server-side. A 'view' member can
 // read a restricted canvas but every mutation — requireCanvas routes and the
-// direct-check routes (escalation assign/resolve, inquiry save, demo run) —
+// direct-check routes (escalation assign/resolve and inquiry save) —
 // answers 403. An 'edit' member can mutate.
 
 const test = require('node:test');

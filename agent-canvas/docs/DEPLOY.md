@@ -45,9 +45,15 @@ configuration comparison without deploying, and `./deploy/deploy.sh --selftest`
 to exercise the preflight's name parsing against fixtures with no cloud access
 at all.
 
-**Model provider — inside the perimeter by default.** On a FIRST deploy the script defaults to `MODEL_PROVIDER=vertex` (thereafter it inherits the live value, as above): agent conversations go to Claude served on **Vertex AI inside this Google Cloud project** — no data leaves the Google perimeter, there is no model API key anywhere in the system (the runtime service account authenticates), and model usage lands on the Google invoice under Google's Vertex data-use terms. One extra one-time step applies: in the console, **Vertex AI → Model Garden → search "Claude" → Enable** on claude-sonnet-5, claude-haiku-4-5, and claude-opus-4-8. To use Anthropic's first-party API instead, deploy with `MODEL_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=sk-ant-...` (stored in Secret Manager). Switching later is one redeploy with the other values. **Gemini and mixed fleets** are built in behind the same seam: `MODEL_PROVIDER=gemini` runs everything on Gemini via Vertex (same keyless service-account auth, same perimeter), and the per-tier overrides `FAST_PROVIDER` / `STRONG_PROVIDER` mix providers — e.g. `STRONG_PROVIDER=vertex FAST_PROVIDER=gemini` keeps the verified Claude behavior on the judgment-heavy agents while Gemini Flash handles routing and light work. Gemini tier models default to `gemini-2.5-flash` / `gemini-2.5-pro` (override with `GEMINI_FAST_MODEL` / `GEMINI_STRONG_MODEL` — check them against Google's current lineup). Two v1 limits on the Gemini path: research agents skip web search (Google's grounding tool has a different result shape), and safety blocks surface as escalations rather than retrying on a fallback model. **Verification status is provider-specific:** the workflow behaviors were verified on Claude models; moving a tier to Gemini needs the demo re-run and the tray/memory behaviors re-checked before trusting it with real batches — the adapter's translation layer is unit-tested offline, and its first live call happens on your deploy.
+**Model provider — inside the perimeter by default.** On a FIRST deploy the script defaults to `MODEL_PROVIDER=vertex` (thereafter it inherits the live value, as above): agent conversations go to Claude served on **Vertex AI inside this Google Cloud project** — no data leaves the Google perimeter, there is no model API key anywhere in the system (the runtime service account authenticates), and model usage lands on the Google invoice under Google's Vertex data-use terms. One extra one-time step applies: in the console, **Vertex AI → Model Garden → search "Claude" → Enable** on claude-sonnet-5, claude-haiku-4-5, and claude-opus-4-8. To use Anthropic's first-party API instead, deploy with `MODEL_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=sk-ant-...` (stored in Secret Manager). Switching later is one redeploy with the other values. **Gemini and mixed fleets** are built in behind the same seam: `MODEL_PROVIDER=gemini` runs everything on Gemini via Vertex (same keyless service-account auth, same perimeter), and the per-tier overrides `FAST_PROVIDER` / `STRONG_PROVIDER` mix providers — e.g. `STRONG_PROVIDER=vertex FAST_PROVIDER=gemini` keeps the verified Claude behavior on the judgment-heavy agents while Gemini Flash handles routing and light work. Gemini tier models default to `gemini-2.5-flash` / `gemini-2.5-pro` (override with `GEMINI_FAST_MODEL` / `GEMINI_STRONG_MODEL` — check them against Google's current lineup). Two v1 limits on the Gemini path: research agents skip web search (Google's grounding tool has a different result shape), and safety blocks surface as escalations rather than retrying on a fallback model. **Verification status is provider-specific:** the workflow behaviors were verified on Claude models; moving a tier to Gemini needs representative signed-in inquiry, document-read, escalation, and memory-receipt journeys re-checked before trusting it with real work — the adapter's translation layer is unit-tested offline, and its first live call happens on your deploy.
 
-After the first Vertex deploy, probe it end to end before inviting the team: sign in, open the command bar, and send "have Scout confirm the model connection works with one short memory entry" — a completed run in the activity dock proves the keyless Vertex path; a 403/404 error means the Model Garden enablement step is still pending.
+After the first Vertex deploy, probe it end to end before inviting the team:
+sign in, create or open a canvas, upload a small TXT or Markdown file, and ask
+an authorized agent to summarize a named fact from it. Confirm the completed
+run's receipt identifies the canvas file. That proves the signed-in inquiry,
+model, document-read, evidence, and receipt path without manufacturing a memory
+write. A 403/404 model error means the Model Garden enablement step is still
+pending.
 
 The script is idempotent and operates on `PROJECT_ID` (current default:
 `agent-canvas-ctg-0811`). It creates the project only when it does not exist,
@@ -74,7 +80,7 @@ gcloud run services update agent-canvas --project agent-canvas-ctg-0811 --region
   --update-env-vars GOOGLE_CLIENT_ID=<the-client-id>.apps.googleusercontent.com
 ```
 
-## Step 3 — sign in and check the seed
+## Step 3 — sign in and check access bootstrap
 
 Open the service URL, sign in with a cloudtechgurus.com Google account. The allowlist is seeded with pete@ (owner), fred@, darren@, jessica@ — **if the real mailbox names differ, the owner fixes them in-app** (top bar → Admin → Allowlist) or pre-seeds via `OWNER_EMAIL` / `SEED_MEMBERS` env vars. Remaining domain users are added from the same Admin panel — no redeploy.
 
@@ -196,12 +202,21 @@ The UI hides the slot when the file is absent, so skipping this never breaks a b
   # gcloud logging buckets update audit-locked --location=us-central1 --locked --project agent-canvas-ctg-0811
   ```
 - **Database durability**: SQLite on the instance disk, restored from `gs://agent-canvas-ctg-0811-db` on cold start and continuously replicated by Litestream. `--max-instances 1` is required (single writer). If the workspace ever outgrows this, the storage layer is isolated in `server/db.js` for a Cloud SQL migration.
+- **Cleanup-release rollback boundary**: the workspace cleanup uses additive
+  tombstone columns that pre-cleanup revisions do not filter. After the first
+  cleanup revision migrates production, do **not** route traffic back to an
+  older image: its Archived view can reveal retired artifacts. Take and verify
+  the database backup before deployment and use a forward fix on the cleanup
+  code line. The ledger remains recoverable; this is a reader-compatibility
+  boundary, not physical deletion.
 - **Auth model**: the Cloud Run service allows unauthenticated ingress, and the app itself enforces Google sign-in (`hd=cloudtechgurus.com` + email_verified + allowlist, re-checked on every request) with signed httpOnly session cookies. Roles: owner / member, enforced server-side.
 - **Global pause**: any member can pause (kills in-flight model calls); only the owner can resume.
 - **Export**: owner → top bar → Export downloads an operational-ledger JSON
   snapshot: canvases, agents, notes, tasks, file metadata, memory and lineage,
-  runs/events, handoffs, escalations, sheet rows, changesets/changes, audit,
-  usage, and allowlist. It is **not a complete workspace backup**: among other
+  runs/events, handoffs, escalations, audit, usage, and allowlist. Retired sheet
+  rows and changesets/changes remain in the export as a historical ledger; they
+  are not active product surfaces. It is **not a complete workspace backup**:
+  among other
   things, product settings, memberships, inquiries, Rooms, Builder versions,
   Standing Rules, feedback/retrieval telemetry, and credentials are not in this
   export. Credentials and token material must remain excluded. See
@@ -227,4 +242,4 @@ npm test
 
 - Cloud Run: scale-to-zero, 1 vCPU/1 GiB — normal light internal use stays inside the free tier or low single dollars/month.
 - Cloud Storage (database replica): pennies.
-- Anthropic API: dominated by agent runs. The verified demo workflow (three agents, 12 rows, ~19 model steps) cost ≈ $1.00 on Haiku-only; with `claude-sonnet-5` as the strong tier expect roughly $2–4 per full enrichment batch (plus $0.01 per web search). The in-app daily budget caps the blast radius.
+- Model usage is dominated by agent runs and varies with provider, tier, tool calls, and document size. Use the in-app per-run spend and daily budget meter as the authoritative operating signal; do not estimate production cost from the retired sample workflow. The daily budget caps the blast radius.

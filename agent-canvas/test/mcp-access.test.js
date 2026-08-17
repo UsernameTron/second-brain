@@ -181,8 +181,14 @@ test('call-time re-check refuses a member on an owner-only connector even with a
   mcp.reload();
   await mcp.refreshDefs();
   const { executeTool } = require('../server/orchestrator/tools');
-  const canvas = db.prepare('SELECT * FROM canvases LIMIT 1').get();
+  const fred = db.prepare("SELECT id FROM roster_agents WHERE name = 'Fred'").get();
+  const created = await call('POST', '/api/canvases', ownerCookie, {
+    name: 'MCP authority fixture', roster_ids: [fred.id],
+  });
+  assert.equal(created.status, 200);
+  const canvas = created.data.canvas;
   const agent = db.prepare('SELECT * FROM agents WHERE canvas_id = ? LIMIT 1').get(canvas.id);
+  assert.ok(agent, 'test explicitly staffs its canvas; fresh boot seeds none');
   const run = { id: 'r-test', initiated_by: 'fred@cloudtechgurus.com', canvas_id: canvas.id };
   const out = await executeTool('mcp_mock_search', {}, { run, agent, canvas });
   assert.equal(out.isError, true);

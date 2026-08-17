@@ -1,6 +1,6 @@
 'use strict';
-// Seeds the workspace's MCP connectors (idempotent, settings-key guard —
-// the seed_exec_v2 pattern). Data connectors only: both RapidAPI LinkedIn
+// Seeds the workspace's MCP connectors (idempotent, versioned settings-key
+// guard). Data connectors only: both RapidAPI LinkedIn
 // servers, member-visible, role-scoped to the lead-gen lanes (editable in
 // Admin → Connectors — scoping is a token-cost lever, not a cage: every
 // offered tool's schema rides in every model call of every offered agent).

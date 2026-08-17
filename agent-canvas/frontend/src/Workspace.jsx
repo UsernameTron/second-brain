@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppCtx } from './App.jsx';
-import { api, rulesApi, wsUrl, normEsc, normHandoff, fmtUSD, initials } from './api.js';
+import { api, rulesApi, wsUrl, normEsc, normHandoff, fmtUSD, fmtBytes, initials } from './api.js';
 import Canvas from './Canvas.jsx';
 import Tray from './Tray.jsx';
 import ActivityDock from './ActivityDock.jsx';
@@ -8,7 +8,6 @@ import CommandBar from './CommandBar.jsx';
 import MemoryPanel from './MemoryPanel.jsx';
 import RoomsView from './RoomsView.jsx';
 import RulesView from './RulesView.jsx';
-import Workbook from './Workbook.jsx';
 import { AgentPanel, NotePanel, SpendPanel } from './Panels.jsx';
 import { useDialog } from './useDialog.js';
 import Home from './Home.jsx';
@@ -19,11 +18,34 @@ import CapabilitiesModal from './CapabilitiesModal.jsx';
 
 let liveSeq = 0;
 
+const FILE_ACCEPT = '.txt,.md,.csv,.json,.xlsx';
+const FILE_LIMIT_BYTES = 5 * 1024 * 1024;
+const FILE_MIME = {
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.csv': 'text/csv',
+  '.json': 'application/json',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+
+function fileExtension(name) {
+  const match = String(name || '').toLowerCase().match(/\.[^.]+$/);
+  return match ? match[0] : '';
+}
+
+// encodeURIComponent deliberately leaves a few punctuation characters alone,
+// while api() only permits percent-encoded query values. Encode those last
+// characters too so a valid filename can never be rejected as an API path.
+function encodeFileName(name) {
+  return encodeURIComponent(String(name)).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
 export default function Workspace() {
   const { user, setUser, toast, theme, setTheme } = useContext(AppCtx);
   const isOwner = user.role === 'owner';
 
   const [canvases, setCanvases] = useState([]);
+  const [canvasesLoaded, setCanvasesLoaded] = useState(false);
   const [archivedCanvases, setArchivedCanvases] = useState([]);
   const [newCanvasOpen, setNewCanvasOpen] = useState(false);
   const [newCanvasName, setNewCanvasName] = useState('');
@@ -32,6 +54,8 @@ export default function Workspace() {
   const [addAgentOpen, setAddAgentOpen] = useState(false);
   const [addPersonOpen, setAddPersonOpen] = useState(false);
   const [newPersonEmail, setNewPersonEmail] = useState('');
+  const fileInputRef = useRef(null);
+  const [fileUpload, setFileUpload] = useState({ kind: 'idle', message: '' });
   const [canvasId, setCanvasId] = useState(null);
   const [state, setState] = useState(null); // full GET /api/canvases/:id payload
   const [memory, setMemory] = useState([]);
@@ -152,7 +176,9 @@ export default function Workspace() {
   }, []);
 
   const loadEscalations = useCallback(async () => {
+    const cid = canvasIdRef.current;
     const d = await api('/api/escalations');
+    if (!cid || canvasIdRef.current !== cid) return;
     setEscalations((d.escalations || []).map(normEsc).filter((e) => e.status === 'open'));
   }, []);
 
@@ -191,7 +217,7 @@ export default function Workspace() {
     }, 450);
   }, [loadState, toast]);
 
-  // Attention rides its own debounce: run/memory/escalation/changeset events
+  // Attention rides its own debounce: run/memory/escalation events
   // all feed the projection, and a burst should cost one refetch.
   const attentionTimerRef = useRef(null);
   const scheduleAttention = useCallback(() => {
@@ -213,6 +239,7 @@ export default function Workspace() {
     const d = await api('/api/canvases');
     setCanvases(d.canvases || []);
     setArchivedCanvases(d.archived || []);
+    setCanvasesLoaded(true);
     return d;
   }, []);
 
@@ -271,7 +298,8 @@ export default function Workspace() {
         setArchivedCanvases(d.archived || []);
         if (d.canvases && d.canvases.length) setCanvasId(d.canvases[0].id);
       })
-      .catch((e) => toast(e.message));
+      .catch((e) => toast(e.message))
+      .finally(() => setCanvasesLoaded(true));
     api('/api/control/status')
       .then((d) => { setBudget(d); setPause((p) => ({ ...p, paused: !!d.paused })); })
       .catch(() => {});
@@ -279,11 +307,40 @@ export default function Workspace() {
 
   // ---------- canvas switch ----------
   useEffect(() => {
-    if (!canvasId) return;
+    clearTimeout(refetchTimerRef.current);
+    clearTimeout(spendTimerRef.current);
+    clearTimeout(attentionTimerRef.current);
+    if (!canvasId) {
+      canvasIdRef.current = null;
+      setState(null);
+      setMemory([]);
+      setShowSuperseded(false);
+      setActivity([]);
+      setEscalations([]);
+      setAttention(null);
+      setSpend(null);
+      setAnalytics(null);
+      setPresence([]);
+      setCursors({});
+      setSelections({});
+      setMySelection(null);
+      setPanel(null);
+      setRuleFocusId(null);
+      setRunTick(0);
+      setRipple(null);
+      setAmberAgents(new Set());
+      setHoverHandoffId(null);
+      setFileUpload({ kind: 'idle', message: '' });
+      setView((current) => (['home', 'needsyou', 'rules'].includes(current) ? 'canvas' : current));
+      return;
+    }
     canvasIdRef.current = canvasId;
-    setState(null); setMemory([]); setActivity([]); setSpend(null);
+    setState(null); setMemory([]); setActivity([]); setSpend(null); setAnalytics(null);
+    setEscalations([]); setPresence([]); setRunTick(0);
+    setFileUpload({ kind: 'idle', message: '' });
     setAttention(null); // stale cards carry old-canvas sourceRefs — never keep them across a switch
     setCursors({}); setSelections({}); setPanel(null); setMySelection(null);
+    setRuleFocusId(null); setRipple(null); setAmberAgents(new Set()); setHoverHandoffId(null);
     refreshAll();
     send({ type: 'join', canvasId });
   }, [canvasId, refreshAll, send]);
@@ -400,8 +457,6 @@ export default function Workspace() {
         markEscalationLeaving(ev.escalationId);
         scheduleAttention();
         break;
-      case 'rows_changed':
-      case 'changeset':
       case 'canvas_structure':
         scheduleRefetch();
         scheduleAttention();
@@ -412,6 +467,14 @@ export default function Workspace() {
           if (!s.notes.some((n) => n.id === ev.note.id)) { scheduleRefetch(); return s; }
           return { ...s, notes: s.notes.map((n) => (n.id === ev.note.id ? ev.note : n)) };
         });
+        break;
+      case 'note_removed':
+        setState((s) => s && ({ ...s, notes: (s.notes || []).filter((n) => n.id !== ev.noteId) }));
+        setPanel((current) => (current?.type === 'note' && current.id === ev.noteId ? null : current));
+        break;
+      case 'file_removed':
+        setState((s) => s && ({ ...s, files: (s.files || []).filter((f) => f.id !== ev.fileId) }));
+        setPanel((current) => (current?.type === 'file' && current.id === ev.fileId ? null : current));
         break;
       case 'pause_state':
         setPause({ paused: !!ev.paused, by: ev.by || null });
@@ -590,6 +653,141 @@ export default function Workspace() {
     return d;
   }, [toast]);
 
+  const createNote = useCallback(async () => {
+    if (!state || state.access === 'view' || !canvasIdRef.current) return;
+    const cid = canvasIdRef.current;
+    const index = (state.notes || []).length;
+    try {
+      const d = await api(`/api/canvases/${cid}/notes`, {
+        method: 'POST',
+        body: {
+          title: 'Untitled note',
+          content: '',
+          pinned: false,
+          x: 150 + (index % 4) * 260,
+          y: 540 + Math.floor(index / 4) * 180,
+        },
+      });
+      setState((s) => (s?.canvas?.id === cid ? {
+        ...s, notes: [...(s.notes || []).filter((n) => n.id !== d.note.id), d.note],
+      } : s));
+      if (canvasIdRef.current === cid) {
+        setView('canvas');
+        setPanel({ type: 'note', id: d.note.id });
+      }
+      toast('Note created', 'ok');
+    } catch (e) {
+      toast(e.message);
+    }
+  }, [state, toast]);
+
+  const removeNote = useCallback(async (note) => {
+    if (!note || state?.access === 'view' || !canvasIdRef.current) return false;
+    const cid = canvasIdRef.current;
+    try {
+      await api(`/api/canvases/${cid}/notes/${note.id}`, { method: 'DELETE' });
+      setState((s) => (s?.canvas?.id === cid ? { ...s, notes: (s.notes || []).filter((n) => n.id !== note.id) } : s));
+      if (canvasIdRef.current === cid) {
+        setPanel((current) => (current?.type === 'note' && current.id === note.id ? null : current));
+      }
+      toast(note.pinned ? 'Pinned note removed from future agent context' : 'Note removed', 'ok');
+      return true;
+    } catch (e) {
+      toast(e.message);
+      return false;
+    }
+  }, [state?.access, toast]);
+
+  const uploadFile = useCallback(async (event) => {
+    const input = event.currentTarget;
+    const file = input.files && input.files[0];
+    if (!file || !state || state.access === 'view' || !canvasIdRef.current) {
+      input.value = '';
+      return;
+    }
+
+    const ext = fileExtension(file.name);
+    if (!Object.hasOwn(FILE_MIME, ext)) {
+      setFileUpload({ kind: 'error', message: 'Choose a TXT, Markdown, CSV, JSON, or XLSX file.' });
+      input.value = '';
+      return;
+    }
+    if (file.size === 0) {
+      setFileUpload({ kind: 'error', message: 'That file is empty. Choose a file with content.' });
+      input.value = '';
+      return;
+    }
+    if (file.size > FILE_LIMIT_BYTES) {
+      setFileUpload({ kind: 'error', message: 'That file is over the 5 MB upload limit.' });
+      input.value = '';
+      return;
+    }
+
+    const cid = canvasIdRef.current;
+    const index = (state.files || []).length;
+    const x = 150 + (index % 4) * 240;
+    const y = 840 + Math.floor(index / 4) * 120;
+    setFileUpload({ kind: 'busy', message: `Uploading ${file.name}…` });
+    try {
+      // A File is a Blob: api() sends it as the raw request body, not as
+      // multipart form data or a JSON wrapper.
+      const d = await api(`/api/canvases/${cid}/files?name=${encodeFileName(file.name)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': FILE_MIME[ext] },
+        body: file,
+      });
+      if (!d?.file?.id) throw new Error('The upload completed without a file record.');
+      const uploaded = {
+        ...d.file,
+        canvas_id: cid,
+        x,
+        y,
+        uploaded_by: user.email,
+        created_at: new Date().toISOString(),
+      };
+      setState((s) => (s?.canvas?.id === cid ? {
+        ...s, files: [...(s.files || []).filter((f) => f.id !== uploaded.id), uploaded],
+      } : s));
+      if (canvasIdRef.current === cid) {
+        setView('canvas');
+        setPanel({ type: 'file', id: uploaded.id });
+        setFileUpload({ kind: 'success', message: `${file.name} added to this canvas.` });
+        toast('File added', 'ok');
+      } else {
+        toast(`${file.name} was added to the canvas where the upload began.`, 'ok');
+      }
+
+      // Upload records default to (0, 0). Persist the useful canvas position
+      // separately; a placement failure does not undo or hide the upload.
+      api(`/api/canvases/${cid}/positions`, {
+        method: 'POST', body: { kind: 'file', id: uploaded.id, x, y },
+      }).catch(() => toast('File added, but its canvas position could not be saved.', 'warn'));
+    } catch (e) {
+      setFileUpload({ kind: 'error', message: e.message || 'File upload failed.' });
+      toast(e.message || 'File upload failed');
+    } finally {
+      input.value = '';
+    }
+  }, [state, toast, user.email]);
+
+  const removeFile = useCallback(async (file) => {
+    if (!file || state?.access === 'view' || !canvasIdRef.current) return false;
+    const cid = canvasIdRef.current;
+    try {
+      await api(`/api/canvases/${cid}/files/${file.id}`, { method: 'DELETE' });
+      setState((s) => (s?.canvas?.id === cid ? { ...s, files: (s.files || []).filter((f) => f.id !== file.id) } : s));
+      if (canvasIdRef.current === cid) {
+        setPanel((current) => (current?.type === 'file' && current.id === file.id ? null : current));
+        setFileUpload({ kind: 'success', message: `${file.name} removed from this canvas.` });
+      }
+      toast('File removed', 'ok');
+      return true;
+    } catch (e) {
+      toast(e.message);
+      return false;
+    }
+  }, [state?.access, toast]);
+
   const correctEntry = useCallback(async (entryId, body) => {
     try {
       await api(`/api/canvases/${canvasIdRef.current}/memory/${entryId}/correct`, { method: 'POST', body });
@@ -646,7 +844,7 @@ export default function Workspace() {
     if (kind === 'agent') setPanel({ type: 'agent', id: obj.id });
     else if (kind === 'note') setPanel({ type: 'note', id: obj.id });
     else if (kind === 'task') setPanel({ type: 'note', id: null, taskId: obj.id });
-    // files: download link on the node itself
+    else if (kind === 'file') setPanel({ type: 'file', id: obj.id });
   }, []);
 
   const sendCursor = useCallback((x, y) => send({ type: 'cursor', x, y }), [send]);
@@ -667,13 +865,6 @@ export default function Workspace() {
   const resumeAll = useCallback(async () => {
     try { await api('/api/control/resume', { method: 'POST', body: {} }); toast('Workspace resumed', 'ok'); }
     catch (e) { toast(e.message); }
-  }, [toast]);
-
-  const runCleanup = useCallback(async () => {
-    try {
-      await api(`/api/canvases/${canvasIdRef.current}/demo/run`, { method: 'POST', body: {} });
-      toast('Cleanup dispatched — the research agent is on it', 'ok');
-    } catch (e) { toast(e.message); }
   }, [toast]);
 
   const parseIntent = useCallback(
@@ -761,8 +952,13 @@ export default function Workspace() {
   }, [toast]);
 
   // ---------- render ----------
+  const visiblePresence = canvasId ? presence : [];
+  const visibleAgents = canvasId ? (state?.agents || []) : [];
+  const visibleAttentionCount = canvasId
+    ? (needsYouOn ? (attention || []).length : openEscalations.length)
+    : 0;
   let sidePanel = null;
-  if (panel && state) {
+  if (canvasId && panel && state) {
     if (panel.type === 'agent' && agentsById[panel.id]) {
       sidePanel = (
         <AgentPanel
@@ -789,7 +985,33 @@ export default function Workspace() {
     } else if (panel.type === 'note') {
       const note = (state.notes || []).find((n) => n.id === panel.id);
       const task = panel.taskId ? (state.tasks || []).find((t) => t.id === panel.taskId) : null;
-      sidePanel = <NotePanel note={note} task={task} people={state.people || []} agents={state.agents || []} onAssignTask={assignTask} onSave={saveNote} onClose={() => setPanel(null)} />;
+      sidePanel = (
+        <NotePanel
+          note={note}
+          task={task}
+          people={state.people || []}
+          agents={state.agents || []}
+          pinnedNotes={(state.notes || []).filter((n) => n.id !== note?.id && n.pinned)}
+          editable={state.access !== 'view'}
+          onAssignTask={state.access !== 'view' ? assignTask : null}
+          onSave={saveNote}
+          onRemove={removeNote}
+          onClose={() => setPanel(null)}
+        />
+      );
+    } else if (panel.type === 'file') {
+      const file = (state.files || []).find((f) => f.id === panel.id);
+      if (file) {
+        sidePanel = (
+          <FilePanel
+            file={file}
+            canvasId={canvasId}
+            editable={state.access !== 'view'}
+            onRemove={removeFile}
+            onClose={() => setPanel(null)}
+          />
+        );
+      }
     } else if (panel.type === 'memory') {
       sidePanel = (
         <MemoryPanel
@@ -802,17 +1024,6 @@ export default function Workspace() {
           onCorrect={correctEntry}
           onClose={() => setPanel(null)}
           toast={toast}
-        />
-      );
-    } else if (panel.type === 'workbook') {
-      sidePanel = (
-        <Workbook
-          rows={state.rows || []}
-          changesets={state.changesets || []}
-          agentsById={agentsById}
-          paused={pause.paused}
-          onRunCleanup={runCleanup}
-          onClose={() => setPanel(null)}
         />
       );
     } else if (panel.type === 'spend') {
@@ -886,10 +1097,10 @@ export default function Workspace() {
         ) : (
           <button className="icon-btn" title="New canvas" onClick={() => setNewCanvasOpen(true)}>+</button>
         )}
-        {canvasId && state ? (
+        {canvasId && state && state.access !== 'view' ? (
           <button className="icon-btn agent-add-btn" title="Add an agent to this canvas" onClick={() => setAddAgentOpen(true)}>+ Agent</button>
         ) : null}
-        {canvasId && state ? (
+        {canvasId && state && state.access !== 'view' ? (
           addPersonOpen ? (
             <div className="canvas-new-pop">
               <input
@@ -920,6 +1131,46 @@ export default function Workspace() {
             <button className="icon-btn" title="Add a person card — the email must be on the workspace allowlist" onClick={() => setAddPersonOpen(true)}>+ Person</button>
           )
         ) : null}
+        {canvasId && state && state.access !== 'view' ? (
+          <button className="icon-btn" title="Add a note to this canvas" onClick={createNote}>+ Note</button>
+        ) : null}
+        {canvasId && state && state.access !== 'view' ? (
+          <>
+            <input
+              ref={fileInputRef}
+              className="file-input-hidden"
+              type="file"
+              accept={FILE_ACCEPT}
+              aria-label="Choose a file to add to this canvas"
+              disabled={fileUpload.kind === 'busy'}
+              onChange={uploadFile}
+            />
+            <button
+              className="icon-btn"
+              title="Add a TXT, Markdown, CSV, JSON, or XLSX file (5 MB maximum)"
+              disabled={fileUpload.kind === 'busy'}
+              aria-describedby={fileUpload.message ? 'file-upload-status' : undefined}
+              onClick={() => {
+                setFileUpload({ kind: 'idle', message: '' });
+                fileInputRef.current?.click();
+              }}
+            >
+              {fileUpload.kind === 'busy' ? 'Uploading…' : '+ File'}
+            </button>
+          </>
+        ) : null}
+        {canvasId && fileUpload.message ? (
+          <span
+            id="file-upload-status"
+            className={`file-upload-status is-${fileUpload.kind}`}
+            role={fileUpload.kind === 'error' ? 'alert' : 'status'}
+            aria-live={fileUpload.kind === 'error' ? 'assertive' : 'polite'}
+            aria-atomic="true"
+          >
+            {fileUpload.kind === 'busy' ? <progress aria-label="File upload in progress" /> : null}
+            <span>{fileUpload.message}</span>
+          </span>
+        ) : null}
         {isOwner && canvasId ? (
           <button
             className="icon-btn"
@@ -941,14 +1192,16 @@ export default function Workspace() {
             {budget ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '$ — / —'}
           </span>
         </button>
-        <button className={`btn ghost ${view === 'home' ? 'active' : ''}`} onClick={() => setView(view === 'home' ? 'canvas' : 'home')}>
-          {view === 'home' ? 'Canvas' : 'Home'}
-        </button>
-        {needsYouOn ? (
+        {canvasId && state ? (
+          <button className={`btn ghost ${view === 'home' ? 'active' : ''}`} onClick={() => setView(view === 'home' ? 'canvas' : 'home')}>
+            {view === 'home' ? 'Canvas' : 'Home'}
+          </button>
+        ) : null}
+        {canvasId && state && needsYouOn ? (
           <button
             className={`btn ghost ny-btn ${view === 'needsyou' ? 'active' : ''}`}
             onClick={() => setView(view === 'needsyou' ? 'canvas' : 'needsyou')}
-            title="Everything waiting on a human — escalations, conflicts, overdue reviews, failed runs, pending changes"
+            title="Everything waiting on a human — escalations, conflicts, overdue reviews, failed runs, alerts, and briefs"
           >
             Needs you{attention && attention.length ? <span className="tray-badge">{attention.length}</span> : null}
           </button>
@@ -960,15 +1213,16 @@ export default function Workspace() {
             Rooms
           </button>
         ) : null}
-        {rulesOn ? (
+        {canvasId && state && rulesOn ? (
           <button className={`btn ghost ${view === 'rules' ? 'active' : ''}`}
             onClick={() => { setRuleFocusId(null); setView(view === 'rules' ? 'canvas' : 'rules'); }}
             title="Rules & Briefs — standing instructions that watch, alert, and brief on a cadence">
             Rules
           </button>
         ) : null}
-        <button className={`btn ghost ${panel?.type === 'memory' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'memory' ? null : { type: 'memory' })}>Memory</button>
-        <button className={`btn ghost ${panel?.type === 'workbook' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'workbook' ? null : { type: 'workbook' })}>Workbook</button>
+        {canvasId && state ? (
+          <button className={`btn ghost ${panel?.type === 'memory' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'memory' ? null : { type: 'memory' })}>Memory</button>
+        ) : null}
         <button
           className="btn ghost theme-btn"
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -985,13 +1239,13 @@ export default function Workspace() {
         {pause.paused
           ? (isOwner ? <button className="btn ok" onClick={resumeAll}>Resume</button> : <span className="chip paused-chip">paused</span>)
           : <button className="btn danger" onClick={pauseAll} title="Emergency stop — halts every agent">Pause</button>}
-        <div className="presence-stack" title={presence.filter((p) => p.email !== user.email).map((p) => p.name).join(', ') || 'No one else is here'}>
-          {presence.filter((p) => p.email !== user.email).slice(0, 6).map((p) => (
+        <div className="presence-stack" title={visiblePresence.filter((p) => p.email !== user.email).map((p) => p.name).join(', ') || 'No one else is here'}>
+          {visiblePresence.filter((p) => p.email !== user.email).slice(0, 6).map((p) => (
             <span key={p.email} className="avatar" style={{ background: p.color }} title={`${p.name} (${p.email})`}>
               {initials(p.name)}
             </span>
           ))}
-          {presence.filter((p) => p.email !== user.email).length > 6 ? <span className="avatar more">+{presence.filter((p) => p.email !== user.email).length - 6}</span> : null}
+          {visiblePresence.filter((p) => p.email !== user.email).length > 6 ? <span className="avatar more">+{visiblePresence.filter((p) => p.email !== user.email).length - 6}</span> : null}
         </div>
         <div className="user-menu-wrap">
           <button className="avatar me" ref={avatarRef} onClick={() => setMenuOpen((v) => !v)} title={user.email}>
@@ -1029,7 +1283,7 @@ export default function Workspace() {
 
       <div className="stage">
         <div className="canvas-wrap">
-          {state && view === 'home' ? (
+          {canvasId && state && view === 'home' ? (
             <Home
               canvasId={canvasId}
               agents={state.agents || []}
@@ -1040,7 +1294,7 @@ export default function Workspace() {
               toast={toast}
             />
           ) : null}
-          {state && view === 'needsyou' ? (
+          {canvasId && state && view === 'needsyou' ? (
             <NeedsYouView
               rows={attention}
               userEmail={user.email}
@@ -1051,7 +1305,6 @@ export default function Workspace() {
               onAssign={assignEscalation}
               onOpenMemory={() => setPanel({ type: 'memory' })}
               onOpenRun={(ref) => { setView('canvas'); openRun(ref.id); }}
-              onOpenWorkbook={() => setPanel({ type: 'workbook' })}
               onRetryRun={retryRun}
               onExtendReview={extendReview}
               onAcknowledgeRuleRun={acknowledgeRuleRun}
@@ -1073,10 +1326,10 @@ export default function Workspace() {
               toast={toast}
             />
           ) : null}
-          {state && view === 'rules' ? (
+          {canvasId && state && view === 'rules' ? (
             <RulesView user={user} canvasId={canvasId} agents={state.agents || []} toast={toast} focusRuleId={ruleFocusId} />
           ) : null}
-          {state && view !== 'home' && view !== 'needsyou' && view !== 'rooms' && view !== 'rules' ? (
+          {canvasId && state && view !== 'home' && view !== 'needsyou' && view !== 'rooms' && view !== 'rules' ? (
             <Canvas
               agents={state.agents || []}
               notes={state.notes || []}
@@ -1103,35 +1356,44 @@ export default function Workspace() {
               onSelect={selectNode}
             />
           ) : null}
-          {!state ? (
+          {!canvasId && canvasesLoaded && canvases.length === 0 ? (
+            <div className="empty-canvas-cta no-canvases">
+              <h2>Start with a canvas</h2>
+              <p>Create a focused space for the agents, people, notes, and work that belong together.</p>
+              <button className="btn primary" onClick={() => setNewCanvasOpen(true)}>Create a canvas</button>
+            </div>
+          ) : null}
+          {!canvasesLoaded || (canvasId && !state) ? (
             <div className="stage-loading">
               <div className="boot-glyph" />
-              {canvases.length === 0 ? 'No canvases visible to you yet.' : 'Loading canvas…'}
+              Loading canvas…
             </div>
           ) : null}
 
-          {state && (state.agents || []).length === 0 ? (
+          {canvasId && state && state.access !== 'view' && (state.agents || []).length === 0 ? (
             <div className="empty-canvas-cta">
               <p>This canvas has no agents yet.</p>
               <button className="btn primary" onClick={() => setAddAgentOpen(true)}>Add your first agent</button>
             </div>
           ) : null}
 
-          <Tray
-            escalations={openEscalations}
-            agentsById={agentsById}
-            agents={state?.agents || []}
-            people={state?.people || []}
-            onResolve={resolveEscalation}
-            onAssign={assignEscalation}
-            badgeOnly={needsYouOn}
-            badgeCount={needsYouOn ? (attention || []).length : null}
-            onOpen={() => setView('needsyou')}
-          />
+          {canvasId && state ? (
+            <Tray
+              escalations={openEscalations}
+              agentsById={agentsById}
+              agents={state.agents || []}
+              people={state.people || []}
+              onResolve={resolveEscalation}
+              onAssign={assignEscalation}
+              badgeOnly={needsYouOn}
+              badgeCount={needsYouOn ? (attention || []).length : null}
+              onOpen={() => setView('needsyou')}
+            />
+          ) : null}
 
           {sidePanel}
 
-          {state ? (
+          {canvasId && state ? (
             <CommandBar paused={pause.paused} onParse={parseIntent} onConfirm={confirmIntent} toast={toast} />
           ) : null}
         </div>
@@ -1160,22 +1422,22 @@ export default function Workspace() {
           <span className="hud-cell" title="One segment per agent — lit green while running, amber waiting, red on error">
             <span className="hud-label">Agents</span>
             <span className="segbar">
-              {(state?.agents || []).slice(0, 12).map((a) => (
+              {visibleAgents.slice(0, 12).map((a) => (
                 <span key={a.id} className={`seg seg-${a.status || 'idle'}`} title={`${a.name} — ${a.status || 'idle'}`} />
               ))}
-              {(state?.agents || []).length === 0 ? <span className="seg seg-idle" /> : null}
+              {visibleAgents.length === 0 ? <span className="seg seg-idle" /> : null}
             </span>
           </span>
           <span className="hud-cell">
             <span className="hud-label">Runs</span>
             <span className="hud-val mono">
-              {(state?.agents || []).filter((a) => a.status === 'running').length} act · {health?.queue?.queued ?? '—'} q
+              {visibleAgents.filter((a) => a.status === 'running').length} act · {health?.queue?.queued ?? '—'} q
             </span>
           </span>
           <span className="hud-cell">
             <span className="hud-label">Needs you</span>
-            <span className={`hud-val mono ${(needsYouOn ? (attention || []).length : openEscalations.length) > 0 ? 'hud-hot' : ''}`}>
-              {needsYouOn ? (attention || []).length : openEscalations.length}
+            <span className={`hud-val mono ${visibleAttentionCount > 0 ? 'hud-hot' : ''}`}>
+              {visibleAttentionCount}
             </span>
           </span>
           <span className="hud-cell hud-gauge-cell" title="Daily spend against budget">
@@ -1184,13 +1446,15 @@ export default function Workspace() {
             <span className="hud-val mono">{budget ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '—'}</span>
           </span>
         </div>
-        <ActivityDock
-          activity={activity}
-          handoffs={handoffs}
-          agents={state?.agents || []}
-          agentsById={agentsById}
-          onHoverHandoff={setHoverHandoffId}
-        />
+        {canvasId ? (
+          <ActivityDock
+            activity={activity}
+            handoffs={handoffs}
+            agents={state?.agents || []}
+            agentsById={agentsById}
+            onHoverHandoff={setHoverHandoffId}
+          />
+        ) : null}
       </div>
 
       {adminOpen ? <AdminModal onClose={() => { setAdminOpen(false); refreshRoster(); if (avatarRef.current) avatarRef.current.focus(); }} toast={toast} selfEmail={user.email} /> : null}
@@ -1214,6 +1478,58 @@ export default function Workspace() {
       ) : null}
       {capsOpen ? <CapabilitiesModal onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}
     </div>
+  );
+}
+
+function FilePanel({ file, canvasId, editable, onRemove, onClose }) {
+  const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  const confirmRemove = async () => {
+    setRemoving(true);
+    const removed = await onRemove(file);
+    if (!removed) setRemoving(false);
+  };
+
+  return (
+    <aside className="panel file-panel" aria-label={`File details: ${file.name}`}>
+      <header className="panel-head">
+        <h2>File</h2>
+        <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close file details">×</button>
+      </header>
+      <div className="panel-body file-panel-body">
+        <div className="file-panel-mark" aria-hidden="true">▤</div>
+        <div className="file-panel-name">{file.name}</div>
+        <div className="file-panel-meta mono">
+          <span>{fmtBytes(file.size)}</span>
+          {file.uploaded_by ? <span>Added by {file.uploaded_by}</span> : null}
+        </div>
+        <a
+          className="btn primary file-download-btn"
+          href={`/api/canvases/${encodeURIComponent(canvasId)}/files/${encodeURIComponent(file.id)}`}
+          download={file.name}
+        >
+          Download file
+        </a>
+
+        {editable && !confirming ? (
+          <button className="link-btn danger-link file-remove-link" onClick={() => setConfirming(true)}>Remove file</button>
+        ) : null}
+        {editable && confirming ? (
+          <div className="file-remove-confirm" role="alert">
+            <strong>Remove this file?</strong>
+            <span>It will disappear from this workspace and from future agent reads. Audit history is retained.</span>
+            <div className="note-actions">
+              <button className="btn ghost small" disabled={removing} onClick={() => setConfirming(false)}>Cancel</button>
+              <button className="btn danger small" disabled={removing} onClick={confirmRemove}>
+                {removing ? 'Removing…' : 'Yes, remove file'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {!editable ? <p className="file-readonly dim">View only · download is available; changing files is not.</p> : null}
+      </div>
+    </aside>
   );
 }
 

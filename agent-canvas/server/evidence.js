@@ -1,7 +1,8 @@
 'use strict';
 // P1 evidence spine. An evidence ref is one external artifact a run touched —
-// web page, Drive file, Gmail message, CRM record, MCP result, enrichment
-// record. Refs are recorded at the tool funnels (tools.js / runner.js), the
+// web page, Drive file, canvas attachment, Gmail message, CRM record, MCP
+// result, enrichment record. Refs are recorded at the tool funnels
+// (tools.js / runner.js), the
 // ref id is surfaced to the model OUTSIDE the external_content wrapper (so a
 // payload cannot forge one), and memory_write's `evidence` param links entries
 // to the refs that support them. citations stays entry→entry; this is
@@ -10,7 +11,7 @@
 const crypto = require('node:crypto');
 const { db, nowIso } = require('./db');
 
-const SOURCE_KINDS = ['web', 'drive', 'sheet', 'gmail', 'calendar', 'hubspot', 'mcp', 'enrichment'];
+const SOURCE_KINDS = ['web', 'drive', 'sheet', 'gmail', 'calendar', 'hubspot', 'mcp', 'enrichment', 'canvas_file'];
 // Kinds whose URI can leak a private surface (a mailbox, a Drive file) —
 // redacted for anyone other than the directing user at read time.
 const PRIVATE_URI_KINDS = ['gmail', 'drive', 'sheet'];

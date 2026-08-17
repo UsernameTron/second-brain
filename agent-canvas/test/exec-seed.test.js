@@ -1,87 +1,128 @@
 'use strict';
-// Executive Roundtable seed — personas, protocol, provenanced memory.
+// Product bootstrap and the one-time retirement of pre-product demo content.
 process.env.DEV_AUTH = '1';
 process.env.JWT_SECRET = 'test-secret-material-32-bytes-xx';
 process.env.DB_PATH = ':memory:';
 
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { db } = require('../server/db');
-const { seedIfEmpty, seedExecCanvas, OWNER_EMAIL } = require('../server/seed');
+const crypto = require('node:crypto');
+const { db, nowIso, getSetting, setSetting } = require('../server/db');
+const control = require('../server/orchestrator/control');
+const {
+  seedIfEmpty, retireLegacyArtifacts, recolorLegacyAgents, OWNER_EMAIL,
+} = require('../server/seed');
 
-seedIfEmpty();
-const first = seedExecCanvas(OWNER_EMAIL);
+const bootstrap = seedIfEmpty();
 
-test('seeds the Executive Roundtable canvas exactly once', () => {
-  assert.ok(first.seeded);
-  const again = seedExecCanvas(OWNER_EMAIL);
-  assert.equal(again.seeded, false, 'second call must be a no-op');
-  const canvases = db.prepare("SELECT id FROM canvases WHERE name = 'Executive Roundtable'").all();
-  assert.equal(canvases.length, 1);
-});
-
-test('the four persona agents exist with lanes, tiers, and disclosure', () => {
-  const agents = db.prepare('SELECT * FROM agents WHERE canvas_id = ?').all(first.canvasId);
-  const byName = Object.fromEntries(agents.map((a) => [a.name, a]));
-  assert.deepEqual(Object.keys(byName).sort(), ['Atlas', 'Darren', 'Fred', 'Jess']);
-  assert.equal(byName.Fred.role, 'strategic');
-  assert.equal(byName.Darren.role, 'commercial');
-  assert.equal(byName.Jess.role, 'operational');
-  assert.equal(byName.Atlas.role, 'workspace');
-  for (const name of ['Fred', 'Darren', 'Jess']) {
-    assert.equal(byName[name].model_tier, 'strong', `${name} carries judgment — strong tier`);
-    assert.match(byName[name].system_prompt, /you are not .* and you say so/i,
-      `${name} must disclose it is an AI advisor, not the person`);
-    assert.match(byName[name].system_prompt, /CONFIDENTIALITY RULE/,
-      `${name} must carry the confidentiality guard`);
-  }
-  assert.equal(byName.Atlas.model_tier, 'fast');
-  assert.match(byName.Atlas.system_prompt, /human always presses Send/i);
-});
-
-test('the synthesis protocol is pinned live context', () => {
-  const notes = db.prepare('SELECT * FROM notes WHERE canvas_id = ?').all(first.canvasId);
-  const pinned = notes.filter((n) => n.pinned);
-  assert.equal(pinned.length, 1);
-  assert.match(pinned[0].content, /Fred vs Darren/);
-  assert.match(pinned[0].content, /does not block/);
-  assert.match(pinned[0].content, /not a summary/i);
-});
-
-test('seeded memory is verified with named provenance and no confidential figures', () => {
-  const entries = db.prepare('SELECT * FROM memory_entries WHERE canvas_id = ?').all(first.canvasId);
-  assert.ok(entries.length >= 10, `expected >=10 anchors, got ${entries.length}`);
-  for (const e of entries) {
-    assert.equal(e.epistemic, 'verified');
-    assert.equal(e.author_type, 'user');
-    assert.match(e.source, /uploaded by Pete Connor/, 'every anchor names its source');
-    assert.ok(!/1\.6\d?\s*M|1,6\d{2}|6\.1x/.test(e.content), 'confidential ARR/valuation figures must not be seeded');
+test('fresh bootstrap creates access only—no fabricated product content', () => {
+  assert.equal(bootstrap.seeded, true);
+  assert.equal(seedIfEmpty().seeded, false, 'access bootstrap is idempotent');
+  assert.ok(db.prepare('SELECT 1 FROM allowlist WHERE email = ?').get(OWNER_EMAIL));
+  for (const table of ['canvases', 'notes', 'files', 'tasks', 'sheet_rows', 'changesets', 'runs', 'memory_entries']) {
+    assert.equal(db.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n, 0, `${table} starts empty`);
   }
 });
 
-test('legacy retro agent colors are recolored in place, exactly once', () => {
-  const { recolorLegacyAgents } = require('../server/seed');
-  const crypto5 = require('node:crypto');
-  const { nowIso } = require('../server/db');
-  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at) VALUES (?, ?, 'Old', 'research', '#4cc2ab', 'fast', '', 0, 0, ?)")
-    .run(crypto5.randomUUID(), first.canvasId, nowIso());
-  const r = recolorLegacyAgents();
-  assert.ok(r.recolored >= 1, 'legacy color updated');
+test('legacy cleanup hides only proven artifacts and preserves their ledger rows', () => {
+  const ts = nowIso();
+  const realCanvas = crypto.randomUUID();
+  const demoCanvas = crypto.randomUUID();
+  const smokeCanvas = '21f8ca30-ef46-42d5-a08c-8dd526fba663';
+  const smokeLookalike = crypto.randomUUID();
+  db.prepare("INSERT INTO canvases (id,name,created_by,created_at) VALUES (?, 'Client work', ?, ?)")
+    .run(realCanvas, OWNER_EMAIL, ts);
+  db.prepare("INSERT INTO canvases (id,name,created_by,created_at) VALUES (?, 'Conference Lead Cleanup', 'seed', ?)")
+    .run(demoCanvas, ts);
+  db.prepare("INSERT INTO canvases (id,name,created_by,created_at) VALUES (?, 'Smoke Test', ?, ?)")
+    .run(smokeCanvas, OWNER_EMAIL, ts);
+  db.prepare("INSERT INTO canvases (id,name,created_by,created_at) VALUES (?, 'Smoke Test', ?, ?)")
+    .run(smokeLookalike, OWNER_EMAIL, ts);
+  setSetting('demo_canvas_id', demoCanvas);
+
+  const realNote = crypto.randomUUID();
+  const protocol = crypto.randomUUID();
+  const registry = crypto.randomUUID();
+  db.prepare('INSERT INTO notes (id,canvas_id,title,content,pinned,x,y,updated_by,updated_at) VALUES (?,?,?,?,1,0,0,?,?)')
+    .run(realNote, realCanvas, 'Client constraint', 'Keep this real context.', OWNER_EMAIL, ts);
+  db.prepare('INSERT INTO notes (id,canvas_id,title,content,pinned,x,y,updated_by,updated_at) VALUES (?,?,?,?,1,0,0,?,?)')
+    .run(protocol, demoCanvas, 'Synthesis protocol', 'legacy', 'seed', ts);
+  db.prepare('INSERT INTO notes (id,canvas_id,title,content,pinned,x,y,updated_by,updated_at) VALUES (?,?,?,?,1,0,0,?,?)')
+    .run(registry, smokeCanvas, 'DEPRICATED ICP registry — sr-icp-v5', 'legacy registry', OWNER_EMAIL, ts);
+  const demoFile = crypto.randomUUID();
+  db.prepare("INSERT INTO files (id,canvas_id,name,mime,size,content,x,y,uploaded_by,created_at) VALUES (?,?,'conference-leads.csv','text/csv',5,?,0,0,'seed',?)")
+    .run(demoFile, demoCanvas, Buffer.from('a,b\n1'), ts);
+  db.prepare("INSERT INTO tasks (id,canvas_id,title,status,x,y,created_at,updated_at) VALUES (?,?,'Clean lead batch #1','todo',0,0,?,?)")
+    .run(crypto.randomUUID(), demoCanvas, ts, ts);
+  db.prepare("INSERT INTO agents (id,canvas_id,name,role,color,model_tier,system_prompt,status,x,y,created_at) VALUES ('legacy-agent',?,'Legacy','research','#2080D0','fast','','running',0,0,?)")
+    .run(smokeCanvas, ts);
+  db.prepare("INSERT INTO standing_rules (id,canvas_id,agent_id,owner_email,instruction,output_type,cadence,state,next_run_at,created_by,created_at,updated_at) VALUES (?,?,?,?,'acceptance rule','brief','hourly','active',?,?,?,?)")
+    .run('legacy-rule', smokeCanvas, 'legacy-agent', OWNER_EMAIL, '2026-08-17T09:00:00.000Z', OWNER_EMAIL, ts, ts);
+  db.prepare("INSERT INTO standing_authorizations (id,rule_id,canvas_id,authorized_by,workspace_role_at_grant,allowed_tools_json,mode,granted_at,expires_at) VALUES ('legacy-auth','legacy-rule',?,?,?,'[]','ask',?,?)")
+    .run(smokeCanvas, OWNER_EMAIL, 'owner', ts, '2026-11-16T09:00:00.000Z');
+  db.prepare("INSERT INTO runs (id,agent_id,canvas_id,trigger_kind,instruction,status,step_budget,wall_ms_budget,created_at,mode) VALUES ('legacy-run-prior','legacy-agent',?,'system','prior attempt','running',4,30000,?,'ask')")
+    .run(smokeCanvas, ts);
+  db.prepare("INSERT INTO runs (id,agent_id,canvas_id,trigger_kind,instruction,status,step_budget,wall_ms_budget,created_at,mode) VALUES ('legacy-run-current','legacy-agent',?,'system','current attempt','queued',4,30000,?,'ask')")
+    .run(smokeCanvas, ts);
+  db.prepare("INSERT INTO standing_rule_runs (id,rule_id,rule_version,authorization_id,occurrence_key,run_id,retry_run_ids_json,state,attempt,created_at) VALUES ('legacy-occurrence','legacy-rule',1,'legacy-auth','2026-08-17T09','legacy-run-current','[\"legacy-run-prior\"]','running',2,?)")
+    .run(ts);
+  const priorAbort = new AbortController();
+  const currentAbort = new AbortController();
+  control.registerAbort('legacy-run-prior', priorAbort);
+  control.registerAbort('legacy-run-current', currentAbort);
+
+  const result = retireLegacyArtifacts('cleanup-test');
+  assert.equal(priorAbort.signal.aborted, true, 'prior attempt is aborted in process');
+  assert.equal(currentAbort.signal.aborted, true, 'current attempt is aborted in process');
+  control.unregisterAbort('legacy-run-prior');
+  control.unregisterAbort('legacy-run-current');
+  assert.equal(result.retiredCanvases, 2);
+  assert.equal(result.removedNotes, 2);
+  assert.equal(result.removedFiles, 1);
+  assert.equal(result.revokedRules, 1);
+  assert.equal(db.prepare('SELECT removed_at FROM canvases WHERE id = ?').get(realCanvas).removed_at, null, 'real canvas remains');
+  assert.ok(db.prepare('SELECT removed_at FROM canvases WHERE id = ?').get(demoCanvas).removed_at, 'seed demo hidden');
+  assert.ok(db.prepare('SELECT removed_at FROM canvases WHERE id = ?').get(smokeCanvas).removed_at, 'known acceptance canvas hidden');
+  assert.equal(db.prepare('SELECT removed_at FROM canvases WHERE id = ?').get(smokeLookalike).removed_at, null, 'same-title future canvas is preserved');
+  assert.equal(db.prepare('SELECT deleted_at,pinned FROM notes WHERE id = ?').get(realNote).deleted_at, null, 'real note remains');
+  assert.equal(db.prepare('SELECT pinned FROM notes WHERE id = ?').get(realNote).pinned, 1);
+  assert.ok(db.prepare('SELECT deleted_at FROM notes WHERE id = ?').get(protocol).deleted_at, 'legacy note tombstoned');
+  assert.equal(db.prepare('SELECT pinned FROM notes WHERE id = ?').get(protocol).pinned, 0, 'removed context cannot inject');
+  assert.ok(db.prepare('SELECT deleted_at FROM files WHERE id = ?').get(demoFile).deleted_at, 'legacy sample file tombstoned');
+  const retiredRule = db.prepare('SELECT state,next_run_at FROM standing_rules WHERE id = ?').get('legacy-rule');
+  assert.equal(retiredRule.state, 'revoked');
+  assert.equal(retiredRule.next_run_at, null, 'retired rule leaves the due index');
+  const retiredAuthorization = db.prepare('SELECT revoked_at,revoked_by FROM standing_authorizations WHERE id = ?').get('legacy-auth');
+  assert.ok(retiredAuthorization.revoked_at, 'active authorization is retired');
+  assert.equal(retiredAuthorization.revoked_by, 'cleanup-test');
+  const occurrence = db.prepare('SELECT state,skip_reason,ended_at FROM standing_rule_runs WHERE id = ?').get('legacy-occurrence');
+  assert.equal(occurrence.state, 'skipped');
+  assert.equal(occurrence.skip_reason, 'legacy canvas retired');
+  assert.ok(occurrence.ended_at, 'halted occurrence is terminal');
+  for (const runId of ['legacy-run-prior', 'legacy-run-current']) {
+    const run = db.prepare('SELECT status,error,ended_at FROM runs WHERE id = ?').get(runId);
+    assert.equal(run.status, 'failed', `${runId} cannot survive retirement`);
+    assert.equal(run.error, 'legacy canvas retired');
+    assert.ok(run.ended_at);
+  }
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM tasks WHERE canvas_id = ?').get(demoCanvas).n, 1, 'historical row retained');
+  assert.strictEqual(getSetting('demo_canvas_id'), null, 'retired sample locator is removed');
+  assert.ok(db.prepare("SELECT 1 FROM audit_log WHERE action = 'canvas.retire_legacy'").get(), 'cleanup audited');
+  const ruleAudit = db.prepare("SELECT actor_id,detail FROM audit_log WHERE action = 'standing_rule.retire_legacy'").get();
+  assert.equal(ruleAudit.actor_id, 'cleanup-test');
+  assert.deepEqual(JSON.parse(ruleAudit.detail), {
+    ruleId: 'legacy-rule', canvasId: smokeCanvas, previousState: 'active',
+    reason: 'legacy canvas retired', haltedRuns: 1,
+  });
+  assert.deepEqual(retireLegacyArtifacts('cleanup-test'), { retiredCanvases: 0, removedNotes: 0, removedFiles: 0, revokedRules: 0 });
+});
+
+test('legacy retro agent colors are recolored in place exactly once', () => {
+  const canvasId = db.prepare("SELECT id FROM canvases WHERE name = 'Client work'").get().id;
+  db.prepare("INSERT INTO agents (id,canvas_id,name,role,color,model_tier,system_prompt,x,y,created_at) VALUES (?,?,'Old','research','#4cc2ab','fast','',0,0,?)")
+    .run(crypto.randomUUID(), canvasId, nowIso());
+  const result = recolorLegacyAgents();
+  assert.ok(result.recolored >= 1);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM agents WHERE color = '#4cc2ab'").get().n, 0);
-  assert.equal(recolorLegacyAgents().recolored, 0, 'second call is a no-op');
-});
-
-test('scored memory search finds seeded facts from conceptual multi-word queries', () => {
-  const memory = require('../server/memory');
-  // Field-observed misses from the first live roundtable: strict-AND returned
-  // [] for both of these although the answers were seeded on the canvas.
-  const capacity = memory.listEntries({ canvasId: first.canvasId, query: '7-person team capacity constraint' });
-  assert.ok(capacity.some((e) => /team size: 7/i.test(e.content)), 'finds the team-size anchor');
-  const loa = memory.listEntries({ canvasId: first.canvasId, query: 'LOA vendor neutrality master agent' });
-  assert.ok(loa.some((e) => /vendor-neutral/i.test(e.content)), 'finds the neutrality-tension anchor');
-  // ranking: the best match comes first
-  assert.ok(capacity[0].content.includes('7'), 'best match ranked first');
-  // single-token behavior unchanged
-  const single = memory.listEntries({ canvasId: first.canvasId, query: 'Telarus' });
-  assert.ok(single.length >= 1);
+  assert.equal(recolorLegacyAgents().recolored, 0);
 });

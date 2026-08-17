@@ -163,7 +163,7 @@ function requireOwner(req, res, next) {
 // always set: owners and workspace-mode canvases get 'edit'; explicit members
 // get their membership level ('view' stays read-only).
 function canAccessCanvas(user, canvasId) {
-  const canvas = db.prepare('SELECT * FROM canvases WHERE id = ?').get(canvasId);
+  const canvas = db.prepare('SELECT * FROM canvases WHERE id = ? AND removed_at IS NULL').get(canvasId);
   if (!canvas) return { ok: false, status: 404, error: 'canvas not found' };
   if (user.role === 'owner') return { ok: true, canvas, access: 'edit' };
   if (canvas.access_mode === 'workspace') return { ok: true, canvas, access: 'edit' };

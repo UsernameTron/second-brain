@@ -226,7 +226,7 @@ CREATE TABLE IF NOT EXISTS escalations (
 );
 CREATE INDEX IF NOT EXISTS idx_escalations_open ON escalations(canvas_id, status);
 
--- ===== Demo workbook: conference-lead enrichment =====
+-- ===== Retired sample-workbook ledger (preserved for historical exports) =====
 CREATE TABLE IF NOT EXISTS sheet_rows (
   id TEXT PRIMARY KEY,
   canvas_id TEXT NOT NULL REFERENCES canvases(id),
@@ -331,6 +331,14 @@ function tx(fn) {
 try { db.exec('ALTER TABLE runs ADD COLUMN initiated_by TEXT'); } catch { /* already present */ }
 try { db.exec("ALTER TABLE users ADD COLUMN theme TEXT NOT NULL DEFAULT 'light'"); } catch { /* already present */ }
 try { db.exec('ALTER TABLE canvases ADD COLUMN archived INTEGER NOT NULL DEFAULT 0'); } catch { /* already present */ }
+// User-facing removal is recoverable: retired canvases and notes disappear
+// from active APIs but stay in the operational ledger and exports.
+try { db.exec('ALTER TABLE canvases ADD COLUMN removed_at TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE canvases ADD COLUMN removed_by TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE notes ADD COLUMN deleted_at TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE notes ADD COLUMN deleted_by TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE files ADD COLUMN deleted_at TEXT'); } catch { /* already present */ }
+try { db.exec('ALTER TABLE files ADD COLUMN deleted_by TEXT'); } catch { /* already present */ }
 try { db.exec('ALTER TABLE agents ADD COLUMN roster_id TEXT'); } catch { /* already present */ }
 // Wave 3: typed/scoped/temporal memory. Enum validation lives in memory.js
 // (SQLite can't retro-add CHECK constraints); canvas_id stays the security

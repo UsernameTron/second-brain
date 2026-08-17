@@ -21,22 +21,22 @@ test('tool definitions translate to function declarations; server tools are drop
 
 test('message history round-trips: text, tool_use, tool_result with name recovery', () => {
   const contents = toContents([
-    { role: 'user', content: 'check row 4' },
+    { role: 'user', content: 'find the pricing decision' },
     { role: 'assistant', content: [
       { type: 'text', text: 'checking' },
-      { type: 'tool_use', id: 'read_rows:abc1', name: 'read_rows', input: { status: 'pending' } },
+      { type: 'tool_use', id: 'memory_search:abc1', name: 'memory_search', input: { query: 'pricing decision' } },
     ] },
     { role: 'user', content: [
-      { type: 'tool_result', tool_use_id: 'read_rows:abc1', content: '[{"row_index":4}]', is_error: false },
+      { type: 'tool_result', tool_use_id: 'memory_search:abc1', content: '[{"content":"Approved pricing"}]', is_error: false },
     ] },
   ]);
   assert.equal(contents.length, 3);
-  assert.deepEqual(contents[0], { role: 'user', parts: [{ text: 'check row 4' }] });
+  assert.deepEqual(contents[0], { role: 'user', parts: [{ text: 'find the pricing decision' }] });
   assert.equal(contents[1].role, 'model');
-  assert.equal(contents[1].parts[1].functionCall.name, 'read_rows');
-  assert.deepEqual(contents[1].parts[1].functionCall.args, { status: 'pending' });
-  assert.equal(contents[2].parts[0].functionResponse.name, 'read_rows'); // name recovered from the id
-  assert.match(contents[2].parts[0].functionResponse.response.result, /row_index/);
+  assert.equal(contents[1].parts[1].functionCall.name, 'memory_search');
+  assert.deepEqual(contents[1].parts[1].functionCall.args, { query: 'pricing decision' });
+  assert.equal(contents[2].parts[0].functionResponse.name, 'memory_search'); // name recovered from the id
+  assert.match(contents[2].parts[0].functionResponse.response.result, /Approved pricing/);
   assert.equal(nameFromToolId('memory_write:xk93j2'), 'memory_write');
 });
 
@@ -51,7 +51,7 @@ test('responses synthesize Anthropic-shaped output: function calls -> tool_use +
   const out = fromGeminiResponse({
     candidates: [{ finishReason: 'STOP', content: { parts: [
       { text: 'I will write this to memory.' },
-      { functionCall: { name: 'memory_write', args: { content: 'fact', epistemic: 'verified', source: 'row 4' } } },
+      { functionCall: { name: 'memory_write', args: { content: 'fact', epistemic: 'verified', source: 'uploaded document' } } },
     ] } }],
     usageMetadata: { promptTokenCount: 120, candidatesTokenCount: 45, thoughtsTokenCount: 10 },
   }, 'gemini-2.5-flash');

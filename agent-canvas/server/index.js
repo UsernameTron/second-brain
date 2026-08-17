@@ -7,14 +7,12 @@ const fs = require('node:fs');
 const http = require('node:http');
 const express = require('express');
 
-const { seedIfEmpty, DEMO_KICKOFF, seedExecCanvas, recolorLegacyAgents, OWNER_EMAIL } = require('./seed');
+const { seedIfEmpty, recolorLegacyAgents, retireLegacyArtifacts, OWNER_EMAIL } = require('./seed');
 const { rateLimit } = require('./ratelimit');
 const routes = require('./routes');
 const { attachWebSocket } = require('./ws');
-const { recoverOrphans, dispatchRun } = require('./orchestrator/queue');
+const { recoverOrphans } = require('./orchestrator/queue');
 const control = require('./orchestrator/control');
-const auth = require('./auth');
-const { db, getSetting } = require('./db');
 
 const PORT = Number(process.env.PORT || 8080);
 const app = express();
@@ -50,25 +48,6 @@ app.get('/api/healthz', health);
 
 app.use('/api', routes);
 
-// Demo kickoff: dispatches the seeded enrichment workflow on the demo canvas.
-app.post('/api/canvases/:canvasId/demo/run', rateLimit('demo'), auth.requireAuth, (req, res) => {
-  const check = auth.canEditCanvas(req.user, req.params.canvasId);
-  if (!check.ok) return res.status(check.status).json({ error: check.error });
-  const research = db.prepare("SELECT * FROM agents WHERE canvas_id = ? AND role = 'research' AND lifecycle = 'active' LIMIT 1").get(req.params.canvasId);
-  if (!research) return res.status(400).json({ error: 'no research agent on this canvas' });
-  try {
-    const run = dispatchRun({
-      agentId: research.id, canvasId: req.params.canvasId,
-      instruction: DEMO_KICKOFF, triggerKind: 'user', actor: req.user.email,
-      stepBudget: Number(process.env.DEMO_STEP_BUDGET || 16),
-      wallMs: Number(process.env.DEMO_WALL_MS || 420_000),
-    });
-    res.json({ run });
-  } catch (err) {
-    res.status(err.status || 500).json({ error: err.message });
-  }
-});
-
 // Static frontend (built by Vite into frontend/dist).
 const distDir = path.join(__dirname, '..', 'frontend', 'dist');
 if (fs.existsSync(distDir)) {
@@ -79,7 +58,7 @@ if (fs.existsSync(distDir)) {
 }
 
 const seedResult = seedIfEmpty();
-const execSeed = seedExecCanvas(OWNER_EMAIL);
+const cleanupResult = retireLegacyArtifacts(OWNER_EMAIL);
 recolorLegacyAgents();
 const roster = require('./roster');
 roster.seedRoster();
@@ -99,7 +78,7 @@ attachWebSocket(server);
 
 if (require.main === module) {
   server.listen(PORT, () => {
-    process.stdout.write(`agent-canvas listening on :${PORT} (seeded=${seedResult.seeded}, exec=${execSeed.seeded}, orphaned runs recovered=${orphans}, demo canvas=${getSetting('demo_canvas_id')})\n`);
+    process.stdout.write(`agent-canvas listening on :${PORT} (seeded=${seedResult.seeded}, retired canvases=${cleanupResult.retiredCanvases}, retired notes=${cleanupResult.removedNotes}, retired files=${cleanupResult.removedFiles}, orphaned runs recovered=${orphans})\n`);
   });
 }
 

@@ -75,7 +75,8 @@ test('every source type projects a full-contract card', async () => {
   memory.writeEntry({ canvasId, content: 'Assume Q3 pricing holds.', epistemic: 'assumption', authorType: 'user', authorId: 'pete@cloudtechgurus.com', reviewAt: '2020-01-01T00:00:00.000Z' });
   // 4. failed run with NO escalation (dedupe leaves it standing)
   insertRun('run-attn-fail', 'failed');
-  // 5. proposed changeset
+  // A preserved historical changeset is deliberately no longer an attention
+  // source now that the workbook demo surface is retired.
   db.prepare("INSERT INTO changesets (id, canvas_id, run_id, agent_id, status, created_at) VALUES ('cs-attn-1', ?, NULL, ?, 'proposed', ?)")
     .run(canvasId, agentId, nowIso());
 
@@ -83,9 +84,10 @@ test('every source type projects a full-contract card', async () => {
   assert.equal(res.status, 200);
   const byType = Object.groupBy ? Object.groupBy(res.data.attention, (r) => r.type)
     : res.data.attention.reduce((m, r) => ((m[r.type] = m[r.type] || []).push(r), m), {});
-  for (const type of ['escalation', 'conflict', 'overdue_review', 'failed_run', 'pending_changeset']) {
+  for (const type of ['escalation', 'conflict', 'overdue_review', 'failed_run']) {
     assert.ok(byType[type] && byType[type].length >= 1, `missing ${type} card`);
   }
+  assert.ok(!byType.pending_changeset, 'preserved demo changesets must not surface as current user work');
   // Full contract on every card.
   for (const row of res.data.attention) {
     for (const key of ['type', 'decision', 'context', 'consequence', 'recommendation', 'owner', 'due', 'actions', 'sourceRef', 'created_at']) {

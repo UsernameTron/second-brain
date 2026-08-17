@@ -1,9 +1,8 @@
 'use strict';
 // Agent Roster: workspace-level template library. Seeding is idempotent,
 // reads are role-scoped, mutation is owner-only, instantiation copies the
-// template (with provenance) and pins/places companion notes exactly once
-// per canvas, and prompts carry the confidentiality guard while naming no
-// excluded vendor anywhere.
+// template with provenance but creates no product content of its own, and
+// prompts carry the confidentiality guard while naming no excluded vendor.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -18,6 +17,7 @@ process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
 const { server } = require('../server/index'); // boots app + runs all seeds
 const { db, getSetting } = require('../server/db');
 const roster = require('../server/roster');
+const { readRegistry } = require('../server/orchestrator/tools');
 const ICP_FILE = require('../server/config/icp-sr-icp-v6.json');
 
 let base;
@@ -69,6 +69,12 @@ test('roster seeds exactly once with 9 entries in order', () => {
   assert.equal(gauge.enabled, 0);
 });
 
+test('fresh boot creates no demo canvas or other product content', () => {
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM canvases').get().n, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM notes').get().n, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM agents').get().n, 0);
+});
+
 test('every roster prompt carries the guard; no excluded vendor is ever named; Radar is version-stamped', () => {
   const rows = db.prepare('SELECT name, system_prompt FROM roster_agents').all();
   for (const row of rows) {
@@ -98,13 +104,12 @@ test('every roster prompt carries the guard; no excluded vendor is ever named; R
   assert.match(radar.system_prompt, /outcome "incomplete"/, 'an unfinished search is filed incomplete, never as done');
 });
 
-test('the seeded ICP companion note round-trips to the committed registry file', () => {
-  const spec = roster.ROSTER_NOTES.icp_registry;
-  assert.equal(spec.pinned, false, 'ICP note must be unpinned — pinned notes enter every prompt');
-  const fenced = spec.content.match(/```json\n([\s\S]*?)\n```/);
-  assert.ok(fenced, 'note carries fenced JSON');
-  assert.deepEqual(JSON.parse(fenced[1]), ICP_FILE, 'note JSON deep-equals config file');
-  assert.match(spec.content, /source of truth: src\/backend\/icp_registry\.py/);
+test('the ICP source of truth is the committed read_registry surface, not a canvas note', () => {
+  const result = readRegistry({ registry: 'icp', query: 'excluded_vendor_domains' });
+  assert.equal(result.registry, 'icp');
+  assert.equal(result.source_of_truth, ICP_FILE.source_of_truth);
+  assert.equal(result.matched, 1);
+  assert.deepEqual(result.results, [{ key: 'excluded_vendor_domains', value: ICP_FILE.excluded_vendor_domains }]);
 });
 
 test('GET /api/roster: members see enabled only; owner sees all', async () => {
@@ -131,7 +136,7 @@ let canvasId;
 let fredRosterId;
 let radarRosterId;
 
-test('canvas create with roster_ids staffs the canvas and places companion notes once', async () => {
+test('canvas create with roster_ids staffs the canvas without fabricating notes', async () => {
   const byName = Object.fromEntries(db.prepare('SELECT id, name FROM roster_agents').all().map((r) => [r.name, r.id]));
   fredRosterId = byName.Fred;
   radarRosterId = byName.Radar;
@@ -145,19 +150,14 @@ test('canvas create with roster_ids staffs the canvas and places companion notes
   for (const agent of agents) assert.ok(agent.roster_id, `${agent.name} carries roster provenance`);
   assert.deepEqual(agents.map((a) => a.x), [150, 490, 830, 1170], 'exec seed spacing');
   const notes = db.prepare('SELECT title, pinned FROM notes WHERE canvas_id = ? ORDER BY title').all(canvasId);
-  assert.equal(notes.length, 2, 'protocol note once (not three times) + ICP note');
-  const protocol = notes.find((n) => n.title === 'Synthesis protocol');
-  const icp = notes.find((n) => n.title.startsWith('ICP registry'));
-  assert.equal(protocol.pinned, 1, 'protocol is live working context');
-  assert.equal(icp.pinned, 0, 'registry stays out of every prompt');
+  assert.deepEqual(notes, [], 'system instructions and registries do not masquerade as user notes');
 });
 
-test('re-adding an agent does not duplicate its companion note', async () => {
+test('re-adding an agent still creates no companion note', async () => {
   const added = await call('POST', `/api/canvases/${canvasId}/agents`, memberCookie, { roster_id: fredRosterId });
   assert.equal(added.status, 200);
   assert.equal(added.data.agent.name, 'Fred');
-  const protocolNotes = db.prepare("SELECT COUNT(*) AS n FROM notes WHERE canvas_id = ? AND title = 'Synthesis protocol'").get(canvasId);
-  assert.equal(protocolNotes.n, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM notes WHERE canvas_id = ?').get(canvasId).n, 0);
 });
 
 test('disabled roster entries cannot be instantiated; unknown ids abort canvas creation atomically', async () => {
@@ -193,13 +193,6 @@ test('resync without roster provenance is a 404, not a silent no-op', async () =
   assert.equal(res.status, 404);
 });
 
-test('exec-canvas agents seeded before the roster are linked for resync where prompts still match', () => {
-  // linkExecAgents ran at boot, after seedExecCanvas. Fred/Jess prompts are
-  // unchanged from EXEC_AGENTS so their live agents link; Darren (ICP v5
-  // update) and Atlas (guard added) intentionally do not retro-link here
-  // because this test DB seeded them from the same updated consts — so all 4
-  // actually match. Assert the linkage happened.
-  const exec = db.prepare("SELECT a.name, a.roster_id FROM agents a JOIN canvases c ON c.id = a.canvas_id WHERE c.name = 'Executive Roundtable'").all();
-  assert.equal(exec.length, 4);
-  for (const agent of exec) assert.ok(agent.roster_id, `${agent.name} linked to roster`);
+test('boot never recreates the removed Executive Roundtable demo', () => {
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM canvases WHERE name = 'Executive Roundtable'").get().n, 0);
 });

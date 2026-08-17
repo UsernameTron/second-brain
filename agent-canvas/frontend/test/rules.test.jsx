@@ -799,7 +799,7 @@ describe('NEEDS YOU standing-rule cards', () => {
       <NeedsYouView
         rows={rows} userEmail={OWNER.email} agentsById={{}} people={[]} agents={[]}
         onResolveEscalation={vi.fn()} onAssign={vi.fn()} onOpenMemory={vi.fn()} onOpenRun={vi.fn()}
-        onOpenWorkbook={vi.fn()} onRetryRun={vi.fn()} onExtendReview={vi.fn()} onAcknowledgeRuleRun={vi.fn()}
+        onRetryRun={vi.fn()} onExtendReview={vi.fn()} onAcknowledgeRuleRun={vi.fn()}
         {...props}
       />
     );

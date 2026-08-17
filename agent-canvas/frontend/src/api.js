@@ -18,8 +18,17 @@ export async function api(path, opts = {}) {
   const { body, headers, ...rest } = opts;
   const init = { ...rest, headers: { ...(headers || {}) } };
   if (body !== undefined) {
-    init.body = typeof body === 'string' ? body : JSON.stringify(body);
-    if (!init.headers['Content-Type']) init.headers['Content-Type'] = 'application/json';
+    // Canvas file uploads are a raw request body, never multipart or JSON.
+    // Keep the ordinary API surface JSON-by-default while allowing browser
+    // binary body types through byte-for-byte when a caller explicitly uses
+    // one. This also avoids teaching every upload caller its own fetch/error
+    // handling path.
+    const isBlob = typeof Blob !== 'undefined' && body instanceof Blob;
+    const isBuffer = typeof ArrayBuffer !== 'undefined'
+      && (body instanceof ArrayBuffer || ArrayBuffer.isView(body));
+    const isRaw = isBlob || isBuffer;
+    init.body = isRaw ? body : (typeof body === 'string' ? body : JSON.stringify(body));
+    if (!isRaw && !init.headers['Content-Type']) init.headers['Content-Type'] = 'application/json';
   }
   let res;
   try {

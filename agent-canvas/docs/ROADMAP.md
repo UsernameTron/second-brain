@@ -1,13 +1,11 @@
 # Agent Canvas roadmap and phase classification
 
-Updated 2026-08-16 against synchronized documentation base `72db799` (not
-necessarily the current HEAD; docs-only commits follow `62eae86`, the last
-code change). Production serves revision
-`agent-canvas-00053-h2n` at 100% traffic — `62eae86` code plus the tick env
-vars, with the Cloud Scheduler lane live-proven (direct verification
-2026-08-16). This file owns phase intent and dependencies. It does not override
-the production evidence in [HANDOFF.md](HANDOFF.md) — that evidence is an
-observation with a timestamp and decays until re-probed.
+Updated 2026-08-16 against `master` at `948a7a6`. Production was freshly
+observed at `agent-canvas-00054-9cs`, 100% traffic, on
+2026-08-17T01:49Z; its exact source SHA is unverified. The local
+`fix/agent-canvas-remove-demo-artifacts` branch is verified but not merged or
+deployed. This file owns phase intent and dependencies. It does not override
+the timestamped production evidence in [HANDOFF.md](HANDOFF.md).
 
 ## Status vocabulary
 
@@ -30,6 +28,7 @@ observation with a timestamp and decays until re-probed.
 | P3 — Evidence Rooms | Merged | **Live-accepted including #194** (2026-08-16, `00052-nbf`): screened-export journey observed live | Preserve in regression/UAT |
 | P4 — reviewable plain-language Agent Builder | Merged; hardened through #197 | **Live-accepted** (2026-08-16, `00052-nbf`): build, rehearse gate, publish, version history, rollback, authority non-expansion all observed live | Preserve in regression/UAT |
 | P5 — Standing Rules and briefs | Merged; hardened through #198 | **Deployed on `00053-h2n`; manual path live-accepted; scheduler delivery live-proven** (2026-08-16: job enabled `*/10`, OIDC identity has `run.invoker`, 200s at 19:04/19:10/19:20 UTC). **Not Complete:** no due rule yet dispatched by a scheduled tick; pause and expiry unexercised under the scheduler; clean-zero alert test-only | Observe a scheduled-tick dispatch with its run/card, then exercise pause and expiry under the scheduler, then the clean-zero alert live |
+| Cross-cutting workspace cleanup | Implemented and locally verified on `fix/agent-canvas-remove-demo-artifacts` | Not merged, deployed, or live-accepted | Review/merge, backup + exact retirement dry-run, deploy, then signed-in note/file/removal acceptance |
 | P6 — Outcomes and reviewed learning | Planned only | Not started | Begin only after P4/P5 acceptance |
 | P7 — selective integrations and portability | Planned only | Not started | Begin only after P6 earns its acceptance evidence |
 
@@ -40,14 +39,12 @@ tick arrives.
 
 ## Immediate release close-out
 
-1. ~~Probe Cloud Run and record the serving revision and traffic split.~~ Done
-   — latest: `00053-h2n` at 100% traffic (2026-08-16).
-2. ~~Deploy `master` once if behind.~~ Done (`62eae86` as `00052-nbf`, then
-   `00053-h2n` adding the tick env vars).
-3. ~~Run P4 signed-in acceptance.~~ **Done 2026-08-16 on `00052-nbf`** — full
-   journey including rehearse gate, publish, version history, rollback,
-   authority non-expansion.
-4. P5 acceptance — **manual path done; scheduler delivery live-proven**
+1. **Release the workspace cleanup first.** Review and merge the local branch;
+   take a fresh backup; repeat the exact replica dry-run; deploy without
+   changing provider, scheduler, environment names, or secrets; then exercise
+   note and file create/read/remove plus view-only boundaries in production.
+2. **P5 acceptance remains separate.** The manual path is done and scheduler
+   delivery is live-proven
    (job enabled, OIDC 200s at 19:04/19:10/19:20 UTC). **Still outstanding —
    the scheduler cadence alone does not prove these acceptance scenarios; each
    requires an eligible rule state and observed evidence, and pause requires
@@ -57,10 +54,9 @@ tick arrives.
    expiring rule); the clean-zero alert path live (test-only today — on the
    live attempt the model omitted its `MATCHED:` contract line and the
    honest-unknown path fired instead).
-5. Update `HANDOFF.md` with observed facts. Only then classify P5 complete and
-   unlock P6. **P5 is NOT Complete under the vocabulary above** — its external
-   lane is delivered but its remaining acceptance checks have not passed. P4 is
-   Complete (merged + deployed + live-accepted).
+3. Update `HANDOFF.md` with observed production facts. Only after both the
+   cleanup release and the remaining P5 acceptance can P5 be classified
+   complete and P6 begin. P6 and P7 remain planned only.
 
 ### P5 release follow-up — FIXED and DEPLOYED (`00052-nbf`, 2026-08-16)
 

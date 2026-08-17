@@ -64,7 +64,7 @@ const COMMON_TOOLS = [
       properties: {
         content: { type: 'string', description: 'The fact/conclusion/assumption, one per entry, self-contained' },
         epistemic: { type: 'string', enum: ['verified', 'inference', 'assumption'] },
-        source: { type: 'string', description: 'Where this came from, e.g. "workbook row 4", "intake rules note"' },
+        source: { type: 'string', description: 'Where this came from, e.g. "uploaded document section 2", "operator decision"' },
         cites: { type: 'array', items: { type: 'string' }, description: 'IDs of memory entries that fed this one' },
         evidence: { type: 'array', items: { type: 'string' }, description: 'Evidence ref ids (from [evidence_ref: ...] markers on this run\'s tool results) for the external artifacts this entry rests on' },
         kind: { type: 'string', enum: ['fact', 'decision', 'preference', 'constraint', 'outcome', 'feedback'], description: 'What kind of entry this is. Use "decision" for choices made, "constraint" for hard limits, "outcome" for results observed.' },
@@ -91,8 +91,20 @@ const COMMON_TOOLS = [
   },
   {
     name: 'read_notes',
-    description: 'Read the notes on this canvas. Pinned notes are live working context and are already in your system prompt; this returns all notes including unpinned ones.',
+    description: 'Read the user-managed notes on this canvas.',
     input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'read_canvas_files',
+    description: 'List files attached to this canvas, or read one attached file by id. Omit file_id to list metadata. Reads are canvas-scoped and read-only. Supported content: UTF-8 text/CSV/JSON and .xlsx workbooks; other formats are reported as unsupported.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        file_id: { type: 'string', description: 'File id returned by this tool\'s metadata list. Omit to list files.' },
+        limit: { type: 'integer', description: 'Maximum metadata rows when listing (default 50, capped at 100).' },
+      },
+      required: [],
+    },
   },
   {
     name: 'list_agents',
@@ -101,7 +113,7 @@ const COMMON_TOOLS = [
   },
   {
     name: 'handoff',
-    description: 'Hand a work item to another agent on this canvas. Include the memory entry IDs the target needs (they are delivered as its context and shown on the handoff edge). The target runs in parallel; you keep working. Use a stable item_key (e.g. "row-4" or "changeset") so repeated back-and-forth on the same item is detected.',
+    description: 'Hand a work item to another agent on this canvas. Include the memory entry IDs the target needs (they are delivered as its context and shown on the handoff edge). The target runs in parallel; you keep working. Use a stable item_key (e.g. "account-review") so repeated back-and-forth on the same item is detected.',
     input_schema: {
       type: 'object',
       properties: {
@@ -115,30 +127,16 @@ const COMMON_TOOLS = [
   },
   {
     name: 'escalate',
-    description: 'Escalate a decision to a human. Use ONLY when a genuine judgment call blocks an item — ambiguity you cannot resolve from the intake rules or memory. The item lands in the needs-you tray; continue working on your other items after escalating.',
+    description: 'Escalate a decision to a human. Use ONLY when a genuine judgment call blocks an item — ambiguity you cannot resolve from the available evidence or memory. The item lands in the needs-you tray; continue working on your other items after escalating.',
     input_schema: {
       type: 'object',
       properties: {
         question: { type: 'string', description: 'The specific decision you need, with the options you see' },
         context: { type: 'string', description: 'Short context a human needs to decide' },
         entry_ids: { type: 'array', items: { type: 'string' }, description: 'Relevant memory entries' },
-        item_key: { type: 'string', description: 'The work item this blocks, e.g. "row-7"' },
+        item_key: { type: 'string', description: 'The work item this blocks, e.g. "account-review"' },
       },
       required: ['question'],
-    },
-  },
-  {
-    name: 'apply_row_fix',
-    description: 'Apply a field fix to a workbook row that a HUMAN already decided via a resolved escalation. The server verifies the escalation_id belongs to this canvas and is resolved — this tool is only for carrying out human decisions, never for your own corrections (those go through the coding agent\'s change-set flow).',
-    input_schema: {
-      type: 'object',
-      properties: {
-        row_index: { type: 'integer' },
-        field: { type: 'string' },
-        new_value: { type: 'string' },
-        escalation_id: { type: 'string', description: 'The resolved escalation that authorizes this fix' },
-      },
-      required: ['row_index', 'field', 'new_value', 'escalation_id'],
     },
   },
   {
@@ -166,127 +164,16 @@ const COMMON_TOOLS = [
 
 const REGISTRY_TOOL = {
   name: 'read_registry',
-  description: 'Look up CTG reference data the workspace owns. "suppliers" = the CTG supplier catalogue (name, category, taxonomy tags — no contact details, no commission terms). "org_context" = distilled facts about who owns which lane and which rules gate what, FROZEN at the date the result reports: where it disagrees with something you read live, the live source wins and you should say so. Always pass a query — an unfiltered read returns the first page of hundreds.',
+  description: 'Look up CTG reference data the workspace owns. "icp" = the committed ICP scoring rules and exact taxonomies, returned by top-level key. "suppliers" = the CTG supplier catalogue (name, category, taxonomy tags — no contact details, no commission terms). "org_context" = distilled facts about who owns which lane and which rules gate what, FROZEN at the date the result reports: where it disagrees with something you read live, the live source wins and you should say so. Always pass a query — an unfiltered read returns the first page of larger registries.',
   input_schema: {
     type: 'object',
     properties: {
-      registry: { type: 'string', enum: ['suppliers', 'org_context'] },
+      registry: { type: 'string', enum: ['icp', 'suppliers', 'org_context'] },
       query: { type: 'string', description: 'space-separated terms; every term must appear in the row' },
       limit: { type: 'integer', description: 'max rows, capped at 25' },
     },
     required: ['registry'],
   },
-};
-
-const ROLE_TOOLS = {
-  research: [
-    {
-      name: 'read_rows',
-      description: 'Read rows of the conference-lead workbook on this canvas. Each row has an id, row_index, data (the lead fields), and status.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          status: { type: 'string', enum: ['pending', 'clean', 'flagged', 'corrected', 'verified', 'rejected', 'escalated'] },
-          limit: { type: 'integer' },
-        },
-        required: [],
-      },
-    },
-    {
-      name: 'set_row_status',
-      description: 'Set a workbook row status after checking it: "clean" (no issues), "flagged" (has issues — describe them in note and back them with memory entries), or "escalated" (a human decision is needed; also call escalate).',
-      input_schema: {
-        type: 'object',
-        properties: {
-          row_index: { type: 'integer' },
-          status: { type: 'string', enum: ['clean', 'flagged', 'escalated'] },
-          note: { type: 'string', description: 'What is wrong with which fields, or why it is clean' },
-          entry_ids: { type: 'array', items: { type: 'string' }, description: 'Memory entries backing this finding' },
-        },
-        required: ['row_index', 'status', 'note'],
-      },
-    },
-  ],
-  coding: [
-    {
-      name: 'read_rows',
-      description: 'Read rows of the conference-lead workbook on this canvas.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          status: { type: 'string', enum: ['pending', 'clean', 'flagged', 'corrected', 'verified', 'rejected', 'escalated'] },
-          limit: { type: 'integer' },
-        },
-        required: [],
-      },
-    },
-    {
-      name: 'propose_changes',
-      description: 'Apply corrections as one reviewable change set. Nothing is written to the rows yet — the review agent verifies each change against the intake rules first. Cite the memory entries each change is based on.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          changes: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                row_index: { type: 'integer' },
-                field: { type: 'string' },
-                new_value: { type: 'string' },
-                reason: { type: 'string' },
-                cite_entry_ids: { type: 'array', items: { type: 'string' } },
-              },
-              required: ['row_index', 'field', 'new_value', 'reason'],
-            },
-          },
-        },
-        required: ['changes'],
-      },
-    },
-  ],
-  review: [
-    {
-      name: 'read_rows',
-      description: 'Read rows of the conference-lead workbook on this canvas.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          status: { type: 'string', enum: ['pending', 'clean', 'flagged', 'corrected', 'verified', 'rejected', 'escalated'] },
-          limit: { type: 'integer' },
-        },
-        required: [],
-      },
-    },
-    {
-      name: 'read_changesets',
-      description: 'Read proposed change sets awaiting verification, with each individual change (row, field, old value, new value, reason, cited memory entries).',
-      input_schema: { type: 'object', properties: {}, required: [] },
-    },
-    {
-      name: 'verify_changes',
-      description: 'Record your verdict on each change in a change set after checking it against the intake rules. Approved changes are applied to the workbook rows and the rows marked verified; rejected changes leave the row flagged.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          changeset_id: { type: 'string' },
-          verdicts: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                change_id: { type: 'string' },
-                verdict: { type: 'string', enum: ['approved', 'rejected'] },
-                reason: { type: 'string' },
-              },
-              required: ['change_id', 'verdict', 'reason'],
-            },
-          },
-        },
-        required: ['changeset_id', 'verdicts'],
-      },
-    },
-  ],
 };
 
 // Google Workspace tools. Read tools go to every role; write tools carry the
@@ -466,17 +353,20 @@ const ENRICHMENT_TOOLS = [
 ];
 const ENRICHMENT_ROLES = ['research', 'targeting', 'commercial'];
 
-// Committed context registries — CTG's supplier catalogue and the distilled
-// org-context facts. Same contract as the sr-icp registry: generated upstream
-// (scripts/build-registries.js), committed, refreshed by a new commit rather
-// than a live sync, and never hand-edited.
+// Committed context registries — the ICP scoring contract, CTG's supplier
+// catalogue, and distilled org-context facts. They are refreshed by a new
+// commit rather than a live sync and never edited through Agent Canvas.
 //
-// Deliberately a TOOL rather than a canvas note. The ICP note is unpinned
-// because pinned notes ride in every system prompt of every run; these two are
-// several times its size, and `read_notes` returns every note's full content,
-// so parking them there would tax every read_notes call on the canvas instead.
-// A filtered lookup returns the handful of rows an agent actually asked for.
+// Deliberately tools rather than seeded canvas notes. Pinned notes ride in every
+// system prompt and `read_notes` returns full user-authored content, so system
+// reference data belongs behind a filtered lookup that returns only what the
+// agent asked for.
 const REGISTRIES = {
+  icp: {
+    load: () => require('../config/icp-sr-icp-v6.json'),
+    rows: (data) => Object.entries(data).map(([key, value]) => ({ key, value })),
+    text: (row) => `${row.key} ${JSON.stringify(row.value)}`,
+  },
   suppliers: {
     load: () => require('../config/supplier-catalog.json'),
     rows: (data) => data.suppliers,
@@ -489,6 +379,77 @@ const REGISTRIES = {
   },
 };
 const REGISTRY_LIMIT = 25;
+const CANVAS_FILE_TEXT_CAP = 60_000;
+const CANVAS_FILE_LIST_LIMIT = 100;
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const TEXT_EXTENSIONS = new Set(['.txt', '.md', '.csv', '.json']);
+const TEXT_MIMES_BY_EXTENSION = {
+  '.txt': new Set(['text/plain', 'application/octet-stream']),
+  '.md': new Set(['text/markdown', 'text/x-markdown', 'text/plain', 'application/octet-stream']),
+  '.csv': new Set(['text/csv', 'application/csv', 'application/vnd.ms-excel', 'text/plain', 'application/octet-stream']),
+  '.json': new Set(['application/json', 'text/json', 'text/plain', 'application/octet-stream']),
+};
+const KNOWN_UNSUPPORTED_EXTENSIONS = new Set([
+  '.pdf', '.doc', '.docx', '.xls', '.ppt', '.pptx', '.pages', '.numbers', '.key',
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.zip', '.gz', '.tar',
+]);
+
+function fileExtension(name) {
+  const match = String(name || '').toLowerCase().match(/(\.[a-z0-9]+)$/);
+  return match ? match[1] : '';
+}
+
+function canvasFileFormat(file) {
+  const ext = fileExtension(file.name);
+  const mime = String(file.mime || '').toLowerCase().split(';', 1)[0].trim();
+  // A known binary/document extension wins over a caller-supplied text MIME.
+  // Upload Content-Type is not trustworthy enough to turn a PDF into text.
+  if (KNOWN_UNSUPPORTED_EXTENSIONS.has(ext)) return null;
+  if (ext === '.xlsx') {
+    return !mime || mime === XLSX_MIME || mime === 'application/octet-stream' || mime === 'application/zip' ? 'xlsx' : null;
+  }
+  if (TEXT_EXTENSIONS.has(ext)) {
+    const allowed = TEXT_MIMES_BY_EXTENSION[ext];
+    return !mime || allowed.has(mime) || (ext === '.json' && mime.endsWith('+json')) ? 'text' : null;
+  }
+  return null;
+}
+
+function capCanvasFileText(text) {
+  if (text.length <= CANVAS_FILE_TEXT_CAP) return { text, truncated: false };
+  const marker = `\n[...file truncated at the ${CANVAS_FILE_TEXT_CAP}-character cap — later content is missing]`;
+  let end = CANVAS_FILE_TEXT_CAP - marker.length;
+  // Do not split a supplementary Unicode character between its surrogate
+  // halves. Decode first, then cap, so invalid UTF-8 is rejected rather than
+  // silently replaced and the visible prefix always remains valid text.
+  if (end > 0 && /[\uD800-\uDBFF]/.test(text[end - 1]) && /[\uDC00-\uDFFF]/.test(text[end])) end -= 1;
+  return { text: text.slice(0, end) + marker, truncated: true };
+}
+
+function decodeCanvasFile(file) {
+  const bytes = Buffer.from(file.content || []);
+  let text;
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error(`"${file.name}" is not valid UTF-8 text. Upload a UTF-8 text, CSV, or JSON copy.`);
+  }
+  if (text.includes('\u0000')) throw new Error(`"${file.name}" contains binary data and cannot be read as UTF-8 text.`);
+  return capCanvasFileText(text);
+}
+
+async function readCanvasFile(file) {
+  const format = canvasFileFormat(file);
+  if (!format) {
+    throw new Error(`Unsupported canvas file "${file.name}" (${file.mime || 'unknown type'}). Agents can read UTF-8 text, CSV, JSON, and .xlsx files; PDF, Word, images, and other binary formats are not yet readable.`);
+  }
+  if (format === 'xlsx') {
+    const { xlsxToText } = require('../google/workspace')._internal;
+    const text = await xlsxToText(Buffer.from(file.content || []), file.name);
+    return { text, format, truncated: text.includes('[...output truncated') || text.includes('[...workbook truncated') || text.includes('[...sheet truncated') };
+  }
+  return { ...decodeCanvasFile(file), format };
+}
 
 function readRegistry({ registry, query, limit }) {
   const spec = Object.hasOwn(REGISTRIES, String(registry)) ? REGISTRIES[registry] : null;
@@ -503,7 +464,7 @@ function readRegistry({ registry, query, limit }) {
     : all;
   const capped = Math.min(Math.max(Number(limit) || REGISTRY_LIMIT, 1), REGISTRY_LIMIT);
   return {
-    registry: data.registry,
+    registry: data.registry || registry,
     source_of_truth: data.source_of_truth,
     ...(data.frozen_at ? { frozen_at: data.frozen_at, authority_note: data.authority_note } : {}),
     excludes: data.excludes,
@@ -522,7 +483,7 @@ function readRegistry({ registry, query, limit }) {
 const MUTATING_TOOLS = new Set([
   'ws_sheets_append', 'ws_sheets_update', 'ws_gmail_draft', 'ws_calendar_create', 'ws_docs_create',
   'hs_preview_change', 'hs_apply_change',
-  'apply_row_fix', 'set_row_status', 'propose_changes', 'verify_changes', 'handoff',
+  'handoff',
   // Paid enrichment spends real credits — a side effect, even though it reads.
   // The cached get_enriched_contact re-read is free and stays available.
   'enrich_contact', 'enrich_company', 'verify_email',
@@ -546,7 +507,7 @@ function blockedInMode(name, mode) {
 // P4 Authority Map. "Governed" tools are the ones that reach an external
 // surface (Workspace, HubSpot, MCP, enrichment, web search) — the connector
 // authority the roadmap says must never be implicit. Cognition and canvas
-// tools (memory, notes, escalate, handoff, rows…) are never governed: an
+// tools (memory, notes, escalate, handoff) are never governed: an
 // agent stripped to zero authority still thinks, remembers, and escalates.
 function governedTool(name) {
   return name.startsWith('ws_') || name.startsWith('hs_') || name.startsWith('mcp_')
@@ -624,11 +585,8 @@ function toolsForRole(role, { userRole = 'member', mode = 'act', authority = nul
   // and report "nothing matched" over a CRM nobody is watching. Absent, not
   // inert — the systems board already shows the lamp dark.
   const hubspot = require('../hubspot/opsrunner').configured() ? HUBSPOT_TOOLS : [];
-  return [...COMMON_TOOLS, REGISTRY_TOOL, ...wsRead, ...wsWrite, ...hubspot, ...enrichment, ...mcpDefs, ...(ROLE_TOOLS[role] || [{
-    name: 'read_rows',
-    description: 'Read rows of the conference-lead workbook on this canvas.',
-    input_schema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer' } }, required: [] },
-  }])].filter((t) => !blockedInMode(t.name, mode) && allowedByAuthority(t.name, authority));
+  return [...COMMON_TOOLS, REGISTRY_TOOL, ...wsRead, ...wsWrite, ...hubspot, ...enrichment, ...mcpDefs]
+    .filter((t) => !blockedInMode(t.name, mode) && allowedByAuthority(t.name, authority));
 }
 
 // The plain-language authority menu a draft proposal may pick from: every
@@ -657,10 +615,6 @@ function authorityMenu(role, { userRole = 'member', modelTier = 'strong' } = {})
 function webSearchEligible(role, modelTier) {
   return role === 'research' && process.env.ENABLE_WEB_SEARCH !== '0'
     && require('./anthropic').tierConfig(modelTier).provider !== 'gemini';
-}
-
-function getRowByIndex(canvasId, rowIndex) {
-  return db.prepare('SELECT * FROM sheet_rows WHERE canvas_id = ? AND row_index = ?').get(canvasId, rowIndex);
 }
 
 // Executes one tool call. ctx = { run, agent, canvas }.
@@ -825,8 +779,44 @@ async function executeTool(name, input, ctx) {
     }
 
     case 'read_notes': {
-      const notes = db.prepare('SELECT id, title, content, pinned FROM notes WHERE canvas_id = ? ORDER BY pinned DESC, updated_at DESC').all(canvas.id);
+      const notes = db.prepare('SELECT id, title, content, pinned FROM notes WHERE canvas_id = ? AND deleted_at IS NULL ORDER BY pinned DESC, updated_at DESC').all(canvas.id);
       return { content: JSON.stringify(notes) };
+    }
+
+    case 'read_canvas_files': {
+      if (!input.file_id) {
+        const requested = Number(input.limit);
+        const limit = Math.min(Math.max(Number.isFinite(requested) ? Math.floor(requested) : 50, 1), CANVAS_FILE_LIST_LIMIT);
+        const total = db.prepare('SELECT COUNT(*) AS n FROM files WHERE canvas_id = ? AND deleted_at IS NULL').get(canvas.id).n;
+        const files = db.prepare(
+          'SELECT id, name, mime, size, uploaded_by, created_at FROM files WHERE canvas_id = ? AND deleted_at IS NULL ORDER BY created_at DESC, id LIMIT ?'
+        ).all(canvas.id, limit);
+        return { content: externalContent('canvas_file_list', JSON.stringify({ total, showing: files.length, truncated: total > files.length, files })) };
+      }
+
+      // Scope is part of the lookup, not a check performed after fetching by
+      // id. A guessed id from another canvas therefore reveals neither its
+      // existence nor any metadata.
+      const file = db.prepare('SELECT * FROM files WHERE id = ? AND canvas_id = ? AND deleted_at IS NULL').get(String(input.file_id), canvas.id);
+      if (!file) return { content: 'File not found on this canvas. Omit file_id to list the files available here.', isError: true };
+      try {
+        const read = await readCanvasFile(file);
+        const refId = evidence.recordRef({
+          runId: run.id,
+          sourceKind: 'canvas_file',
+          sourceId: file.id,
+          title: file.name,
+          directedBy: run.initiated_by || '',
+          visibility: 'canvas',
+          meta: { canvasId: canvas.id, mime: file.mime, size: file.size, format: read.format, truncated: read.truncated },
+        });
+        const body = `File: ${file.name}\nType: ${file.mime || 'application/octet-stream'}\nSize: ${file.size} bytes\n\n${read.text}`;
+        return { content: externalContent('canvas_file', body) + evidence.refMarker(refId) };
+      } catch (err) {
+        // File names are user-authored too; keep read/parse errors inside the
+        // same untrusted boundary as successful file content.
+        return { content: externalContent('canvas_file_error', String(err.message || err)), isError: true };
+      }
     }
 
     case 'list_agents': {
@@ -910,14 +900,6 @@ async function executeTool(name, input, ctx) {
         question: input.question,
         context: { detail: input.context || '', entry_ids: input.entry_ids || [], item_key: input.item_key || '' },
       });
-      if (input.item_key && /^row-\d+$/.test(input.item_key)) {
-        const rowIndex = Number(input.item_key.split('-')[1]);
-        const row = getRowByIndex(canvas.id, rowIndex);
-        if (row) {
-          db.prepare('UPDATE sheet_rows SET status = ?, updated_at = ? WHERE id = ?').run('escalated', ts, row.id);
-          bus.emit('event', { type: 'rows_changed', canvasId: canvas.id });
-        }
-      }
       return { content: JSON.stringify({ ok: true, escalation_id: escalation.id, note: 'Escalated to the needs-you tray. Continue with your other items; a human decision will come back as a new instruction.' }) };
     }
 
@@ -956,70 +938,6 @@ async function executeTool(name, input, ctx) {
       });
       if (signal && signal.aborted) return { content: `Waited, then the workspace paused — stopping.`, isError: true };
       return { content: `Waited ${seconds}s.` };
-    }
-
-    case 'apply_row_fix': {
-      const escalation = db.prepare('SELECT * FROM escalations WHERE id = ? AND canvas_id = ?').get(input.escalation_id, canvas.id);
-      if (!escalation) return { content: `No escalation ${input.escalation_id} on this canvas — apply_row_fix requires a real resolved escalation.`, isError: true };
-      if (!['accepted', 'redirected'].includes(escalation.status)) {
-        return { content: `Escalation ${input.escalation_id} is "${escalation.status}", not resolved — a human decision is required before applying a fix.`, isError: true };
-      }
-      const row = getRowByIndex(canvas.id, input.row_index);
-      if (!row) return { content: `No row with index ${input.row_index}`, isError: true };
-      const data = JSON.parse(row.data);
-      const oldValue = data[input.field];
-      data[input.field] = input.new_value;
-      db.prepare('UPDATE sheet_rows SET data = ?, status = ?, updated_at = ? WHERE id = ?')
-        .run(JSON.stringify(data), 'verified', ts, row.id);
-      audit('agent', agent.id, 'rows.apply_human_fix', { runId: run.id, rowIndex: input.row_index, field: input.field, oldValue, newValue: input.new_value, escalationId: escalation.id, resolvedBy: escalation.resolved_by });
-      bus.emit('event', { type: 'rows_changed', canvasId: canvas.id });
-      return { content: JSON.stringify({ ok: true, row_index: input.row_index, field: input.field, old_value: oldValue, new_value: input.new_value, authorized_by: escalation.resolved_by }) };
-    }
-
-    case 'read_rows': {
-      const clauses = ['canvas_id = ?'];
-      const params = [canvas.id];
-      if (input.status) { clauses.push('status = ?'); params.push(input.status); }
-      const rows = db.prepare(
-        `SELECT id, row_index, data, status, notes FROM sheet_rows WHERE ${clauses.join(' AND ')} ORDER BY row_index LIMIT ?`
-      ).all(...params, Math.min(input.limit || 50, 200));
-      return { content: JSON.stringify(rows.map((r) => ({ ...r, data: JSON.parse(r.data) }))) };
-    }
-
-    case 'set_row_status': {
-      if (!['clean', 'flagged', 'escalated'].includes(input.status)) {
-        return { content: `set_row_status only accepts clean|flagged|escalated (got "${input.status}"). Corrections go through the change-set flow; human decisions through apply_row_fix.`, isError: true };
-      }
-      const row = getRowByIndex(canvas.id, input.row_index);
-      if (!row) return { content: `No row with index ${input.row_index}`, isError: true };
-      db.prepare('UPDATE sheet_rows SET status = ?, notes = ?, updated_at = ? WHERE id = ?')
-        .run(input.status, input.note || '', ts, row.id);
-      audit('agent', agent.id, 'rows.set_status', { runId: run.id, rowIndex: input.row_index, status: input.status });
-      bus.emit('event', { type: 'rows_changed', canvasId: canvas.id });
-      return { content: JSON.stringify({ ok: true, row_id: row.id, status: input.status }) };
-    }
-
-    case 'propose_changes': {
-      if (!Array.isArray(input.changes) || input.changes.length === 0) return { content: 'changes must be a non-empty array', isError: true };
-      const changesetId = crypto.randomUUID();
-      db.prepare('INSERT INTO changesets (id, canvas_id, run_id, agent_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(changesetId, canvas.id, run.id, agent.id, 'proposed', ts);
-      const results = [];
-      for (const change of input.changes) {
-        const row = getRowByIndex(canvas.id, change.row_index);
-        if (!row) { results.push({ row_index: change.row_index, error: 'row not found' }); continue; }
-        const data = JSON.parse(row.data);
-        const changeId = crypto.randomUUID();
-        db.prepare(
-          'INSERT INTO changes (id, changeset_id, row_id, field, old_value, new_value, reason, cite_entry_ids, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        ).run(changeId, changesetId, row.id, change.field, String(data[change.field] ?? ''), String(change.new_value), change.reason || '', JSON.stringify(change.cite_entry_ids || []), ts);
-        db.prepare('UPDATE sheet_rows SET status = ?, updated_at = ? WHERE id = ?').run('corrected', ts, row.id);
-        results.push({ change_id: changeId, row_index: change.row_index, field: change.field });
-      }
-      audit('agent', agent.id, 'changeset.propose', { runId: run.id, changesetId, count: results.length });
-      bus.emit('event', { type: 'changeset', canvasId: canvas.id, changesetId, status: 'proposed' });
-      bus.emit('event', { type: 'rows_changed', canvasId: canvas.id });
-      return { content: JSON.stringify({ ok: true, changeset_id: changesetId, changes: results }) };
     }
 
     case 'ws_sheets_read': case 'ws_drive_search': case 'ws_drive_read':
@@ -1153,53 +1071,6 @@ async function executeTool(name, input, ctx) {
       }
     }
 
-        case 'read_changesets': {
-      const sets = db.prepare('SELECT * FROM changesets WHERE canvas_id = ? ORDER BY created_at DESC LIMIT 10').all(canvas.id);
-      const out = sets.map((cs) => ({
-        id: cs.id,
-        status: cs.status,
-        created_at: cs.created_at,
-        changes: db.prepare('SELECT c.*, r.row_index FROM changes c JOIN sheet_rows r ON r.id = c.row_id WHERE c.changeset_id = ?').all(cs.id)
-          .map((c) => ({ change_id: c.id, row_index: c.row_index, field: c.field, old_value: c.old_value, new_value: c.new_value, reason: c.reason, cite_entry_ids: JSON.parse(c.cite_entry_ids), verdict: c.verdict })),
-      }));
-      return { content: JSON.stringify(out) };
-    }
-
-    case 'verify_changes': {
-      const cs = db.prepare('SELECT * FROM changesets WHERE id = ? AND canvas_id = ?').get(input.changeset_id, canvas.id);
-      if (!cs) return { content: `No changeset ${input.changeset_id} on this canvas`, isError: true };
-      let approved = 0; let rejected = 0;
-      const rowOutcomes = new Map(); // row_id -> false once ANY change is rejected
-      for (const verdict of input.verdicts || []) {
-        const change = db.prepare('SELECT * FROM changes WHERE id = ? AND changeset_id = ?').get(verdict.change_id, cs.id);
-        if (!change) continue;
-        db.prepare('UPDATE changes SET verdict = ?, verdict_reason = ? WHERE id = ?').run(verdict.verdict, verdict.reason || '', change.id);
-        const row = db.prepare('SELECT * FROM sheet_rows WHERE id = ?').get(change.row_id);
-        if (!row) continue;
-        if (verdict.verdict === 'approved') {
-          const data = JSON.parse(row.data);
-          data[change.field] = change.new_value;
-          db.prepare('UPDATE sheet_rows SET data = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(data), ts, row.id);
-          approved++;
-          if (!rowOutcomes.has(row.id)) rowOutcomes.set(row.id, true);
-        } else {
-          rejected++;
-          rowOutcomes.set(row.id, false);
-        }
-      }
-      // A row is done only when EVERY change to it in this set was approved.
-      for (const [rowId, allApproved] of rowOutcomes) {
-        db.prepare('UPDATE sheet_rows SET status = ?, updated_at = ? WHERE id = ?')
-          .run(allApproved ? 'verified' : 'flagged', ts, rowId);
-      }
-      const status = rejected === 0 ? 'verified' : approved === 0 ? 'rejected' : 'partially_verified';
-      db.prepare('UPDATE changesets SET status = ? WHERE id = ?').run(status, cs.id);
-      audit('agent', agent.id, 'changeset.verify', { runId: run.id, changesetId: cs.id, approved, rejected });
-      bus.emit('event', { type: 'changeset', canvasId: canvas.id, changesetId: cs.id, status });
-      bus.emit('event', { type: 'rows_changed', canvasId: canvas.id });
-      return { content: JSON.stringify({ ok: true, changeset_status: status, approved, rejected }) };
-    }
-
     default:
       return { content: `Unknown tool: ${name}`, isError: true };
   }
@@ -1217,4 +1088,4 @@ function createEscalation({ canvasId, runId, agentId, kind, question, context })
   return escalation;
 }
 
-module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, LIVELOCK_MAX_CROSSINGS, blockedInMode, MUTATING_TOOLS, REHEARSAL_BLOCKED_TOOLS, governedTool, allowedByAuthority, parseAuthority, intersectAuthority, effectiveAuthority, authorityMenu, webSearchEligible };
+module.exports = { toolsForRole, executeTool, createEscalation, externalContent, readRegistry, canvasFileFormat, readCanvasFile, LIVELOCK_MAX_CROSSINGS, blockedInMode, MUTATING_TOOLS, REHEARSAL_BLOCKED_TOOLS, governedTool, allowedByAuthority, parseAuthority, intersectAuthority, effectiveAuthority, authorityMenu, webSearchEligible };

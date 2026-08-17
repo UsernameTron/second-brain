@@ -110,7 +110,7 @@ test('verification laundering guard: agent cannot mint verified from only its ow
   assert.equal(ok.epistemic, 'verified');
 });
 
-test('verify_changes: a row is verified only when ALL its changes are approved', async () => {
+test('retired workbook tools cannot mutate preserved historical records', async () => {
   const { db: sdb, nowIso: iso } = require('../server/db');
   const crypto2 = require('node:crypto');
   const rowId = crypto2.randomUUID();
@@ -131,10 +131,13 @@ test('verify_changes: a row is verified only when ALL its changes are approved',
       { change_id: c1, verdict: 'approved', reason: 'good' },
     ],
   }, { run, agent, canvas });
-  assert.ok(!result.isError, result.content);
+  assert.equal(result.isError, true);
+  assert.match(result.content, /^Unknown tool:/);
   const row = sdb.prepare('SELECT * FROM sheet_rows WHERE id = ?').get(rowId);
-  assert.equal(row.status, 'flagged', 'row with any rejected change must NOT be verified');
-  assert.equal(JSON.parse(row.data).phone, '+15550000000', 'approved change still applied to data');
+  assert.equal(row.status, 'corrected', 'historical row status stays untouched');
+  assert.deepEqual(JSON.parse(row.data), { phone: 'bad', name: 'DR. X' }, 'historical row data stays untouched');
+  assert.equal(sdb.prepare('SELECT status FROM changesets WHERE id = ?').get(csId).status, 'proposed');
+  assert.equal(sdb.prepare('SELECT COUNT(*) AS n FROM changes WHERE changeset_id = ? AND verdict IS NOT NULL').get(csId).n, 0);
 });
 
 test('model provider resolution and Vertex ID mapping', () => {
@@ -177,7 +180,7 @@ test('file upload rejects a caller-controlled non-Buffer body (CodeQL type confu
     const cookie = (signIn.headers.get('set-cookie') || '').split(';')[0];
     assert.ok(cookie.startsWith('ac_session='), 'dev sign-in issued a session');
 
-    const upload = (contentType, body) => fetch(`${base}/api/canvases/${CANVAS}/files?name=t.bin`, {
+    const upload = (contentType, body) => fetch(`${base}/api/canvases/${CANVAS}/files?name=t.txt`, {
       method: 'POST', headers: { cookie, 'content-type': contentType }, body,
     });
 
@@ -214,12 +217,15 @@ test('file download returns raw bytes, not a JSON-serialized Uint8Array', async 
     });
     const cookie = (signIn.headers.get('set-cookie') || '').split(';')[0];
 
+    // New uploads intentionally reject binary dead artifacts. Keep this
+    // regression on a historical binary row: old unsupported files remain
+    // downloadable/removable even though agents cannot read them as text.
     const payload = Buffer.from([0x68, 0x69, 0x00, 0xff, 0xfe, 0x21]); // includes NUL and high bytes
-    const up = await fetch(`${base}/api/canvases/${CANVAS}/files?name=rt.bin`, {
-      method: 'POST', headers: { cookie, 'content-type': 'application/octet-stream' }, body: payload,
-    });
-    assert.equal(up.status, 200);
-    const fileId = (await up.json()).file.id;
+    const fileId = 'legacy-binary-download';
+    db.prepare(`INSERT OR REPLACE INTO files
+      (id, canvas_id, name, mime, size, content, uploaded_by, created_at)
+      VALUES (?, ?, 'rt.bin', 'application/octet-stream', ?, ?, 'seed', ?)`)
+      .run(fileId, CANVAS, payload.length, payload, nowIso());
 
     const down = await fetch(`${base}/api/canvases/${CANVAS}/files/${fileId}`, { headers: { cookie } });
     assert.equal(down.status, 200);
@@ -274,6 +280,7 @@ test('an identical repeat handoff is a no-op, not a duplicate dispatch or a live
 
 test('a stranded queued run is picked back up, and escalated if it keeps failing', async () => {
   const { reconcileStrandedRuns } = require('../server/orchestrator/queue');
+  const { _internal: runnerInternal } = require('../server/orchestrator/runner');
   const { db: sdb } = require('../server/db');
   const crypto4 = require('node:crypto');
   const id = crypto4.randomUUID();
@@ -288,15 +295,29 @@ test('a stranded queued run is picked back up, and escalated if it keeps failing
   sdb.prepare(`INSERT INTO runs (id, agent_id, canvas_id, instruction, status, step_budget, wall_ms_budget, created_at)
                VALUES (?, 'agent-r', ?, 'stranded work', 'queued', 5, 60000, ?)`).run(id, CANVAS, stale());
 
-  assert.ok(reconcileStrandedRuns() >= 1, 'sweeper sees the stranded run');
-  const requeued = sdb.prepare("SELECT COUNT(*) n FROM audit_log WHERE action='run.requeued' AND detail LIKE ?").get(`%${id}%`).n;
-  assert.ok(requeued >= 1, 'it is re-queued rather than abandoned');
+  // Never let this queue-state test depend on a real provider's network
+  // failure latency. The retry contract is the subject; provider behavior is
+  // covered elsewhere.
+  const restoreModel = runnerInternal.setCallModel(async () => {
+    throw new Error('deterministic stranded-run fixture failure');
+  });
+  try {
+    assert.ok(reconcileStrandedRuns() >= 1, 'sweeper sees the stranded run');
+    const requeued = sdb.prepare("SELECT COUNT(*) n FROM audit_log WHERE action='run.requeued' AND detail LIKE ?").get(`%${id}%`).n;
+    assert.ok(requeued >= 1, 'it is re-queued rather than abandoned');
 
-  // Keep stranding it past the retry budget: it must fail loudly, not sit forever.
-  for (let i = 0; i < 3; i++) {
-    await pumped();
-    strand();
-    reconcileStrandedRuns();
+    // Attempt 1 was queued above. Let it fail, then simulate two more
+    // strandings: attempt 2 is re-queued; attempt 3 exhausts the budget and
+    // creates the human escalation. Do not start a fourth cycle after the
+    // reconciler deliberately clears its retry counter.
+    for (let i = 0; i < 2; i++) {
+      const drained = await pumped();
+      assert.notEqual(drained.status, 'queued', 'the re-queued attempt drains before it is stranded again');
+      strand();
+      reconcileStrandedRuns();
+    }
+  } finally {
+    restoreModel();
   }
   const final = await waitFor(
     () => sdb.prepare('SELECT status, error FROM runs WHERE id = ?').get(id),

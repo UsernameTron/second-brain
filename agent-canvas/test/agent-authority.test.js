@@ -83,6 +83,33 @@ test('offer filter: an explicit authority map strips ungranted governed tools, k
   assert.ok(!rehearse.some((t) => t.name === 'ws_gmail_draft'), 'mode gate still wins over authority');
 });
 
+test('retired demo tools are offered to no role and cannot execute', async () => {
+  const retired = ['apply_row_fix', 'read_rows', 'set_row_status', 'propose_changes', 'read_changesets', 'verify_changes'];
+  const roles = ['research', 'coding', 'review', 'strategic', 'commercial', 'targeting', 'unknown-role'];
+  for (const role of roles) {
+    const names = toolsForRole(role, { userRole: 'owner' }).map((t) => t.name);
+    for (const name of retired) assert.ok(!names.includes(name), `${role} must not be offered ${name}`);
+  }
+
+  const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId);
+  const canvas = db.prepare('SELECT * FROM canvases WHERE id = ?').get(canvasId);
+  const run = { id: 'run-retired-tools', mode: 'act', canvas_id: canvasId, agent_id: agentId, initiated_by: OWNER };
+  for (const name of retired) {
+    const result = await executeTool(name, {}, { run, agent, canvas });
+    assert.equal(result.isError, true, `${name} must be rejected at execution time`);
+    assert.match(result.content, /^Unknown tool:/);
+  }
+});
+
+test('the retired demo kickoff endpoint is absent', async () => {
+  const res = await fetch(`${base}/api/canvases/${canvasId}/demo/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: ownerCookie },
+    body: '{}',
+  });
+  assert.equal(res.status, 404);
+});
+
 test('execute-time re-check refuses governed tools outside the authority map', async () => {
   db.prepare('UPDATE agents SET tools_json = ? WHERE id = ?').run(JSON.stringify(['hs_search']), agentId);
   const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId);
@@ -94,8 +121,13 @@ test('execute-time re-check refuses governed tools outside the authority map', a
   assert.match(refused.content, /authority map/);
 
   // Ungoverned tools still execute for the same agent.
-  const rows = await executeTool('read_rows', {}, { run, agent, canvas });
-  assert.ok(!rows.isError, `read_rows should work: ${rows.content}`);
+  db.prepare(`INSERT INTO notes (id, canvas_id, title, content, pinned, updated_at, deleted_at)
+    VALUES ('retired-note-auth-test', ?, 'Retired demo note', 'must stay hidden', 0, ?, ?)`)
+    .run(canvasId, nowIso(), nowIso());
+  const notes = await executeTool('read_notes', {}, { run, agent, canvas });
+  assert.ok(!notes.isError, `read_notes should work: ${notes.content}`);
+  assert.ok(!JSON.parse(notes.content).some((note) => note.id === 'retired-note-auth-test'),
+    'soft-deleted demo notes stay out of agent context');
   db.prepare('UPDATE agents SET tools_json = NULL WHERE id = ?').run(agentId);
 });
 
@@ -159,7 +191,7 @@ async function captureOfferedTools({ authorityJson = null, between = null } = {}
     if (nth === 1 && between) {
       between();
       return {
-        content: [{ type: 'tool_use', id: 'tu-1', name: 'read_rows', input: {} }],
+        content: [{ type: 'tool_use', id: 'tu-1', name: 'read_notes', input: {} }],
         stop_reason: 'tool_use', usage: {},
       };
     }

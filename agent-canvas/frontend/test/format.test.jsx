@@ -365,7 +365,7 @@ describe('component surfaces', () => {
     const { container } = render(
       <NeedsYouView rows={rows} userEmail="pete@x.com" agentsById={{}} people={[]} agents={[]}
         onResolveEscalation={vi.fn()} onAssign={vi.fn()} onOpenMemory={vi.fn()} onOpenRun={vi.fn()}
-        onOpenWorkbook={vi.fn()} onRetryRun={vi.fn()} onExtendReview={vi.fn()}
+        onRetryRun={vi.fn()} onExtendReview={vi.fn()}
         onAcknowledgeRuleRun={vi.fn()} onOpenRule={vi.fn()} />,
     );
     expect(screen.getByText('Scan done. 2 items matched.')).toBeInTheDocument();
@@ -385,7 +385,7 @@ describe('component surfaces', () => {
     const { container } = render(
       <NeedsYouView rows={[row]} userEmail="pete@x.com" agentsById={{}} people={[]} agents={[]}
         onResolveEscalation={vi.fn()} onAssign={vi.fn()} onOpenMemory={vi.fn()} onOpenRun={vi.fn()}
-        onOpenWorkbook={vi.fn()} onRetryRun={vi.fn()} onExtendReview={vi.fn()}
+        onRetryRun={vi.fn()} onExtendReview={vi.fn()}
         onAcknowledgeRuleRun={vi.fn()} onOpenRule={vi.fn()} />,
     );
     expect(screen.getByText('Two deals went quiet.')).toBeInTheDocument();
