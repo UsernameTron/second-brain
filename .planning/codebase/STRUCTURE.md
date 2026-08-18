@@ -1,213 +1,243 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-07-31
+**Analysis Date:** 2026-08-18
 
-## Directory Layout
+This repository contains two independently-structured projects: the second-brain memory pipeline at the repo root, and the `agent-canvas/` subproject (its own `package.json`, test runner, deploy pipeline, and `CLAUDE.md`). See ARCHITECTURE.md for how they relate.
+
+## Directory Layout — Repo Root (second-brain)
 
 ```
 second-brain/
-├── src/                    # Pipeline library modules (CJS, single-responsibility)
-│   ├── today/              # /today orchestrator's extracted stages (Phase 15 refactor)
-│   ├── connectors/          # External API connectors + shared result-shape contract
+├── src/                     # Pipeline library modules (CJS, single-responsibility)
+│   ├── today/               # /today orchestrator's extracted stages (Phase 15 refactor)
+│   ├── connectors/          # External API connectors (calendar, gmail, github) + shared result-shape contract
 │   └── utils/               # Cross-cutting utilities (health trackers, hashing, schema validation)
-├── scripts/                # Standalone CLI entry points (each loads dotenv itself)
-├── test/                   # Jest suite, mirrors src/ layout plus integration/uat/fixtures
-├── config/                 # JSON config, optionally overlaid by gitignored *.local.json
+├── test/                    # Jest suite (58 files), mirrors src/ layout plus integration/uat/fixtures
+│   ├── today/               # Tests for src/today/* stages
+│   ├── uat/                 # End-to-end UAT tests, skip-gated from CI (process.env.CI && test.skip)
+│   └── unit/, utils/        # Focused unit tests
+├── config/                  # JSON config, optionally overlaid by gitignored *.local.json
 │   └── schema/              # AJV JSON Schema definitions, one per config file
-├── hooks/                  # Repo-managed git hooks (core.hooksPath) + their JS implementations
+├── scripts/                 # Standalone CLI entry points (each loads dotenv itself)
+├── hooks/                   # Repo-managed git hooks (core.hooksPath=hooks) + their JS implementations
 ├── .claude/
 │   ├── hooks/                # Claude Code lifecycle hooks (SessionStart, Stop, gates)
-│   ├── agents/               # Claude Code subagent definitions
-│   ├── skills/               # Claude Code skill definitions (dream-apply, dream-propose, ...)
-│   ├── commands/             # Slash command markdown wrappers (/today, /new, /wrap, ...)
-│   └── worktrees/            # Executor worktrees (gitignored, ephemeral)
-├── eval/                   # Frozen retrieval eval fixtures (seed vault, golden set, baselines)
-├── decisions/               # Architecture Decision Records (ADR-018, ADR-019, ADR-020)
-├── docs/                    # Supplementary docs (devops handoff, local-llm backlog)
-├── state/                   # Mutable runtime state (session log, decisions log, dream ledger)
-├── tasks/                   # Operator lessons.md, todo.md, triage notes
-├── engineering-status/     # Generated STATUS.md source data + narrative prompt
-├── .planning/               # GSD execution state (phases, milestones, quick tasks, research)
-│   └── codebase/             # Codebase mapping documents (this file lives here)
-├── .github/workflows/      # CI pipeline definitions
-└── coverage/                # Generated Jest coverage report (gitignored)
+│   ├── agents/               # Claude Code subagent definitions (test-runner, vault-guardian, canvas-*, etc.)
+│   ├── commands/              # Slash command definitions (/today, /new, /wrap, /recall, /reroute, ...)
+│   └── skills/                # Skill definitions (dream-propose, dream-apply, config-validator, pipeline-health)
+├── .planning/                # GSD execution state (PROJECT.md, ROADMAP.md, milestones, codebase docs — this file)
+├── decisions/                 # ADRs (ADR-018/019/020: reach layer, authority hierarchy)
+├── docs/                      # Codebase map, DevOps handoff, program docs
+├── eval/                      # Retrieval eval harness: frozen seed vault, golden recall set, baselines
+├── content/                   # Static assets referenced by executive deliverables (PDFs, logos)
+├── tasks/                     # lessons.md (operator-correction log) and related task tracking
+├── agent-canvas/              # Separate subproject — see below
+├── CLAUDE.md                  # Root project instructions
+└── package.json                # Root Node project: Jest, ESLint flat config, root src/scripts/test
 ```
 
-## Directory Purposes
+## Directory Purposes — Repo Root
 
 **`src/`:**
-- Purpose: all production pipeline logic. Plain CJS (`'use strict'` + `module.exports`), no build step, no framework.
-- Contains: one module per pipeline concern — vault gateway, classifier, memory extractor/proposals/promoter, semantic index, reach exporter, dream consolidation, daily stats, memory dashboard, wikilink engine, note formatter, content/style policy, lifecycle maintenance, command entry files (`new-command.js`, `recall-command.js`, `reroute.js`, `promote-unrouted.js`).
-- Key files: `vault-gateway.js` (write enforcement), `pipeline-infra.js` (config loaders + LLM client factory, imported almost everywhere), `classifier.js`, `memory-extractor.js`, `memory-proposals.js`, `promote-memories.js`, `semantic-index.js`, `memory-reader.js`, `reach-exporter.js`, `memory-dashboard.js` (regenerates `memory/dashboard.md` on promotion), `dream.js`, `today-command.js`, `daily-stats.js`.
+- Purpose: single-responsibility CJS modules — vault gateway, memory extraction/staging/promotion, semantic index, connectors, orchestration
+- Contains: ~30 top-level `.js` files plus `today/`, `connectors/`, `utils/` subdirectories
+- Key files: `vault-gateway.js` (write enforcement), `today-command.js` (orchestrator), `memory-extractor.js`/`memory-proposals.js`/`promote-memories.js` (memory pipeline), `semantic-index.js` (Voyage embeddings + RRF), `reach-exporter.js` (cross-surface export), `classifier.js` (`/new` routing), `pipeline-infra.js` (config loaders, LLM client factory)
 
 **`src/today/`:**
-- Purpose: modules extracted from `today-command.js` during the Phase 15 architecture refactor so the orchestrator stays a thin fan-out shell.
-- Contains: `slippage-scanner.js` (pure, scans `~/projects/*/.planning/STATE.md`), `frog-identifier.js` (one Haiku call + heuristic fallback), `llm-augmentation.js` (synthesis paragraph), `briefing-renderer.js` (synchronous markdown assembly, six sections, written via `vaultWrite()` to `briefings/daily/<date>.md` with a quarantine-stub fallback), `memory-health.js` (anomaly detector over daily-stats rows), `compounding-trend.js` (pure trend engine, shared by `/today` and the CLI), `sweep-status.js` (fail-open proof-of-fire line).
+- Purpose: extracted stages of the `/today` briefing pipeline (post-Phase-15 refactor — `today-command.js` composes these rather than inlining logic)
+- Key files: `slippage-scanner.js`, `frog-identifier.js`, `llm-augmentation.js`, `briefing-renderer.js`, `memory-health.js`, `compounding-trend.js`, `sweep-status.js`
 
 **`src/connectors/`:**
-- Purpose: external API integrations, each returning the uniform `makeResult`/`makeError` shape defined in `types.js`.
-- Contains: `calendar.js` (Google Calendar), `gmail.js`, `github.js`, `types.js` (SOURCE enum + result factories + connectors config loader).
+- Purpose: external API integrations sharing one result-shape contract (`types.js`)
+- Key files: `calendar.js`, `gmail.js`, `github.js` — each returns `{success, data, error, source, fetchedAt}`, never throws
 
 **`src/utils/`:**
-- Purpose: small, cross-cutting helpers with no pipeline-stage identity of their own.
-- Contains: `voyage-health.js` / `classifier-health.js` (adaptive-denial trackers, cache-dir JSON state), `memory-utils.js` (`computeHash`, `sourceRefShort`), `validate-schema.js` (AJV wrapper).
-
-**`scripts/`:**
-- Purpose: process entry points invoked directly by a human, a slash command, or `launchd` — never required by another `src/` module at the top level.
-- Contains: `wrap.js` (/wrap extraction), `daily-sweep.js` (23:45 scheduled sweep), `dream.js` (`--propose`/`--dry-run`/`--apply`), `build-index.js` (SQLite rebuild, also exports `buildIndex` for in-process reuse by `promote-memories.js`/`dream.js`), `eval-recall.js`, `compounding-report.js`, `recall.js`, `migrate-memory-wiki.js`, `validate-archive.js`, `verify-baseline.js`, `engstatus.sh`, `setup-remote-trigger.sh`.
-- Convention: every script that touches `src/` loads `dotenv` itself, guarded by `require.main === module` — `src/` library code never calls `dotenv.config()` at import time (`HOOK-DOTENV-01`).
+- Purpose: cross-cutting helpers not specific to one pipeline stage
+- Key files: `voyage-health.js`/`classifier-health.js` (Pattern 7 adaptive denial trackers, persist to `~/.cache/second-brain/`), `memory-utils.js` (hashing), `validate-schema.js`
 
 **`test/`:**
-- Purpose: Jest suite, structure mirrors `src/`.
-- Contains: `test/today/`, `test/connectors/`, `test/utils/`, `test/unit/` (finer-grained unit tests not yet migrated to a mirrored path), `test/integration/` (cross-module flows: promotion→reach, recall end-to-end, semantic search, today→stats), `test/uat/` (`.uat.test.js` suffix, skip-gated from CI via `process.env.CI`), `test/hooks/` (both `.test.js` and `.test.sh` for shell hooks), `test/agents/`, `test/fixtures/` (`memory-sample.md`).
+- Purpose: Jest suite, 58 files, structure mirrors `src/`
+- Subdirs: `today/` (mirrors `src/today/`), `uat/` (end-to-end, CI-skip-gated), `unit/` (focused single-function tests), `utils/`
+- Convention: `<module>.test.js` co-located by name with its `src/` counterpart, not by directory nesting (e.g. `test/vault-gateway.test.js` for `src/vault-gateway.js`)
 
 **`config/`:**
-- Purpose: all tunables as JSON, loaded via `loadConfigWithOverlay()` (`src/pipeline-infra.js`).
-- Contains: `pipeline.json` (classifier/extraction/wikilink/promotion/retry/leftProposal/filename/slippage/thresholds/stats/memory/memoryHealth/dream/sessionInject — the largest config, schema-validated with required-section checks), `vault-paths.json` (LEFT/RIGHT allowlist), `excluded-terms.json`, `memory-categories.json`, `reach-targets.json`, `scheduling.json`, `templates.json`, `connectors.json`, `docsync.json`, plus the two `launchd` `.plist` files and a `pipeline.local.json` (gitignored overlay, `pipeline.local.example.json` as the checked-in template).
-- Overlay convention: any `<name>.json` may have a sibling `<name>.local.json`, deep-merged at load time. Unwired `.local.json` files (no loader references that base name) print a one-time stderr warning.
+- Purpose: JSON configuration, hot-reloadable where the consuming module watches it (`vault-gateway.js` watches `vault-paths.json` and `excluded-terms.json` via chokidar)
+- Key files: `vault-paths.json` (LEFT/RIGHT allowlist), `excluded-terms.json` (content-policy exclusions), `pipeline.json`/`pipeline.local.example.json` (LLM client config, overlay pattern), `reach-targets.json` (cross-surface export allowlist), `memory-categories.json`, `scheduling.json`, `connectors.json`, `docsync.json`, `templates.json`
+- `config/schema/`: one AJV JSON Schema per config file, validated by `src/config-validator.js` and the `pre-commit` hook
 
-**`config/schema/`:**
-- Purpose: AJV JSON Schema, one file per validated config, same base name (`pipeline.schema.json`, `vault-paths.schema.json`, etc.).
+**`scripts/`:**
+- Purpose: standalone CLI entry points, each independently `require`-able and each loading its own dotenv
+- Key files: `wrap.js` (`/wrap` backing script), `daily-sweep.js` (nightly inbox+transcript mining), `today-scheduled.js` (launchd entry for `/today`), `dream.js` (monthly consolidation propose/apply), `recall.js` (cross-session recall CLI), `compounding-report.js`, `verify-baseline.js`, `build-index.js`, `validate-archive.js`, `migrate-memory-wiki.js`, `setup-remote-trigger.sh`, `engstatus.sh`
 
 **`hooks/`:**
-- Purpose: repo-managed git hooks. `npm run prepare` sets `core.hooksPath=hooks`, so this directory is live (not `.git/hooks/`).
-- Contains: `pre-commit` / `pre-commit-schema-validate.js` / `pre-commit-vault-boundary.js`, `pre-push` / `pre-push-docsync.js`, `post-merge` / `post-merge-doc-sync.js`.
+- Purpose: git hooks, live at `core.hooksPath=hooks` (repo-managed, not `.git/hooks/`)
+- Key files: `pre-commit`/`pre-commit-schema-validate.js`/`pre-commit-vault-boundary.js` (AJV validation + LEFT/RIGHT boundary check), `pre-push`/`pre-push-docsync.js` (stale-master block + docs-sync gate, `SKIP_DOCSYNC=1` bypass), `post-merge`/`post-merge-doc-sync.js` (non-blocking drift warning)
 
-**`.claude/hooks/`:**
-- Purpose: Claude Code lifecycle hooks — distinct from the git hooks above (different trigger model, registered in `settings.json`).
-- Contains: `session-memory-inject.js` (SessionStart, Phase 35 — proactive memory digest), `memory-extraction-hook.js` (Stop), `auto-test.sh`, `protected-file-guard.sh`, `security-scan-gate.sh` (+ its `.md` doc), `staleness-check.js` (reads `CLAUDE.md`'s "Last verified" line).
-
-**`.claude/agents/`:**
-- Purpose: subagent role definitions consumed by the Claude Code Task tool.
-- Contains: `docs-sync.md`, `memory-specialist.md`, `pipeline-reviewer.md`, `security-scanner.md`, `test-runner.md`, `test-verifier.md`, `vault-guardian.md`, `vault-triage.md` (added PR #94 — routes stray vault files; moves only, never deletes, never LEFT).
-
-**`.claude/skills/`:**
-- Purpose: skill definitions (`SKILL.md` per directory) invoked via the Skill tool.
-- Contains: `config-validator/`, `dream-apply/`, `dream-propose/`, `dream-memory-consolidation/` (also has a `_MANIFEST.md`), `pipeline-health/`.
-
-**`.claude/commands/`:**
-- Purpose: slash-command wrappers, one markdown file per command, each delegating to the matching `src/*-command.js` or `scripts/*.js`.
-- Contains: `today.md`, `new.md`, `wrap.md`, `recall.md`, `reroute.md`, `promote-memories.md`, `promote-unrouted.md`.
-
-**`eval/`:**
-- Purpose: retrieval-quality regression fixtures, frozen so eval runs are reproducible.
-- Contains: `seed-vault/` (frozen vault fixture), `golden-recall.json` (query→expected-hash golden set), `baseline-*.json` (recall@5/MRR snapshots per `npm run eval:recall -- --baseline`), `baseline-sentinel-hashes.json`, `.cache/` (gitignored working cache).
-
-**`decisions/`:**
-- Purpose: ADRs — durable architectural decisions with rationale, not living docs.
-- Contains: `ADR-018-cross-surface-reach.md`, `ADR-019-reach-layer-mechanism.md`, `ADR-020-authority-hierarchy.md`.
-
-**`docs/`:**
-- Purpose: supplementary reference docs that don't fit the ADR or `.planning/` shape.
-- Contains: `DEVOPS-HANDOFF.md`, `second-brain-local-llm-backlog.md`.
-
-**`state/`:**
-- Purpose: mutable runtime artifacts written by the running system itself — project-local, not vault content.
-- Contains: `session-log.md`, `decisions.md` (both read by `dream.js`'s MISSED-PATTERNS detector), `dream-ledger.json` (propose/apply run history), `pattern-context.md`, `daily-sweep-last-run.json` (sweep proof-of-fire, read by `today/sweep-status.js`), `transcripts-swept.json`.
-
-**`tasks/`:**
-- Purpose: operator-facing working notes per the global CLAUDE.md convention, not GSD-managed.
-- Contains: `lessons.md` (operator-correction log), `todo.md`, `promotion-triage-2026-07-19.md`.
-
-**`engineering-status/`:**
-- Purpose: generated status snapshot inputs for `scripts/engstatus.sh`.
-- Contains: `INDEX.md`, `NARRATIVE-PROMPT.md`, `.last-snapshot` (git-derived facts, regenerated — not hand-edited).
+**`.claude/`:**
+- Purpose: Claude Code configuration — separate from git hooks
+- `hooks/`: `auto-test.sh`, `protected-file-guard.sh`, `security-scan-gate.sh`/`.md`, `memory-extraction-hook.js`, `session-memory-inject.js`, `staleness-check.js`
+- `agents/`: subagent definitions, including two agent-canvas-specific ones — `canvas-integration-auditor.md`, `canvas-tool-surface-reviewer.md` — alongside the root-focused `vault-guardian.md`, `memory-specialist.md`, `pipeline-reviewer.md`, `test-runner.md`, `test-verifier.md`, `security-scanner.md`, `docs-sync.md`, `vault-triage.md`
+- `commands/`: one `.md` file per slash command
+- `skills/`: `dream-propose/`, `dream-apply/`, `dream-memory-consolidation/`, `config-validator/`, `pipeline-health/`
 
 **`.planning/`:**
-- Purpose: GSD execution state for this project — phases, milestones, backlog, requirements, roadmap.
-- Contains: `phases/`, `milestones/` (`v1.0-phases/` through `v1.8-phases/`), `quick/` (`/gsd:quick` task folders), `research/`, `debug/`, `dependencies/`, `ecosystem/`, `reports/`, `state/`, plus top-level `PROJECT.md`, `STATE.md`, `ROADMAP.md`, `REQUIREMENTS.md`, `REVIEWS.md`, `MILESTONES.md`, `RETROSPECTIVE.md`, `HANDOFF.md`, `backlog.md`, `todos.md`.
+- Purpose: GSD execution state — this file lives at `.planning/codebase/STRUCTURE.md`
+- Key subdirs: `codebase/` (this doc set), `milestones/` (per-version requirements/roadmap/phase docs), `debug/`, `quick/` (ad-hoc task logs), `reports/`, `dependencies/`, `research/`
 
-**`.planning/codebase/`:**
-- Purpose: codebase mapping documents (this file's own location) — consumed by `/gsd:plan-phase` and `/gsd:execute-phase` to ground planning in actual code rather than assumption.
+**`eval/`:**
+- Purpose: retrieval quality regression harness
+- Contains: `seed-vault/` (frozen test vault), `golden-recall.json` (labeled query set), `baseline-*.json` (recorded recall@5/MRR baselines)
+- Run via `npm run eval:recall`; exits 1 on regression
 
-**Vault RIGHT side (`~/Claude Cowork/`, `config/vault-paths.json`, post-2026-07-26 restructure):**
-- Purpose: the actual Obsidian vault, not this repo, but its layout is driven entirely by `config/vault-paths.json`'s `right` array and is load-bearing for where code writes.
-- Contains: `memory/` (`memory.md` canonical store + generated `dashboard.md`), `briefings/` (`daily-stats.md` + `daily/<date>.md`, replacing the old top-level `RIGHT/` folder), `proposals/` (+ `unrouted/`, `left-proposals/` + its `archive/`), `archive/` (consolidated `archive/memory` + `archive/proposals`, replacing prior per-feature archive folders), `standards/`-equivalents (`standups`, `projects`, `maps`), plus `ctg`, `job-hunt`, `interview-prep`, `content`, `research`, `ideas`, `inbox`. As of 2026-07-31 `maps/` holds the vault's MOC (map-of-content) layer — 7 notes added that day, entry point `maps/home.md` — and `archive/unrouted-quarantine-20260720/` carries a `README.md` manifest for the 4,560 inert dead-letter files it holds (see CONCERNS.md on why vault-wide file counts are misleading). `vault-gateway.js`'s `checkPath()` rejects any write with no folder segment (a vault-root file), and quarantines path violations as metadata-only records under `proposals/`.
+**`decisions/`:**
+- Purpose: architecture decision records
+- Key files: `ADR-018-cross-surface-reach.md`, `ADR-019-reach-layer-mechanism.md`, `ADR-020-authority-hierarchy.md`
 
-**`.github/workflows/`:**
-- Purpose: CI pipeline — ESLint, CodeQL, license-checker, Node 22 matrix, coverage thresholds, GitGuardian secrets scan (per root `CLAUDE.md`).
+## Naming Conventions — Root
 
-**No dedicated `wiki/` directory:** wikilink generation is code, not a content directory — `src/wikilink-engine.js` builds an in-memory vault index and suggests `[[links]]` at promotion/note-write time; `scripts/migrate-memory-wiki.js` is the one sanctioned one-off mutation path for retrofitting links into an existing `memory.md`. There is no `wiki/` path in the repo or the vault.
+**Files:** camelCase module names matching their primary export's domain (`vault-gateway.js`, `memory-proposals.js`); hyphenated multi-word names throughout `src/` and `scripts/`.
 
-## Key File Locations
+**Tests:** `<module-name>.test.js`, placed in `test/` at the same relative depth as the `src/` file it covers (or in `test/unit/`, `test/uat/`, `test/today/` when the test is integration/e2e/stage-specific rather than a 1:1 unit mirror).
 
-**Entry Points:**
-- `scripts/wrap.js`, `scripts/daily-sweep.js`, `scripts/dream.js`, `scripts/build-index.js`, `scripts/recall.js`: standalone CLIs
-- `.claude/commands/*.md`: slash-command wrappers
-- `.claude/hooks/session-memory-inject.js`: SessionStart hook
+**Config:** `<domain>.json` at `config/` root, paired with `config/schema/<domain>.schema.json`; local overrides as `<domain>.local.json` (gitignored).
 
-**Configuration:**
-- `config/pipeline.json` (+ `pipeline.local.json` overlay, gitignored): the primary tunables file — classifier thresholds, extraction chunking, promotion batch caps, memory/semantic search params, dream budgets, session-inject config
-- `config/vault-paths.json`: LEFT/RIGHT write-permission allowlist — RIGHT rewritten 2026-07-26 to add `archive`, `standups`, `projects`, `maps` and drop the old top-level `RIGHT` folder
-- `config/schema/*.json`: AJV schemas paired 1:1 with config files
+## Where to Add New Code — Root
 
-**Core Logic:**
-- `src/vault-gateway.js`: write enforcement — `checkPath()` explicitly rejects vault-root writes
-- `src/pipeline-infra.js`: config loading + LLM client factory (imported by nearly every other module)
-- `src/promote-memories.js`, `src/memory-extractor.js`, `src/memory-proposals.js`: the memory pipeline; `ARCHIVE_DIR`/`PROPOSAL_ARCHIVE_DIR` constants point at `archive/memory` / `archive/proposals`
-- `src/memory-dashboard.js`: regenerates `memory/dashboard.md` on every promotion (hooked from `promote-memories.js` and `scripts/dream.js`)
-- `src/semantic-index.js`, `src/memory-reader.js`: retrieval
-- `src/dream.js`: consolidation detection + apply
-- `src/daily-stats.js`: `briefings/daily-stats.md` row storage, including the `vault_hygiene` column
+**New pipeline stage or module:** `src/<name>.js`, paired with `test/<name>.test.js`. If it's a `/today` stage specifically, add to `src/today/` and wire it into `today-command.js`'s composition.
 
-**Testing:**
-- `test/<mirror-of-src>/*.test.js`: unit tests
-- `test/integration/*.test.js`: cross-module flows
-- `test/uat/*.uat.test.js`: end-to-end, CI-skip-gated
+**New external connector:** `src/connectors/<service>.js`, implementing the shared `{success, data, error, source, fetchedAt}` contract from `src/connectors/types.js`; never throws.
 
-## Naming Conventions
+**New config file:** add `config/<name>.json` + `config/schema/<name>.schema.json`; load via `pipeline-infra.js`'s overlay-enabled loader pattern, not a raw `fs.readFileSync`.
 
-**Files:**
-- Library modules: `kebab-case.js` matching their primary export's concern (`memory-proposals.js`, `reach-exporter.js`)
-- Command entry files: `<verb>-command.js` (`today-command.js`, `new-command.js`, `recall-command.js`) or bare verb (`reroute.js`, `promote-unrouted.js`)
-- Test files: `<module-name>.test.js`, co-located under a mirrored `test/` path; UAT suffix `.uat.test.js`; shell-hook tests `.test.sh`
+**New slash command:** `.claude/commands/<name>.md` plus a backing module in `src/` or script in `scripts/`.
 
-**Directories:**
-- Config schemas share the exact base name of the config they validate (`pipeline.json` ↔ `pipeline.schema.json`)
-- `.planning/quick/` and `.planning/milestones/` subfolders are date/version-stamped, generated by GSD commands — not hand-created
-
-## Where to Add New Code
-
-**New pipeline stage or command:**
-- Primary code: new module in `src/`, following the existing single-responsibility pattern (one concern, `module.exports` at the bottom, JSDoc module header with `@module` tag)
-- If it's a new slash command: add a thin `.claude/commands/<name>.md` wrapper plus a `src/<name>-command.js` (or reuse an existing command file if extending)
-- Tests: mirrored path under `test/` (e.g., `src/foo.js` → `test/foo.test.js`)
-
-**New `/today` section:**
-- Implementation: new file in `src/today/`, imported and composed by `today-command.js`; keep it synchronous/pure where possible (see `compounding-trend.js`, `sweep-status.js` — pure functions over already-fetched data), following the null-suppression precedent (return `null`/empty to hide the section rather than rendering a broken one)
-
-**New external integration:**
-- Implementation: `src/connectors/<service>.js`, returning `makeResult`/`makeError` from `src/connectors/types.js`; register any new config in `config/connectors.json` + `config/schema/connectors.schema.json`
-
-**New config value:**
-- Add to the relevant `config/*.json`, update its paired `config/schema/*.schema.json`, and read it via `loadConfigWithOverlay()` (never `fs.readFileSync` directly) so the overlay + validation conventions stay intact
-
-**Utilities:**
-- Shared, stage-agnostic helpers: `src/utils/`
-- One-off private helpers scoped to a single module's problem (e.g., `dream.js`'s own `_cosine`) are kept as module-local copies rather than widening another module's public surface — an established precedent in this codebase, not an oversight
-
-## Special Directories
-
-**`.claude/worktrees/`:**
-- Purpose: ephemeral executor worktrees
-- Generated: Yes
-- Committed: No (gitignored) — cannot run this repo's Jest suite from inside a worktree (no `node_modules` symlink)
-
-**`coverage/`:**
-- Purpose: Jest coverage report (lcov + HTML)
-- Generated: Yes
-- Committed: No (gitignored)
-
-**`eval/.cache/` and `.cache/` (repo root):**
-- Purpose: working caches for the eval harness and general scratch
-- Generated: Yes
-- Committed: No
-
-**`state/`:**
-- Purpose: live runtime state, mutated by the running system (not build output, not vault content)
-- Generated: Yes (continuously appended/rewritten)
-- Committed: Yes — this is deliberate; `state/session-log.md` and `state/decisions.md` are source material for `dream.js`'s pattern detection, so they're tracked
+**New health/degradation tracker:** follow Pattern 7 (`src/utils/voyage-health.js`) — persist consecutive-failure state to `~/.cache/second-brain/<name>.json`.
 
 ---
 
-*Structure analysis: 2026-07-31*
+## Directory Layout — `agent-canvas/`
+
+```
+agent-canvas/
+├── server/                  # Express backend — the entire runtime
+│   ├── orchestrator/         # Agent run engine: runner, queue, control, tools, model adapters
+│   ├── mcp/                   # Generic MCP connector client + server seeding
+│   ├── enrichment/             # Read-only enrichment-dispatch fan-out client
+│   ├── hubspot/                 # Sole HubSpot write lane (ops-runner proxy)
+│   ├── google/                   # Gmail/Drive/Sheets/Calendar client (grantor OAuth)
+│   ├── config/                    # Static JSON config: ICP definitions, legacy prompts, org context, supplier catalog
+│   ├── routes.js                    # Single Express router — ~100 endpoints (2,532 lines)
+│   ├── db.js                          # SQLite schema + connection (node:sqlite, WAL)
+│   ├── memory.js                        # Shared project memory (append-only, epistemic states)
+│   ├── auth.js                            # Session auth, OAuth login, role checks
+│   ├── ws.js / bus.js                      # WebSocket hub / in-process event bus
+│   ├── standing-rules.js                    # Scheduled-rule parsing, leasing, dispatch
+│   ├── roster.js, builder.js, rooms.js       # Agent lifecycle, agent-draft propose/publish, rooms feature
+│   ├── evidence.js, explain.js, attention.js  # Evidence tagging, run explain-map, escalation/attention feed
+│   ├── audit.js                                # Hash-chained audit log
+│   ├── seed.js                                  # Boot-time DB seeding
+│   ├── gcp-identity.js, probestate.js, ratelimit.js  # Keyless GCP identity tokens, health probe cache, rate limiting
+│   └── index.js                                       # App assembly + process entry point
+├── frontend/                # Vite + React SPA
+│   ├── src/                  # FLAT — 22 files, no nested component directories
+│   ├── test/                  # Vitest suite (.test.jsx)
+│   └── public/                 # Static assets (README, mascot.png)
+├── test/                    # Backend test suite — node:test, 47 files
+│   └── fixtures/             # Test fixtures (e.g. fake-stdio-mcp.js)
+├── deploy/                  # Deployment scripts + vendored CA bundle
+├── docs/                    # Agent-canvas's own doc set — authoritative for current state
+├── hubspot-mcp-bridge/      # Standalone MCP bridge service (own Dockerfile/deploy.sh)
+├── gtm-mcp-bridge/          # Standalone MCP bridge service (own Dockerfile/deploy.sh)
+├── scripts/                 # Registry/prompt build scripts (build-registries.js, snapshot-roster-prompts.js)
+├── Dockerfile               # Node 22-slim + vendored Litestream .deb + CA bundle
+├── cloudbuild.yaml           # Cloud Build config
+├── package.json               # Separate Node project: express, ws, @anthropic-ai/sdk, @google/genai, pdfjs-dist
+└── CLAUDE.md                    # Agent-canvas project instructions (layered on root CLAUDE.md)
+```
+
+## Directory Purposes — `agent-canvas/`
+
+**`server/`:**
+- Purpose: the entire backend runtime — one Express app, no separate services within the main deployable
+- Contains: 27 top-level files/dirs; the two largest are `routes.js` (2,532 lines) and `tools.js` (1,295 lines, inside `orchestrator/`)
+
+**`server/orchestrator/`:**
+- Purpose: the agent run engine
+- Key files: `runner.js` (the run loop — system prompt construction, model calls, tool execution, budget enforcement), `queue.js` (dispatch, bounded concurrency, stranded-run reconciliation, orphan recovery), `tools.js` (tool definitions, authority/mode gating, escalation creation), `control.js` (global pause, daily budget), `anthropic.js`/`gemini.js` (provider adapters), `pdf-extract-worker.js` (PDF text extraction worker)
+
+**`server/mcp/`:**
+- Purpose: generic Model Context Protocol connector layer
+- Key files: `client.js` (Streamable-HTTP JSON-RPC client, per-tool allowlisting, mutating-tool-name heuristic), `seed.js` (boot-time MCP server seeding from config)
+
+**`server/enrichment/`:**
+- Purpose: read-only client for the external `ctg-enrichment-dispatch` service
+- Key file: `dispatch.js` — no commit tool by design, per-call credit clamping
+
+**`server/hubspot/`:**
+- Purpose: the sole HubSpot write lane
+- Key file: `opsrunner.js` — proxies to external IAM-gated ops-runner, no local HubSpot credential, client-side refusal-list mirror
+
+**`server/google/`:**
+- Purpose: Gmail/Drive/Sheets/Calendar access on behalf of the connecting user (not a service account)
+- Key file: `workspace.js`
+
+**`server/config/`:**
+- Purpose: static JSON reference data consumed by the roster/builder/standing-rules modules
+- Key files: `icp-sr-icp-v6.json`, `legacy-exec-prompts.json`, `legacy-roster-prompts.json`, `org-context.json`, `supplier-catalog.json`
+
+**`frontend/src/`:**
+- Purpose: the entire React SPA — flat, no `components/`, `pages/`, or `hooks/` subdirectories
+- Contains: 22 files — `App.jsx` (root), `Canvas.jsx`, `Nodes.jsx`, `Panels.jsx`, `Workspace.jsx`, `Home.jsx`, `RoomsView.jsx`, `RulesView.jsx`, `NeedsYouView.jsx` (top-level views); `AgentBuilder.jsx`, `AddAgentModal.jsx`, `AdminModal.jsx`, `CapabilitiesModal.jsx`, `CommandBar.jsx`, `ActivityDock.jsx`, `MemoryPanel.jsx`, `ExplainMap.jsx`, `Tray.jsx` (feature panels/modals); `api.js`, `format.jsx`, `teamTemplates.js`, `useDialog.js`, `main.jsx`, `styles.css` (shared utilities/entry)
+
+**`test/` (backend):**
+- Purpose: `node:test`-based suite, 47 files, one file per feature area rather than mirroring `server/` 1:1
+- Key files: `hardening.test.js`, `orchestrator-safety.test.js`, `access-control.test.js`, `hubspot-opsrunner.test.js`, `enrichment-dispatch.test.js`, `memory-contract.test.js`, `memory-lifecycle.test.js`, `standing-rules.test.js`/`standing-rules-tick.test.js`, `roster-heal.test.js`/`roster-reseed.test.js`, `mcp-connectors.test.js`/`mcp-access.test.js`
+
+**`frontend/test/`:**
+- Purpose: Vitest suite for the React app, `.test.jsx` naming
+- Key files: `workspace-cleanup.test.jsx`, `builder.test.jsx`, `rules.test.jsx`, `rooms.test.jsx`, `light-theme.test.jsx`, `api-upload.test.jsx`, `setup.js` (test environment setup)
+
+**`deploy/`:**
+- Purpose: deployment tooling for the Cloud Run service
+- Key files: `deploy.sh` (main deploy script, includes a `--selftest` preflight mode invoked by `npm run verify`), `start.sh` (container entrypoint — Litestream restore-then-replicate wrapping `node server/index.js`), `cacert.pem` (vendored Mozilla CA bundle for Litestream→GCS TLS on `node:22-slim`, which ships no system CA store)
+
+**`docs/`:**
+- Purpose: agent-canvas's own authoritative doc set — separate from and more current than anything in root `.planning/` for agent-canvas specifics
+- Key files: `HANDOFF.md` (current-state block, authoritative), `HANDOFF-HISTORY.md` (superseded tail of HANDOFF.md), `ROADMAP.md`, `DEPLOY.md`, `DEVOPS-HANDOFF.md`, `AUTONOMOUS-EXECUTION.md`, `FRONTEND-SPEC.md`, `HUBSPOT-AGENT-CLI.md`, `IMPROVE-FINDINGS.md`, `PORTFOLIO-FOLD-IN.md`, `WAVE2-SOI-RUNBOOK.md`, `GO-LIVE-UNBLOCK.md`, `README.md` (classifies current/reference/historical — read first)
+
+**`hubspot-mcp-bridge/`, `gtm-mcp-bridge/`:**
+- Purpose: standalone MCP bridge services, each independently deployed (own `Dockerfile`, `deploy.sh`) — not started by `server/index.js` and not part of the main Cloud Run service
+
+**`scripts/`:**
+- Purpose: build-time tooling for the roster/registry system, not runtime
+- Key files: `build-registries.js`, `snapshot-roster-prompts.js`
+
+## Naming Conventions — `agent-canvas/`
+
+**Backend files:** lowercase, single-word-or-hyphenated module names matching domain (`routes.js`, `standing-rules.js`, `probestate.js`).
+
+**Frontend files:** PascalCase for React components (`AgentBuilder.jsx`, `RoomsView.jsx`), camelCase for non-component modules (`api.js`, `format.jsx`, `useDialog.js`).
+
+**Tests (backend):** `<feature-area>.test.js` under `test/`, `node:test` runner — feature-scoped, not 1:1 with `server/` files.
+
+**Tests (frontend):** `<feature>.test.jsx` under `frontend/test/`, Vitest.
+
+## Where to Add New Code — `agent-canvas/`
+
+**New API endpoint:** add a route in `server/routes.js`; if it needs non-trivial logic, put that logic in a new or existing `server/<domain>.js` module and keep the route handler thin (existing pattern: `memory.js`, `standing-rules.js`, `rooms.js`).
+
+**New orchestrator tool:** `server/orchestrator/tools.js` — register the tool definition, wire mode-blocking and authority checks; if it calls an external service, add a dedicated client module (follow the `hubspot/opsrunner.js` / `enrichment/dispatch.js` pattern: named operations only, keyless identity token, client-side refusal mirror if the external service has one, every call audited).
+
+**New external integration:** a new top-level `server/<service>/` directory with its own client module — do not add raw `fetch` calls inline in `routes.js` or `tools.js`.
+
+**New frontend view/panel:** a new file directly in `frontend/src/` (flat convention — do not introduce a `components/` subdirectory unless restructuring is explicitly planned).
+
+**New backend test:** `test/<feature-area>.test.js`, `node:test` style (see `hardening.test.js` for the house style).
+
+**New frontend test:** `frontend/test/<feature>.test.jsx`, Vitest + existing `setup.js`.
+
+**Verification gate before any agent-canvas change is done:** `npm run verify` (backend `node:test` + frontend vitest + frontend production build + `deploy.sh` syntax + deploy preflight self-test) — `npm test` alone only covers the backend and has never been the full gate.
+
+---
+
+*Structure analysis: 2026-08-18*

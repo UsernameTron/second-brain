@@ -1,231 +1,243 @@
 # Architecture
 
-**Analysis Date:** 2026-07-31
+**Analysis Date:** 2026-08-18
 
-## Pattern Overview
-
-**Overall:** Config-driven pipeline architecture over a single markdown vault substrate. There is no server process — plain Node.js CJS modules in `src/` are invoked by Claude Code slash commands (`.claude/commands/*.md`), standalone CLI scripts (`scripts/*.js`), and macOS `launchd` schedules. Every workflow is a sequential pipeline with explicit fail-open/fail-closed gates rather than a request/response service.
-
-**Key characteristics:**
-- **Single write-enforcement choke point.** All vault mutations route through `src/vault-gateway.js`'s three sequential guards (path allowlist → content policy → style lint). No module writes to the vault directly. Guard 1 explicitly rejects vault-root file writes (`checkPath()`: any normalized path with no `/` is BLOCKed with a named reason, not folded into a generic allowlist miss) — the 2026-07-26 vault restructure treats a root write as a distinct, loggable failure mode.
-- **Never-throw LLM client contract, extended to the extraction loop.** `src/pipeline-infra.js`'s `createLlmClient()` wraps every Anthropic/local-LLM call so failures surface as `{success:false, failureMode}` data, never exceptions — callers branch on the result instead of catching. Since PR #96 the same contract holds one level up: `memory-extractor.js`'s `extractFromFile()` wraps its per-candidate loop so a throw is recorded as an `extraction-error` in the results envelope instead of aborting the whole directory sweep that called it.
-- **Lease locks are reclaimed on proven death, not on age alone.** `src/memory-proposals.js`'s `acquireLock()` records `process.pid` in `proposals.lock`; a lock that is stale by age is only reclaimed after `process.kill(pid, 0)` proves the holder is gone (`ESRCH`). A live holder — or an `EPERM` probe, meaning alive but not ours — is never reclaimed; a corrupt or pid-less lock file is. Before the probe existed, a SIGKILLed holder left the lock forever, and every later candidate was silently buffered to the pending JSONL while callers still reported it as staged.
-- **Timeout budgets propagate down, they don't re-inherit.** A caller with a hard wall clock (the Stop hook, killed at 60s) passes `timeoutMs` down and every layer narrows to it rather than falling back to its own config: `classifyLocal()` takes `Math.min(llmConfig.localTimeoutMs, callOptions.timeoutMs ?? Infinity)`, `classifyAnthropic()` forwards it as the SDK's per-request `{ timeout }`, and `memory-extractor.js` treats `options.timeoutMs` as one extraction-*wide* deadline — each classify gets the *remaining* budget, and chunk processing stops with a recorded `timeout` failure once less than a 2s floor is left. A per-call timeout would have let N chunks each burn the full budget.
-- **Adaptive-denial health tracking (Pattern 7).** `src/utils/voyage-health.js` and `src/utils/classifier-health.js` persist consecutive-failure counts to `~/.cache/second-brain/*.json` so independent CLI invocations (interactive session, nightly sweep, monthly dream) coordinate on a known-bad endpoint instead of each burning a full timeout.
-- **Non-fatal side channels.** Embedding (`indexNewEntries`), reach export, SQLite rebuild, dashboard regeneration, contradiction-flagging, and stats recording all wrap their own try/catch around the primary write — a side-channel failure is logged and surfaced in the return envelope, never thrown back at the caller.
-- **Human-in-the-loop gates via checkbox parsing.** Both the memory-promotion pipeline and dream-consolidation pipeline stage proposals as markdown files with `- [ ] accept/reject/...` checkboxes, parsed by one shared `parseCheckboxState()` (`src/memory-proposals.js`) — no second parser exists for the dream changeset.
-- **Snapshot-before-mutate.** The one workflow that edits *existing* memory entries (`dream --apply`) snapshots `memory.md` + `embeddings.jsonl` + `index.db` first and auto-restores on a post-apply retrieval regression.
-- **Quarantine-stub fallback (best-effort, not a guarantee).** `today-command.js` writes the real briefing through `vaultWrite()` with `attemptCount: 1`; if the gateway quarantines it (content or style block), a `renderQuarantineStub()` placeholder is written to the same `briefings/daily/<date>.md` path. The stub is fixed text chosen to clear both guards, but the style guide hot-reloads from the vault — if a later-added banned word matches the stub, the second write quarantines too and `runToday` returns `TODAY_FATAL` with `path: null` rather than reporting a file that was never written.
-- **Derived human-readable views regenerate whole, never diff.** `src/memory-dashboard.js`'s `writeMemoryDashboard()` rebuilds `memory/dashboard.md` from scratch on every real promotion (hooked from both `promote-memories.js` and `scripts/dream.js --apply`) — same non-fatal-side-channel treatment as embedding/reach/SQLite rebuild.
-
-## Layers
-
-**Vault substrate (write-permission boundary):**
-- Location: `src/vault-gateway.js`
-- Purpose: enforces the LEFT (human voice, read-only to agents) vs RIGHT (agent-writable) split declared in `config/vault-paths.json`. Guard 1 path allowlist + canonical-path/symlink/traversal defense + explicit vault-root-write rejection; Guard 2 content-policy scan (`src/content-policy.js`); Guard 3 style lint (`src/style-policy.js`). Also owns config hot-reload and the redacted quarantine path.
-- Used by: every writer — `memory-extractor.js`, `promote-memories.js` (via `daily-stats.js`'s `vaultWriteAtomic`), `new-command.js`, `today-command.js` (briefing writes, with quarantine-stub fallback), `pipeline-infra.js`'s `writeDeadLetter`.
-- Post-restructure RIGHT allowlist (`config/vault-paths.json`): `memory`, `briefings`, `ctg`, `job-hunt`, `interview-prep`, `content`, `research`, `ideas`, `standups`, `projects`, `maps`, `proposals` (+ `unrouted`, `left-proposals`, `left-proposals/archive`), `archive`, `inbox`. The old top-level `RIGHT/` folder is gone — daily stats now live at `briefings/daily-stats.md` and daily briefings at `briefings/daily/<date>.md`; archives are consolidated under `archive/memory` and `archive/proposals`.
-
-**Config layer:**
-- Location: `src/pipeline-infra.js` (`loadConfigWithOverlay`) + `config/*.json` + `config/schema/*.json`
-- Purpose: every config file loads with an optional gitignored `<name>.local.json` deep-merge overlay, then optional AJV schema validation. Orphan-overlay detection warns once per process if a `.local.json` exists but no loader references its base name.
-
-**Classification pipeline (`/new`):**
-- Location: `src/classifier.js` + `src/new-command.js`
-- Purpose: Stage 0 exclusion gate → Stage 1 binary LEFT/RIGHT voice gate (Haiku only) → Stage 2 subdirectory pick (Haiku, Sonnet escalation below `sonnetEscalationThreshold`). `new-command.js` then owns template extraction, note formatting, the vault write, and non-blocking wikilink enrichment.
-
-**Memory pipeline (compounding layer):**
-- Location: `src/memory-extractor.js` → `src/memory-proposals.js` → `src/promote-memories.js`
-- Purpose: extraction (session transcript or vault file → Haiku candidates) → staging with lock + hash-dedup → human-reviewed promotion into `memory/memory.md`, with category coercion, related-link population, contradiction flagging, dashboard regeneration, and archive rollover into `archive/memory` / `archive/proposals`.
-- Chunking is bounded on **both** axes since PR #96: `oversizeThresholdMessages` (2000) is checked *first* so the count-forced path never materializes the full high-signal-doubled corpus, then `oversizeThresholdBytes` (5 MiB, `config/pipeline.json`) closes a chunk on accumulated byte size and byte-truncates any single message over the threshold with a `[truncated: oversize message]` marker. The byte threshold was previously dead config — read from `config/pipeline.json` and never enforced.
-
-**Semantic + keyword retrieval:**
-- Location: `src/semantic-index.js`, `src/memory-reader.js`
-- Purpose: `memory-reader.js` parses `memory.md` and runs `minisearch` keyword search; `semantic-index.js` embeds via Voyage AI, cosine-scores with recency decay, and fuses both via Reciprocal Rank Fusion (`hybridSearch`). Both apply the same `DOWNRANK_FACTOR` to superseded/stale entries so lifecycle state affects ranking without deleting anything.
-
-**Reach layer (cross-surface export):**
-- Location: `src/reach-exporter.js`
-- Purpose: after every real promotion, regenerates a pointer + capped digest file (`second-brain.md`) and an index line in every Claude Code auto-memory directory listed in `config/reach-targets.json`. Re-applies the exclusion gate at egress, fail-closed (ADR-018/ADR-019).
-
-**`/today` orchestrator:**
-- Location: `src/today-command.js` + `src/today/*.js`
-- Purpose: thin shell (post Phase-15 refactor) that fans out to connectors and pipeline state in parallel, then composes four extracted stages: `slippage-scanner.js`, `frog-identifier.js`, `llm-augmentation.js`, `briefing-renderer.js`, plus `memory-health.js`, `compounding-trend.js`, and `sweep-status.js`. The briefing body writes through `vaultWrite()`; a gateway quarantine falls back to a `renderQuarantineStub()` placeholder at the same `briefings/daily/<date>.md` path rather than leaving the day's file missing.
-
-**Memory dashboard (derived read surface):**
-- Location: `src/memory-dashboard.js`
-- Purpose: regenerates `memory/dashboard.md` whole from `memory.md` + proposals on every real promotion — human-readable view deliberately stripped of content hashes and block anchors. Non-fatal: a render failure is caught and reported in the caller's result envelope, never thrown. Hooked from `promote-memories.js` (post-promotion) and `scripts/dream.js --apply` (post-gate, so it reflects live post-merge `memory.md`).
-
-**Dream consolidation (monthly maintenance):**
-- Location: `src/dream.js` + `scripts/dream.js`
-- Purpose: MERGE-pair detection (cosine + shortRef prefix), Sonnet-authored merges with a mechanical anti-hallucination quote guard, STALE flagging (dead-reference / age / contradiction), and cross-session MISSED-PATTERNS extraction — all proposal-only. A separate `--apply` path snapshots, applies accepted ops, regenerates the dashboard, and gates on live-vault retrievability.
-
-**Health/degradation trackers:**
-- Location: `src/utils/voyage-health.js`, `src/utils/classifier-health.js`
-- Purpose: cross-invocation, fs-only (no live endpoint) failure counters; 3 consecutive failures open a degraded-mode window so callers skip a known-bad path instead of timing out again.
-
-**Index layer:**
-- Location: `scripts/build-index.js`
-- Purpose: pure derivation — rebuilds a `node:sqlite` DB (`entries` + FTS5 + `proposals` + `unrouted` tables) from `memory.md`/proposals/dead-letters on every run. Never a source of truth; drift-checked against `embeddings.jsonl` line count.
-
-## Data Flow
-
-**Memory compounding pipeline (extraction → promotion → retrieval → reach):**
-
-```
-session transcript / vault file
-        │
-        ▼
-memory-extractor.js  ──Haiku classify──▶ candidates (category, confidence, rationale)
-        │  confidence >= 0.5, content-policy PASS, hash-dedup
-        ▼
-memory-proposals.js  (writeCandidate, lock+dedup)
-        │
-        ▼
-proposals/memory-proposals.md   (mem-YYYYMMDD-NNN sections, checkbox: accept/reject/edit/defer)
-        │  human reviews checkboxes
-        ▼
-promote-memories.js  (promoteMemories)
-        │  ├─ category coercion, related-link population (Voyage cosine + wikilink-engine)
-        │  ├─ contradiction-check.js (flag-only, never blocks)
-        │  └─ archive rollover (proposals/ → archive/proposals, memory tail → archive/memory)
-        ▼
-memory/memory.md  (canonical store, append-only, auto-regenerated index block)
-        │
-        ├──▶ semantic-index.js  indexNewEntries()  ──▶ ~/.cache/second-brain/embeddings.jsonl
-        ├──▶ build-index.js  buildIndex()          ──▶ ~/.cache/second-brain/index.db (SQLite, derived)
-        ├──▶ memory-dashboard.js  writeMemoryDashboard() ──▶ memory/dashboard.md (derived, whole rewrite)
-        └──▶ reach-exporter.js  runReachExport()    ──▶ second-brain.md + MEMORY.md line
-                                                          in every config/reach-targets.json dir
-```
-
-Retrieval (`/recall`, `session-memory-inject.js`) reads `memory.md` + `embeddings.jsonl` via `memory-reader.js` (keyword) and `semantic-index.js` (semantic/hybrid) — never re-derives from the SQLite index, which exists for ad-hoc querying only.
-
-**`/new` classification (input → routed vault file or dead-letter):**
-
-```
-raw input ──▶ Stage 0 exclusion gate (content-policy) ──BLOCK──▶ reject, no dead-letter
-        │ PASS
-        ▼
-Stage 1 voice gate (Haiku, binary LEFT/RIGHT)
-        │ confidence < threshold + non-interactive ──▶ dead-letter (proposals/unrouted/)
-        ▼
-Stage 2 subdirectory pick (Haiku → Sonnet escalation below threshold)
-        │ both below accept threshold ──▶ needsInteractive (top-2 candidates)
-        ▼
-note-formatter.js (template fields, filename) ──▶ vault-gateway.vaultWrite()
-        │ LEFT  → proposals/left-proposals/<file>
-        │ RIGHT → <directory>/<file>
-        ▼
-wikilink-engine.js (non-blocking enrichment)
-```
-
-**`/today` briefing (parallel fan-out → single markdown):**
-
-```
-Promise.allSettled: [calendar, gmail, github connectors]  +  [proposals count, dead-letter summary]
-        │
-        ├─ slippage-scanner.js  (scan ~/projects/*/.planning/STATE.md)
-        ├─ frog-identifier.js   (Haiku over slippage candidates, heuristic fallback)
-        ├─ memory-reader.js     getMemoryEcho()  (calendar/email topics → relevant memory entries)
-        ├─ today/memory-health.js, today/compounding-trend.js, today/sweep-status.js  (pure, from daily-stats rows)
-        ├─ llm-augmentation.js  (Haiku synthesis paragraph, or static checklist if all sources degraded)
-        ▼
-briefing-renderer.js  renderBriefing()  ──▶ vaultWrite('briefings/daily/<date>.md', ..., {attemptCount:1})
-        │                                        │ quarantined ──▶ renderQuarantineStub() written to same path
-        │                                        ▼ stdout echo (interactive mode)
-        ▼
-daily-stats.js  recordDailyStats()  ──▶ briefings/daily-stats.md via vaultWriteAtomic() (non-fatal;
-                                          includes vault_hygiene column; feeds tomorrow's compounding-trend read)
-```
-
-**Dream consolidation (`--propose` / `--apply`, monthly, human gate between):**
-
-```
---propose:  detectMergePairs (cosine) → authorMerge (Sonnet + quote-guard) ─┐
-            detectStale (dead-ref → age → contradiction, budget-capped)    ├─▶ writeChangeset()
-            detectPatterns (Sonnet over session-log/decisions, cosine dedup)┘      │
-                                                                                     ▼
-                                                        proposals/dream-changeset-YYYY-MM.md
-                                                                     │ human checks accept/reject/defer
-                                                                     ▼
---apply:  snapshotStore() → acquireProposalsLock() → applyOps() (MERGE inserts + supersedes sources,
-          STALE appends flag) → build-index.js + reach-exporter (non-fatal) →
-          runEvalGate() [live hybridSearch retrievability check] → memory-dashboard (non-fatal,
-          AFTER the gate so a restore never leaves a dashboard built from reverted memory)
-                     │ pass ──▶ stamp applied:: <ISO>, update state/dream-ledger.json
-                     │ fail ──▶ restoreSnapshot() + revert accept boxes to unresolved
-```
-
-## Key Abstractions
-
-**Three-gate write enforcement (`VaultWriteError`):**
-- Purpose: single choke point for every vault mutation; codes `INVALID_PATH` / `PATH_BLOCKED` / `STYLE_VIOLATION` / `CONTENT_BLOCKED` distinguish security rejection from policy rejection. `checkPath()` names vault-root writes explicitly in its BLOCK reason rather than folding them into a generic "not on allowlist" message, and a blocked write leaves a best-effort quarantine record on the throw path too.
-- Examples: `src/vault-gateway.js` `checkPath()`, `vaultWrite()`, `vaultWriteAtomic()` (used by `daily-stats.js`)
-
-**Never-throw LLM result envelope:**
-- Purpose: every classify call returns `{success, data, error, failureMode}`; failureMode is a closed taxonomy (`api-error`, `timeout`, `parse-error`, `config-error`, `exclusion-unavailable`, `non-interactive-ambiguous`, `haiku-cap`) that downstream code branches on instead of catching exceptions.
-- Examples: `src/pipeline-infra.js` (`createLlmClient`)
-
-**Content hash as canonical entry ID:**
-- Purpose: 12-char sha256 slice of normalized content is the dedup key across proposals/memory.md/archives AND the Obsidian block-ref anchor (`^<hash>`) for related-link wikilinks — headings collide across entries, hashes never do.
-- Examples: `src/utils/memory-utils.js` (`computeHash`), used throughout `memory-proposals.js`, `promote-memories.js`, `memory-reader.js`
-
-**Consolidated archive roots (post-restructure):**
-- Purpose: `ARCHIVE_DIR` (`archive/memory`) and `PROPOSAL_ARCHIVE_DIR` (`archive/proposals`) are the single archive locations for rolled-over memory entries and reviewed proposals, replacing the pre-restructure per-feature archive folders. All consumers derive the same paths rather than hardcoding separately.
-- Examples: `src/memory-proposals.js`, `src/promote-memories.js`, `scripts/validate-archive.js`, `scripts/verify-baseline.js`
-
-**Checkbox-driven human review (shared parser):**
-- Purpose: `parseCheckboxState()` is the ONE parser for both the memory-promotion gate and the dream-changeset gate (explicit operator hard constraint, Phase 34) — no drift between the two review UIs.
-- Examples: `src/memory-proposals.js`, consumed by `src/promote-memories.js` and `src/dream.js`
-
-**Adaptive Denial Tracking (Pattern 7):**
-- Purpose: fs-only cross-invocation health state; 3 consecutive failures open a timed degraded window so a wedged local model or rate-limited API is skipped instead of retried per-call.
-- Examples: `src/utils/voyage-health.js`, `src/utils/classifier-health.js`
-
-**Reciprocal Rank Fusion:**
-- Purpose: combines keyword-search rank and semantic-search rank via `1/(k+rank)` summation rather than blending raw scores from two different distributions.
-- Examples: `src/semantic-index.js` (`hybridSearch`)
-
-**Fail-closed exclusion gate re-applied at every boundary:**
-- Purpose: content that already passed ingress policy is re-checked at every subsequent egress point, because the extraction→staging path bypasses the ingress gate.
-- Examples: `classifier.js` Stage 0, `semantic-index.js` `semanticSearch` (pre-Voyage-call), `reach-exporter.js` (pre-render), `session-memory-inject.js` (pre-injection)
-
-## Entry Points
-
-**Claude Code slash commands** (`.claude/commands/*.md`): `today.md`, `new.md`, `wrap.md`, `recall.md`, `reroute.md`, `promote-memories.md`, `promote-unrouted.md` — each a thin markdown wrapper invoking the matching `src/*-command.js` or `scripts/*.js`.
-
-**Standalone CLI scripts** (`scripts/*.js`): `wrap.js`, `daily-sweep.js`, `dream.js`, `eval-recall.js`, `compounding-report.js`, `recall.js`, `build-index.js`, `migrate-memory-wiki.js`, `verify-baseline.js`, `validate-archive.js`. Each loads `dotenv` itself under `require.main === module` — library code in `src/` never does (`HOOK-DOTENV-01` convention), so tests can require these modules with a controlled env.
-
-**Claude Code hooks** (`.claude/hooks/`): `session-memory-inject.js` (SessionStart — proactive memory digest, budget-timed race against a timeout, exclusion-gated); `memory-extraction-hook.js` (Stop — triggers extraction); `auto-test.sh`, `protected-file-guard.sh`, `security-scan-gate.sh`, `staleness-check.js`.
-
-**Scheduled jobs** (macOS `launchd`): `config/com.secondbrain.today.plist` → `scripts/today-scheduled.js` (weekdays 06:45); `config/com.secondbrain.daily-sweep.plist` → `scripts/daily-sweep.js` (23:45 daily); `config/com.secondbrain.dream.plist` → `scripts/dream.js --propose` (monthly, propose-only — `--apply` is explicitly never scheduled, human-invoked only). `today-scheduled.js` exits 1 when `runToday` resolves an *error envelope*, not just when it rejects (PR #96) — previously a briefing-less morning exited 0 and `launchd` recorded a success.
-
-**Repo git hooks** (`hooks/`, `core.hooksPath`-managed): `pre-commit` (schema validation + vault-boundary check), `pre-push` (staleness + docs-sync gate), `post-merge` (non-blocking docs-drift warning).
-
-## Error Handling
-
-**Strategy:** fail-closed for security/policy gates, fail-open (non-fatal) for enrichment side effects. A gate that cannot verify safety denies by default; a side channel that fails degrades the feature but never blocks the primary write.
-
-**Patterns:**
-- **Dead-letter preservation** (`src/pipeline-infra.js` `writeDeadLetter`): any Stage 0-2 classification failure preserves the original input verbatim in `proposals/unrouted/` with a 7-mode failure taxonomy in frontmatter, rather than silently dropping content.
-- **Isolated non-fatal side channels:** embedding (`indexNewEntries`), reach export (`runReachExport`), SQLite rebuild (`buildIndex`), dashboard regeneration (`writeMemoryDashboard`), contradiction flagging (`checkContradiction`), and stats recording each wrap their own try/catch inside `promote-memories.js` — one failing does not roll back the memory.md append that already happened.
-- **Snapshot-first mutation with auto-restore:** `dream --apply` is the only workflow that edits existing entries; `runEvalGate()` reverts via `restoreSnapshot()` and un-checks the accept boxes on any post-apply retrieval regression.
-- **Quarantine-stub fallback for the daily briefing:** if `vaultWrite()` quarantines the real briefing body, `today-command.js` writes a `renderQuarantineStub()` placeholder to the same path; if that stub write also quarantines, the command reports a hard error (`TODAY_FATAL`) instead of silently leaving no file.
-- **Fail-open status lines:** `today/sweep-status.js`'s `computeSweepLine()` never throws — a missing/corrupt proof-of-fire file renders `sweep NEVER RAN` rather than crashing the briefing.
-- **Degradation must be *reportable*, not just survivable (PR #96):** three paths were degrading invisibly and now surface. `loadExcludedTerms()` logs `logDecision('CONFIG','excluded-terms.json','LOAD_ERROR',...)` instead of returning `[]` — an empty term list silently disabled the exclusion gate. `scripts/wrap.js` counts staged as `written === true && !buffered` and prints `"N staged, M buffered — run /wrap again to drain"` rather than reporting buffered candidates as staged. `extractFromFile()`'s per-candidate throws land as `extraction-error` entries in the results envelope instead of killing the enclosing sweep.
-
-## Cross-Cutting Concerns
-
-**Logging:** structured JSON to stderr only, via `logDecision()` (`vault-gateway.js`), `logInstrumentation()` (`classifier.js`), and `logReach()` (`reach-exporter.js`). Entries carry `action`/`path`/`decision`/`reason` metadata — never a content payload. `console.log` is ESLint-banned in production code; the one exception is `today-command.js`'s interactive-mode briefing echo (explicitly annotated).
-
-**Validation:** every config load can request AJV schema validation (`loadConfigWithOverlay(name, {validate: true})`) against `config/schema/<name>.schema.json`; `pipeline.json` and `templates.json` additionally assert required top-level sections beyond schema shape.
-
-**Authorization boundary:** no multi-user auth — the equivalent boundary is `vault-gateway.js`'s LEFT/RIGHT write allowlist (`config/vault-paths.json`), enforced identically regardless of caller.
-
-**Content policy:** `src/content-policy.js` (keyword scan + Haiku classification, `config/excluded-terms.json`) is re-invoked at every boundary content crosses — ingress (classifier Stage 0, memory-extractor), promotion-time related-link titles, and egress (reach-exporter digest entries, session-memory-inject bullets, semantic search queries) — rather than trusted once at ingress.
-
-**Vault hygiene measurement:** `src/daily-stats.js` computes a `vault_hygiene` count (files sitting at the vault root that shouldn't be there) on every write, unless the caller backfills a historical row with `hygieneCount` — catching root-drift within a day rather than letting it silently reaccumulate.
+This repository hosts two independently-architected systems that share a git history and top-level directory but nothing at runtime: the **second-brain memory pipeline** (root `src/`, `scripts/`, `config/`, `hooks/`) and **agent-canvas** (`agent-canvas/`), a multi-agent workspace product for cloudtechgurus.com. See "How the two systems cohabit" at the end of this document.
 
 ---
 
-*Architecture analysis: 2026-07-31*
+## System A: Second-Brain Memory Pipeline
+
+### Pattern Overview
+
+**Overall:** Config-driven pipeline architecture over a single markdown vault substrate (Obsidian, `~/Claude Cowork/`). There is no server process — plain Node.js CJS modules in `src/` are invoked by Claude Code slash commands (`.claude/commands/*.md`), standalone CLI scripts (`scripts/*.js`), and macOS `launchd` schedules. Every workflow is a sequential pipeline with explicit fail-open/fail-closed gates rather than a request/response service.
+
+**Key characteristics:**
+- **Single write-enforcement choke point.** All vault mutations route through `src/vault-gateway.js`'s three sequential guards: Guard 1 path allowlist (`checkPath()`, `normalizePath()`), Guard 2 content filter (`src/content-policy.js`: keyword scan + Haiku classification + paragraph-level sanitization), Guard 3 style lint (`src/style-policy.js`: banned-word regex with attempt-count escalation). No module writes to the vault directly except the narrow atomic path `vaultWriteAtomic()` used by `daily-stats.js`.
+- **LEFT/RIGHT write-permission boundary**, not a content-type split. `config/vault-paths.json` defines `left` (human voice, read-only to agents) and `right` (agent-writable) top-level vault folders; `validateConfig()` enforces `LEFT ∩ RIGHT = ∅`. `vaultRead()` implements a three-tier model: LEFT read-OK, RIGHT read-OK, unknown-path BLOCKED entirely (D-04).
+- **Redacted quarantine.** Content blocked by any guard never reaches disk in its original form — `quarantine()` writes a metadata-only record (`proposals/quarantine-*.md`: reason, original path, timestamp) with the body withheld.
+- **Never-throw LLM client contract.** `src/pipeline-infra.js`'s `createLlmClient()`/`createHaikuClient()` wraps every Anthropic/local-LLM call so failures surface as `{success:false, failureMode}` data, never exceptions — callers branch on the result.
+- **Lease locks reclaimed on proven death, not age alone.** `src/memory-proposals.js`'s `acquireLock()` records `process.pid` in `proposals.lock`; a stale-by-age lock is only reclaimed after `process.kill(pid, 0)` proves the holder is dead (`ESRCH`).
+- **Adaptive-denial health tracking (Pattern 7).** `src/utils/voyage-health.js` and `src/utils/classifier-health.js` persist consecutive-failure counts to `~/.cache/second-brain/*.json` so independent invocations coordinate on a known-bad endpoint.
+- **Non-fatal side channels.** Embedding, reach export, SQLite rebuild, dashboard regeneration, contradiction-flagging, and stats recording each wrap their own try/catch around the primary write — a side-channel failure never breaks "briefing-is-the-product" or "promotion-is-the-product".
+- **Human-in-the-loop gates via checkbox parsing.** Memory-promotion and dream-consolidation stage proposals as markdown with `- [ ] accept/reject` checkboxes, parsed by one shared `parseCheckboxState()`.
+
+### Layers
+
+**Vault gateway (write enforcement):**
+- Location: `src/vault-gateway.js`
+- Purpose: sole write/read enforcement point for `~/Claude Cowork/`
+- Depends on: `src/content-policy.js`, `src/style-policy.js`, `src/pipeline-infra.js` (config loaders)
+- Used by: `today-command.js`, `promote-memories.js`, `new-command.js`, `reroute.js`, `promote-unrouted.js`, `reach-exporter.js`, `daily-stats.js` (via `vaultWriteAtomic`)
+
+**Memory pipeline (extraction → staging → promotion):**
+- Location: `src/memory-extractor.js` (transcript/vault scan → Haiku candidate extraction, chunked 100-message windows with 10-message overlap for oversized transcripts), `src/memory-proposals.js` (reader/writer for `proposals/memory-proposals.md` staging file + `proposals/memory-proposals-pending.jsonl` overflow buffer, file locking, dedup by content hash), `src/promote-memories.js` (human-reviewed candidates → `memory/memory.md`, archives originals to `archive/memory/` and `archive/proposals/`)
+- Trigger: `/wrap` (Stop hook or manual), `scripts/daily-sweep.js` (nightly, mines inbox + Daily notes + transcripts), `/promote-memories` (human-in-the-loop)
+- Contract: every candidate carries source attribution (`session_id`, `captured_at`, `source_file`); extraction failure never blocks `/wrap` (D-64); a failed extraction now (post PR #96) returns a distinguishable exit code from an empty one
+
+**Retrieval (semantic + keyword):**
+- Location: `src/semantic-index.js` (Voyage AI embeddings, cosine + recency-decay scoring, RRF hybrid fusion with keyword search, embed-on-promotion to `~/.cache/second-brain/embeddings.jsonl`), `src/memory-reader.js` (minisearch keyword index over `memory.md`), `src/recall-command.js` (CLI/command entry point: `--semantic`, `--hybrid`, `--category`, `--since`, `--top N`)
+- Degrades gracefully: Voyage unavailable → falls back to keyword-only, gated by `utils/voyage-health.js` adaptive denial
+
+**Reach layer (cross-surface export):**
+- Location: `src/reach-exporter.js`
+- Purpose: regenerates a pointer + capped-digest cache (`second-brain.md` + `MEMORY.md` index line) into every allowlisted Claude Code auto-memory directory (`config/reach-targets.json`) on every real promotion
+- Boundary: reads only `memory/memory.md` (RIGHT); every digest entry re-passes the content-policy exclusion gate at egress, fail-closed (BLOCK or error → entry excluded) — required because extraction→staging bypasses the ingress gate
+- See `decisions/ADR-018-cross-surface-reach.md`, `decisions/ADR-019-reach-layer-mechanism.md`
+
+**`/today` orchestration:**
+- Location: `src/today-command.js` (thin orchestrator, post-Phase-15 refactor) composing `src/today/slippage-scanner.js`, `src/today/frog-identifier.js`, `src/today/llm-augmentation.js`, `src/today/briefing-renderer.js`, `src/today/memory-health.js`, `src/today/compounding-trend.js`, `src/today/sweep-status.js`
+- Flow: parallel connector fan-out (`Promise.allSettled` over `src/connectors/{calendar,gmail,github}.js`, D-01) → pipeline state fetch (proposals pending + dead letter) → slippage scan → frog identification (Haiku) → Memory Echo fetch (`src/memory-reader.js`, threshold-gated) → memory health + compounding trend (non-fatal) → synthesis (Haiku) → render → `vaultWrite()` with `attemptCount: 1` so Guard 3 quarantines rather than throws
+- Quarantine-stub fallback: if the gateway quarantines the real body, `renderQuarantineStub()` writes fixed text chosen to clear both guards to the same `briefings/daily/<date>.md` path; if the stub is also quarantined (e.g. the style guide hot-reloaded a new banned word matching the stub), `runToday` returns `TODAY_FATAL` with `path: null` instead of reporting a nonexistent file
+- Records `src/daily-stats.js` counters (proposals, promotions, recall hits, echo score, latencies) via `vaultWriteAtomic()`
+
+**Classification (`/new`):**
+- Location: `src/classifier.js` (two-stage LLM classifier for domain routing), `src/new-command.js`
+- Flow: mixed input → classify → route to vault-gateway write or quarantine on ambiguity
+
+**Config/infra:**
+- Location: `src/pipeline-infra.js` (config loaders with local-overlay support, `createLlmClient`/`createHaikuClient`), `src/config-validator.js` (AJV schema validation), `config/schema/*.json` (one schema per config file)
+
+### Data Flow
+
+**Memory compounding (the core loop):**
+1. Session transcript or vault file → `memory-extractor.js` → Haiku extracts candidate facts, deduped by content hash
+2. Candidates written to `proposals/memory-proposals.md` (checkbox-gated) via `memory-proposals.js`, with lock-file coordination (`proposals.lock`, pid-probed reclaim)
+3. Human reviews checkboxes → `/promote-memories` → `promote-memories.js` promotes accepted entries to `memory/memory.md`, archives source proposals
+4. Promotion triggers non-fatal side channels: `semantic-index.js` embeds new entries, `reach-exporter.js` regenerates cross-surface pointer files, `memory-dashboard.js` rebuilds `memory/dashboard.md`, `contradiction-check.js` flags conflicts
+
+**`/today` briefing:**
+1. Config load → parallel connector fan-out (calendar/gmail/github) + pipeline state fetch
+2. Slippage scan (sync, filesystem scan of `~/projects/`) → frog identification (Haiku)
+3. Memory Echo retrieval (threshold 0.65 default) → memory health + compounding trend (both non-fatal, suppressed under insufficient data)
+4. Synthesis (Haiku) → render → write through vault-gateway → daily-stats recorded
+
+**State Management:** No database — the vault (`~/Claude Cowork/`) and flat config JSON files (`config/*.json`, optionally overlaid by gitignored `*.local.json`) are the only persistent state. Health trackers persist to `~/.cache/second-brain/*.json`.
+
+### Key Abstractions
+
+**Guard/gate pattern:** Sequential pass/block/quarantine decisions, never silent drops — every guard either passes, sanitizes (redacts a portion), or quarantines (metadata-only record). Examples: `vault-gateway.js` three guards, `content-policy.js checkContent()`.
+
+**Never-throw result envelope:** `{success: boolean, data, error, failureMode}` shape used across connectors (`src/connectors/types.js`), LLM clients, and `runToday()`'s top-level catch (`TODAY_FATAL` envelope) — errors are data, not exceptions, at every orchestration boundary.
+
+**Config-driven directory bootstrap:** `bootstrapVault()` derives RIGHT-side directories to create from `config.right`, never a hardcoded list.
+
+### Entry Points
+
+**Slash commands:** `.claude/commands/*.md` define `/today`, `/new`, `/wrap`, `/promote-memories`, `/reroute`, `/promote-unrouted`, `/recall`.
+
+**Standalone scripts (`scripts/`):** `wrap.js`, `daily-sweep.js`, `today-scheduled.js`, `dream.js` (monthly consolidation propose/apply), `recall.js` (cross-session CLI, ADR-019), `compounding-report.js`, `verify-baseline.js`, `build-index.js`, `validate-archive.js`, `migrate-memory-wiki.js`.
+
+**Scheduling:** macOS `launchd` — `com.secondbrain.today` (weekdays 06:45), `com.secondbrain.daily-sweep` (23:45), `com.secondbrain.dream` (1st of month 07:15); plists in `config/`.
+
+### Error Handling
+
+**Strategy:** fail-open for briefing rendering (briefing-is-the-product: side-channel failures never block the file write), fail-closed for vault boundary and content-policy checks (unknown path or over-threshold content → BLOCK/quarantine, never write).
+
+**Patterns:**
+- Timeout budgets propagate down and narrow, never re-inherit: a caller with a hard wall clock passes `timeoutMs`, and every layer takes `Math.min(ownTimeout, remaining)`.
+- Per-file/per-candidate error isolation: `memory-extractor.js` records an `extraction-error` per file instead of aborting a whole directory sweep.
+
+### Cross-Cutting Concerns
+
+**Logging:** `logDecision()` in `vault-gateway.js` writes structured JSON decision logs to stderr (no `console.log` in production, ESLint-enforced); metadata only, never content payloads.
+
+**Validation:** All config loading validates against AJV schemas (`config/schema/`) before use; `validateConfig()` in `vault-gateway.js` additionally enforces the LEFT/RIGHT intersection invariant in code.
+
+**Authentication:** None internally — this is a local CLI/pipeline system, not a networked service. External connectors (`src/connectors/`) use OAuth scopes configured out-of-band (Gmail `gmail.compose` draft-only, Calendar read-only, GitHub issues-only).
+
+---
+
+## System B: Agent Canvas
+
+### Pattern Overview
+
+**Overall:** A single Express service (`agent-canvas/server/index.js`) serving a JSON HTTP API, a WebSocket presence/event hub, and a built Vite/React frontend from one Cloud Run container. SQLite (`node:sqlite`, WAL mode) is the only datastore, replicated to Cloud Storage via Litestream for durability across container restarts. `--max-instances 1` is required — SQLite is single-writer.
+
+**Key characteristics:**
+- **Monolithic router with modular collaborators.** `server/routes.js` (2,532 lines) is a single Express `Router` handling ~100 endpoints; it composes purpose-built modules (`memory.js`, `evidence.js`, `explain.js`, `attention.js`, `rooms.js`, `builder.js`, `standing-rules.js`, `auth.js`) rather than splitting into sub-routers.
+- **Agent run loop with hard budgets.** `orchestrator/runner.js`'s `executeRun()` enforces a step budget and wall-clock timeout per run; hitting either halts and escalates rather than looping silently. The global pause (`orchestrator/control.js`) is checked before every model call.
+- **Bounded-concurrency queue with stranded-run reconciliation.** `orchestrator/queue.js` runs up to `AGENT_CONCURRENCY` (default 3) runs at once; a 30s interval timer (`reconcileStrandedRuns`) detects runs stuck in `queued` for >60s and re-enqueues them (max 2 attempts) before escalating to a human — closing a silent-work-loss failure mode the team observed but could not deterministically reproduce.
+- **Single write lane for HubSpot.** `server/hubspot/opsrunner.js` is the ONLY path to HubSpot mutation: it proxies to an external, IAM-gated Cloud Run service (`ctg-hs-ops-runner`, ADR-0041) via keyless Google-signed identity tokens. This file holds no HubSpot credential and mirrors the runner's deny-by-default refusal list client-side (`FORBIDDEN_PREFIXES`, `FORBIDDEN_FLAGS`) as defense-in-depth; the runner remains authoritative. Writes require two independent gates: `confirm` is never sent by default (dry-run), and `tools.js` only permits `confirm:true` from a run resumed off a human-approved escalation.
+- **Read-only enrichment fan-out, explicitly uncommittable.** `server/enrichment/dispatch.js` is a thin read client of an external FastAPI service (`ctg-enrichment-dispatch`); its `/v1/commit` endpoint is deliberately unreachable from this codebase — "THERE IS NO COMMIT TOOL, and there must never be one." Per-call credits are clamped client-side (`MAX_CREDITS_CEILING = 3`) as defense-in-depth against a looping agent, on top of the service's own daily budget gate.
+- **MCP connectors are read lanes by convention, not by protocol guarantee.** `server/mcp/client.js` implements a minimal Streamable-HTTP JSON-RPC MCP client with per-tool explicit enablement (owner must name each tool). A name-shaped heuristic (`isMutatingToolName()`, tokenized write/read verb sets) refuses tools that look mutating as a server-side backstop — explicitly documented as a heuristic, not a structural guarantee; the real control is the owner-authored `enabledTools` allowlist plus the fact that every actual CRM write routes through opsrunner instead.
+- **Append-only shared memory with provenance.** `server/memory.js`: `memory_entries` rows are never UPDATEd or DELETEd; a correction INSERTs a new row and stamps `superseded_by` on the old one inside a transaction (concurrent supersession of the same entry is a surfaced conflict, never last-write-wins). Every entry carries `epistemic` state (`verified`/`inference`/`assumption`), author provenance, and optional typed fields (`kind`, `applies_to_type/id`). FTS5+bm25 retrieval when available, falling back to a scored-OR LIKE scorer (`MEMORY_FTS=0` or missing FTS5 build).
+- **Standing rules reuse the run engine.** `server/standing-rules.js`: a standing rule is a stored instruction + persisted server-verifiable authorization; a rule "firing" is an ordinary ask-mode run dispatched by a tick instead of a human click — no separate execution engine, no cron parser (cadence enum + slot + occurrence-key lease instead).
+- **Server clamps everything the model proposes.** Standing-rule parsing, agent authority, and budgets are all "model proposes, server validates and clamps" — `agent_id` must come from a server-supplied list, `cadence`/`output_type` from enums, budgets from clamped ranges.
+- **Event bus decouples orchestrator from transport.** `server/bus.js` is a bare `EventEmitter` (`maxListeners: 50`); `ws.js` subscribes and fans events out to the right canvas's WebSocket channel by `canvasId` (`null` = broadcast to everyone).
+
+### Layers
+
+**HTTP/API layer:**
+- Location: `server/routes.js` (single router, ~100 routes), `server/index.js` (Express app assembly, health checks, static frontend serving, boot-time seeding)
+- Depends on: every other server module
+- Notable: raw-body upload path (`POST /api/canvases/:id/files`) is excluded from the global JSON body parser via regex match before `express.json()` runs, so `req.body` is guaranteed a `Buffer`
+
+**WebSocket hub:**
+- Location: `server/ws.js`
+- Purpose: live presence (cursors, selections) + orchestrator/domain event fan-out
+- Auth: same session cookie/token as HTTP, re-verified server-side on `join` (`canAccessCanvas`)
+
+**Orchestrator (agent run engine):**
+- Location: `server/orchestrator/{runner.js, queue.js, control.js, tools.js, anthropic.js, gemini.js, pdf-extract-worker.js}`
+- `runner.js`: the run loop — builds the system prompt (shared memory contract, retrieved-content-is-data warning, mode-specific rules for ask/rehearse/act), calls the model, executes tools, caps tool results re-sent into history (`TOOL_RESULT_CHAR_CAP = 40,000`, head+tail truncation)
+- `queue.js`: dispatch, bounded concurrency, mode/authority/initiator inheritance for child runs (handoff/retry/resume), stranded-run reconciliation, orphan recovery on process restart
+- `tools.js` (1,295 lines): tool definitions per agent role, authority intersection/allowlisting, mode-blocking (e.g. no `mcp_*` tools outside act mode), escalation creation
+- `control.js`: global pause/resume, daily token budget enforcement
+- `anthropic.js`/`gemini.js`: model provider adapters, tier config (fast/strong)
+
+**Domain/data modules:**
+- `server/memory.js`: shared project memory (append-only, epistemic states, FTS5 retrieval, lineage/citations)
+- `server/evidence.js`: evidence-ref tagging for external tool results cited in memory writes
+- `server/attention.js`, `server/rooms.js`, `server/builder.js` (agent-draft propose/rehearse/publish), `server/standing-rules.js`, `server/roster.js` (agent roster seeding/healing/reseeding), `server/explain.js` (explain-map for a run), `server/audit.js` (hash-chained audit log)
+
+**External integration clients:**
+- `server/hubspot/opsrunner.js`: sole HubSpot write lane (external ops-runner proxy)
+- `server/enrichment/dispatch.js`: read-only enrichment fan-out client (external FastAPI service)
+- `server/mcp/client.js` + `server/mcp/seed.js`: generic MCP connector layer, per-tool allowlisting
+- `server/google/workspace.js`: Gmail/Drive/Sheets/Calendar via the grantor's own OAuth connection
+- `server/gcp-identity.js`: keyless Google-signed identity tokens for service-to-service calls (shared by opsrunner and enrichment dispatch)
+
+**Persistence:**
+- Location: `server/db.js`
+- SQLite via `node:sqlite` (`DatabaseSync`), WAL mode, `busy_timeout=5000`, foreign keys on
+- Tables: `users`, `allowlist`, `canvases`, `canvas_members`, `agents`, `notes`, `files`, `tasks`, `memory_entries` (+ more not shown in the first 120 lines: `runs`, `run_events`, `standing_rules`, `mcp_servers`, etc., referenced throughout `routes.js`)
+- `DATA_DIR`/`DB_PATH` env-overridable; default `agent-canvas/data/agent-canvas.db`
+
+**Frontend:**
+- Location: `agent-canvas/frontend/src/` — flat React/Vite app, 22 top-level `.jsx`/`.js` files, no nested component directories (see STRUCTURE.md)
+
+### Data Flow
+
+**Agent run dispatch:**
+1. `POST /canvases/:id/agents/:agentId/dispatch` → `queue.js dispatchRun()` validates agent lifecycle (draft agents may only `rehearse`), inherits mode/authority/initiator from a parent run if this is a handoff/retry/resume, inserts a `runs` row (`status: queued`), emits a `run_status` bus event, pushes onto the in-memory queue
+2. `pump()` (bounded by `AGENT_CONCURRENCY`) shifts the queue and calls `runner.js executeRun()`
+3. `executeRun()` builds the system prompt (agent role + pinned canvas notes + mode block + shared-memory contract + prompt-injection warning), loops model calls up to `step_budget`/`wall_ms_budget`, executing tools via `orchestrator/tools.js`
+4. Tool calls that read external content are wrapped in `<external_content>` tags in the prompt — explicitly marked as data, never instructions, defending against prompt injection from email/CRM/web content
+5. Every tool result is recorded (truncated) in `run_events`; the model-facing copy is separately capped at 40k chars
+6. `complete` tool call ends the run; a stranded/orphaned run (server restart, dispatch failure before `executeRun` takes over) is caught and turned into a `failed` run + escalation rather than sitting in `queued` forever
+
+**HubSpot write:**
+1. Agent calls an `hs_*` tool → `tools.js` checks mode (never in ask/rehearse except `hs_preview_change`) and authority
+2. `opsrunner.js runArgv()` client-side-refuses forbidden argv prefixes/flags, fetches a GCP identity token, POSTs to the external ops-runner with `confirm` omitted (preview) or `true` (apply, only reachable from an approved-escalation resume path)
+3. Ops-runner is the actual policy/credential authority; this codebase never holds a HubSpot token
+
+**Standing rule tick:**
+1. Cloud Scheduler (or `POST /standing-rules/tick`) fires hourly
+2. `standing-rules.js` computes due occurrences per active rule, takes a conditional-claim lease on the occurrence row (`LEASE_FLOOR_MS = 10min`, `LEASE_SLACK_MS = 5min` to outlive the run it guards)
+3. Dispatches an ask-mode run via `queue.js dispatchRun()` with the rule's sources/budget; on completion the rule's alert/brief is delivered
+
+**State Management:** SQLite is the single source of truth; no in-memory session store beyond the run queue and WebSocket channel maps. `server/bus.js` is the only cross-module in-process signaling mechanism.
+
+### Key Abstractions
+
+**Run modes (`act`/`ask`/`rehearse`):** Every run carries a mode that gates which tools are available server-side (never trusted to the model or system prompt alone) — `ask` blocks all world-mutating tools, `rehearse` blocks mutations and shared-memory writes (findings go in the summary instead), `act` is unrestricted by mode (still gated by role/authority).
+
+**Authority intersection:** `parseAuthority`/`intersectAuthority`/`allowedByAuthority`/`effectiveAuthority` (`tools.js`) compute the tool surface as an intersection of role-menu, mode-block, and any inherited/snapshotted authority grant — `NULL` authority is the identity element (unrestricted), so every child-run path (retry/handoff/escalation-answer/resume) must explicitly inherit it or a restricted run's child is silently born unrestricted.
+
+**Epistemic memory states:** `verified`/`inference`/`assumption` on every memory entry, enforced server-side — an agent can never self-upgrade its own inference/assumption to verified; only independent verification (another agent, a deterministic check, a human decision) can.
+
+**Provenance/lineage:** citations (`cites`) plus `run_reads` answer "which inputs produced this output" for any memory entry or run.
+
+### Entry Points
+
+**HTTP server boot:** `server/index.js` — seeds the DB if empty, retires legacy artifacts, seeds/heals/reseeds the agent roster, seeds MCP servers, reloads the MCP client, recovers orphaned runs, then starts listening.
+
+**Health checks:** `GET /healthz` and `GET /api/healthz` (registered before the `/api` router so they stay unauthenticated) — `/healthz` alone never reaches the container in production because Cloud Run's Google Frontend reserves that path.
+
+**Scheduled tick:** `POST /api/standing-rules/tick`, called by an external Cloud Scheduler job.
+
+**Sibling MCP bridge services (separate deployables, same repo):** `agent-canvas/hubspot-mcp-bridge/server.js`, `agent-canvas/gtm-mcp-bridge/server.js` — each has its own `Dockerfile`/`deploy.sh`, not part of the main Cloud Run service.
+
+### Error Handling
+
+**Strategy:** fail-closed for authority/mode checks and HubSpot writes (deny by default, explicit allowlist to permit); fail-open/escalate for orchestration failures (a stranded or dispatch-failed run becomes a `failed` row + human escalation, never a silent drop).
+
+**Patterns:**
+- `asyncRoute()` wrapper in `routes.js` for async handlers so a thrown/rejected promise reaches Express error handling instead of hanging the request.
+- Every external client (`opsrunner.js`, `enrichment/dispatch.js`, `mcp/client.js`) throws a caught, message-capped `Error` on non-2xx rather than letting `fetch` errors propagate raw; every call is audited (`audit()`) with status/timing regardless of outcome.
+
+### Cross-Cutting Concerns
+
+**Logging/audit:** `server/audit.js` — hash-chained audit log (`verifyChain`/`verifyChainTail`), every privileged action (`run.dispatch`, `hubspot.run`, `enrichment.call`, etc.) recorded.
+
+**Validation:** Route-level input validation is inline per-handler in `routes.js`; external-client modules validate their own narrow input shapes (`assertDomain`, `assertKey`, `assertType` in `enrichment/dispatch.js`; `assertSafeArgv` in `opsrunner.js`).
+
+**Authentication:** `server/auth.js` — session-token based (`requireAuth`, `requireOwner`, `requireCanvas`), Google OAuth login plus a `DEV_AUTH=1` dev bypass; role model is `owner`/`member` at both the workspace (`allowlist` table) and per-canvas (`canvas_members.access`: `edit`/`view`) level.
+
+**Rate limiting:** `server/ratelimit.js`, applied per-route-category (`auth`, `model`, `probe`, `static`) via `express-rate-limit`.
+
+---
+
+## How the Two Systems Cohabit
+
+- **One git repository, two independent Node projects.** Root `package.json` governs the second-brain pipeline (Jest, ESLint flat config, root `src/`/`test/`/`scripts/`). `agent-canvas/package.json` is a separate Node project with its own dependencies (`express`, `ws`, `@anthropic-ai/sdk`, `@google/genai`, `pdfjs-dist`), its own `node --test` runner, its own `npm run verify` gate (backend tests + frontend vitest + frontend build + deploy script self-test), and its own `agent-canvas/CLAUDE.md` project instructions layered on top of the root one.
+- **No shared runtime code.** Neither system `require()`s the other. The coupling is purely organizational: same git history, same top-level GSD planning conventions (`.planning/`), same operator.
+- **Separate deployment targets.** The second-brain pipeline has no deployment — it runs locally via `launchd` and Claude Code hooks against the local Obsidian vault. Agent-canvas deploys to Cloud Run (`agent-canvas-ctg-0811` project, `deploy/deploy.sh`) as a standalone containerized service with its own SQLite+Litestream durability story.
+- **Separate CI gates.** Root CI runs the second-brain Jest suite, ESLint, CodeQL, coverage thresholds. Agent-canvas's `npm run verify` is invoked independently and is not part of the root `npm test`.
+- **Documentation is scoped per-system.** `.planning/codebase/*.md` (this file included) documents the root pipeline plus, as of this analysis, agent-canvas at the same level. `agent-canvas/docs/` (`HANDOFF.md`, `ROADMAP.md`, `DEPLOY.md`, `DEVOPS-HANDOFF.md`) is agent-canvas's own separately-maintained doc set and is the authoritative source for its current state — this file summarizes structure, not day-to-day status.
+- **Practical implication for future work:** a phase touching `agent-canvas/` should load agent-canvas's own `CLAUDE.md` and `docs/HANDOFF.md`, not assume root `src/` conventions apply (different test runner, different lint config location, different deployment model). A phase touching root `src/` should never assume `agent-canvas/` dependencies or patterns are relevant.
+
+---
+
+*Architecture analysis: 2026-08-18*
