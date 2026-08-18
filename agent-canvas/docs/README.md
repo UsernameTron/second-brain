@@ -25,6 +25,11 @@ journey; tests alone do not establish it.
 
 - [HANDOFF.md](HANDOFF.md) — the current-state block, and nothing else. Kept
   short on purpose so the live claim is never buried.
+- [ACTIVATION-RUNBOOK.md](ACTIVATION-RUNBOOK.md) — the enumerated owner
+  actions that light up built-but-dark capability (connector tool ticks,
+  Gauge staffing, content-lane first run, scheduler resume order, the parked
+  qualification-engine scope probe). Owner actions only; every step ends in a
+  probe.
 - [DEPLOY.md](DEPLOY.md) — current deployment and scheduler procedure.
 - [DEVOPS-HANDOFF.md](DEVOPS-HANDOFF.md) — short operations router.
 - [ROADMAP.md](ROADMAP.md) — phase classification and remaining P6/P7 intent.
