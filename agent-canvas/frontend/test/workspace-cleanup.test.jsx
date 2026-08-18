@@ -305,6 +305,7 @@ describe('user-facing canvas cleanup', () => {
       { id: 'sentinel', template_key: 'sentinel', name: 'Sentinel', role: 'review', color: '#0F8A5F', enabled: 1, default_on: 0 },
       { id: 'radar', template_key: 'radar', name: 'Radar', role: 'targeting', color: '#6B4FBB', enabled: 1, default_on: 0 },
       { id: 'enrichment', template_key: 'enrichment', name: 'Enrichment', role: 'enrichment', color: '#8B5CF6', enabled: 1, default_on: 0 },
+      { id: 'sdr', template_key: 'sdr', name: 'SDR', role: 'commercial', color: '#B23A67', enabled: 1, default_on: 0 },
     ];
     renderWorkspace();
 
@@ -313,7 +314,7 @@ describe('user-facing canvas cleanup', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
     const teamPicker = screen.getByRole('group', { name: 'Choose a starting team' });
     const choices = within(teamPicker).getAllByRole('button');
-    expect(choices).toHaveLength(5);
+    expect(choices).toHaveLength(6);
     expect(within(teamPicker).getByRole('button', { name: /Leadership & decisions/ })).toHaveAttribute('aria-pressed', 'true');
 
     const targetContact = within(teamPicker).getByRole('button', { name: /Target contact research/ });
@@ -338,6 +339,30 @@ describe('user-facing canvas cleanup', () => {
       expect(createCall[1].body.name).toBe('Target account');
       expect(createCall[1].body.roster_ids).toHaveLength(3);
       expect(createCall[1].body.roster_ids).toEqual(expect.arrayContaining(['fred', 'darren', 'enrichment']));
+    });
+  });
+
+  it('staffs the SDR pipeline team', async () => {
+    rosterEntries = [
+      { id: 'darren', template_key: 'darren', name: 'Darren', role: 'commercial', color: '#D98A14', enabled: 1, default_on: 1 },
+      { id: 'enrichment', template_key: 'enrichment', name: 'Enrichment', role: 'enrichment', color: '#0B7B83', enabled: 1, default_on: 0 },
+      { id: 'sdr', template_key: 'sdr', name: 'SDR', role: 'commercial', color: '#B23A67', enabled: 1, default_on: 0 },
+    ];
+    renderWorkspace();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
+    const teamPicker = screen.getByRole('group', { name: 'Choose a starting team' });
+    await userEvent.click(within(teamPicker).getByRole('button', { name: /SDR pipeline/ }));
+    for (const name of ['SDR', 'Enrichment', 'Darren']) {
+      expect(screen.getByText(name, { selector: '.canvas-team-member' })).toBeInTheDocument();
+    }
+    await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Outbound Q3');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => {
+      const createCall = api.mock.calls.find(([path, options]) => path === '/api/canvases' && options?.method === 'POST');
+      expect(createCall).toBeTruthy();
+      expect(createCall[1].body.roster_ids).toHaveLength(3);
+      expect(createCall[1].body.roster_ids).toEqual(expect.arrayContaining(['sdr', 'enrichment', 'darren']));
     });
   });
 

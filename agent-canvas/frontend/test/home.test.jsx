@@ -35,6 +35,7 @@ describe('Inquiry Home', () => {
     api.mockResolvedValueOnce({ inquiries: [] });
     renderHome();
     expect(await screen.findByText('Try asking')).toBeInTheDocument();
+    expect(screen.getByText(/pre-call brief/i)).toBeInTheDocument();
   });
 
   it('asking a question posts the inquiry and prepends it to the list', async () => {

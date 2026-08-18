@@ -28,6 +28,7 @@ the timestamped production evidence in [HANDOFF.md](HANDOFF.md).
 | P5 — Standing Rules and briefs | Merged | Scheduled dispatch/card and pause have historical live evidence. Clean-zero is replica/log-proven on `00054-9cs` at 2026-08-17T02:00Z (`matched_count=0`, `needs_attention=0`). Scheduler is currently paused. **Not Complete:** expiry remains unproven | Exercise expiry with a bounded fixture; resume scheduling only by explicit operator decision |
 | Cross-cutting workspace cleanup | Merged on `9a6abaf` | Deployed on `00057-47c`; replica/bundle/health/log proven, signed-in journey not replayed | Complete signed-in note/file/removal acceptance |
 | Recommended teams, Enrichment, documents, agent removal | Merged on `9a6abaf` | Deployed on `00057-47c`; bundle/replica proven, signed-in journey not replayed | Complete signed-in team/create/upload/enrich/remove acceptance |
+| SDR pipeline — roster agent, team template, pre-call briefs | Implemented on `feat/sdr-roster-agent` | Not deployed | Signed-in sandbox acceptance: list → enrich → preview → approve → apply → draft |
 | P6 — Outcomes and reviewed learning | Planned only | Not started | Begin only after P4/P5 acceptance |
 | P7 — selective integrations and portability | Planned only | Not started | Begin only after P6 earns its acceptance evidence |
 
@@ -76,6 +77,46 @@ migration, and the existing rule-state architecture preserved:
 
 **Status: merged (PR #199, `62eae86`) and deployed on `agent-canvas-00052-nbf`
 2026-08-16.** The acceptance gates below are unchanged by it.
+
+## SDR pipeline — enrichment to approved CRM staging, drafts, and pre-call briefs
+
+### Why
+
+The four primitives an SDR motion needs already exist and are individually
+proven: document intake, the enrichment dispatch lane, the HubSpot
+preview → approve → apply ceremony, and draft-only Gmail. One committed roster
+agent chains them; no new execution machinery.
+
+### What it adds
+
+1. **`SDR` roster agent** (`server/roster.js`) — role `commercial`, strong
+   tier, additively seeded (`seed_roster_sdr_v1`). The first roster entry to
+   carry an explicit least-authority `tools_json` map (HubSpot reads +
+   preview/apply, `ws_gmail_draft`, the four enrichment tools) plus its own
+   step/wall budgets. Prompt encodes the pipeline: intake → enrich with the
+   coverage/credit discipline → dedupe via `hs_search` → per-record preview →
+   one digest escalation → apply only on escalation-resume → draft openers →
+   coverage report. Pre-call briefs are prompt-encoded over existing memory
+   retrieval (`subject` = company domain) — no new code.
+2. **"SDR pipeline" team template** and two Home suggested questions as the
+   discoverable surface.
+
+### Non-negotiable boundaries
+
+- CRM writes stay inside the ops-runner sandbox portal per ADR-0041;
+  production portal writes are out of scope until that ADR is revised.
+- No send capability exists and none is added; drafts are the terminus.
+- No scheduler wiring; paid enrichment and staging require a human-dispatched
+  act-mode run by design (`MUTATING_TOOLS`).
+- The batch `stdin_jsonl` ops entry stays deferred — it would collapse
+  per-record approval into per-batch.
+
+### Acceptance
+
+Signed-in sandbox journey on a deployed revision: upload a target list →
+dispatch SDR → enriched coverage table → preview digest escalation in Needs
+You → approve → applied records in the sandbox portal → Gmail drafts present
+and unsent → pre-call brief answered from memory with epistemic labels.
 
 ## P6 — outcomes, earned trust, and reviewed episodic learning
 

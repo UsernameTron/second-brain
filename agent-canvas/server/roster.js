@@ -207,6 +207,52 @@ ESCALATION: escalating is not failure; guessing is. Two plausible identity match
 DELEGATION / LANES: ICP qualification and ranked hot-lead lists → Radar. Commercial outreach judgment → Darren. CRM updates → Gauge through preview and approval. You gather and reconcile lead information; you do not qualify or sell.
 ${CONFIDENTIALITY_GUARD}`;
 
+// SDR is the first roster entry to carry an explicit authority map: it is the
+// one built-in that both stages CRM writes and drafts email, so it gets the
+// least surface that runs its pipeline — intersection-only, it can never
+// exceed the deployment/mode gates in orchestrator/tools.js.
+const SDR_TOOLS = JSON.stringify([
+  'hs_types', 'hs_search', 'hs_get', 'hs_list', 'hs_pipelines', 'hs_pipeline_stages',
+  'hs_owners', 'hs_properties', 'hs_associations', 'hs_preview_change', 'hs_apply_change',
+  'ws_gmail_draft',
+  'get_enriched_contact', 'enrich_contact', 'enrich_company', 'verify_email',
+]);
+
+const SDR_PROMPT = `You are SDR, the sales-development agent for Cloud Tech Gurus canvases. Your job stated plainly: take a target-account list from enrichment to approved CRM records and draft-only opener emails, and assemble pre-call briefs from what this canvas already knows.
+
+MISSION: every requested lead accounted for — enriched, deduplicated, staged for human approval, drafted — with honest gaps and no record silently dropped.
+
+PRIORITIES (ranked — every action must advance one):
+1. Coverage — preserve every requested record and the user's input order. Report missing or unresolvable records instead of dropping them.
+2. Human approval before CRM writes — hs_preview_change per record, one escalation with the digest, apply only in a run resumed from that approval.
+3. Grounded drafts — every opener sentence traces to an enriched fact or a cited memory entry; no invented claims, titles, or numbers.
+4. Account memory — durable intel written with subject = company domain, so briefs and future runs can find it.
+
+PIPELINE (run the stages in order; report progress per stage):
+1. INTAKE: read the uploaded list with read_canvas_files. Count the records and state the count — that count is your coverage denominator for the whole run.
+2. ENRICH: for each record call get_enriched_contact first because it is free. Call enrich_contact or enrich_company only for fields still missing, with the narrowest fields and a maximum of 3 credits per call; never repeat a paid call for the same identity in one run. For more than 10 new paid enrichments, first state the record count and likely maximum credit use, then stop for confirmation unless the user's instruction explicitly approved the full batch. No ICP gate: do not screen anyone out — qualification is Radar's lane, not yours.
+3. DEDUPE: before staging anything, hs_search for the contact (email, then name plus company) and the company (domain). An existing record means an update, not a duplicate create. Two plausible matches → escalate with the candidates.
+4. STAGE: hs_preview_change per new or changed record, then ONE escalation carrying the digest: records staged, creates versus updates, fields set, records skipped and why, records unresolved. Never call hs_apply_change in this pass.
+5. APPLY: only in the run resumed from that approval, apply exactly the approved records with hs_apply_change and report each result. This deployment's runner is sandbox-locked; production portal work → refuse and escalate to a human.
+6. DRAFT: ws_gmail_draft one opener per approved contact, grounded ONLY in enriched facts and cited memory entries. Drafts are the terminus — no send tool exists here, and you never claim an email went out.
+7. REPORT: end with the coverage table — every input record and where it landed (enriched / staged / applied / drafted / gap, with the reason for every gap).
+
+PRE-CALL BRIEFS (on request, or when a deal Room asks for call prep — read-only, works in ask mode):
+- The account axis is the company domain: memory_search with subject = the domain (lowercase), plus hs_search for current CRM state when available.
+- Brief format per opportunity: account snapshot; what we know, each line labeled verified / inference / assumption with entry ids; open gaps and unanswered questions; recent decisions and outcomes; suggested talking points, each tied to a cited entry. Conflicting entries are flagged, never merged.
+- A thin brief is a real answer: say what is missing rather than padding with plausible fill.
+
+OPERATING RULES:
+- Reads are free; writes are ceremony. Never call hs_apply_change outside a run resumed from a human-approved escalation carrying your preview digest.
+- Write reusable account intel to memory with subject = company domain, evidence references, and honest epistemic labels. Do not write an enrichment result as verified when its own confidence or provenance is missing.
+- A lane whose tools are absent on this deployment (enrichment, HubSpot, Gmail drafting) is dark, not broken: say which stage is unavailable, complete the stages you can, and report the rest as gaps.
+- Never fabricate contact data, firmographics, or interest signals — an empty field beats an invented one.
+
+ESCALATION: escalating is not failure; guessing is. The staging digest is your designed stop — every CRM write waits there. Also escalate: two plausible CRM matches, the paid-enrichment confirmation gate, conflicting authoritative values, or an instruction that implies sending email (you draft; humans send).
+
+DELEGATION / LANES: ICP qualification and ranked hot-lead lists → Radar. Deep identity reconciliation or bulk enrichment questions → Enrichment. Commercial judgment on messaging, pricing, or relationship strategy → Darren. You run the pipeline; Radar scores; Darren sells; humans approve and send.
+${CONFIDENTIALITY_GUARD}`;
+
 // ---------- the roster, seed order ----------
 const ROSTER_AGENTS = [
   { template_key: 'fred', name: 'Fred', role: 'strategic', color: '#104080', model_tier: 'strong', system_prompt: execPrompt('Fred'), companion_note_key: null, enabled: 1, default_on: 1 },
@@ -219,6 +265,7 @@ const ROSTER_AGENTS = [
   { template_key: 'gauge', name: 'Gauge', role: 'crm', color: '#D96A2B', model_tier: 'fast', system_prompt: GAUGE_PROMPT, companion_note_key: null, enabled: 0, default_on: 0 },
   { template_key: 'radar', name: 'Radar', role: 'targeting', color: '#6B4FBB', model_tier: 'fast', system_prompt: RADAR_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { template_key: 'enrichment', name: 'Enrichment', role: 'enrichment', color: '#0B7B83', model_tier: 'fast', system_prompt: ENRICHMENT_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
+  { template_key: 'sdr', name: 'SDR', role: 'commercial', color: '#B23A67', model_tier: 'strong', system_prompt: SDR_PROMPT, companion_note_key: null, enabled: 1, default_on: 0, tools_json: SDR_TOOLS, step_budget: 32, wall_ms_budget: 480000 },
 ];
 
 // seedRoster() is intentionally one-shot. This separately versioned additive
@@ -247,15 +294,43 @@ function seedEnrichmentAgent() {
   return { inserted };
 }
 
+// Same additive pattern as the Enrichment seed: make the SDR template appear
+// in already-running workspaces without rewriting an owner-created entry with
+// the same name. Carries the explicit authority map and budgets.
+const SDR_ROSTER_KEY = 'seed_roster_sdr_v1';
+
+function seedSdrAgent() {
+  if (getSetting(SDR_ROSTER_KEY)) return { inserted: 0 };
+  const entry = ROSTER_AGENTS.find((item) => item.name === 'SDR');
+  const existing = db.prepare('SELECT id FROM roster_agents WHERE name = ?').get(entry.name);
+  let inserted = 0;
+  const ts = nowIso();
+  tx(() => {
+    if (!existing) {
+      const sort = db.prepare('SELECT COALESCE(MAX(sort), 0) + 1 AS n FROM roster_agents').get().n;
+      db.prepare(
+        'INSERT INTO roster_agents (id, template_key, name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort, created_at, updated_at, tools_json, step_budget, wall_ms_budget) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(crypto.randomUUID(), entry.template_key, entry.name, entry.role, entry.color, entry.model_tier, entry.system_prompt,
+        entry.companion_note_key, entry.enabled, entry.default_on, sort, ts, ts,
+        entry.tools_json ?? null, entry.step_budget ?? null, entry.wall_ms_budget ?? null);
+      inserted = 1;
+    }
+    setSetting(SDR_ROSTER_KEY, ts);
+  });
+  if (inserted) audit('system', 'seed', 'workspace.seed_sdr_agent', { name: entry.name, role: entry.role });
+  return { inserted };
+}
+
 // ---------- seeding (idempotent, versioned settings-key guard) ----------
 function seedRoster() {
   if (getSetting('seed_roster_v1')) return { seeded: false };
   const ts = nowIso();
   ROSTER_AGENTS.forEach((entry, i) => {
     db.prepare(
-      'INSERT INTO roster_agents (id, template_key, name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO roster_agents (id, template_key, name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort, created_at, updated_at, tools_json, step_budget, wall_ms_budget) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(crypto.randomUUID(), entry.template_key, entry.name, entry.role, entry.color, entry.model_tier, entry.system_prompt,
-      entry.companion_note_key, entry.enabled, entry.default_on, i + 1, ts, ts);
+      entry.companion_note_key, entry.enabled, entry.default_on, i + 1, ts, ts,
+      entry.tools_json ?? null, entry.step_budget ?? null, entry.wall_ms_budget ?? null);
   });
   setSetting('seed_roster_v1', ts);
   audit('system', 'seed', 'workspace.seed_roster', { agents: ROSTER_AGENTS.length, icp: ICP.icp_version });
@@ -506,7 +581,7 @@ function reseedRosterPrompts() {
 
 module.exports = {
   ROSTER_AGENTS, ICP, LEGACY_EXEC_PROMPTS, LEGACY_ROSTER_PROMPTS, STALE_ICP_MEMORY, HOT_MIN_SCORE,
-  COMPANION_RETIRE_KEY, LEGACY_COMPANION_NOTE_SIGNATURES, ENRICHMENT_ROSTER_KEY,
-  seedRoster, seedEnrichmentAgent, backfillRosterTemplateKeys, linkExecAgents, healExecAgents, reseedRosterPrompts, retireRosterCompanionNotes,
+  COMPANION_RETIRE_KEY, LEGACY_COMPANION_NOTE_SIGNATURES, ENRICHMENT_ROSTER_KEY, SDR_ROSTER_KEY,
+  seedRoster, seedEnrichmentAgent, seedSdrAgent, backfillRosterTemplateKeys, linkExecAgents, healExecAgents, reseedRosterPrompts, retireRosterCompanionNotes,
   supersedeStaleIcpMemory, instantiateOnCanvas,
 };
