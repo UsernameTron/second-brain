@@ -113,7 +113,7 @@ test('the additive SDR seed installs a least-authority commercial agent', () => 
   assert.equal(entry.wall_ms_budget, 480000);
 
   const tools = JSON.parse(entry.tools_json);
-  for (const name of ['hs_preview_change', 'hs_apply_change', 'ws_gmail_draft', 'get_enriched_contact']) {
+  for (const name of ['hs_preview_change', 'hs_apply_change', 'hs_preview_association', 'hs_apply_association', 'hs_activities', 'ws_gmail_draft', 'get_enriched_contact']) {
     assert.ok(tools.includes(name), `SDR authority includes ${name}`);
   }
   for (const name of ['ws_sheets_update', 'ws_docs_create', 'ws_calendar_create', 'web_search']) {

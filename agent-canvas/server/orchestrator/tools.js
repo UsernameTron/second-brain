@@ -296,6 +296,11 @@ const HUBSPOT_TOOLS = [
     input_schema: { type: 'object', properties: { from_type: { type: 'string' }, from_id: { type: 'string' }, to_type: { type: 'string' } }, required: ['from_type', 'from_id', 'to_type'] },
   },
   {
+    name: 'hs_activities',
+    description: 'List the activity history (calls, emails, notes, meetings, tasks) on one HubSpot sandbox record — e.g. type "contacts" plus the record id.',
+    input_schema: { type: 'object', properties: { type: { type: 'string' }, id: { type: 'string' } }, required: ['type', 'id'] },
+  },
+  {
     name: 'hs_preview_change',
     description: 'PREVIEW a HubSpot create/update/upsert as a dry run — nothing is applied. Attach the returned preview to an escalation so a human can approve; only a run resumed from that approval may apply.',
     input_schema: { type: 'object', properties: { operation: { type: 'string', enum: ['create', 'update', 'upsert'] }, type: { type: 'string' }, id: { type: 'string', description: 'required for update' }, properties: { type: 'object', description: 'property name → value' } }, required: ['operation', 'type', 'properties'] },
@@ -304,6 +309,16 @@ const HUBSPOT_TOOLS = [
     name: 'hs_apply_change',
     description: 'APPLY a previously previewed HubSpot change. Only works in a run resumed from a human-approved escalation; otherwise escalate with the preview first.',
     input_schema: { type: 'object', properties: { operation: { type: 'string', enum: ['create', 'update', 'upsert'] }, type: { type: 'string' }, id: { type: 'string' }, properties: { type: 'object' } }, required: ['operation', 'type', 'properties'] },
+  },
+  {
+    name: 'hs_preview_association',
+    description: 'PREVIEW linking two HubSpot records (e.g. contact → company) as a dry run — nothing is applied. Attach the returned preview to an escalation so a human can approve; only a run resumed from that approval may apply.',
+    input_schema: { type: 'object', properties: { from_type: { type: 'string' }, from_id: { type: 'string' }, to_type: { type: 'string' }, to_id: { type: 'string' } }, required: ['from_type', 'from_id', 'to_type', 'to_id'] },
+  },
+  {
+    name: 'hs_apply_association',
+    description: 'APPLY a previously previewed HubSpot association. Only works in a run resumed from a human-approved escalation; otherwise escalate with the preview first.',
+    input_schema: { type: 'object', properties: { from_type: { type: 'string' }, from_id: { type: 'string' }, to_type: { type: 'string' }, to_id: { type: 'string' } }, required: ['from_type', 'from_id', 'to_type', 'to_id'] },
   },
 ];
 
@@ -665,7 +680,7 @@ function readRegistry({ registry, query, limit }) {
 // the existing offer/execute split for MCP and hs_apply_change.
 const MUTATING_TOOLS = new Set([
   'ws_sheets_append', 'ws_sheets_update', 'ws_gmail_draft', 'ws_calendar_create', 'ws_docs_create',
-  'hs_preview_change', 'hs_apply_change',
+  'hs_preview_change', 'hs_apply_change', 'hs_preview_association', 'hs_apply_association',
   'handoff',
   // Paid enrichment spends real credits — a side effect, even though it reads.
   // The cached get_enriched_contact re-read is free and stays available.
@@ -681,7 +696,7 @@ function blockedInMode(name, mode) {
   if (!mode || mode === 'act') return false;
   if (name.startsWith('mcp_')) return true; // connector side effects are unknowable — all blocked
   if (mode === 'rehearse') {
-    if (name === 'hs_preview_change') return false; // already a server-enforced dry run
+    if (name === 'hs_preview_change' || name === 'hs_preview_association') return false; // already a server-enforced dry run
     if (REHEARSAL_BLOCKED_TOOLS.has(name)) return true;
   }
   return MUTATING_TOOLS.has(name);
@@ -1191,8 +1206,9 @@ async function executeTool(name, input, ctx) {
 
         case 'hs_types': case 'hs_search': case 'hs_get': case 'hs_list':
     case 'hs_pipelines': case 'hs_pipeline_stages': case 'hs_owners':
-    case 'hs_properties': case 'hs_associations':
-    case 'hs_preview_change': case 'hs_apply_change': {
+    case 'hs_properties': case 'hs_associations': case 'hs_activities':
+    case 'hs_preview_change': case 'hs_apply_change':
+    case 'hs_preview_association': case 'hs_apply_association': {
       const opsrunner = require('../hubspot/opsrunner');
       const initiator = run.initiated_by;
       if (!initiator) {
@@ -1201,17 +1217,20 @@ async function executeTool(name, input, ctx) {
       if (!opsrunner.configured()) {
         return { content: 'The HubSpot Ops Runner is not wired on this deployment (HS_OPS_RUNNER_URL unset) — the HUBSPOT lamp on the systems board is dark. Tell the owner.', isError: true };
       }
+      // Both mutation families share one two-gate ceremony: preview never
+      // sends confirm; apply demands a human-approved escalation resume.
+      const mutationOp = { hs_preview_change: 'change', hs_apply_change: 'change', hs_preview_association: 'associate', hs_apply_association: 'associate' };
       try {
         let out;
-        if (name === 'hs_preview_change') {
-          const argv = opsrunner.buildArgv('change', input);
+        if (name === 'hs_preview_change' || name === 'hs_preview_association') {
+          const argv = opsrunner.buildArgv(mutationOp[name], input);
           out = await opsrunner.runArgv({ argv, confirm: false, actorEmail: initiator });
-          out = JSON.stringify({ preview: true, applied: false, result: out, next: 'escalate with this preview; a human must approve before hs_apply_change' });
-        } else if (name === 'hs_apply_change') {
+          out = JSON.stringify({ preview: true, applied: false, result: out, next: `escalate with this preview; a human must approve before ${name.replace('preview', 'apply')}` });
+        } else if (name === 'hs_apply_change' || name === 'hs_apply_association') {
           if (run.trigger_kind !== 'escalation_resume') {
-            return { content: 'REFUSED: hs_apply_change only works in a run resumed from a human-approved escalation. Use hs_preview_change, escalate with the preview, and apply after approval.', isError: true };
+            return { content: `REFUSED: ${name} only works in a run resumed from a human-approved escalation. Use ${name.replace('apply', 'preview')}, escalate with the preview, and apply after approval.`, isError: true };
           }
-          const argv = opsrunner.buildArgv('change', input);
+          const argv = opsrunner.buildArgv(mutationOp[name], input);
           out = await opsrunner.runArgv({ argv, confirm: true, actorEmail: initiator });
         } else {
           const op = name.slice(3); // hs_<op>
@@ -1221,7 +1240,7 @@ async function executeTool(name, input, ctx) {
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
         // CRM reads are evidence; preview/apply are actions, not sources.
         let refId = null;
-        if (name !== 'hs_preview_change' && name !== 'hs_apply_change') {
+        if (!Object.hasOwn(mutationOp, name)) {
           refId = evidence.recordRef({
             runId: run.id, sourceKind: 'hubspot',
             sourceId: `${input.type || ''}${input.id ? ':' + input.id : ''}`,
