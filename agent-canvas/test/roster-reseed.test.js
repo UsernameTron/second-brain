@@ -186,6 +186,32 @@ test('SDR tools re-seed widens only byte-pristine authority maps', () => {
   assert.equal(roster.reseedSdrTools().updated, 0, 'idempotent — the guard blocks a second run');
 });
 
+test('Gauge tools re-seed fills only NULL authority maps', () => {
+  const GAUGE_TOOLS = roster.ROSTER_AGENTS.find((a) => a.name === 'Gauge').tools_json;
+  assert.ok(JSON.parse(GAUGE_TOOLS).every((n) => n.startsWith('hs_')));
+
+  // An already-seeded workspace: Gauge roster row with the legacy NULL map,
+  // one NULL live copy, one custom map an owner set by hand via SQL.
+  db.prepare("UPDATE roster_agents SET tools_json = NULL WHERE template_key = 'gauge'").run();
+  const canvasId = 'c-gauge-tools';
+  db.prepare("INSERT INTO canvases (id, name, created_at) VALUES (?, 'GaugeTools', ?)").run(canvasId, nowIso());
+  const nullId = crypto.randomUUID();
+  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at) VALUES (?, ?, 'Gauge', 'crm', '#D96A2B', 'fast', 'p', 0, 0, ?)")
+    .run(nullId, canvasId, nowIso());
+  const CUSTOM = JSON.stringify(['hs_search']);
+  const customId = crypto.randomUUID();
+  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, tools_json, x, y, created_at) VALUES (?, ?, 'Gauge', 'crm', '#D96A2B', 'fast', 'p', ?, 0, 0, ?)")
+    .run(customId, canvasId, CUSTOM, nowIso());
+
+  setSetting(roster.GAUGE_TOOLS_RESEED_KEY, '');
+  const res = roster.reseedGaugeTools();
+  assert.equal(res.updated, 2, 'the NULL roster row and the NULL live copy');
+  assert.equal(db.prepare("SELECT tools_json FROM roster_agents WHERE template_key = 'gauge'").get().tools_json, GAUGE_TOOLS);
+  assert.equal(db.prepare('SELECT tools_json FROM agents WHERE id = ?').get(nullId).tools_json, GAUGE_TOOLS);
+  assert.equal(db.prepare('SELECT tools_json FROM agents WHERE id = ?').get(customId).tools_json, CUSTOM, 'a set map is never replaced');
+  assert.equal(roster.reseedGaugeTools().updated, 0, 'guarded second run is a no-op');
+});
+
 test('re-seed does NOT touch a hand-edited roster row', () => {
   const EDITED_ROW = 'You are Radar. Owner-edited roster entry.';
   db.prepare("UPDATE roster_agents SET system_prompt = ? WHERE name = 'Radar'").run(EDITED_ROW);

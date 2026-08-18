@@ -16,6 +16,7 @@ const SUGGESTED = [
   'What has the team learned about our top competitor?',
   'Prepare a pre-call brief for our most active account.',
   'Which target-list leads are enriched but not yet in HubSpot?',
+  'Draft a LinkedIn post on AI readiness in CTG voice, gate-checked.',
 ];
 
 const MODES = [

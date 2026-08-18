@@ -17,7 +17,7 @@ process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
 const { server } = require('../server/index'); // boots app + runs all seeds
 const { db, getSetting } = require('../server/db');
 const roster = require('../server/roster');
-const { readRegistry, governedTool } = require('../server/orchestrator/tools');
+const { readRegistry, governedTool, toolsForRole } = require('../server/orchestrator/tools');
 const ICP_FILE = require('../server/config/icp-sr-icp-v6.json');
 
 let base;
@@ -53,24 +53,29 @@ test.before(async () => {
 
 test.after(() => new Promise((resolve) => server.close(resolve)));
 
-test('roster seeds exactly once with 11 entries in order', () => {
+test('roster seeds exactly once with 12 entries in order', () => {
   assert.ok(getSetting('seed_roster_v1'), 'seed guard key set');
   const rows = db.prepare('SELECT * FROM roster_agents ORDER BY sort').all();
-  assert.equal(rows.length, 11);
+  assert.equal(rows.length, 12);
   assert.deepEqual(rows.map((r) => r.name),
-    ['Fred', 'Darren', 'Jess', 'Atlas', 'Scout', 'Forge', 'Sentinel', 'Gauge', 'Radar', 'Enrichment', 'SDR']);
+    ['Fred', 'Darren', 'Jess', 'Atlas', 'Scout', 'Forge', 'Sentinel', 'Gauge', 'Radar', 'Enrichment', 'SDR', 'Quill']);
   assert.deepEqual(rows.map((r) => r.template_key),
-    ['fred', 'darren', 'jess', 'atlas', 'scout', 'forge', 'sentinel', 'gauge', 'radar', 'enrichment', 'sdr']);
+    ['fred', 'darren', 'jess', 'atlas', 'scout', 'forge', 'sentinel', 'gauge', 'radar', 'enrichment', 'sdr', 'quill']);
   const again = roster.seedRoster();
   assert.equal(again.seeded, false, 'second call must be a no-op');
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM roster_agents').get().n, 11);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM roster_agents').get().n, 12);
   // The proven exec set is pre-checked for new canvases; nothing else is.
   assert.deepEqual(rows.filter((r) => r.default_on).map((r) => r.name), ['Fred', 'Darren', 'Jess', 'Atlas']);
   // Gauge ships staffable (sibling prompts delegate CRM legwork to it) but
-  // never pre-checked — the owner staffs it per canvas.
+  // never pre-checked — the owner staffs it per canvas — and least-authority:
+  // its map is the HubSpot ceremony only, no Workspace writes.
   const gauge = rows.find((r) => r.name === 'Gauge');
   assert.equal(gauge.enabled, 1);
   assert.equal(gauge.default_on, 0);
+  const gaugeTools = JSON.parse(gauge.tools_json);
+  assert.ok(gaugeTools.every((name) => name.startsWith('hs_')), 'Gauge authority is HubSpot-only');
+  assert.ok(gaugeTools.includes('hs_preview_change') && gaugeTools.includes('hs_apply_change'));
+  assert.ok(!gaugeTools.some((name) => name.startsWith('ws_')), 'no Workspace writes ride along');
 });
 
 test('built-in template identity survives a rename and ignores a duplicate display name', () => {
@@ -140,6 +145,40 @@ test('the additive SDR seed installs a least-authority commercial agent', () => 
   assert.equal(roster.seedSdrAgent().inserted, 1, 'reseeds cleanly after removal');
 });
 
+test('the additive Quill seed installs a least-authority content agent', () => {
+  db.prepare('DELETE FROM settings WHERE key = ?').run(roster.CONTENT_ROSTER_KEY);
+  db.prepare("DELETE FROM roster_agents WHERE name = 'Quill'").run();
+  const result = roster.seedContentAgent();
+  assert.equal(result.inserted, 1);
+  const entry = db.prepare("SELECT * FROM roster_agents WHERE name = 'Quill'").get();
+  assert.equal(entry.role, 'content');
+  assert.equal(entry.model_tier, 'strong');
+  assert.equal(entry.enabled, 1);
+  assert.equal(entry.default_on, 0);
+  assert.equal(entry.step_budget, 24);
+  assert.equal(entry.wall_ms_budget, 480000);
+  const tools = JSON.parse(entry.tools_json);
+  assert.deepEqual(tools, ['ws_docs_create', 'ws_gmail_draft'], 'drafts only — the entire authority map');
+  assert.ok(tools.every((name) => governedTool(name)), 'every listed tool is a real governed name');
+  assert.match(entry.system_prompt, /Drafts are the terminus/);
+  assert.match(entry.system_prompt, /never claim an asset went out/i);
+  assert.match(entry.system_prompt, /content_gate_check/);
+  assert.match(entry.system_prompt, /read_registry\(registry: "content_policy"\)/);
+  assert.equal(roster.seedContentAgent().inserted, 0, 'the versioned migration is idempotent');
+});
+
+test('content role is gated by absence; the gate tool rides even in ask mode', () => {
+  const act = toolsForRole('content', { userRole: 'member' }).map((t) => t.name);
+  assert.ok(!act.includes('web_search'), 'no web search for a drafting agent');
+  assert.ok(!act.some((n) => n.startsWith('enrich_')), 'not an enrichment role');
+  assert.ok(!act.some((n) => n.startsWith('mcp_')), 'no connector names the content role');
+  assert.ok(act.includes('ws_docs_create') && act.includes('ws_gmail_draft'),
+    'the role surface includes the two draft writes (Quill\'s authority narrows to exactly these)');
+  const ask = toolsForRole('content', { userRole: 'member', mode: 'ask' }).map((t) => t.name);
+  assert.ok(ask.includes('content_gate_check'), 'gate available to read-only review flows');
+  assert.ok(!ask.includes('ws_docs_create'), 'mutating writes absent in ask mode');
+});
+
 test('fresh boot creates no demo canvas or other product content', () => {
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM canvases').get().n, 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM notes').get().n, 0);
@@ -195,10 +234,10 @@ test('GET /api/roster: members see enabled only; owner sees all', async () => {
   db.prepare("UPDATE roster_agents SET enabled = 0 WHERE name = 'Gauge'").run();
   const asMember = await call('GET', '/api/roster', memberCookie);
   assert.equal(asMember.status, 200);
-  assert.equal(asMember.data.roster.length, 10, 'disabled entry hidden from members');
+  assert.equal(asMember.data.roster.length, 11, 'disabled entry hidden from members');
   assert.ok(!asMember.data.roster.some((r) => r.name === 'Gauge'));
   const asOwner = await call('GET', '/api/roster', ownerCookie);
-  assert.equal(asOwner.data.roster.length, 11, 'owner sees disabled entries too');
+  assert.equal(asOwner.data.roster.length, 12, 'owner sees disabled entries too');
   db.prepare("UPDATE roster_agents SET enabled = 1 WHERE name = 'Gauge'").run();
 });
 

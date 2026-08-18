@@ -168,15 +168,32 @@ const COMMON_TOOLS = [
 
 const REGISTRY_TOOL = {
   name: 'read_registry',
-  description: 'Look up CTG reference data the workspace owns. "icp" = the committed ICP scoring rules and exact taxonomies, returned by top-level key. "suppliers" = the CTG supplier catalogue (name, category, taxonomy tags — no contact details, no commission terms). "org_context" = distilled facts about who owns which lane and which rules gate what, FROZEN at the date the result reports: where it disagrees with something you read live, the live source wins and you should say so. Always pass a query — an unfiltered read returns the first page of larger registries.',
+  description: 'Look up CTG reference data the workspace owns. "icp" = the committed ICP scoring rules and exact taxonomies, returned by top-level key. "suppliers" = the CTG supplier catalogue (name, category, taxonomy tags — no contact details, no commission terms). "org_context" = distilled facts about who owns which lane and which rules gate what, FROZEN at the date the result reports: where it disagrees with something you read live, the live source wins and you should say so. "content_policy" = the CTG content-policy pack (voice rules, banned vocabulary, blueprints, pillars, neutrality watchlist) distilled from the content engine — look rules up by kind (voice, blueprint_article, blueprint_linkedin, pillar, neutrality) or id. Always pass a query — an unfiltered read returns the first page of larger registries.',
   input_schema: {
     type: 'object',
     properties: {
-      registry: { type: 'string', enum: ['icp', 'suppliers', 'org_context'] },
+      registry: { type: 'string', enum: ['icp', 'suppliers', 'org_context', 'content_policy'] },
       query: { type: 'string', description: 'space-separated terms; every term must appear in the row' },
       limit: { type: 'integer', description: 'max rows, capped at 25' },
     },
     required: ['registry'],
+  },
+};
+
+// Deterministic policy lint for outward-facing draft text. Pure and local
+// (committed registry data, no network, no spend), ungoverned like
+// read_registry, and deliberately NOT in MUTATING_TOOLS so ask/rehearse
+// review flows can run it.
+const CONTENT_GATE_TOOL = {
+  name: 'content_gate_check',
+  description: 'Deterministic CTG content-policy check against the committed content-policy registry: banned vocabulary, retired statistics, vendor/peer-TSD naming, and dash rules. Pass the complete draft text and its surface; returns clean:true or the exact violations with excerpts. Free and local — run it on every draft before delivering, fix and re-check until clean. A neutrality-name hit may be a legitimate constraint statement: a human or the review agent judges those, so hand it to review instead of silently deleting the constraint.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      text: { type: 'string', description: 'the complete draft text to check' },
+      surface: { type: 'string', enum: ['linkedin', 'article', 'email', 'other'], description: 'where this text will appear — dash rules differ by surface (default: other)' },
+    },
+    required: ['text'],
   },
 };
 
@@ -403,6 +420,11 @@ const REGISTRIES = {
     load: () => require('../config/org-context.json'),
     rows: (data) => data.facts,
     text: (row) => `${row.name} ${row.statement} ${row.layer}`,
+  },
+  content_policy: {
+    load: () => require('../config/content-policy-v1.json'),
+    rows: (data) => data.rules,
+    text: (row) => `${row.id} ${row.kind} ${row.name} ${JSON.stringify(row.value)}`,
   },
 };
 const REGISTRY_LIMIT = 25;
@@ -784,7 +806,7 @@ function toolsForRole(role, { userRole = 'member', mode = 'act', authority = nul
   // and report "nothing matched" over a CRM nobody is watching. Absent, not
   // inert — the systems board already shows the lamp dark.
   const hubspot = require('../hubspot/opsrunner').configured() ? HUBSPOT_TOOLS : [];
-  return [...COMMON_TOOLS, REGISTRY_TOOL, ...wsRead, ...wsWrite, ...hubspot, ...enrichment, ...mcpDefs]
+  return [...COMMON_TOOLS, REGISTRY_TOOL, CONTENT_GATE_TOOL, ...wsRead, ...wsWrite, ...hubspot, ...enrichment, ...mcpDefs]
     .filter((t) => !blockedInMode(t.name, mode) && allowedByAuthority(t.name, authority));
 }
 
@@ -1260,6 +1282,17 @@ async function executeTool(name, input, ctx) {
         // reason: this is workspace-owned reference data, and mislabelling it
         // would teach agents to distrust their own registries.
         return { content: JSON.stringify(readRegistry(input || {})) };
+      } catch (err) {
+        return { content: String(err.message || err), isError: true };
+      }
+    }
+
+    case 'content_gate_check': {
+      try {
+        // Same posture as read_registry: committed in-process policy data,
+        // workspace-owned output — not external content.
+        const { contentGateCheck } = require('./content-gate');
+        return { content: JSON.stringify(contentGateCheck(String((input || {}).text || ''), (input || {}).surface)) };
       } catch (err) {
         return { content: String(err.message || err), isError: true };
       }
