@@ -342,6 +342,25 @@ describe('user-facing canvas cleanup', () => {
     });
   });
 
+  it('staffs the marketing team with the content lane: research, drafting, review, brand voice', async () => {
+    rosterEntries = [
+      { id: 'fred', template_key: 'fred', name: 'Fred', role: 'strategic', color: '#104080', enabled: 1, default_on: 1 },
+      { id: 'darren', template_key: 'darren', name: 'Darren', role: 'commercial', color: '#D98A14', enabled: 1, default_on: 1 },
+      { id: 'scout', template_key: 'scout', name: 'Scout', role: 'research', color: '#2080D0', enabled: 1, default_on: 0 },
+      { id: 'quill', template_key: 'quill', name: 'Quill', role: 'content', color: '#8C5E9E', enabled: 1, default_on: 0 },
+      { id: 'sentinel', template_key: 'sentinel', name: 'Sentinel', role: 'review', color: '#0F8A5F', enabled: 1, default_on: 0 },
+    ];
+    renderWorkspace();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
+    const teamPicker = screen.getByRole('group', { name: 'Choose a starting team' });
+    await userEvent.click(within(teamPicker).getByRole('button', { name: /Marketing & content/ }));
+    for (const name of ['Scout', 'Quill', 'Sentinel', 'Fred']) {
+      expect(screen.getByText(name, { selector: '.canvas-team-member' })).toBeInTheDocument();
+    }
+    expect(screen.queryByText('Darren', { selector: '.canvas-team-member' })).not.toBeInTheDocument();
+  });
+
   it('staffs the SDR pipeline team', async () => {
     rosterEntries = [
       { id: 'darren', template_key: 'darren', name: 'Darren', role: 'commercial', color: '#D98A14', enabled: 1, default_on: 1 },

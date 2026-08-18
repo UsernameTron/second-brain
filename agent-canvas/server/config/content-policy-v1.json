@@ -1,0 +1,582 @@
+{
+  "registry": "content-policy",
+  "version": "content-policy-v1",
+  "source_of_truth": "CTG-Workspace-Build: projects/ctg-content-engine/policy (BRAND_VOICE.md, CONTENT_STRATEGY.md, ARTICLE_BLUEPRINTS.md, LINKEDIN_BLUEPRINTS.md, QUALITY_AND_SAFETY_RULES.md, AUTOMATION_CONFIG.json); projects/ctg-gtm-automation/services/gtm-briefs/app/messaging.py (Prospecting Playbook v1 §1/§9); projects/ctg-revenue-squad/knowledge/vendor-neutrality-rules.md",
+  "generated_by": "hand-distilled for the agent-canvas content lane; a refresh is an edit plus version bump, committed like any code change",
+  "frozen_at": "2026-08-18",
+  "authority_note": "FROZEN at the date above while the upstream policy pack keeps moving. Where a rule here disagrees with the live ctg-content-engine policy pack, the live pack wins and this entry is the stale one.",
+  "excludes": "approved_quotes, approved_case_studies, approved_mentions, approved_events, dated_obligations, and ALL numeric proof points — empty or absent ON PURPOSE: an agent must never invent or remember a customer story or a CTG number; it escalates for the human-supplied fact. Known upstream conflict: AUTOMATION_CONFIG pp_hours_categories carries an hours figure the Prospecting Playbook retired — unresolved, so numeric claims stay out entirely.",
+  "counts": { "rules": 58, "banned_terms": 42, "retired_stats": 3, "blueprints_article": 8, "blueprints_linkedin": 12, "pillars": 15 },
+  "rules": [
+    {
+      "id": "banned-terms",
+      "kind": "banned_terms",
+      "name": "Banned vocabulary and claim patterns",
+      "value": {
+        "terms": [
+          "synergy",
+          "best-in-class",
+          "best in class",
+          "leverage",
+          "robust",
+          "world-class",
+          "world class",
+          "cutting-edge",
+          "cutting edge",
+          "ecosystem",
+          "solutioning",
+          "reach out",
+          "circle back",
+          "low-hanging fruit",
+          "low hanging fruit",
+          "win-win",
+          "going forward",
+          "thought leader",
+          "we are excited",
+          "we're excited",
+          "we are thrilled",
+          "we're thrilled",
+          "game-changer",
+          "game changer",
+          "paradigm shift",
+          "move the needle",
+          "boil the ocean",
+          "touch base",
+          "deep dive",
+          "unlock value",
+          "supercharge",
+          "revolutionize",
+          "revolutionise",
+          "seamless",
+          "frictionless",
+          "holistic",
+          "bespoke",
+          "in today's fast-paced",
+          "in today's rapidly evolving",
+          "it's no secret that",
+          "let's dive in",
+          "buckle up"
+        ],
+        "claim_patterns": [
+          "guarantee",
+          "guaranteed",
+          "risk-free",
+          "no downside",
+          "100% uptime",
+          "100% accurate",
+          "HIPAA compliant",
+          "GDPR compliant",
+          "SOC 2 certified",
+          "ensures compliance",
+          "legally required to",
+          "one of our clients",
+          "a client of ours",
+          "we worked with a",
+          "a customer told us",
+          "a healthcare provider we",
+          "just announced",
+          "recently announced",
+          "this week",
+          "breaking",
+          "the latest",
+          "new report shows"
+        ]
+      },
+      "source": "AUTOMATION_CONFIG.json prohibited_terms + prohibited_claim_patterns; QUALITY_AND_SAFETY_RULES.md HB-50/HB-21/HB-25/HB-26/HB-27"
+    },
+    {
+      "id": "retired-stats",
+      "kind": "retired_stats",
+      "name": "Retired CTG stats blocklist (regex, JS sources)",
+      "value": [
+        { "pattern": "(?<![\\d,])3,?000\\+?\\s*hours\\b", "flags": "i", "canonical": "4,000+", "rationale": "retired stat \"3,000+ hours\" — the canonical number is 4,000+" },
+        { "pattern": "(?<![\\d,])125\\+?\\s*gurus\\b", "flags": "i", "canonical": "120+", "rationale": "retired stat \"125 Gurus\" — the canonical number is 120+" },
+        { "pattern": "(?<![\\d,])50\\+?\\s*(?:solution\\s+)?categories\\b", "flags": "i", "canonical": "58", "rationale": "retired stat \"50 categories\" — the canonical number is 58" }
+      ],
+      "source": "ctg-gtm-automation/services/gtm-briefs/app/messaging.py RETIRED_STATS (Prospecting Playbook v1 §1), ported verbatim"
+    },
+    {
+      "id": "neutrality-watchlist",
+      "kind": "neutrality",
+      "name": "Vendor neutrality watchlist and peer TSDs",
+      "value": {
+        "vendors": [
+          "Five9",
+          "RingCentral",
+          "Genesys",
+          "NICE",
+          "NICE CXone",
+          "Talkdesk",
+          "Twilio",
+          "Amazon Connect",
+          "Zoom Contact Center",
+          "8x8",
+          "Avaya",
+          "Cisco Webex",
+          "Mitel",
+          "Vonage",
+          "Dialpad",
+          "Nextiva",
+          "Salesforce Service Cloud",
+          "Zendesk",
+          "Freshdesk",
+          "Intercom",
+          "LivePerson",
+          "Verint",
+          "Calabrio",
+          "Alvaria",
+          "Observe.AI",
+          "Cresta",
+          "Sierra",
+          "Decagon",
+          "Parloa",
+          "PolyAI",
+          "Ada",
+          "Forethought",
+          "Gladly",
+          "Kustomer",
+          "Sprinklr",
+          "Khoros",
+          "Qualtrics",
+          "Medallia",
+          "XBert",
+          "boost.ai",
+          "Cognita Knowledge Management",
+          "ISPN",
+          "Asana"
+        ],
+        "peer_tsds": ["Telarus", "Avant", "Intelisys"]
+      },
+      "source": "AUTOMATION_CONFIG.json vendor_watchlist; ctg-revenue-squad/knowledge/vendor-neutrality-rules.md hard exclusions"
+    },
+    {
+      "id": "neutrality-rule",
+      "kind": "neutrality",
+      "name": "Vendor neutrality operating rule",
+      "value": "Names on the neutrality-watchlist vendors list are NEVER presented as CTG choices or recommendations; they may appear only inside a constraint statement. Recommend fit, not favorites: no promotional tone toward, and no undisclosed bias for, any named vendor. Competitive framing targets peer-TSD positioning only (Telarus, Avant, Intelisys) and never disparages a vendor CTG stays neutral on. Commission economics are disclosed transparently wherever recommendations or pricing appear; hidden economics is a fail, transparency is the selling point.",
+      "source": "ctg-revenue-squad/knowledge/vendor-neutrality-rules.md; QUALITY_AND_SAFETY_RULES.md HB-30/HB-31/HB-32/HB-33"
+    },
+    {
+      "id": "dash-rule",
+      "kind": "voice",
+      "name": "Em/en dash surface rule",
+      "value": { "banned_surfaces": ["article", "email", "other"], "allowed_surfaces": ["linkedin"], "replacement": "use commas, periods, or parentheses" },
+      "source": "BRAND_VOICE.md §3/§12; QUALITY_AND_SAFETY_RULES.md HB-52; messaging.py sanitize_text (Playbook §9)"
+    },
+    {
+      "id": "voice-01",
+      "kind": "voice",
+      "name": "Person",
+      "value": "Second person by default. First-person plural for CTG's position. Never first-person singular on any CTG surface.",
+      "source": "BRAND_VOICE.md §18 rule 1; QUALITY_AND_SAFETY_RULES.md HB-51"
+    },
+    {
+      "id": "voice-02",
+      "kind": "voice",
+      "name": "Claim first",
+      "value": "The claim appears in sentence 1. No preamble, no throat-clearing, no scene-setting before the claim.",
+      "source": "BRAND_VOICE.md §18 rule 2"
+    },
+    {
+      "id": "voice-03",
+      "kind": "voice",
+      "name": "One primary ask",
+      "value": "Exactly one primary ask per asset. An asset with zero asks is a defect, not a style choice; two asks is a block.",
+      "source": "BRAND_VOICE.md §18 rule 3, §15; QUALITY_AND_SAFETY_RULES.md HB-54/HB-55"
+    },
+    {
+      "id": "voice-04",
+      "kind": "voice",
+      "name": "Proof points are human-supplied",
+      "value": "Exactly one CTG proprietary proof point per article and per convert post, supplied by a human. The agent never generates, rounds, interpolates, or remembers a CTG figure; a missing proof point escalates instead of publishing.",
+      "source": "BRAND_VOICE.md §18 rule 4, §6; QUALITY_AND_SAFETY_RULES.md HB-24"
+    },
+    {
+      "id": "voice-05",
+      "kind": "voice",
+      "name": "No third-party stat openers",
+      "value": "Zero third-party statistics in the first sentence, title, or H1. Any third-party figure used later carries a supplied source URL or is dropped, never paraphrased.",
+      "source": "BRAND_VOICE.md §18 rule 5; QUALITY_AND_SAFETY_RULES.md HB-22/HB-23"
+    },
+    {
+      "id": "voice-06",
+      "kind": "voice",
+      "name": "No suppliers, TSDs, or politics",
+      "value": "Zero named suppliers, zero named competing TSDs, zero political content. Hard block on every surface including titles, alt text, and image prompts.",
+      "source": "BRAND_VOICE.md §18 rule 6; QUALITY_AND_SAFETY_RULES.md HB-30/HB-31/HB-35"
+    },
+    {
+      "id": "voice-07",
+      "kind": "voice",
+      "name": "Banned vocabulary blocks",
+      "value": "Zero banned-vocabulary terms. Hard block with substitution from the substitutions table; a term that survives substitution stops publication.",
+      "source": "BRAND_VOICE.md §18 rule 7, §4.4; QUALITY_AND_SAFETY_RULES.md HB-50"
+    },
+    {
+      "id": "voice-08",
+      "kind": "voice",
+      "name": "Hashtag limits",
+      "value": "At most 3 hashtags, end of post only, never inside body text, drawn from the closed pillar-keyed library. A post under 25 words carrying 4 or more hashtags is a hard block.",
+      "source": "BRAND_VOICE.md §18 rule 8, §13; QUALITY_AND_SAFETY_RULES.md HB-07/HB-57"
+    },
+    {
+      "id": "voice-09",
+      "kind": "voice",
+      "name": "Emoji limits",
+      "value": "At most 2 emoji per LinkedIn post, zero in articles, never in the first sentence of a commercial or technical post, never as the sole carrier of meaning, none in Governance, Regulation, or Healthcare posts.",
+      "source": "BRAND_VOICE.md §18 rule 9, §12; LINKEDIN_BLUEPRINTS.md §10; QUALITY_AND_SAFETY_RULES.md HB-58"
+    },
+    {
+      "id": "voice-10",
+      "kind": "voice",
+      "name": "No math-alphanumeric unicode",
+      "value": "No math-alphanumeric bold or italic unicode characters anywhere in generated output; they break screen readers. Plain sentence case for opening lines.",
+      "source": "BRAND_VOICE.md §18 rule 10, §12; QUALITY_AND_SAFETY_RULES.md HB-53"
+    },
+    {
+      "id": "voice-11",
+      "kind": "voice",
+      "name": "Tag every asset",
+      "value": "Every asset names its pillar, funnel bucket, hook style, and CTA type at generation time so performance stays attributable.",
+      "source": "BRAND_VOICE.md §18 rule 12; QUALITY_AND_SAFETY_RULES.md §9 audit log"
+    },
+    {
+      "id": "voice-12",
+      "kind": "voice",
+      "name": "Unfilled placeholder is a defect",
+      "value": "If a required bracket, variable, or proof point cannot be filled with a specific true value, the asset does not publish; it drafts and escalates. An unfilled placeholder is a hard block.",
+      "source": "BRAND_VOICE.md §18 rule 13; QUALITY_AND_SAFETY_RULES.md HB-04"
+    },
+    {
+      "id": "voice-13",
+      "kind": "voice",
+      "name": "One metaphor maximum",
+      "value": "One metaphor per asset, stated once in the headline or lede, then dropped. Never sustain a metaphor across sections; never mix metaphors.",
+      "source": "BRAND_VOICE.md §9"
+    },
+    {
+      "id": "substitutions",
+      "kind": "substitutions",
+      "name": "Banned-term substitution table",
+      "value": {
+        "we are excited to": "The biggest change:",
+        "we're excited to": "The biggest change:",
+        "we are thrilled to": "As of [date],",
+        "we're thrilled to": "As of [date],",
+        "leverage": "use",
+        "best-in-class": "[the specific capability]",
+        "world-class": "[the specific capability]",
+        "cutting-edge": "[the specific capability]",
+        "robust": "tested",
+        "reach out": "DM us",
+        "circle back": "reply here",
+        "low-hanging fruit": "[the specific first step]",
+        "synergy": "[the actual mechanic]",
+        "win-win": "[the actual benefit to each side]",
+        "going forward": "from now on",
+        "thought leader": "practitioner",
+        "solutioning": "designing",
+        "ecosystem": "stack",
+        "transformation": "the specific change: migration, consolidation, re-platform"
+      },
+      "source": "AUTOMATION_CONFIG.json banned_term_substitutions; BRAND_VOICE.md §12 substitution table"
+    },
+    {
+      "id": "pillar-ai-strategy",
+      "kind": "pillar",
+      "name": "Pillar: AI Strategy & Readiness",
+      "value": { "label": "AI Strategy & Readiness", "tier": "primary", "funnel_role": "reach_to_nurture", "default_hook": "H4", "default_cta": "link_read" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[ai_strategy]; CONTENT_STRATEGY.md §1.1"
+    },
+    {
+      "id": "pillar-vendor-sourcing",
+      "kind": "pillar",
+      "name": "Pillar: Vendor Sourcing & Procurement",
+      "value": { "label": "Vendor Sourcing & Procurement", "tier": "primary", "funnel_role": "nurture_to_convert", "default_hook": "H1", "default_cta": "service_inquiry" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[vendor_sourcing]; CONTENT_STRATEGY.md §1.1"
+    },
+    {
+      "id": "pillar-voice-ai",
+      "kind": "pillar",
+      "name": "Pillar: Voice AI & Automation",
+      "value": { "label": "Voice AI & Automation", "tier": "primary", "funnel_role": "reach", "default_hook": "H5", "default_cta": "link_read" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[voice_ai]; CONTENT_STRATEGY.md §1.1"
+    },
+    {
+      "id": "pillar-healthcare-cx",
+      "kind": "pillar",
+      "name": "Pillar: Healthcare CX (human review, regulatory exposure)",
+      "value": { "label": "Healthcare CX", "tier": "primary", "funnel_role": "reach_to_convert", "default_hook": "H3", "default_cta": "service_inquiry" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[healthcare_cx]; CONTENT_STRATEGY.md §1.1"
+    },
+    {
+      "id": "pillar-workforce-staffing",
+      "kind": "pillar",
+      "name": "Pillar: Workforce & Staffing",
+      "value": { "label": "Workforce & Staffing", "tier": "secondary", "funnel_role": "reach_to_convert", "default_hook": "H6", "default_cta": "service_inquiry" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[workforce_staffing]; CONTENT_STRATEGY.md §1.2"
+    },
+    {
+      "id": "pillar-knowledge-management",
+      "kind": "pillar",
+      "name": "Pillar: Knowledge Management",
+      "value": { "label": "Knowledge Management", "tier": "secondary", "funnel_role": "nurture", "default_hook": "H4", "default_cta": "link_read" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[knowledge_management]; CONTENT_STRATEGY.md §1.2"
+    },
+    {
+      "id": "pillar-leadership-career",
+      "kind": "pillar",
+      "name": "Pillar: Leadership & Career",
+      "value": { "label": "Leadership & Career", "tier": "secondary", "funnel_role": "brand", "default_hook": "H10", "default_cta": "engagement" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[leadership_career]; CONTENT_STRATEGY.md §1.2"
+    },
+    {
+      "id": "pillar-qa-analytics",
+      "kind": "pillar",
+      "name": "Pillar: QA & Analytics",
+      "value": { "label": "QA & Analytics", "tier": "secondary", "funnel_role": "nurture", "default_hook": "H1", "default_cta": "engagement" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[qa_analytics]; CONTENT_STRATEGY.md §1.2"
+    },
+    {
+      "id": "pillar-agent-experience",
+      "kind": "pillar",
+      "name": "Pillar: Agent Experience & Tools",
+      "value": { "label": "Agent Experience & Tools", "tier": "secondary", "funnel_role": "nurture", "default_hook": "H1", "default_cta": "link_read" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[agent_experience]; CONTENT_STRATEGY.md §1.2"
+    },
+    {
+      "id": "pillar-gen-z",
+      "kind": "pillar",
+      "name": "Pillar: Gen Z & Expectations (LinkedIn only, not article-eligible)",
+      "value": { "label": "Gen Z & Expectations", "tier": "secondary", "funnel_role": "nurture", "default_hook": "H5", "default_cta": "engagement" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[gen_z]; CONTENT_STRATEGY.md §1.2"
+    },
+    {
+      "id": "pillar-bpo-outsourcing",
+      "kind": "pillar",
+      "name": "Pillar: BPO & Outsourcing (reframe: never open on a cost or outsourcing statistic; lead with CTG's boundary position)",
+      "value": { "label": "BPO & Outsourcing", "tier": "reframe", "funnel_role": "reach_to_channel", "default_hook": "H5", "default_cta": "link_read" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[bpo_outsourcing]; CONTENT_STRATEGY.md §1.3"
+    },
+    {
+      "id": "pillar-regulation-industry",
+      "kind": "pillar",
+      "name": "Pillar: Regulation & Industry (reframe: dated-obligation format only, never a news recap; human review; not article-eligible)",
+      "value": { "label": "Regulation & Industry", "tier": "reframe", "funnel_role": "reach", "default_hook": "H7", "default_cta": "link_read" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[regulation_industry]; CONTENT_STRATEGY.md §1.3"
+    },
+    {
+      "id": "pillar-governance-neutrality",
+      "kind": "pillar",
+      "name": "Pillar: Governance & Neutrality (experimental, touches the commercial model, human review)",
+      "value": { "label": "Governance & Neutrality", "tier": "experimental", "funnel_role": "nurture_to_convert", "default_hook": "H4", "default_cta": "service_inquiry" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[governance_neutrality]; CONTENT_STRATEGY.md §1.4"
+    },
+    {
+      "id": "pillar-vertical-expansion",
+      "kind": "pillar",
+      "name": "Pillar: Vertical Expansion, Financial Services and Retail (experimental, human review on first-in-vertical)",
+      "value": { "label": "Vertical Expansion (Financial Services, Retail)", "tier": "experimental", "funnel_role": "reach_to_convert", "default_hook": "H5", "default_cta": "service_inquiry" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[vertical_expansion]; CONTENT_STRATEGY.md §1.4"
+    },
+    {
+      "id": "pillar-cx-general",
+      "kind": "pillar",
+      "name": "Pillar: CX General (review queue; never auto-assigned, resolving here means the asset drafts for human review)",
+      "value": { "label": "CX General", "tier": "review_queue" },
+      "source": "AUTOMATION_CONFIG.json content_pillars[cx_general]; CONTENT_STRATEGY.md §1.5"
+    },
+    {
+      "id": "funnel-mix",
+      "kind": "pillar",
+      "name": "Funnel mix target 55/30/15",
+      "value": { "reach": 0.55, "nurture": 0.3, "convert": 0.15, "note": "canonical mix per Playbook §3/§6.2; the 70/20/10 figure in older CTG docs is superseded. Service-ask share target at least 0.15." },
+      "source": "AUTOMATION_CONFIG.json funnel_mix_target; CONTENT_STRATEGY.md §0/§2.1"
+    },
+    {
+      "id": "hooks",
+      "kind": "hooks",
+      "name": "Approved hook patterns H1-H12",
+      "value": {
+        "H1": "Question containing the contradiction",
+        "H2": "Question plus a hint redirect",
+        "H3": "Painful truth headline",
+        "H4": "Two-beat contrarian (pay twice)",
+        "H5": "Reversal",
+        "H6": "Repetition loop",
+        "H7": "Dated countdown",
+        "H8": "Audience call-out",
+        "H9": "Category disqualification",
+        "H10": "Plain declarative team proof",
+        "H11": "Calendar-state / seasonal",
+        "H12": "Not-because / because"
+      },
+      "source": "AUTOMATION_CONFIG.json hook_patterns; BRAND_VOICE.md §11"
+    },
+    {
+      "id": "prohibited-openers",
+      "kind": "hooks",
+      "name": "Prohibited opener patterns",
+      "value": [
+        "third_party_statistic: any external statistic as the opener, title, or H1",
+        "pull_quote: a quote with no preceding claim of CTG's own",
+        "third_party_company_news: a named third party's announcement or news recap",
+        "bare_announcement_no_idea: an announcement carrying no idea, the it's-live shape",
+        "pronoun_with_no_referent: an opener whose pronoun points at nothing shown",
+        "tease_and_defer: a deferral phrase as the payload with no independent claim in sentence 1"
+      ],
+      "source": "AUTOMATION_CONFIG.json prohibited_hooks; BRAND_VOICE.md §11 prohibited openers; QUALITY_AND_SAFETY_RULES.md HB-59"
+    },
+    {
+      "id": "blueprint-article-cluster-pillar-page",
+      "kind": "blueprint_article",
+      "name": "AB-01 Cluster Pillar Page",
+      "value": { "type": "AB-01", "words_min": 1400, "words_max": 3500, "structure": "Lede (claim, two-beat payoff, reader stake, promise); H2 named framework as an extractable definition block; H2 the translation, one metaphor; 3-4 H2 criteria/steps/failure-mode sections, one table or one list each; H2 what it looks like gone wrong, anonymised pattern; H2 FAQ, 5 questions answered standalone in 40-70 words, FAQPage schema; H2 conclusion with single CTA and proof point. Nurture. Human review on first publication. Companions LB-02 then LB-04." },
+      "source": "ARTICLE_BLUEPRINTS.md AB-01; AUTOMATION_CONFIG.json article_templates"
+    },
+    {
+      "id": "blueprint-article-failure-autopsy",
+      "kind": "blueprint_article",
+      "name": "AB-02 Failure Autopsy",
+      "value": { "type": "AB-02", "words_min": 800, "words_max": 2200, "structure": "Flat contrarian claim, no hedging; the autopsy as a 3-stage anonymised pattern (what was bought, what broke, what it cost operationally); the negation, not because of the obvious cause; the systemic cause in one sentence plus 3 concrete failure modes as a list; the practitioner credential line; conclusion and single CTA. Title T2 or T3. Reach funnel." },
+      "source": "ARTICLE_BLUEPRINTS.md AB-02; AUTOMATION_CONFIG.json article_templates"
+    },
+    {
+      "id": "blueprint-article-framework-explainer",
+      "kind": "blueprint_article",
+      "name": "AB-03 Framework Explainer / Translation Piece",
+      "value": { "type": "AB-03", "words_min": 600, "words_max": 1800, "structure": "The translation stated as sentence 1; why the CX term hides the engineering reality; the pathology the engineering term brings, 3 concrete consequences; what to measure instead as a short table; one vendor question the reader can use verbatim; conclusion linking up to the pillar. Title T1. Reach funnel. Requires a definition block." },
+      "source": "ARTICLE_BLUEPRINTS.md AB-03; AUTOMATION_CONFIG.json article_templates"
+    },
+    {
+      "id": "blueprint-article-decision-guide",
+      "kind": "blueprint_article",
+      "name": "AB-04 Decision Guide",
+      "value": { "type": "AB-04", "words_min": 700, "words_max": 2000, "structure": "The decision framed as the wrong question the reader is asking; the right question in one sentence; decision table, 4-6 criteria by 2-3 options, criteria owned by CTG; the variable that actually decides it, named; the cost line nobody invoiced, 3 concrete items; conclusion and CTA. Mandatory for BPO topics: lead with CTG's boundary position, never a cost-statistic opener. Title T4 or T7. Nurture." },
+      "source": "ARTICLE_BLUEPRINTS.md AB-04; AUTOMATION_CONFIG.json article_templates"
+    },
+    {
+      "id": "blueprint-article-governance-neutrality-proof",
+      "kind": "blueprint_article",
+      "name": "AB-05 Governance / Neutrality Proof",
+      "value": { "type": "AB-05", "words_min": 700, "words_max": 1800, "structure": "Name the problem: every vendor claims best so the word is worthless; CTG's answer, three lenses (strategic, commercial, operational) against a documented auditable score; one concrete human-supplied mechanic; what the reader can verify themselves, as a checklist; the commercial-model line; conclusion with an offer to show the scoring. No commission rate or figure ever. Always human review. Title T3 or T1. Convert." },
+      "source": "ARTICLE_BLUEPRINTS.md AB-05; AUTOMATION_CONFIG.json article_templates"
+    },
+    {
+      "id": "blueprint-article-convert-offer-page",
+      "kind": "blueprint_article",
+      "name": "AB-06 Convert / Offer Page",
+      "value": { "type": "AB-06", "words_min": 350, "words_max": 1200, "structure": "The pain as a question the reader is living; the uncomfortable truth a vendor will not say; what CTG has already done, with the human-supplied proof point; what the reader gets as 3-5 concrete deliverables, not benefits; the commercial model stated plainly; the ask with one low-friction action. Never the word free without the neutrality explanation. Title T8 or plain offer name. Convert. Human review on first publication." },
+      "source": "ARTICLE_BLUEPRINTS.md AB-06; AUTOMATION_CONFIG.json article_templates"
+    },
+    {
+      "id": "blueprint-article-vertical-cut",
+      "kind": "blueprint_article",
+      "name": "AB-07 Vertical Cut",
+      "value": { "type": "AB-07", "words_min": 800, "words_max": 2000, "structure": "A true concrete scene in the vertical's operational language, written as a pattern, never a named case; why the generic model breaks for this vertical's users; the 3 constraints the vertical adds (regulatory, behavioural, operational); what changes in the evaluation criteria, as a table; vertical-specific ask, no demo marathon. Never a compliance guarantee: describe requirements, never assert a solution is compliant. Always human review. Title T4 or T7." },
+      "source": "ARTICLE_BLUEPRINTS.md AB-07; AUTOMATION_CONFIG.json article_templates"
+    },
+    {
+      "id": "blueprint-article-guru-spotlight",
+      "kind": "blueprint_article",
+      "name": "AB-08 Guru Spotlight Feature",
+      "value": { "type": "AB-08", "words_min": 500, "words_max": 1200, "structure": "Name and one concrete surprising fact about the Guru's practitioner history; the standing explainer of the Guru model, consultant partners assigned to clients at no cost; the specific problem this person solves, in the buyer's language; one thing they say that a vendor would not; CTA. Hard block unless consent_on_file is true; never publish a named individual off the approved roster. Always human review. Title T5. Reach." },
+      "source": "ARTICLE_BLUEPRINTS.md AB-08; AUTOMATION_CONFIG.json article_templates"
+    },
+    {
+      "id": "blueprint-linkedin-two-beat-contrarian",
+      "kind": "blueprint_linkedin",
+      "name": "LB-01 Two-Beat Contrarian",
+      "value": { "type": "LB-01", "words_min": 90, "words_max": 220, "structure": "Claim line: most [audience] pay for [thing] twice; two-beat payoff, once when X, again when Y; human-supplied proof point plus the consistent pattern in 3 concrete sentences; link CTA; hashtags last. Hook H4, reach, link_read." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-01; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "blueprint-linkedin-reversal",
+      "kind": "blueprint_linkedin",
+      "name": "LB-02 Reversal",
+      "value": { "type": "LB-02", "words_min": 90, "words_max": 220, "structure": "Reversal claim: the thing that made you [good outcome] is the one that will [bad outcome]; negation of the expected threat; who is actually winning and why; the mechanism; what to look at first; link; hashtags. Mandatory for BPO topics, never a cost or outsourcing statistic opener. Hook H5, reach, link_read." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-02; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "blueprint-linkedin-repetition-loop",
+      "kind": "blueprint_linkedin",
+      "name": "LB-03 Repetition Loop",
+      "value": { "type": "LB-03", "words_min": 90, "words_max": 220, "structure": "Repetition-loop opener: action, consequence, action again, same consequence; three parallel your-X lines naming what is stuck, empty, or burning out; one honest adjective; the actual cause in one sentence; engagement question close. Hook H6, reach, engagement CTA." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-03; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "blueprint-linkedin-question-to-article",
+      "kind": "blueprint_linkedin",
+      "name": "LB-04 Question-to-Article",
+      "value": { "type": "LB-04", "words_min": 110, "words_max": 260, "structure": "Question containing the contradiction; hint redirect that reframes it; three parallel when-your-system-fails lines; then at least 3 sentences of the article's actual argument, the post argues rather than summarises; link; hashtags. Hook H1 or H2, nurture, link_read." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-04; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "blueprint-linkedin-framework-checklist",
+      "kind": "blueprint_linkedin",
+      "name": "LB-05 Framework / Checklist",
+      "value": { "type": "LB-05", "words_min": 110, "words_max": 260, "structure": "Colour-scale or count question opener; the N questions that decide the answer, as a numbered list the reader can answer today; the real root cause vs the obvious culprit; comment-keyword CTA to receive the full checklist. Hook H1, nurture, comment_to_receive." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-05; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "blueprint-linkedin-research-shortlist",
+      "kind": "blueprint_linkedin",
+      "name": "LB-06 Research Shortlist",
+      "value": { "type": "LB-06", "words_min": 70, "words_max": 200, "structure": "Pain question: still sitting through [category] demos that all sound the same; the part nobody selling software will say; we've already done the work, human-supplied proof point scored against the reader's workflows, seats, compliance needs; what the data says vs what the salesperson said; vendor-neutral shortlist ask with the neutrality proof; comment or DM CTA. Hook H1 or H3, convert, service_inquiry." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-06; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "blueprint-linkedin-governance-proof",
+      "kind": "blueprint_linkedin",
+      "name": "LB-07 Governance Proof",
+      "value": { "type": "LB-07", "words_min": 70, "words_max": 200, "structure": "When every vendor says best, the word is worthless; so we don't take their word; every recommendation runs three lenses (strategic, commercial, operational) against a documented auditable score; vendor-neutral by design plus one concrete human-supplied mechanic; show-you-the-scoring ask. No commission rate, percentage, or figure ever; always human review. Hook H4, convert, service_inquiry." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-07; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "blueprint-linkedin-vertical-offer",
+      "kind": "blueprint_linkedin",
+      "name": "LB-08 Vertical Offer",
+      "value": { "type": "LB-08", "words_min": 70, "words_max": 200, "structure": "Most [vertical] contact centers weren't built for today's [end users]; one human-supplied scene written as a pattern, not a named case; the fix isn't more technology, it's the right fit for how the users actually behave; sourced-comparable-settings credential; vertical ask, vendor-neutral, no demo marathon. Never a compliance guarantee; human review for regulated verticals. Hook H3, convert, service_inquiry." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-08; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "blueprint-linkedin-podcast-episode",
+      "kind": "blueprint_linkedin",
+      "name": "LB-09 Podcast Episode",
+      "value": { "type": "LB-09", "words_min": 60, "words_max": 200, "structure": "Episode number with guest name, role, org; ONE concrete surprising guest practitioner fact, required and human-supplied; the claim the episode makes in one sentence; why that claim is uncomfortable or non-obvious; episode link. Hard block if no proper noun beyond the show name. Requires a paired LB-04 companion 48-72 hours later. Hook H10, reach, podcast_watch." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-09; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "blueprint-linkedin-guru-spotlight",
+      "kind": "blueprint_linkedin",
+      "name": "LB-10 Guru Spotlight",
+      "value": { "type": "LB-10", "words_min": 80, "words_max": 220, "structure": "Guru Spotlight: name; standing Guru-model explainer, consultant partners assigned to clients at no cost for sourcing and procurement; concrete practitioner history; the specific problem they solve in the buyer's language; one thing they say a vendor wouldn't. Hard block unless consent_on_file is true; never auto-generate a person. Hook H10, reach, engagement." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-10; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "blueprint-linkedin-dated-obligation",
+      "kind": "blueprint_linkedin",
+      "name": "LB-11 Dated Obligation",
+      "value": { "type": "LB-11", "words_min": 70, "words_max": 200, "structure": "N days from today, [obligation] takes effect; the exact date and statute name, human-supplied only, the agent never infers a deadline; what changes in the reader's operational terms; what breaks if unprepared; what to check first; link. Routes to regulatory human review. Never a news recap, never a third-party statistic. Hook H7, reach, link_read." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-11; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "blueprint-linkedin-category-disqualification",
+      "kind": "blueprint_linkedin",
+      "name": "LB-12 Category Disqualification",
+      "value": { "type": "LB-12", "words_min": 80, "words_max": 220, "structure": "The category has a lot of [thing], very few of them worth [the reader's scarce resource]; the exception, CTG's own asset or a human-supplied item only; 2-3 concrete qualifying reasons, one line each; what the reader gets that they can't get elsewhere; single ask. The disqualified category may never be a named supplier, competitor, or third-party event: criticise the category, never a name. Hook H9, reach, engagement or link_read." },
+      "source": "LINKEDIN_BLUEPRINTS.md LB-12; AUTOMATION_CONFIG.json linkedin_templates"
+    },
+    {
+      "id": "proof-points",
+      "kind": "proof_point",
+      "name": "Non-numeric proof points (numeric ones deliberately excluded)",
+      "value": [
+        { "id": "pp_neutrality", "text": "the buyer never pays us; the supplier does", "source": "CTG standing positioning" },
+        { "id": "pp_three_lenses", "text": "three lenses on every recommendation: strategic, commercial, operational", "source": "CTG standing positioning" },
+        { "id": "pp_practitioner", "text": "We didn't study contact centers. We ran them.", "source": "CTG standing positioning" }
+      ],
+      "source": "AUTOMATION_CONFIG.json proof_points (non-numeric entries only); BRAND_VOICE.md §4.2. Numeric proof points are excluded per the registry-level excludes note: the agent escalates for a human-supplied figure."
+    }
+  ]
+}

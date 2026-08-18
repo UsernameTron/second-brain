@@ -17,6 +17,7 @@ const { readRegistry, toolsForRole } = require('../server/orchestrator/tools');
 const icp = require('../server/config/icp-sr-icp-v6.json');
 const suppliers = require('../server/config/supplier-catalog.json');
 const orgContext = require('../server/config/org-context.json');
+const contentPolicy = require('../server/config/content-policy-v1.json');
 const { buildSuppliers, buildOrgContext } = require('../scripts/build-registries');
 
 // The excluded-vendor list lives in data, never in a prompt or a test literal
@@ -130,14 +131,62 @@ test('ICP registry returns exact committed top-level values by key', () => {
   }
 });
 
+test('content-policy registry: provenance, size bounds, accurate counts, and its own gate', () => {
+  assert.equal(contentPolicy.version, 'content-policy-v1');
+  assert.match(contentPolicy.frozen_at, /^\d{4}-\d{2}-\d{2}$/);
+  assert.match(contentPolicy.authority_note, /live (pack|source) wins/i);
+  assert.match(contentPolicy.excludes, /on purpose/i, 'the empty-on-purpose lists are named, not implied');
+  assert.ok(fs.statSync(path.join(__dirname, '../server/config/content-policy-v1.json')).size <= 40_000,
+    'whole file stays under the tool-result envelope');
+  for (const row of contentPolicy.rules) {
+    assert.ok(JSON.stringify(row).length <= 2000, `row ${row.id} within the per-row bound`);
+    assert.ok(row.id && row.kind && row.name && row.source, `row ${row.id} fully specified`);
+  }
+  assert.equal(contentPolicy.counts.rules, contentPolicy.rules.length);
+  // The counts Quill's prompt digest interpolates must match the data.
+  assert.equal(contentPolicy.counts.banned_terms, contentPolicy.rules.find((r) => r.id === 'banned-terms').value.terms.length);
+  assert.equal(contentPolicy.counts.retired_stats, contentPolicy.rules.find((r) => r.id === 'retired-stats').value.length);
+  assert.equal(contentPolicy.rules.filter((r) => r.kind === 'blueprint_article').length, 8);
+  assert.equal(contentPolicy.rules.filter((r) => r.kind === 'blueprint_linkedin').length, 12);
+
+  // The registry passes its own gate: no retired-stat phrase and no
+  // hard-excluded vendor name in any prose outside the blocklist rows, which
+  // carry them as data — the same posture as icp.excluded_vendor_domains.
+  const BLOCKLIST_IDS = new Set(['banned-terms', 'retired-stats', 'neutrality-watchlist', 'substitutions']);
+  const prose = [contentPolicy.source_of_truth, contentPolicy.generated_by, contentPolicy.authority_note, contentPolicy.excludes,
+    ...contentPolicy.rules.filter((r) => !BLOCKLIST_IDS.has(r.id)).map((r) => JSON.stringify(r))].join(' ');
+  for (const { pattern, flags } of contentPolicy.rules.find((r) => r.id === 'retired-stats').value) {
+    assert.ok(!new RegExp(pattern, flags).test(prose), `no retired stat leaks into prose (${pattern})`);
+  }
+  assert.ok(!EXCLUDED_RE.test(prose), 'hard-excluded names live only in blocklist data');
+  // And no percentage claims in prose — rates belong to the deal desk. (The
+  // word "commission" is allowed: the neutrality rule mandates disclosing
+  // commission economics; it is a rule, not a rate.)
+  assert.ok(!/\d+\s*%/.test(prose), 'no percentage figures in prose');
+});
+
+test('content_policy is readable through read_registry with AND filtering', () => {
+  const byKind = readRegistry({ registry: 'content_policy', query: 'blueprint_linkedin' });
+  assert.equal(byKind.matched, 12, 'twelve LinkedIn blueprints resolve by kind');
+  assert.ok(byKind.frozen_at, 'content-policy results carry the freeze date');
+  // The rule row's prose legitimately references the watchlist by name, so
+  // resolve by id rather than assuming a unique match.
+  const byId = readRegistry({ registry: 'content_policy', query: 'neutrality-watchlist' });
+  const watchlistRow = byId.results.find((r) => r.id === 'neutrality-watchlist');
+  assert.ok(watchlistRow, 'watchlist row resolves');
+  assert.equal(watchlistRow.value.peer_tsds.length, 3);
+});
+
 test('read_registry refuses an unknown registry and prototype keys', () => {
   for (const registry of ['secrets', 'constructor', '__proto__', 'toString']) {
     assert.throws(() => readRegistry({ registry }), /unknown registry/);
   }
 });
 
-test('every role can read the registries — it is local data, no spend, no network', () => {
-  for (const role of ['research', 'commercial', 'strategic', 'operational', 'coding', 'review', 'crm', 'targeting']) {
-    assert.ok(toolsForRole(role, { userRole: 'member' }).map((t) => t.name).includes('read_registry'), role);
+test('every role can read the registries and run the content gate — local data, no spend, no network', () => {
+  for (const role of ['research', 'commercial', 'strategic', 'operational', 'coding', 'review', 'crm', 'targeting', 'content']) {
+    const names = toolsForRole(role, { userRole: 'member' }).map((t) => t.name);
+    assert.ok(names.includes('read_registry'), role);
+    assert.ok(names.includes('content_gate_check'), `${role} gets the deterministic gate`);
   }
 });

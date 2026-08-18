@@ -26,8 +26,8 @@ export const TEAM_TEMPLATES = Object.freeze([
   Object.freeze({
     id: 'marketing',
     name: 'Marketing & content',
-    description: 'Research an audience, shape the message, and create Workspace-ready content.',
-    agentKeys: Object.freeze(['scout', 'fred', 'darren', 'atlas']),
+    description: 'Research an audience, shape the message, and produce gate-checked drafts in CTG voice — docs and email drafts only; humans publish.',
+    agentKeys: Object.freeze(['scout', 'quill', 'sentinel', 'fred']),
   }),
   Object.freeze({
     id: 'delivery',

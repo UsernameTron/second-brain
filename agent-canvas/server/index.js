@@ -64,8 +64,10 @@ const roster = require('./roster');
 roster.seedRoster();
 roster.seedEnrichmentAgent();
 roster.seedSdrAgent();
+roster.seedContentAgent();
 roster.backfillRosterTemplateKeys();
 roster.reseedSdrTools();
+roster.reseedGaugeTools();
 // Re-seed propagates a changed roster prompt to already-seeded workspaces
 // (seedRoster is one-shot); heal refreshes pristine pre-roster exec prompts;
 // link stamps provenance on anything matching a template byte-for-byte.

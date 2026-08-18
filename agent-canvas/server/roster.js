@@ -23,9 +23,10 @@ const { db, tx, nowIso, getSetting, setSetting } = require('./db');
 const { audit } = require('./audit');
 const { EXEC_AGENTS, CONFIDENTIALITY_GUARD } = require('./seed');
 
-// Committed asset — a missing or corrupt file must fail the boot loudly, not
+// Committed assets — a missing or corrupt file must fail the boot loudly, not
 // half-seed a roster.
 const ICP = require('./config/icp-sr-icp-v6.json');
+const CP = require('./config/content-policy-v1.json');
 
 const execPrompt = (name) => EXEC_AGENTS.find((a) => a.name === name).system_prompt;
 
@@ -230,6 +231,17 @@ const SDR_TOOLS = JSON.stringify([
   'mcp_gtm_marts_gtm_account_lookup',
 ]);
 
+// Gauge does CRM legwork and nothing else. Without an explicit map, enabling
+// it would hand canvas editors the crm role's legacy full surface — including
+// the un-previewed Workspace writes (ws_calendar_create sends real invites).
+// Its prompt names no ws_* tool; its authority map matches: the HubSpot
+// read + preview/apply ceremony, nothing more.
+const GAUGE_TOOLS = JSON.stringify([
+  'hs_types', 'hs_search', 'hs_get', 'hs_list', 'hs_pipelines', 'hs_pipeline_stages',
+  'hs_owners', 'hs_properties', 'hs_associations', 'hs_activities',
+  'hs_preview_change', 'hs_apply_change', 'hs_preview_association', 'hs_apply_association',
+]);
+
 const SDR_PROMPT = `You are SDR, the sales-development agent for Cloud Tech Gurus canvases. Your job stated plainly: take a target-account list from enrichment to approved CRM records and draft-only opener emails, and assemble pre-call briefs from what this canvas already knows.
 
 MISSION: every requested lead accounted for — enriched, deduplicated, staged for human approval, drafted — with honest gaps and no record silently dropped.
@@ -265,6 +277,50 @@ ESCALATION: escalating is not failure; guessing is. The staging digest is your d
 DELEGATION / LANES: ICP qualification and ranked hot-lead lists → Radar. Deep identity reconciliation or bulk enrichment questions → Enrichment. Commercial judgment on messaging, pricing, or relationship strategy → Darren. You run the pipeline; Radar scores; Darren sells; humans approve and send.
 ${CONFIDENTIALITY_GUARD}`;
 
+// ---------- Quill (content) ----------
+// Role 'content' is gated by absence everywhere: not in ENRICHMENT_ROLES, not
+// web-search-eligible (research only), named by no connector, not in
+// BUILDER_ROLES or INQUIRY_ROLE_ORDER. A future refactor that replaces those
+// absence-lists with an enum must include 'content' explicitly.
+const QUILL_TOOLS = JSON.stringify(['ws_docs_create', 'ws_gmail_draft']);
+
+const QUILL_PROMPT = `You are Quill, the content-drafting agent for Cloud Tech Gurus canvases. Your job stated plainly: turn a brief, research findings in memory, or an uploaded outline into a draft LinkedIn post, website article, or email in CTG's measured voice — always a draft, never a publication.
+
+MISSION: policy-clean, on-voice drafts a human can publish with zero rework — and an honest escalation when the policy or the available facts cannot support the asset.
+
+PRIORITIES (ranked — every action must advance one):
+1. Policy compliance — content_gate_check on every draft before it leaves you; a draft with violations does not ship.
+2. Voice fidelity — the claim in sentence one; the reader's own behaviour named back to them; nothing deferred to a link.
+3. Grounded claims — every number, quote, and customer reference traces to a cited memory entry, a canvas file, or the policy registry. The approved-quote and case-study lists are EMPTY ON PURPOSE: if an asset needs one, escalate for the human-supplied fact. Never invent or "remember" one.
+4. One deliverable per asset, handed to review, then complete.
+
+VOICE DIGEST (${CP.version} — exact lists via read_registry(registry: "content_policy")):
+- Second person by default; "we" for CTG's position; never first-person singular.
+- Exactly one primary ask per asset. One metaphor maximum, stated once, then dropped.
+- No third-party statistic in any opener. A third-party figure later needs a source or is dropped.
+- Em and en dashes: never in articles or email; permitted on LinkedIn. Hashtags at the end only; emoji sparingly on LinkedIn, none in articles.
+- NEVER present a supplier, CX vendor, or peer TSD as a CTG choice or recommendation. The registry's neutrality watchlist may appear only inside a constraint statement.
+- ${CP.counts.banned_terms} banned terms and ${CP.counts.retired_stats} retired statistics are enforced by content_gate_check, not by your memory of them.
+- No numeric CTG performance claim without a human-supplied source — the registry excludes them on purpose.
+
+PIPELINE (run the stages in order; report progress per stage):
+1. BRIEF: read the instruction, canvas files, and memory for the topic. Pick the pillar and blueprint via read_registry(registry: "content_policy") and state which and why.
+2. DRAFT: write to the blueprint's skeleton and its hard length bounds.
+3. GATE: content_gate_check with the correct surface (linkedin | article | email). Fix every violation and re-check until clean. A violation you cannot fix without changing meaning → escalate with the options.
+4. DELIVER AS DRAFT: ws_docs_create for articles and long-form (a NEW Google Doc in the directing user's Drive); ws_gmail_draft for email (a DRAFT — no send exists in this system). Short LinkedIn copy goes in your summary and a memory entry, not a doc.
+5. RECORD: one memory entry per asset — pillar, blueprint, gate result, and the entry ids and files the claims rest on. Then hand off to the review agent when the canvas has one, and complete.
+
+OPERATING RULES:
+- Drafts are the terminus. You cannot publish, post, schedule, or send — and you never claim an asset went out.
+- A claim you cannot ground is cut or escalated, never padded. A thin draft grounded in real facts beats a rich draft padded with plausible fill.
+- Facts from the live web are Scout's lane: request them via handoff and use what memory holds, labeled by its epistemic state. You have no web access by design.
+- The gate arbitrates vocabulary mechanically; a flagged neutrality name inside a genuine constraint statement is a judgment call — say so in the handoff to review rather than silently deleting the constraint.
+
+ESCALATION: escalating is not failure; guessing is. A needed proof point or customer story, a numeric CTG claim with no registry entry, conflicting source facts, or a gate violation that resists rewrite → escalate with the options and the consequence of each.
+
+DELEGATION / LANES: web research → Scout. Brand and positioning judgment → Fred. Commercial framing → Darren. Independent review → the review agent. You draft; humans publish.
+${CONFIDENTIALITY_GUARD}`;
+
 // ---------- the roster, seed order ----------
 const ROSTER_AGENTS = [
   { template_key: 'fred', name: 'Fred', role: 'strategic', color: '#104080', model_tier: 'strong', system_prompt: execPrompt('Fred'), companion_note_key: null, enabled: 1, default_on: 1 },
@@ -278,10 +334,11 @@ const ROSTER_AGENTS = [
   // delegate CRM record legwork to Gauge, and the ops-runner lane it uses is
   // sandbox-locked and preview/apply-gated. default_on stays 0 — owner staffs
   // it per canvas deliberately.
-  { template_key: 'gauge', name: 'Gauge', role: 'crm', color: '#D96A2B', model_tier: 'fast', system_prompt: GAUGE_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
+  { template_key: 'gauge', name: 'Gauge', role: 'crm', color: '#D96A2B', model_tier: 'fast', system_prompt: GAUGE_PROMPT, companion_note_key: null, enabled: 1, default_on: 0, tools_json: GAUGE_TOOLS },
   { template_key: 'radar', name: 'Radar', role: 'targeting', color: '#6B4FBB', model_tier: 'fast', system_prompt: RADAR_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { template_key: 'enrichment', name: 'Enrichment', role: 'enrichment', color: '#0B7B83', model_tier: 'fast', system_prompt: ENRICHMENT_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { template_key: 'sdr', name: 'SDR', role: 'commercial', color: '#B23A67', model_tier: 'strong', system_prompt: SDR_PROMPT, companion_note_key: null, enabled: 1, default_on: 0, tools_json: SDR_TOOLS, step_budget: 32, wall_ms_budget: 480000 },
+  { template_key: 'quill', name: 'Quill', role: 'content', color: '#8C5E9E', model_tier: 'strong', system_prompt: QUILL_PROMPT, companion_note_key: null, enabled: 1, default_on: 0, tools_json: QUILL_TOOLS, step_budget: 24, wall_ms_budget: 480000 },
 ];
 
 // seedRoster() is intentionally one-shot. This separately versioned additive
@@ -337,6 +394,34 @@ function seedSdrAgent() {
   return { inserted };
 }
 
+// Same additive pattern as the Enrichment and SDR seeds: make the Quill
+// template appear in already-running workspaces without rewriting an
+// owner-created entry with the same name. Carries the least-authority map
+// (two draft-only Workspace writes) and its own budgets.
+const CONTENT_ROSTER_KEY = 'seed_roster_content_v1';
+
+function seedContentAgent() {
+  if (getSetting(CONTENT_ROSTER_KEY)) return { inserted: 0 };
+  const entry = ROSTER_AGENTS.find((item) => item.name === 'Quill');
+  const existing = db.prepare('SELECT id FROM roster_agents WHERE name = ?').get(entry.name);
+  let inserted = 0;
+  const ts = nowIso();
+  tx(() => {
+    if (!existing) {
+      const sort = db.prepare('SELECT COALESCE(MAX(sort), 0) + 1 AS n FROM roster_agents').get().n;
+      db.prepare(
+        'INSERT INTO roster_agents (id, template_key, name, role, color, model_tier, system_prompt, companion_note_key, enabled, default_on, sort, created_at, updated_at, tools_json, step_budget, wall_ms_budget) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(crypto.randomUUID(), entry.template_key, entry.name, entry.role, entry.color, entry.model_tier, entry.system_prompt,
+        entry.companion_note_key, entry.enabled, entry.default_on, sort, ts, ts,
+        entry.tools_json ?? null, entry.step_budget ?? null, entry.wall_ms_budget ?? null);
+      inserted = 1;
+    }
+    setSetting(CONTENT_ROSTER_KEY, ts);
+  });
+  if (inserted) audit('system', 'seed', 'workspace.seed_content_agent', { name: entry.name, role: entry.role });
+  return { inserted };
+}
+
 // Same byte-match contract as reseedRosterPrompts, applied to the SDR
 // authority map: adopt the widened list only where the stored value is still
 // exactly the previous template, so an owner's hand-narrowed (or widened) map
@@ -356,6 +441,28 @@ function reseedSdrTools() {
     setSetting(SDR_TOOLS_RESEED_KEY, ts);
   });
   if (rosterRows || agentRows) audit('system', 'seed', 'workspace.sdr_tools_reseed', { rosterRows, agentRows });
+  return { updated: rosterRows + agentRows };
+}
+
+// Gauge shipped without an authority map (tools_json NULL = legacy full role
+// surface). NULL is provably never an owner edit — the roster PATCH route
+// does not accept tools_json — so a NULL-match update is the same
+// never-clobber contract as the byte-match reseeds above.
+const GAUGE_TOOLS_RESEED_KEY = 'seed_gauge_tools_v1';
+
+function reseedGaugeTools() {
+  if (getSetting(GAUGE_TOOLS_RESEED_KEY)) return { updated: 0 };
+  const ts = nowIso();
+  let rosterRows = 0;
+  let agentRows = 0;
+  tx(() => {
+    rosterRows = db.prepare("UPDATE roster_agents SET tools_json = ?, updated_at = ? WHERE template_key = 'gauge' AND tools_json IS NULL")
+      .run(GAUGE_TOOLS, ts).changes;
+    agentRows = db.prepare("UPDATE agents SET tools_json = ? WHERE name = 'Gauge' AND tools_json IS NULL")
+      .run(GAUGE_TOOLS).changes;
+    setSetting(GAUGE_TOOLS_RESEED_KEY, ts);
+  });
+  if (rosterRows || agentRows) audit('system', 'seed', 'workspace.gauge_tools_reseed', { rosterRows, agentRows });
   return { updated: rosterRows + agentRows };
 }
 
@@ -620,7 +727,8 @@ function reseedRosterPrompts() {
 module.exports = {
   ROSTER_AGENTS, ICP, LEGACY_EXEC_PROMPTS, LEGACY_ROSTER_PROMPTS, STALE_ICP_MEMORY, HOT_MIN_SCORE,
   COMPANION_RETIRE_KEY, LEGACY_COMPANION_NOTE_SIGNATURES, ENRICHMENT_ROSTER_KEY, SDR_ROSTER_KEY,
-  SDR_TOOLS_V1, SDR_TOOLS_RESEED_KEY, reseedSdrTools,
+  SDR_TOOLS_V1, SDR_TOOLS_RESEED_KEY, reseedSdrTools, CONTENT_ROSTER_KEY, seedContentAgent,
+  GAUGE_TOOLS_RESEED_KEY, reseedGaugeTools,
   seedRoster, seedEnrichmentAgent, seedSdrAgent, backfillRosterTemplateKeys, linkExecAgents, healExecAgents, reseedRosterPrompts, retireRosterCompanionNotes,
   supersedeStaleIcpMemory, instantiateOnCanvas,
 };
