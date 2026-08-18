@@ -44,8 +44,10 @@ one-time cleanup is stamped. Signed-in journey acceptance remains outstanding.
 logs in the prior 24 hours; the scheduler remains PAUSED. **Build-proven:** the
 frontend production build from `master` emits
 `dist/assets/index-3gl5dacv.js`, the same content-hashed bundle name the live
-service serves — the deployed code is `master`'s application code (`9a6abaf`;
-`e13734b` differs from it only in docs).
+service serves — the deployed FRONTEND bundle is `master`'s (`9a6abaf`;
+`e13734b` differs from it only in docs). Backend identity is corroborated by
+build timing (image built 4 minutes after `9a6abaf` merged) but not proven —
+the image carries no git-SHA provenance (see gaps below).
 
 **Recorded gaps (decision items, deliberately not changed here):** the
 production image is tagged `:latest` with no git-SHA provenance, so "which

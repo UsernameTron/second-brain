@@ -16,8 +16,11 @@ backend only and a change can pass it while the frontend suite or build is red.
 Run from `agent-canvas/`:
 
 1. **Branch sanity first** (the recurring failure mode): `git fetch origin`,
-   then compare HEAD to `origin/master`. If HEAD is not master and
-   `git diff origin/master...HEAD -- agent-canvas` is mostly deletions, the
+   then compare HEAD to `origin/master`. From the REPO ROOT (a pathspec run
+   from `agent-canvas/` would resolve to a nonexistent nested path), run the
+   two-tree diff `git diff origin/master HEAD -- agent-canvas` — NOT the
+   three-dot form, which shows the branch's own changes since the merge base
+   instead of what it lacks. If that diff is mostly deletions, the
    branch is likely a stale pre-squash subset of an already-merged PR
    (squash-merges hide this from `git branch --merged`). Say so plainly and
    name the merge commit; work must base on master.
@@ -31,8 +34,12 @@ Run from `agent-canvas/`:
    finding, not a footnote.
 5. **Bundle provenance (when asked whether local matches production):** the
    frontend build emits a content-hashed `dist/assets/index-*.js`; matching
-   the filename the live service serves proves code identity. Defer live
-   probing itself to canvas-ops-monitor.
+   the filename the live service serves proves FRONTEND-BUNDLE identity only —
+   backend code, deploy scripts, and dependencies can differ behind an
+   identical bundle. State it as frontend identity plus corroboration (build
+   timing, image digest) and name the residual uncertainty; only git-SHA
+   image provenance would prove full code identity. Defer live probing
+   itself to canvas-ops-monitor.
 
 ## Rules
 

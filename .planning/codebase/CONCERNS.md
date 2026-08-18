@@ -147,7 +147,16 @@ was checked against the file/line cited, or against `agent-canvas/docs/HANDOFF.m
 - Fix approach: gate `system_prompt` PATCH behind `auth.requireOwner` if members
   aren't relied on to edit prompts through the UI; otherwise accept as-is.
 
-**Root pipeline (`src/`, `scripts/`) has no new open concerns**
+**Root pipeline (`src/`, `scripts/`) — three prior concerns remain open (carried from the 2026-07-31 map)**
+- `src/utils/classifier-health.js` increments are read-modify-write, not
+  atomic — OPEN. State is cross-invocation by design (interactive session,
+  23:45 sweep, monthly dream share `~/.cache/second-brain/classifier-health.json`),
+  so concurrent lost updates are the expected case, not the exotic one.
+- `scripts/daily-sweep.js` has no overall wall-clock deadline — OPEN. Fix
+  approach: pass a `timeoutMs` budget into `extractMemories` (mechanism landed
+  in PR #96; the sweep is the caller that should use it).
+- Interactive `/today` echo can print pre-redaction text — ACCEPTED RESIDUAL.
+- No NEW root-pipeline concerns found in this refresh:
 - `.planning/backlog.md` is fully dispositioned as of the 2026-07-21 audit
   (13 resolved, 2 partial-deferred, 4 open-but-accepted, 2 dropped) — nothing
   agent-canvas-related lives there; it tracks the second-brain memory pipeline,

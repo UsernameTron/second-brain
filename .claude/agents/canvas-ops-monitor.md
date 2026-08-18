@@ -27,7 +27,9 @@ Deployment facts (verify, don't assume — they can drift):
 
 ## Checks (all read-only)
 
-1. `curl -s <url>/api/healthz` and `/api/config` status.
+1. `curl -s -w '\n%{http_code}' <url>/api/healthz` and the same for
+   `/api/config` — always capture and validate the HTTP code explicitly
+   (`-s` alone hides non-200s and curl doesn't fail on 4xx/5xx).
 2. `gcloud run services describe agent-canvas` — latest ready revision,
    traffic split, last deploy time. Compare against HANDOFF's expected
    revision; a newer revision is not an error, but report it as drift from
@@ -37,7 +39,12 @@ Deployment facts (verify, don't assume — they can drift):
 4. `gcloud builds list --limit 3` — any non-SUCCESS build is reportable.
 5. `gcloud scheduler jobs describe agent-canvas-standing-rules` — report state.
 6. Bridges: anonymous GET to `hubspot-mcp-bridge` and `gtm-mcp-bridge` URLs —
-   403 is healthy (gated), 404 or timeout is not.
+   403 proves the service EXISTS and is IAM-gated (404/timeout is a problem),
+   but it does not exercise the container; report it as "present and gated,
+   app health unverified", and confirm the latest revision is Ready via
+   `gcloud run services describe`. For an authenticated application-level
+   probe (JSON-RPC initialize via impersonated identity token), defer to
+   canvas-integration-auditor.
 7. Env drift: compare the env var and secret NAMES on the serving revision
    against what `agent-canvas/deploy/deploy.sh` manages. Names only — never
    read or print a secret value.
