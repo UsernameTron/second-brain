@@ -126,6 +126,65 @@ dispatch SDR → enriched coverage table → preview digest escalation in Needs
 You → approve → applied records in the sandbox portal → Gmail drafts present
 and unsent → pre-call brief answered from memory with epistemic labels.
 
+## Content lane — policy registry, deterministic gate, and the Quill agent
+
+### Why
+
+CTG's content capability lived in two disconnected programs: the content
+engine owns voice policy (its M02 pack: banned vocabulary, blueprints,
+pillars, neutrality watchlist) and the GTM briefs service owns retired-claim
+enforcement. The canvas had neither — no content role, no policy surface, no
+drafting agent. The lane ports the proven policy as committed data instead of
+rebuilding it, and adds exactly one new execution primitive.
+
+### What it adds
+
+1. **`content_policy` registry** (`server/config/content-policy-v1.json`,
+   58 rules) — voice rules, 42 banned terms + 22 claim patterns, 3 retired-stat
+   regexes ported verbatim from the GTM briefs gate, pillars + funnel mix,
+   8 article + 12 LinkedIn blueprint digests, the neutrality watchlist. Read
+   through `read_registry` by every role; refreshed only by a new commit.
+   Numeric proof points are excluded on purpose — the upstream hours-figure
+   conflict is documented in the registry's `excludes`, and agents escalate
+   for human-supplied figures.
+2. **`content_gate_check`** — a pure deterministic lint (banned terms,
+   retired stats, watchlist/peer-TSD names with a judgment note, per-surface
+   dash rules), offered to all roles, non-mutating, usable in ask/rehearse.
+   Three sibling systems independently converged on deterministic linting;
+   model self-review is not a gate.
+3. **`Quill` roster agent** — role `content`, strong tier, additively seeded
+   (`seed_roster_content_v1`), authority exactly `ws_docs_create` +
+   `ws_gmail_draft`. The role is gated by absence everywhere else: no
+   web search, no enrichment, no connectors, not builder- or
+   inquiry-eligible. The Marketing & content template staffs
+   Scout + Quill + Sentinel + Fred.
+4. **Least-authority follow-through** — the tool-surface review of this lane
+   found that enabling Gauge exposed the `crm` role's legacy full surface;
+   Gauge now carries a HubSpot-only `tools_json` (`seed_gauge_tools_v1`).
+
+### Non-negotiable boundaries
+
+- Drafts are the terminus: no publish, post, schedule, or send lane exists
+  and none is added. Humans publish.
+- The drafting role has no web access; research stays in Scout's lane by
+  role gate, delivered through memory with provenance.
+- Numeric CTG performance claims stay out of the registry until a canonical
+  figure resolves the upstream conflict; the empty-on-purpose lists
+  (approved quotes, case studies) are escalation triggers, not gaps.
+- Registry refreshes are commits, never live syncs.
+
+### Acceptance
+
+Signed-in journey on a deployed revision: staff the Marketing & content
+template → dispatch a LinkedIn-post ask → Quill names its pillar and
+blueprint from the registry, gate-checks to clean, and delivers copy in its
+summary (or a new Doc for an article) → the run receipt shows the
+`content_gate_check` call → nothing published, nothing sent.
+
+**Status: merged (PR #214, squashed as `b953a49`) with the activation wiring
+(PR #213, `0b11d6a`). Not deployed; signed-in acceptance outstanding. Owner
+activation steps live in [ACTIVATION-RUNBOOK.md](ACTIVATION-RUNBOOK.md).**
+
 ## P6 — outcomes, earned trust, and reviewed episodic learning
 
 ### Why

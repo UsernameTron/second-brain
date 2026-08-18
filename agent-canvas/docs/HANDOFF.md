@@ -13,13 +13,15 @@ evidence is an observation at one instant, not a permanent property.
 
 **Git-proven (observed 2026-08-18):** canonical repository
 `/Users/cpconnor/projects/second-brain`; application subtree `agent-canvas/`.
-`master` and `origin/master` are at `e13734b`. PR #207 merged as `049bb81`;
-PR #208 merged as `9a6abaf`; PR #209 (docs) merged as `e13734b`. The working
-branch `agent/agent-canvas-enrichment-documents` is a stale pre-squash subset
-of #207 and must not be used as a base.
+`master` and `origin/master` are at `b953a49`. PR #212 merged as `2217ebe`;
+PR #213 (activation wiring: SDR marts grant, Gauge staffable + least-authority
+map, org-context 86 facts) merged as `0b11d6a`; PR #214 (content lane: Quill,
+`content_policy` registry, `content_gate_check`) merged as `b953a49`. The
+working branch `agent/agent-canvas-enrichment-documents` is a stale pre-squash
+subset of #207 and must not be used as a base.
 
-**Test-proven (2026-08-18, `master` at `e13734b`):** `npm run verify` passes
-**385 backend tests** and **107 frontend tests**, the frontend production
+**Test-proven (2026-08-18, `master` at `b953a49`):** `npm run verify` passes
+**404 backend tests** and **109 frontend tests**, the frontend production
 build, deploy-script syntax, and the deploy preflight self-test. Both production
 dependency audits report zero vulnerabilities.
 
@@ -94,6 +96,7 @@ migration is idempotently complete.
 | P5 Standing Rules | Merged | Scheduler delivery is live-proven; manual path historically accepted; remaining scenarios below |
 | Cleanup: truthful workspace content | Merged and deployed | Bundle, replica, health, and log checks pass; signed-in journey not replayed |
 | Recommended teams, Enrichment, document intake, agent removal | Merged and deployed | Bundle/replica proven; signed-in journey not replayed |
+| Activation wiring + content lane (SDR marts grant, Gauge least-authority, Quill, content-policy registry, gate) | Merged on `master` (#213, #214) | Not deployed; signed-in acceptance outstanding; owner activation steps in [ACTIVATION-RUNBOOK.md](ACTIVATION-RUNBOOK.md) |
 | P6 Outcomes and reviewed learning | Planned only | Not implemented |
 | P7 Selective integrations and portability | Planned only | Not implemented |
 
