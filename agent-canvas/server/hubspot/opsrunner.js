@@ -140,6 +140,16 @@ const ops = {
   associations: ({ from_type, from_id, to_type }) => [
     'associations', 'list', '--from-type', assertType(from_type), '--from-id', assertId(from_id), '--to-type', assertType(to_type),
   ],
+  // Activity history (calls, emails, notes, meetings, tasks) on one record.
+  // Scope-rotation safe: `activities list` stays IN under the planned ADR-0041
+  // Rev B narrow token (SCOPE-DELTA), unlike transcripts/threads — not wired.
+  activities: ({ type, id }) => ['activities', 'list', '--type', assertType(type), assertId(id)],
+  // The runner dry-runs `associations create` by default; confirm applies —
+  // same two-gate ceremony as `change`.
+  associate: ({ from_type, from_id, to_type, to_id }) => [
+    'associations', 'create', '--from-type', assertType(from_type), '--from-id', assertId(from_id),
+    '--to-type', assertType(to_type), '--to-id', assertId(to_id),
+  ],
   change: ({ operation, type, id, properties }) => {
     const op = String(operation || '');
     if (!['create', 'update', 'upsert'].includes(op)) throw new Error('operation must be create, update, or upsert');

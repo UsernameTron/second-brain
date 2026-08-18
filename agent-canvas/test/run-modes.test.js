@@ -71,6 +71,9 @@ test('blockedInMode: mcp_* always blocked outside act; preview exempt only in re
   assert.equal(blockedInMode('mcp_soi_org_knowledge_search', 'act'), false);
   assert.equal(blockedInMode('hs_preview_change', 'rehearse'), false);
   assert.equal(blockedInMode('hs_preview_change', 'ask'), true);
+  assert.equal(blockedInMode('hs_preview_association', 'rehearse'), false);
+  assert.equal(blockedInMode('hs_apply_association', 'rehearse'), true);
+  assert.equal(blockedInMode('hs_activities', 'ask'), false, 'activity history is a plain read');
   assert.equal(blockedInMode('memory_write', 'ask'), false);
 });
 

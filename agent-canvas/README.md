@@ -60,8 +60,9 @@ Key files: `server/memory.js` (contract), `server/orchestrator/runner.js` (run l
   Radar's hot-lead threshold. It reports provenance and gaps instead of hiding
   records that do not qualify.
 - **SDR:** a roster agent that takes a target-account list from enrichment to
-  human-approved CRM staging and draft-only opener emails, and assembles
-  pre-call briefs from canvas memory. CRM writes go through preview → Needs You
+  human-approved CRM staging (records and their associations) and draft-only
+  opener emails, and assembles pre-call briefs from canvas memory and
+  per-record engagement history. CRM writes go through preview → Needs You
   approval → apply, against the sandbox HubSpot portal only and only when the
   ops-runner is configured; paid enrichment requires the enrichment dispatch
   lane (currently dark in production); opener drafts exist only under full

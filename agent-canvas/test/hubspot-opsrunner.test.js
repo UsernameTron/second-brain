@@ -52,6 +52,12 @@ test('builders produce exact runner argv and validate inputs', () => {
   assert.throws(() => opsrunner.buildArgv('search', { type: 'contacts; rm -rf', filter: 'x' }), /invalid object type/);
   assert.throws(() => opsrunner.buildArgv('get', { type: 'contacts', id: '1 OR 1=1' }), /invalid record id/);
   assert.throws(() => opsrunner.buildArgv('change', { operation: 'create', type: 'contacts', properties: { 'bad name': 'x' } }), /invalid property name/);
+  assert.deepEqual(opsrunner.buildArgv('activities', { type: 'contacts', id: '42' }),
+    ['activities', 'list', '--type', 'contacts', '42']);
+  assert.deepEqual(opsrunner.buildArgv('associate', { from_type: 'contacts', from_id: '42', to_type: 'companies', to_id: '7' }),
+    ['associations', 'create', '--from-type', 'contacts', '--from-id', '42', '--to-type', 'companies', '--to-id', '7']);
+  assert.throws(() => opsrunner.buildArgv('activities', { type: 'contacts', id: '1 OR 1=1' }), /invalid record id/);
+  assert.throws(() => opsrunner.buildArgv('associate', { from_type: 'contacts; rm', from_id: '1', to_type: 'companies', to_id: '2' }), /invalid object type/);
   // dynamic dispatch is own-property only
   for (const evil of ['constructor', '__proto__', 'toString']) {
     assert.throws(() => opsrunner.buildArgv(evil, {}), /unknown operation/);
@@ -85,6 +91,50 @@ test('preview never sends confirm; apply sends confirm exactly once', async () =
       { run: { id: 'r3', initiated_by: 'pete@ctg.com', trigger_kind: 'escalation_resume' }, ...ctxBase });
     assert.ok(!applied.isError, applied.content);
     assert.equal(bodies[1].confirm, true, 'approved apply carries confirm:true');
+  } finally { restore(); }
+});
+
+test('the association pair walks the same two-gate ceremony as change', async () => {
+  const bodies = [];
+  const { restore } = mockFetch((url, opts) => {
+    bodies.push(JSON.parse(opts.body));
+    return okJson({ dry_run: true, applied: false });
+  });
+  try {
+    const ctxBase = { agent: { id: 'a' }, canvas: { id: 'c' } };
+    const input = { from_type: 'contacts', from_id: '42', to_type: 'companies', to_id: '7' };
+    const preview = await executeTool('hs_preview_association', input,
+      { run: { id: 'ra1', initiated_by: 'pete@ctg.com', trigger_kind: 'user' }, ...ctxBase });
+    assert.ok(!preview.isError, preview.content);
+    assert.equal(bodies[0].confirm, undefined, 'preview must not carry confirm');
+    assert.deepEqual(bodies[0].argv, ['associations', 'create', '--from-type', 'contacts', '--from-id', '42', '--to-type', 'companies', '--to-id', '7']);
+    assert.match(preview.content, /hs_apply_association/);
+
+    const blocked = await executeTool('hs_apply_association', input,
+      { run: { id: 'ra2', initiated_by: 'pete@ctg.com', trigger_kind: 'user' }, ...ctxBase });
+    assert.ok(blocked.isError, 'apply outside escalation_resume must refuse');
+    assert.equal(bodies.length, 1, 'refused apply must not reach the wire');
+
+    const applied = await executeTool('hs_apply_association', input,
+      { run: { id: 'ra3', initiated_by: 'pete@ctg.com', trigger_kind: 'escalation_resume' }, ...ctxBase });
+    assert.ok(!applied.isError, applied.content);
+    assert.equal(bodies[1].confirm, true, 'approved apply carries confirm:true');
+  } finally { restore(); }
+});
+
+test('hs_activities reads one record\'s engagement history and records evidence', async () => {
+  const bodies = [];
+  const { restore } = mockFetch((url, opts) => {
+    bodies.push(JSON.parse(opts.body));
+    return okJson({ results: [{ type: 'CALL' }] });
+  });
+  try {
+    const res = await executeTool('hs_activities', { type: 'contacts', id: '42' },
+      { run: { id: 'rh1', initiated_by: 'pete@ctg.com', trigger_kind: 'user' }, agent: { id: 'a' }, canvas: { id: 'c' } });
+    assert.ok(!res.isError, res.content);
+    assert.deepEqual(bodies[0].argv, ['activities', 'list', '--type', 'contacts', '42']);
+    assert.equal(bodies[0].confirm, undefined, 'a read never carries confirm');
+    assert.match(res.content, /\[evidence_ref: /, 'CRM reads are evidence');
   } finally { restore(); }
 });
 

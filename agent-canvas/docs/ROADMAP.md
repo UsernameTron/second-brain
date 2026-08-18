@@ -100,6 +100,14 @@ agent chains them; no new execution machinery.
    retrieval (`subject` = company domain) — no new code.
 2. **"SDR pipeline" team template** and two Home suggested questions as the
    discoverable surface.
+3. **Ops-runner lane extension** (portfolio evaluation, 2026-08-18): a
+   `hs_activities` read (engagement history on one record — the one CRM
+   capability no existing lane carried) and an `hs_preview_association` /
+   `hs_apply_association` pair sharing the change ceremony, closing the
+   create-but-can't-link gap. Deliberately not wired: `schemas` and
+   transcript/thread/disposition reads — the planned ADR-0041 Rev B narrow
+   token drops their scopes (SCOPE-DELTA), and a tool the deployment cannot
+   honor must be absent, not broken.
 
 ### Non-negotiable boundaries
 
