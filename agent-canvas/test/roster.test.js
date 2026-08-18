@@ -66,9 +66,11 @@ test('roster seeds exactly once with 11 entries in order', () => {
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM roster_agents').get().n, 11);
   // The proven exec set is pre-checked for new canvases; nothing else is.
   assert.deepEqual(rows.filter((r) => r.default_on).map((r) => r.name), ['Fred', 'Darren', 'Jess', 'Atlas']);
-  // Gauge ships disabled until the owner turns it on.
+  // Gauge ships staffable (sibling prompts delegate CRM legwork to it) but
+  // never pre-checked — the owner staffs it per canvas.
   const gauge = rows.find((r) => r.name === 'Gauge');
-  assert.equal(gauge.enabled, 0);
+  assert.equal(gauge.enabled, 1);
+  assert.equal(gauge.default_on, 0);
 });
 
 test('built-in template identity survives a rename and ignores a duplicate display name', () => {
@@ -113,7 +115,7 @@ test('the additive SDR seed installs a least-authority commercial agent', () => 
   assert.equal(entry.wall_ms_budget, 480000);
 
   const tools = JSON.parse(entry.tools_json);
-  for (const name of ['hs_preview_change', 'hs_apply_change', 'hs_preview_association', 'hs_apply_association', 'hs_activities', 'ws_gmail_draft', 'get_enriched_contact']) {
+  for (const name of ['hs_preview_change', 'hs_apply_change', 'hs_preview_association', 'hs_apply_association', 'hs_activities', 'ws_gmail_draft', 'get_enriched_contact', 'mcp_gtm_marts_gtm_account_lookup']) {
     assert.ok(tools.includes(name), `SDR authority includes ${name}`);
   }
   for (const name of ['ws_sheets_update', 'ws_docs_create', 'ws_calendar_create', 'web_search']) {
@@ -189,12 +191,15 @@ test('the ICP source of truth is the committed read_registry surface, not a canv
 });
 
 test('GET /api/roster: members see enabled only; owner sees all', async () => {
+  // Gauge ships enabled now, so disable it for the visibility fixture.
+  db.prepare("UPDATE roster_agents SET enabled = 0 WHERE name = 'Gauge'").run();
   const asMember = await call('GET', '/api/roster', memberCookie);
   assert.equal(asMember.status, 200);
-  assert.equal(asMember.data.roster.length, 10, 'disabled Gauge hidden from members');
+  assert.equal(asMember.data.roster.length, 10, 'disabled entry hidden from members');
   assert.ok(!asMember.data.roster.some((r) => r.name === 'Gauge'));
   const asOwner = await call('GET', '/api/roster', ownerCookie);
   assert.equal(asOwner.data.roster.length, 11, 'owner sees disabled entries too');
+  db.prepare("UPDATE roster_agents SET enabled = 1 WHERE name = 'Gauge'").run();
 });
 
 test('roster mutation is owner-only', async () => {
@@ -251,10 +256,12 @@ test('instantiating SDR carries its authority map and budgets onto the canvas ag
 });
 
 test('disabled roster entries cannot be instantiated; unknown ids abort canvas creation atomically', async () => {
+  db.prepare("UPDATE roster_agents SET enabled = 0 WHERE name = 'Gauge'").run();
   const gauge = db.prepare("SELECT id FROM roster_agents WHERE name = 'Gauge'").get();
   const denied = await call('POST', `/api/canvases/${canvasId}/agents`, memberCookie, { roster_id: gauge.id });
   assert.equal(denied.status, 400);
   assert.match(denied.data.error, /disabled/);
+  db.prepare("UPDATE roster_agents SET enabled = 1 WHERE name = 'Gauge'").run();
   const before = db.prepare('SELECT COUNT(*) AS n FROM canvases').get().n;
   const bad = await call('POST', '/api/canvases', memberCookie, { name: 'Ghost', roster_ids: ['nope'] });
   assert.equal(bad.status, 404);

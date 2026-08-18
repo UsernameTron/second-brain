@@ -211,12 +211,23 @@ ${CONFIDENTIALITY_GUARD}`;
 // one built-in that both stages CRM writes and drafts email, so it gets the
 // least surface that runs its pipeline — intersection-only, it can never
 // exceed the deployment/mode gates in orchestrator/tools.js.
-const SDR_TOOLS = JSON.stringify([
+// V1 is byte-frozen so reseedSdrTools can prove a stored map was never
+// human-edited — the same rule LEGACY_ROSTER_PROMPTS applies to prompts.
+const SDR_TOOLS_V1 = JSON.stringify([
   'hs_types', 'hs_search', 'hs_get', 'hs_list', 'hs_pipelines', 'hs_pipeline_stages',
   'hs_owners', 'hs_properties', 'hs_associations', 'hs_activities',
   'hs_preview_change', 'hs_apply_change', 'hs_preview_association', 'hs_apply_association',
   'ws_gmail_draft',
   'get_enriched_contact', 'enrich_contact', 'enrich_company', 'verify_email',
+]);
+const SDR_TOOLS = JSON.stringify([
+  ...JSON.parse(SDR_TOOLS_V1),
+  // Free marts account context for the DEDUPE stage and pre-call briefs
+  // (mcp_<server>_<tool> per mcp/client.js namespacing, dashes to underscores).
+  // Inert until the owner ticks gtm_account_lookup on the gtm-marts connector:
+  // the allowlist is intersection-only and cannot bypass the per-tool consent
+  // gate — no def is cached for an unticked tool, so there is nothing to offer.
+  'mcp_gtm_marts_gtm_account_lookup',
 ]);
 
 const SDR_PROMPT = `You are SDR, the sales-development agent for Cloud Tech Gurus canvases. Your job stated plainly: take a target-account list from enrichment to approved CRM records and draft-only opener emails, and assemble pre-call briefs from what this canvas already knows.
@@ -263,7 +274,11 @@ const ROSTER_AGENTS = [
   { template_key: 'scout', name: 'Scout', role: 'research', color: '#2080D0', model_tier: 'strong', system_prompt: SCOUT_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { template_key: 'forge', name: 'Forge', role: 'coding', color: '#0E6BA8', model_tier: 'fast', system_prompt: FORGE_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { template_key: 'sentinel', name: 'Sentinel', role: 'review', color: '#0F8A5F', model_tier: 'strong', system_prompt: SENTINEL_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
-  { template_key: 'gauge', name: 'Gauge', role: 'crm', color: '#D96A2B', model_tier: 'fast', system_prompt: GAUGE_PROMPT, companion_note_key: null, enabled: 0, default_on: 0 },
+  // Staffable since the activation pass: Scout, Radar, Enrichment and SDR all
+  // delegate CRM record legwork to Gauge, and the ops-runner lane it uses is
+  // sandbox-locked and preview/apply-gated. default_on stays 0 — owner staffs
+  // it per canvas deliberately.
+  { template_key: 'gauge', name: 'Gauge', role: 'crm', color: '#D96A2B', model_tier: 'fast', system_prompt: GAUGE_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { template_key: 'radar', name: 'Radar', role: 'targeting', color: '#6B4FBB', model_tier: 'fast', system_prompt: RADAR_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { template_key: 'enrichment', name: 'Enrichment', role: 'enrichment', color: '#0B7B83', model_tier: 'fast', system_prompt: ENRICHMENT_PROMPT, companion_note_key: null, enabled: 1, default_on: 0 },
   { template_key: 'sdr', name: 'SDR', role: 'commercial', color: '#B23A67', model_tier: 'strong', system_prompt: SDR_PROMPT, companion_note_key: null, enabled: 1, default_on: 0, tools_json: SDR_TOOLS, step_budget: 32, wall_ms_budget: 480000 },
@@ -320,6 +335,28 @@ function seedSdrAgent() {
   });
   if (inserted) audit('system', 'seed', 'workspace.seed_sdr_agent', { name: entry.name, role: entry.role });
   return { inserted };
+}
+
+// Same byte-match contract as reseedRosterPrompts, applied to the SDR
+// authority map: adopt the widened list only where the stored value is still
+// exactly the previous template, so an owner's hand-narrowed (or widened) map
+// is never clobbered. Separately versioned because seedSdrAgent is one-shot.
+const SDR_TOOLS_RESEED_KEY = 'seed_sdr_tools_v2';
+
+function reseedSdrTools() {
+  if (getSetting(SDR_TOOLS_RESEED_KEY)) return { updated: 0 };
+  const ts = nowIso();
+  let rosterRows = 0;
+  let agentRows = 0;
+  tx(() => {
+    rosterRows = db.prepare("UPDATE roster_agents SET tools_json = ?, updated_at = ? WHERE template_key = 'sdr' AND tools_json = ?")
+      .run(SDR_TOOLS, ts, SDR_TOOLS_V1).changes;
+    agentRows = db.prepare("UPDATE agents SET tools_json = ? WHERE name = 'SDR' AND tools_json = ?")
+      .run(SDR_TOOLS, SDR_TOOLS_V1).changes;
+    setSetting(SDR_TOOLS_RESEED_KEY, ts);
+  });
+  if (rosterRows || agentRows) audit('system', 'seed', 'workspace.sdr_tools_reseed', { rosterRows, agentRows });
+  return { updated: rosterRows + agentRows };
 }
 
 // ---------- seeding (idempotent, versioned settings-key guard) ----------
@@ -583,6 +620,7 @@ function reseedRosterPrompts() {
 module.exports = {
   ROSTER_AGENTS, ICP, LEGACY_EXEC_PROMPTS, LEGACY_ROSTER_PROMPTS, STALE_ICP_MEMORY, HOT_MIN_SCORE,
   COMPANION_RETIRE_KEY, LEGACY_COMPANION_NOTE_SIGNATURES, ENRICHMENT_ROSTER_KEY, SDR_ROSTER_KEY,
+  SDR_TOOLS_V1, SDR_TOOLS_RESEED_KEY, reseedSdrTools,
   seedRoster, seedEnrichmentAgent, seedSdrAgent, backfillRosterTemplateKeys, linkExecAgents, healExecAgents, reseedRosterPrompts, retireRosterCompanionNotes,
   supersedeStaleIcpMemory, instantiateOnCanvas,
 };

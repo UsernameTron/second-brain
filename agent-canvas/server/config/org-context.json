@@ -6,7 +6,7 @@
   "authority_note": "FROZEN at the date above while the Drive corpus keeps moving. Where one of these facts disagrees with a live source (a SOI corpus answer, a document read this week, a person), the live source wins on recency and this entry is the stale one. Each entry carries its node id and source path so the disagreement can be traced rather than argued.",
   "excludes": "INFERENCE and UNKNOWN nodes, every node carrying an unresolved contradiction, and any name on the excluded-vendor list",
   "counts": {
-    "facts": 84,
+    "facts": 86,
     "dropped_excluded_vendor": 2,
     "dropped_contradicted": 11
   },
@@ -334,11 +334,25 @@
       "source": "projects/ctg-incident/LESSONS.md § Evidence manifest; projects/ctg-incident/CANONICAL-EVIDENCE.md"
     },
     {
+      "id": "gov.vendor_neutrality",
+      "layer": "governance",
+      "name": "Vendor neutrality as the moat",
+      "statement": "Vendor-neutrality is CTG's business model and the load-bearing claim for enterprise credibility. Detecting a competitor's install base as third-party fact (BuiltWith) is allowed; naming a vendor as a CTG choice is not.",
+      "source": "decisions/adr/0046-moment-engine-doctrine.md § Context; projects/ctg-advisor-v1.0.0/persona-core/synthesis-protocol.md § Case 3"
+    },
+    {
       "id": "gov.confidentiality_rule",
       "layer": "governance",
       "name": "Confidentiality rule",
       "statement": "Exact prior-year ARR, valuation multiple, member-LLC and cap-table names, and the ownership restructuring must never be quoted in shipped content. Skills cite 'per CTG brief §<section>' instead.",
       "source": "projects/ctg-advisor-v1.0.0/methodology/constants-registry.md § Confidentiality rule"
+    },
+    {
+      "id": "gov.brand_bans",
+      "layer": "governance",
+      "name": "Banned vocabulary and do-not-publish",
+      "statement": "A banned content lexicon (synergy, best-in-class, leverage-as-verb, and others) plus DO-NOT-PUBLISH rules: no supplier endorsements by name, no peer-TSD attacks, no political content, nothing violating vendor-neutrality.",
+      "source": "knowledge-base/00-engagement-specs/CTG-voice-brand.md § BANNED VOCABULARY / DO NOT PUBLISH"
     },
     {
       "id": "gov.content_review",

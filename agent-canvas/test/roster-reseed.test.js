@@ -156,6 +156,36 @@ Single-lane questions skip the chain: dispatch directly to the right voice.`;
     'rerun emits no duplicate audit event');
 });
 
+test('SDR tools re-seed widens only byte-pristine authority maps', () => {
+  const V1 = roster.SDR_TOOLS_V1;
+  const NEW_TOOLS = roster.ROSTER_AGENTS.find((a) => a.name === 'SDR').tools_json;
+  assert.notEqual(V1, NEW_TOOLS, 'the authority map actually changed');
+  assert.ok(JSON.parse(NEW_TOOLS).includes('mcp_gtm_marts_gtm_account_lookup'),
+    'the widened map carries the marts lookup, namespaced exactly as mcp/client.js publishes it');
+
+  // Simulate an already-seeded workspace: pristine roster row, one pristine
+  // live copy, one hand-narrowed copy.
+  db.prepare("UPDATE roster_agents SET tools_json = ? WHERE template_key = 'sdr'").run(V1);
+  const canvasId = 'c-sdr-tools';
+  db.prepare("INSERT INTO canvases (id, name, created_at) VALUES (?, 'SdrTools', ?)").run(canvasId, nowIso());
+  const pristineId = crypto.randomUUID();
+  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, tools_json, x, y, created_at) VALUES (?, ?, 'SDR', 'commercial', '#B23A67', 'strong', 'p', ?, 0, 0, ?)")
+    .run(pristineId, canvasId, V1, nowIso());
+  const EDITED = JSON.stringify(['hs_search']);
+  const editedId = crypto.randomUUID();
+  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, tools_json, x, y, created_at) VALUES (?, ?, 'SDR', 'commercial', '#B23A67', 'strong', 'p', ?, 0, 0, ?)")
+    .run(editedId, canvasId, EDITED, nowIso());
+
+  setSetting(roster.SDR_TOOLS_RESEED_KEY, '');
+  const res = roster.reseedSdrTools();
+  assert.equal(res.updated, 2, 'the roster row and the one pristine live agent');
+  assert.equal(db.prepare("SELECT tools_json FROM roster_agents WHERE template_key = 'sdr'").get().tools_json, NEW_TOOLS);
+  assert.equal(db.prepare('SELECT tools_json FROM agents WHERE id = ?').get(pristineId).tools_json, NEW_TOOLS);
+  assert.equal(db.prepare('SELECT tools_json FROM agents WHERE id = ?').get(editedId).tools_json, EDITED,
+    'a hand-narrowed authority map is an owner decision — never overwritten');
+  assert.equal(roster.reseedSdrTools().updated, 0, 'idempotent — the guard blocks a second run');
+});
+
 test('re-seed does NOT touch a hand-edited roster row', () => {
   const EDITED_ROW = 'You are Radar. Owner-edited roster entry.';
   db.prepare("UPDATE roster_agents SET system_prompt = ? WHERE name = 'Radar'").run(EDITED_ROW);

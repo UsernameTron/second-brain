@@ -73,6 +73,10 @@ const LAYERS = { 1: 'entities', 3: 'governance', 5: 'decision_rights' };
 // Governance is the largest layer by far. Keep the nodes that name an
 // authority, a gate, or a rule an agent could actually violate...
 const GOVERNANCE_KEEP = /\b(approv|authori|sign-?off|gate|must|never|only|owner|gover|policy|rule|gated|gates|prohibit|gatekeep|gating|decision)\b/i;
+// Named governance nodes the keyword heuristic misses but canvas agents need
+// (vendor-neutrality principle, banned-vocabulary/do-not-publish rules). Ids,
+// not a wider regex — widening the pattern would pull unreviewed nodes.
+const GOVERNANCE_KEEP_IDS = new Set(['gov.vendor_neutrality', 'gov.brand_bans']);
 // ...and drop infrastructure governance, which is the same class of knowledge
 // the fold-in review already rejected wholesale ("technology-estate"): true,
 // well-evidenced, and of no use to an agent scoring a lead or drafting
@@ -90,7 +94,7 @@ function buildOrgContext(ontology) {
     if (node.contradictions && node.contradictions.length) { droppedContradicted += 1; continue; }
     if (excluded(node.statement) || excluded(node.name)) { droppedExcluded += 1; continue; }
     const layer = LAYERS[node.layer];
-    if (layer === 'governance'
+    if (layer === 'governance' && !GOVERNANCE_KEEP_IDS.has(node.id)
       && (!GOVERNANCE_KEEP.test(node.statement) || GOVERNANCE_INFRA.test(node.statement))) continue;
     facts.push({ id: node.id, layer, name: node.name, statement: node.statement, source: node.source });
   }
@@ -125,4 +129,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { buildSuppliers, buildOrgContext, _internal: { EXCLUDED_VENDORS, excluded } };
+module.exports = { buildSuppliers, buildOrgContext, _internal: { EXCLUDED_VENDORS, excluded, GOVERNANCE_KEEP_IDS } };

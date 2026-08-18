@@ -79,11 +79,24 @@ test('the generators drop what they claim to drop', () => {
       { id: 'd', layer: 5, tag: 'FACT', name: 'Drop', statement: 'The owner must approve.', source: 's', contradictions: ['C-1'] },
       { id: 'e', layer: 3, tag: 'FACT', name: 'Drop', statement: 'Secret rotation policy: keys rotate every 90 days and the owner must approve.', source: 's' },
       { id: 'f', layer: 2, tag: 'FACT', name: 'Drop', statement: 'A workflow the owner must approve.', source: 's' },
+      { id: 'gov.brand_bans', layer: 3, tag: 'FACT', name: 'Keep by id', statement: 'A banned lexicon with no keep keyword in its wording at all.', source: 's' },
     ],
   });
-  assert.deepEqual(org.facts.map((f) => f.id), ['a'],
-    'INFERENCE, UNKNOWN, contradicted, infra-governance and out-of-layer nodes are all refused');
+  assert.deepEqual(org.facts.map((f) => f.id), ['a', 'gov.brand_bans'],
+    'INFERENCE, UNKNOWN, contradicted, infra-governance and out-of-layer nodes are all refused; a named keep-id bypasses only the keyword heuristic');
   assert.equal(org.counts.dropped_contradicted, 1);
+});
+
+test('the named governance keep-ids are present in the committed registry', () => {
+  // These two fail the keyword heuristic by wording but are canvas-relevant
+  // governance (neutrality principle, banned vocabulary). The generator keeps
+  // them by id; the committed artifact must actually carry them.
+  const { GOVERNANCE_KEEP_IDS } = require('../scripts/build-registries')._internal;
+  for (const id of GOVERNANCE_KEEP_IDS) {
+    const fact = orgContext.facts.find((f) => f.id === id);
+    assert.ok(fact, `${id} present in org-context`);
+    assert.equal(fact.layer, 'governance');
+  }
 });
 
 test('read_registry filters with AND, caps its output, and says when it truncated', () => {
