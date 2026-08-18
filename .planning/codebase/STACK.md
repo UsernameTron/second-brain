@@ -1,98 +1,137 @@
 # Technology Stack
 
-**Analysis Date:** 2026-07-31
+**Analysis Date:** 2026-08-18
 
-## Languages
-
-**Primary:**
-- JavaScript (CommonJS, `'use strict'` per file) - all of `src/`, `scripts/`, `test/`
-
-**Secondary:**
-- Bash - `scripts/engstatus.sh`, `scripts/setup-remote-trigger.sh`, `.claude/hooks/*.sh`
-- XML (launchd plists) - `config/com.secondbrain.daily-sweep.plist`, `config/com.secondbrain.dream.plist`, `config/com.secondbrain.today.plist`
-
-No TypeScript, no JSX. `.mcp.json` (repo root) registers one dev-tool MCP server (`context7`, Upstash docs lookup via `npx`) — unrelated to the project's own runtime.
-
-## Runtime
-
-**Environment:**
-- Node.js `>=22` (`package.json:7` `engines.node`)
-- Required for the `node:sqlite` built-in (`DatabaseSync`), used in `scripts/build-index.js` and its test
-
-**Package Manager:**
-- npm, `package-lock.json` committed
-- No build/transpile step — `main` in `package.json` is `src/vault-gateway.js`, run directly by `node`
-
-## Frameworks
-
-**Testing:**
-- Jest `30.3.0` - unit + integration + UAT. Config is inline in `package.json` (`jest.testPathIgnorePatterns`: `/node_modules/`, `.claude/worktrees`) — no separate `jest.config.js`
-- `nock` `14.0.16` (dev) - HTTP mocking in tests
-
-**Build/Dev:**
-- ESLint `10.7.0` flat config at `eslint.config.js` - `@eslint/js` `10.0.1` recommended rules as base, layered with:
-  - `eslint-plugin-n` `18.2.2` for `src/**/*.js` (Node-specific rules)
-  - `eslint-plugin-jest` `29.15.5` for `test/**/*.js`
-- `ajv` `8.20.0` (dev) - JSON Schema validation for every file in `config/`
-- `license-checker` `25.0.1` - production-dependency license allowlist gate (`npm run license-check`)
-
-## Key Dependencies
-
-**Critical:**
-- `@anthropic-ai/sdk` `^0.112.5` - Anthropic Haiku/Sonnet client, instantiated in `src/pipeline-infra.js`; used by the `/new` classifier, memory extraction, `/today` LLM augmentation, and dream consolidation
-- `voyageai` `0.2.1` - **exact pin, no `^`**. Semantic embeddings client (`src/semantic-index.js`); pinned since the SDK's request/response shape is hand-parsed
-- `chokidar` `^3.6.0` - config hot-reload file watching (`src/vault-gateway.js`, emits `config:reloaded`); pinned to 3.x because chokidar 4 dropped CJS `require()` support
-
-**Infrastructure:**
-- `gray-matter` `^4.0.3` - frontmatter/YAML parsing for vault notes
-- `minisearch` `^7.2.0` - keyword search index backing `/recall` (non-semantic path)
-- `dotenv` `^17.4.2` - `.env` loading
-
-## Configuration
-
-**Environment:**
-- `.env` (gitignored) holds secrets; `.env.template` documents the expected shape: `VAULT_ROOT`, `PROJECTS_DIR`, `LM_API_TOKEN`
-- `ANTHROPIC_API_KEY` and `VOYAGE_API_KEY` documented in `docs/DEVOPS-HANDOFF.md` but not in `.env.template` itself
-- Test isolation env vars: `VAULT_ROOT`, `CONFIG_DIR_OVERRIDE`, `CACHE_DIR_OVERRIDE`, `LLM_PROVIDER`
-
-**Build:**
-- `config/*.json` — 10 tracked files; validation is schema-driven (`src/config-validator.js` walks `config/schema/*.schema.json`, not the config dir), so 9 config/schema pairs validate via AJV: connectors, docsync, excluded-terms, memory-categories, pipeline, reach-targets, scheduling, templates, vault-paths. Two deliberate gaps: `pipeline.local.example.json` has no schema and is unchecked, and `daily-stats-frontmatter.schema.json` validates frontmatter inside a vault file, so it emits a standing `[WARNING] config file not found`. `.local.json` overlays are gitignored (e.g. `config/pipeline.local.json`)
-- `config/vault-paths.json` now defines vault structure post-restructure: LEFT = `ABOUT ME`, `Daily`, `Relationships`, `Drafts`; RIGHT = `memory`, `briefings`, `ctg`, `job-hunt`, `interview-prep`, `content`, `research`, `ideas`, `standups`, `projects`, `maps`, `proposals` (+ `proposals/unrouted`, `proposals/left-proposals`, `proposals/left-proposals/archive`), `archive`, `inbox` — the old flat `RIGHT/` folder is gone; briefings live under `briefings/`, and memory/proposal history lives under `archive/memory` and `archive/proposals` respectively
-- `eslint.config.js` - flat config, no `.eslintrc*`
-- No bundler, no transpiler, no `tsconfig.json`
-
-## Platform Requirements
-
-**Development:**
-- macOS (Darwin) - launchd-based scheduling is macOS-specific; developed and run on the same machine
-- Git hooks are repo-managed: `npm run prepare` sets `git config core.hooksPath hooks` (`pre-commit`: AJV config validation + vault boundary check; `pre-push`: stale-master guard + docs-sync gate; `post-merge`: non-blocking docs drift warning)
-
-**Production:**
-- No server process, no cloud hosting, no deployment target — runs on-demand via Claude Code CLI and on a schedule via macOS launchd
-
-## CI (GitHub Actions — `.github/workflows/`)
-
-- **`ci.yml`** - push/PR to `master`; Node `22` matrix; `npm ci` → `npm run lint` → `npx jest --coverage` with enforced thresholds (`branches:80, functions:90, lines:90, statements:90`) → license-check → `npm audit --audit-level=high`
-- **`codeql.yml`** - CodeQL SAST for `javascript`; push/PR to `master` plus weekly cron
-- **`uat.yml`** - UAT accuracy suite; `workflow_dispatch` + weekly cron; sets `CI=''` for the test step only
-- **`claude-code-review.yml`** / **`claude.yml`** - automatic and mention-triggered Claude Code Action reviews
-- GitGuardian secrets scanning is enforced externally (GitHub App / branch protection), not as an in-repo Action
-
-## Notable Additions (PRs #90-93, merged 2026-07-26)
-
-- `src/memory-dashboard.js` - new derived read surface, regenerated whole on every real promotion; renders `memory/dashboard.md` from `memory/memory.md` + proposals, with no pipeline bookkeeping (`content_hash`, block anchors) so it stays human-readable in Obsidian
-- `src/daily-stats.js` - new `vault_hygiene` column tracked per daily-stats row (also consumed by `src/briefing-helpers.js` for prior-row comparison)
-- `src/content-policy.js` - excluded-term matching is now whole-token (word-boundary-safe via lookarounds, not `\b`, to avoid matching inside longer tokens like "ma[in in]dex")
-- `src/reach-exporter.js` - egress content-policy gate is fail-closed: stays closed on any throw during the exclusion check, not just on an explicit denial
-
-## Notable Additions (PR #96, merged 2026-07-31)
-
-Thirteen reliability fixes, no dependency or runtime changes — versions above are unchanged. Stack-relevant items:
-
-- `config/pipeline.json` `extraction.oversizeThresholdBytes` (5 MiB) was **dead config** — read by `src/memory-extractor.js` and never enforced. It now bounds chunk accumulation and byte-truncates any single oversize message. `oversizeThresholdMessages` (2000) is checked first so the count-forced path never materializes the doubled corpus.
-- `config/pipeline.local.json` (gitignored overlay) sets `classifier.llm.localTimeoutMs: 900000`, raised from 60000 to match the LM Studio model's measured prefill rate at a 65536 context — see INTEGRATIONS.md for the measurements. Callers with a hard wall clock now narrow this value rather than inherit it.
-- `config/com.secondbrain.today.plist` → `scripts/today-scheduled.js` exits 1 on a resolved error envelope, so launchd no longer records a briefing-less morning as a success.
+This repo hosts two independently-versioned Node projects: the **second-brain
+pipeline** at the repo root, and the **agent-canvas** subproject at
+`agent-canvas/` (its own git history point, deployed to GCP project
+`agent-canvas-ctg-0811`). Each has its own `package.json`, test runner, and
+deploy story. `agent-canvas/frontend/` is a third, Vite-based package.
 
 ---
 
-*Stack analysis: 2026-07-31*
+## 1. second-brain pipeline (repo root)
+
+### Languages
+- JavaScript (CommonJS) — all of `src/`, `scripts/`, `test/`. No TypeScript, no build/transpile step.
+
+### Runtime
+- Node.js **>=22** (`package.json` `engines.node`), required specifically for the `node:sqlite` built-in used elsewhere in the estate.
+- Package manager: npm, lockfile present (`package-lock.json`).
+
+### Frameworks / Test Tooling
+- **Jest 30** (`jest --verbose`) — unit + integration tests in `test/`, UAT subset in `test/uat/` gated by `CI` env skip-logic (`npm run test:uat` unsets `CI`, `test:uat:ci` doesn't).
+- **ESLint 10** flat config (`eslint.config.*`) over `src/` and `test/`, plugins `eslint-plugin-jest`, `eslint-plugin-n`.
+- **license-checker** — production dependency license allowlist (`MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause;CC0-1.0;Unlicense`).
+- No bundler/build step — plain CJS `require`, run directly with `node`.
+
+### Key Dependencies (`package.json`)
+- `@anthropic-ai/sdk` ^0.112.5 — Haiku/Sonnet classification, extraction, content-policy guard (`src/content-policy.js`, `src/pipeline-infra.js`).
+- `voyageai` 0.2.1 (exact pin) — semantic embeddings (`src/semantic-index.js`).
+- `chokidar` ^3.6.0 — filesystem watching (CJS-compatible pin; v4 is ESM-only).
+- `gray-matter` ^4.0.3 — markdown frontmatter parsing for vault notes.
+- `dotenv` ^17.4.2 — `.env` loading.
+- `minisearch` ^7.2.0 — keyword search index for `/recall`.
+- Dev-only: `ajv` ^8.18.0 (config schema validation), `nock` ^14.0.13 (HTTP mocking in tests).
+
+### Configuration
+- `config/*.json` + optional `config/*.local.json` overlay (gitignored), validated against `config/schema/` via AJV.
+- `config/pipeline.json` — classifier thresholds, extraction/promotion tuning, LLM provider config.
+- `config/pipeline.local.json` — machine-local overlay: switches `classifier.llm.provider` to `local` (LM Studio) with `localModel: "qwen/qwen3.6-27b"`, `localTimeoutMs: 900000`.
+- Git hooks are repo-managed via `npm run prepare` (`core.hooksPath=hooks`, not `.git/hooks/`): `pre-commit` (AJV + vault boundary check), `pre-push` (staleness + docs-sync gate), `post-merge` (non-blocking docs-drift warning).
+
+### Platform Requirements
+- **Development:** macOS (this machine), Obsidian 1.7+ with the Local REST API plugin running, LM Studio for local-model fallback.
+- **Production/runtime:** no server deploy — runs as local Node processes invoked by Claude Code slash commands and macOS `launchd` (see INTEGRATIONS.md).
+
+---
+
+## 2. agent-canvas backend (`agent-canvas/`)
+
+### Languages
+- JavaScript (CommonJS), Node's built-in `node:test` runner for tests (not Jest).
+
+### Runtime
+- Node.js **>=22.5** (`agent-canvas/package.json` `engines.node`).
+- Package manager: npm, lockfile present.
+
+### Frameworks
+- **Express** ^4.21.2 — HTTP API (`server/index.js`, `server/routes.js`).
+- **ws** ^8.18.0 — WebSocket transport for live canvas state (`server/ws.js`).
+- **express-rate-limit** ^8.6.2 — request throttling (`server/ratelimit.js`).
+- Data layer: **`node:sqlite`** (Node's built-in `DatabaseSync`, not `better-sqlite3`) — `server/db.js`, WAL mode, `busy_timeout=5000`, foreign keys on. Memory rows are append-only (no UPDATE/DELETE; corrections stamp `superseded_by`).
+- **Litestream** v0.3.13 (installed via `.deb` in the Docker image, not an npm package) — continuous SQLite replication to GCS when `LITESTREAM_REPLICA_URL` is set; restores on cold boot.
+
+### Test Tooling
+- `node --test "test/*.test.js"` (`npm test`) — backend suite, ~50 files under `agent-canvas/test/`.
+- `npm run test:frontend` — delegates to the Vite/Vitest frontend suite.
+- `npm run verify` — the actual merge gate: backend tests + frontend tests + frontend production build + `deploy.sh` bash syntax check (`bash -n`) + deploy preflight self-test (`deploy/deploy.sh --selftest`). `npm test` alone is **not** the gate (per `agent-canvas/CLAUDE.md`).
+- `playwright` ^1.62.1 (devDependency) — browser-driven checks.
+
+### Key Dependencies
+- `@anthropic-ai/sdk` ^0.112.0 — Anthropic first-party model calls.
+- `@anthropic-ai/vertex-sdk` ^0.19.1 — Claude served via Google Vertex AI (default provider path).
+- `@google/genai` ^2.16.0 — Gemini provider path (`server/orchestrator/gemini.js`).
+- `google-auth-library` ^11.0.1 — OAuth2Client for Google sign-in (`server/auth.js`) and Workspace token handling (`server/google/workspace.js`).
+- `jsonwebtoken` ^9.0.2 — session cookies (`ac_session`, 7-day TTL).
+- `exceljs` 4.4.0, `mammoth` 1.12.1, `pdfjs-dist` 5.4.296 — document intake/parsing (xlsx, docx, pdf) for canvas document enrichment.
+- `overrides.uuid` pinned to ^11.1.1 (transitive dependency pin).
+
+### Model routing (`server/orchestrator/anthropic.js`)
+- `MODEL_PROVIDER` env selects the door: `vertex` (default, keyless via runtime service account ADC), `anthropic` (first-party API key or OAuth), or `gemini`.
+- Fast tier: `claude-haiku-4-5`; strong tier: `claude-sonnet-5` (env-overridable `FAST_MODEL`/`STRONG_MODEL`); Gemini tier models `gemini-2.5-flash`/`gemini-2.5-pro`; refusal-fallback `claude-opus-4-8`.
+
+### Build / Deploy Tooling
+- **Docker** multi-stage build (`agent-canvas/Dockerfile`): stage 1 builds the frontend (`npm run build` under Vite), stage 2 installs server deps (`npm ci --omit=dev`), stage 3 assembles the runtime image on `node:22-slim`, installs the Litestream `.deb`, vendors a Mozilla CA bundle (`deploy/cacert.pem`), runs as non-root `appuser` (uid 1001).
+- **Cloud Build** (`cloudbuild.yaml`) — single Docker build step with `DOCKER_BUILDKIT=1` (required for the Dockerfile's `RUN --mount=type=secret` build_ca hook).
+- **`deploy/deploy.sh`** — idempotent one-command Cloud Run deploy; provisions project/APIs/billing/Artifact Registry/GCS bucket/service accounts/secrets, reads the *live* service config before mutating it (preservation-first: env vars/secrets applied additively, `MODEL_PROVIDER` inherited unless explicitly changed with `DEPLOY_PROVIDER_CHANGE=1`), has a `--selftest` mode and `DEPLOY_DRY_RUN=1`.
+- Cloud Run: `--max-instances 1` (SQLite is single-writer), `--memory 1Gi --cpu 1`, `--allow-unauthenticated` at the transport layer (app-level auth enforces the allowlist — see INTEGRATIONS.md).
+
+---
+
+## 3. agent-canvas frontend (`agent-canvas/frontend/`)
+
+### Languages
+- JavaScript (JSX), ES modules (`"type": "module"`).
+
+### Frameworks
+- **React** ^18.3.1 / **react-dom** ^18.3.1.
+- **Vite** ^6.4.3 — dev server and production build (`vite build` → `frontend/dist`, copied into the backend Docker image).
+- `@vitejs/plugin-react` ^4.3.1.
+
+### Test Tooling
+- **Vitest** ^4.1.10 (`vitest run`) with **jsdom** ^29.1.1 environment.
+- `@testing-library/react` ^16.3.2, `@testing-library/jest-dom` ^7.0.1, `@testing-library/user-event` ^14.6.4.
+
+### Configuration
+- `frontend/vite.config.js` — build/dev server config.
+- No TypeScript — plain `.jsx`/`.js`.
+
+---
+
+## 4. MCP bridge sidecars (`agent-canvas/hubspot-mcp-bridge/`, `agent-canvas/gtm-mcp-bridge/`)
+
+Each is a standalone single-file Node HTTP server, deployed as its **own**
+Cloud Run service (separate `Dockerfile` + `deploy.sh`), independent of the
+main agent-canvas backend's npm workspace.
+
+### hubspot-mcp-bridge
+- `node:22-slim` base image, no dependency install for the bridge itself — installs `@hubspot/mcp-server@0.4.0` globally in the image (`npm install -g @hubspot/mcp-server@0.4.0`, version pinned deliberately).
+- Runtime: plain `node:http`, `node:child_process` (`spawn`) — no Express, no MCP SDK by design ("ponytail: raw JSON-RPC pass-through" — the canvas client only sends `initialize`/`tools/list`/`tools/call`).
+- Bridges Streamable-HTTP (Cloud Run) to the child MCP server's newline-delimited stdio JSON-RPC.
+
+### gtm-mcp-bridge
+- `node:22-slim` base image, zero npm dependencies at all — `node:http` + native `fetch` only.
+- Implements a fixed, hardcoded set of 4 MCP tools that run 4 named BigQuery SQL queries (via BigQuery REST `jobs.query`, not the BigQuery Node SDK) against `ctg-hs-exec-tool:ctg_gtm_marts`.
+
+---
+
+## Cross-Cutting Notes
+
+- **Two separate git-ignored/CI surfaces**: root `package.json` test config explicitly ignores `/agent-canvas/` (`jest.testPathIgnorePatterns`), so the two projects' test suites never collide.
+- **No shared node_modules** — root, `agent-canvas/`, and `agent-canvas/frontend/` each have their own `package-lock.json` and dependency tree.
+- **No TypeScript anywhere** in this repo tree (root pipeline, agent-canvas backend, or frontend) as of this analysis.
+
+---
+
+*Stack analysis: 2026-08-18*

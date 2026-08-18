@@ -1,11 +1,11 @@
 # Session handoff (auto-written by Stop hook)
 
-- When: 2026-08-16 14:07 CDT
-- Branch: chore/agent-canvas-p5-scheduler-2026-08-16
-- Dirty at stop: 1 files
+- When: 2026-08-18 00:27 CDT
+- Branch: chore/agent-canvas-reconcile
+- Dirty at stop: 2 files
 - Recent commits:
-  - 34ab055 agent-canvas: record P4 and P3 #194 live acceptance (#201)
-  - 127f593 agent-canvas: record the #199 deploy in the current-state docs (#200)
-  - 62eae86 agent-canvas: truth-up and release closeout — authorization retirement, preservation-first deploy, classified docs, /api/healthz (#199)
-  - 92fb427 agent-canvas P5: close all 14 ship-and-fix audit findings, plus rules settings form (#198)
-  - f9192a7 agent-canvas P4: close the authority/publish coverage gaps found by adversarial audit (#195) (#197)
+  - 3d1aa7f docs(agent-canvas): record 2026-08-18 reconciliation; add canvas health agents
+  - 8f8a226 chore(session): auto-commit session work (2026-08-18)
+  - 3da3503 chore(planning): track 2026-08-16 capabilities-wording note
+  - e13734b docs(agent-canvas): record production release truth (#209)
+  - 9a6abaf agent-canvas: make team setup and agent removal obvious (#208)
