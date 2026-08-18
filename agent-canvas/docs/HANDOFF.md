@@ -13,50 +13,48 @@ evidence is an observation at one instant, not a permanent property.
 
 **Git-proven (observed 2026-08-18):** canonical repository
 `/Users/cpconnor/projects/second-brain`; application subtree `agent-canvas/`.
-`master` and `origin/master` are at `b953a49`. PR #212 merged as `2217ebe`;
-PR #213 (activation wiring: SDR marts grant, Gauge staffable + least-authority
-map, org-context 86 facts) merged as `0b11d6a`; PR #214 (content lane: Quill,
-`content_policy` registry, `content_gate_check`) merged as `b953a49`. The
-working branch `agent/agent-canvas-enrichment-documents` is a stale pre-squash
-subset of #207 and must not be used as a base.
+`master` and `origin/master` are at `6f09242`. PR #213 (activation wiring:
+SDR marts grant, Gauge staffable + least-authority map, org-context 86 facts)
+merged as `0b11d6a`; PR #214 (content lane: Quill, `content_policy` registry,
+`content_gate_check`) merged as `b953a49`; PR #215 (activation runbook + docs
+truth) merged as `3b992c5`; PR #216 (user-menu scroll-clip fix) merged as
+`6f09242`. The working branch `agent/agent-canvas-enrichment-documents` is a
+stale pre-squash subset of #207 and must not be used as a base.
 
-**Test-proven (2026-08-18, `master` at `b953a49`):** `npm run verify` passes
+**Test-proven (2026-08-18, `master` at `6f09242`):** `npm run verify` passes
 **404 backend tests** and **109 frontend tests**, the frontend production
 build, deploy-script syntax, and the deploy preflight self-test. Both production
 dependency audits report zero vulnerabilities.
 
 ## Latest production observation
 
-**Live-proven at 2026-08-17T20:19Z:** Cloud Run revision
-`agent-canvas-00057-47c` serves 100% of traffic. `/api/healthz` and
-`/api/config` return 200; the revision restored the replicated database,
-started successfully, and produced no ERROR-severity logs during the release
-probe. The deploy inherited `MODEL_PROVIDER=anthropic` and preserved the exact
-13-name environment/secret binding set from `00056-qtc`. Cloud Scheduler job
-`agent-canvas-standing-rules` remains **PAUSED**; the deploy did not change it.
+**Live-proven at 2026-08-18T16:58Z:** Cloud Run revision
+`agent-canvas-00059-hqb` (created 2026-08-18T16:44:47Z; "Deploying revision
+succeeded in 14.92s") serves 100% of traffic. `/api/healthz` returns 200
+`{"ok":true,"paused":false}` and `/api/config` returns 200; the revision
+restored the replicated database (`seeded=false` boot line) and produced zero
+ERROR-severity logs all day, verified against a positive-control query that
+did return rows. Cloud Scheduler job `agent-canvas-standing-rules` remains
+**PAUSED** (last operator update 2026-08-17T15:49Z); the deploy did not
+change it.
 
-The live bundle contains New canvas, recommended starting-team selection,
-document upload/removal, and agent removal. Workbook and Run cleanup are
-absent. A fresh replica confirms the Enrichment template is enabled and the
-one-time cleanup is stamped. Signed-in journey acceptance remains outstanding.
-
-**Live-proven at 2026-08-18 reconciliation probe:** revision
-`agent-canvas-00057-47c` still serves 100% of traffic; `/api/healthz` returns
-`{"ok":true,"paused":false}` and `/api/config` returns 200; no ERROR-severity
-logs in the prior 24 hours; the scheduler remains PAUSED. **Build-proven:** the
-frontend production build from `master` emits
-`dist/assets/index-3gl5dacv.js`, the same content-hashed bundle name the live
-service serves — the deployed FRONTEND bundle is `master`'s (`9a6abaf`;
-`e13734b` differs from it only in docs). Backend identity is corroborated by
-build timing (image built 4 minutes after `9a6abaf` merged) but not proven —
-the image carries no git-SHA provenance (see gaps below).
+**Live-proven + build-proven bundle identity:** the service serves
+`index-CVFOB6zI.css` and `index-DvYGXaHp.js`, and the frontend production
+build from `master` at `6f09242` emits exactly those content-hashed names —
+the deployed FRONTEND is `master`'s through #215 and #216 (the user-menu
+scroll-clip fix rides in this bundle). With `00059-hqb` the #213/#214
+activation wiring and content lane are deployed. Backend identity is
+corroborated by build timing (Cloud Build `e56324de` succeeded
+2026-08-18T16:42:53Z; the revision was created ~2 minutes later) but not
+proven — the image carries no git-SHA provenance (see gaps below). Signed-in
+journey acceptance, including the newly deployed lanes, remains outstanding.
 
 **Recorded gaps (decision items, deliberately not changed here):** the
 production image is tagged `:latest` with no git-SHA provenance, so "which
-commit is running" is only inferable from bundle fingerprints; production runs
-`MODEL_PROVIDER=anthropic` while `deploy/deploy.sh` prose still describes a
-`vertex` default (the divergence is guarded — `deploy.sh` inherits the live
-provider and will not silently move it).
+commit is running" is only inferable from bundle fingerprints and build
+timing; production runs `MODEL_PROVIDER=anthropic` while `deploy/deploy.sh`
+prose still describes a `vertex` default (the divergence is guarded —
+`deploy.sh` inherits the live provider and will not silently move it).
 
 ## Released workspace cleanup
 
@@ -96,7 +94,7 @@ migration is idempotently complete.
 | P5 Standing Rules | Merged | Scheduler delivery is live-proven; manual path historically accepted; remaining scenarios below |
 | Cleanup: truthful workspace content | Merged and deployed | Bundle, replica, health, and log checks pass; signed-in journey not replayed |
 | Recommended teams, Enrichment, document intake, agent removal | Merged and deployed | Bundle/replica proven; signed-in journey not replayed |
-| Activation wiring + content lane (SDR marts grant, Gauge least-authority, Quill, content-policy registry, gate) | Merged on `master` (#213, #214) | Not deployed; signed-in acceptance outstanding; owner activation steps in [ACTIVATION-RUNBOOK.md](ACTIVATION-RUNBOOK.md) |
+| Activation wiring + content lane (SDR marts grant, Gauge least-authority, Quill, content-policy registry, gate) | Merged on `master` (#213, #214) | Deployed in `00059-hqb` (2026-08-18; frontend fingerprint-proven, backend corroborated by build timing); signed-in acceptance outstanding; owner activation steps in [ACTIVATION-RUNBOOK.md](ACTIVATION-RUNBOOK.md) |
 | P6 Outcomes and reviewed learning | Planned only | Not implemented |
 | P7 Selective integrations and portability | Planned only | Not implemented |
 
