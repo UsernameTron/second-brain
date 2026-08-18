@@ -1,4 +1,4 @@
-# Agent Canvas — Current Handoff (2026-08-17)
+# Agent Canvas — Current Handoff (2026-08-18)
 
 This file is the concise current-state authority. Historical implementation and
 incident detail lives in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); phase intent
@@ -11,12 +11,14 @@ evidence is an observation at one instant, not a permanent property.
 
 ## Repository and verification
 
-**Git-proven (observed 2026-08-17):** canonical repository
+**Git-proven (observed 2026-08-18):** canonical repository
 `/Users/cpconnor/projects/second-brain`; application subtree `agent-canvas/`.
-`master` and `origin/master` are at `9a6abaf`. PR #207 merged as `049bb81`;
-PR #208 merged as `9a6abaf`.
+`master` and `origin/master` are at `e13734b`. PR #207 merged as `049bb81`;
+PR #208 merged as `9a6abaf`; PR #209 (docs) merged as `e13734b`. The working
+branch `agent/agent-canvas-enrichment-documents` is a stale pre-squash subset
+of #207 and must not be used as a base.
 
-**Test-proven (2026-08-17, merged SHA `9a6abaf`):** `npm run verify` passes
+**Test-proven (2026-08-18, `master` at `e13734b`):** `npm run verify` passes
 **385 backend tests** and **107 frontend tests**, the frontend production
 build, deploy-script syntax, and the deploy preflight self-test. Both production
 dependency audits report zero vulnerabilities.
@@ -35,6 +37,22 @@ The live bundle contains New canvas, recommended starting-team selection,
 document upload/removal, and agent removal. Workbook and Run cleanup are
 absent. A fresh replica confirms the Enrichment template is enabled and the
 one-time cleanup is stamped. Signed-in journey acceptance remains outstanding.
+
+**Live-proven at 2026-08-18 reconciliation probe:** revision
+`agent-canvas-00057-47c` still serves 100% of traffic; `/api/healthz` returns
+`{"ok":true,"paused":false}` and `/api/config` returns 200; no ERROR-severity
+logs in the prior 24 hours; the scheduler remains PAUSED. **Build-proven:** the
+frontend production build from `master` emits
+`dist/assets/index-3gl5dacv.js`, the same content-hashed bundle name the live
+service serves — the deployed code is `master`'s application code (`9a6abaf`;
+`e13734b` differs from it only in docs).
+
+**Recorded gaps (decision items, deliberately not changed here):** the
+production image is tagged `:latest` with no git-SHA provenance, so "which
+commit is running" is only inferable from bundle fingerprints; production runs
+`MODEL_PROVIDER=anthropic` while `deploy/deploy.sh` prose still describes a
+`vertex` default; `FAST_PROVIDER`/`STRONG_PROVIDER` are set by `deploy.sh` but
+no server code reads them.
 
 ## Released workspace cleanup
 
