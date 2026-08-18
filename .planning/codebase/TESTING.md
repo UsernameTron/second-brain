@@ -1,10 +1,23 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-07-31
+**Analysis Date:** 2026-08-18
 
-## Test Framework
+Two independent test stacks live in this repo: **root** (`src/`/`test/`, Jest)
+and **`agent-canvas/`** (backend `node:test`, frontend Vitest, plus a build
+and deploy self-test all chained under one `verify` gate). They have separate
+runners, separate CI jobs, and separate gate commands — do not assume root's
+`npm test` covers agent-canvas, and do not assume agent-canvas's `npm test`
+covers its own frontend.
 
-**Runner:** Jest 30.3.0 (`package.json` devDependencies). Config lives inline in `package.json` (`"jest": { "testPathIgnorePatterns": ["/node_modules/", ".claude/worktrees"] }`) — there is no separate `jest.config.js`. The `.claude/worktrees` exclusion exists because GSD executor worktrees under that path can't run this repo's Jest (a known blind spot — see `feedback_gsd_executor_worktree_jest_blind` in project memory).
+## Root: Jest
+
+**Runner:** Jest 30.3.0 (`package.json` devDependencies). Config lives inline
+in `package.json` (`"jest": { "testPathIgnorePatterns": ["/node_modules/",
+".claude/worktrees", "/agent-canvas/"] }`) — no separate `jest.config.js`.
+Root Jest **explicitly excludes `/agent-canvas/`** from its test path, so the
+two suites never overlap or double-run. The `.claude/worktrees` exclusion
+exists because GSD executor worktrees under that path can't run this repo's
+Jest.
 
 **Assertion library:** Jest's built-in `expect`. No Chai/Sinon.
 
@@ -20,38 +33,43 @@ npm run test:integration:voyage                   # live Voyage API UAT; no-ops 
 npm run eval:recall                               # retrieval quality eval vs frozen baseline
 ```
 
-**Coverage thresholds** are NOT in `package.json`'s jest block — they're injected at CI time only, via `.github/workflows/ci.yml:29`:
+**Coverage thresholds** are NOT in `package.json`'s jest block — injected at
+CI time only, via `.github/workflows/ci.yml`:
 ```bash
 npx jest --verbose --coverage --coverageThreshold='{"global":{"branches":80,"functions":90,"lines":90,"statements":90}}'
 ```
-Branches is intentionally lower (80) than functions/lines/statements (90) — a comment in `ci.yml:27-28` notes this was ratcheted up from 70 and a further lift to 90 is a future milestone gate, current gaps are low-churn utility paths. To run the same gate locally: `npx jest --coverage --coverageThreshold='{"global":{"branches":80,"functions":90,"lines":90,"statements":90}}'`.
+Branches is intentionally lower (80) than functions/lines/statements (90) — a
+comment in `ci.yml` notes this was ratcheted up from 70 and a further lift to
+90 is a future milestone gate; current gaps are low-churn utility paths. To
+run the same gate locally: `npx jest --coverage --coverageThreshold='{"global":{"branches":80,"functions":90,"lines":90,"statements":90}}'`.
 
-## Test File Organization
+### Test File Organization
 
-**Location:** fully separate `test/` tree, not co-located with `src/`. One-to-one filename mirror: `src/daily-stats.js` → `test/daily-stats.test.js`. Subdirectories under `test/` group by concern rather than mirroring `src/` subdirectories exactly:
-- `test/unit/`, `test/integration/` — split by test type for a few modules
-- `test/uat/` — end-to-end acceptance tests (see UAT section below)
-- `test/connectors/`, `test/today/`, `test/agents/`, `test/utils/`, `test/hooks/` — mirror `src/connectors/`, `src/today/`, `src/utils/` and the repo's `hooks/`/`.claude/hooks/` directories
-- `test/today-command.gateway.test.js` — routing/gateway logic for the `/today` briefing, split out from `test/today-command.test.js`'s orchestration tests (post-PR #90-93 split)
-- `test/memory-dashboard.test.js` — dashboard/reporting view over memory state, distinct from the memory-pipeline tests (`memory-extractor`, `memory-proposals`, `promote-memories`)
-- `test/fixtures/` — shared static test data (`memory-sample.md`)
+**Location:** fully separate `test/` tree, not co-located with `src/`.
+One-to-one filename mirror: `src/daily-stats.js` → `test/daily-stats.test.js`.
+Subdirectories group by concern rather than mirroring `src/` subdirectories
+exactly: `test/unit/`, `test/integration/`, `test/uat/`, `test/connectors/`,
+`test/today/`, `test/agents/`, `test/utils/`, `test/hooks/`, `test/fixtures/`.
 
-**Naming:** `{module-name}.test.js` for unit tests, `{module-name}-coverage.test.js` when a second file targets specific uncovered branches of an already-tested module (`memory-extractor-coverage.test.js`, `config-validator-coverage.test.js`, `note-formatter-coverage.test.js`), `{feature}.uat.test.js` or `uat-{feature}.test.js` for UAT.
+**Naming:** `{module-name}.test.js` for unit tests, `{module-name}-coverage.test.js`
+when a second file targets specific uncovered branches of an already-tested
+module, `{feature}.uat.test.js` or `uat-{feature}.test.js` for UAT.
 
-## Test Structure
+### Test Structure
 
-Uses `describe(...)` blocks grouping `test(...)` cases — **`test()`, not `it()`**, is the convention throughout (`test/classifier.test.js` uses `test()` 16 times, `it()` zero times; same ratio in `test/config-validator.test.js`). Nested `describe` blocks group by capability, not by function name, e.g.:
-
+Uses `describe(...)` blocks grouping `test(...)` cases — **`test()`, not
+`it()`**, is the convention throughout. Nested `describe` blocks group by
+capability, not by function name:
 ```javascript
 describe('classifier-health — failure tracking & degraded mode', () => {
   test('readHealth() on a missing file returns defaults and does not throw', () => { ... });
 });
 describe('classifier-health — per-night Haiku cap', () => { ... });
-describe('classifier-health — atomic persistence', () => { ... });
 ```
 (`test/utils/classifier-health.test.js:31,70,101`)
 
-**Setup/teardown pattern** — save-restore-mkdtemp, used almost everywhere a module reads an env-controlled path:
+**Setup/teardown pattern** — save-restore-mkdtemp, used almost everywhere a
+module reads an env-controlled path:
 ```javascript
 let tmpCacheDir, originalCacheDir;
 beforeEach(() => {
@@ -65,14 +83,18 @@ afterEach(() => {
   fs.rmSync(tmpCacheDir, { recursive: true, force: true });
 });
 ```
-(`test/utils/classifier-health.test.js:16-29`, mirrored in `test/semantic-index.test.js:67-108` and `test/uat/semantic-search.uat.test.js:34-103`). Always restore to `undefined` via `delete`, never assume a default string — this preserves "was unset before the test" state exactly.
+(`test/utils/classifier-health.test.js:16-29`). Always restore to `undefined`
+via `delete`, never assume a default string.
 
-**Counter-pollution guards:** `src/daily-stats.js` resolves its cache dir with explicit precedence — `CACHE_DIR_OVERRIDE` > jest temp dir keyed by `JEST_WORKER_ID` > `~/.cache/second-brain` (`src/daily-stats.js:288-295`). This means parallel Jest workers never collide on the same counter file even without an explicit override, and `test/daily-stats.test.js:63-73` asserts the `JEST_WORKER_ID` fallback path directly. `src/promote-memories.js:297` uses `JEST_WORKER_ID` as a bare test-environment detector to skip related-links enrichment unless `RELATED_LINKS_UNDER_TEST` is explicitly set — a pattern for "only run this expensive/networked branch when a test opts in."
+**Counter-pollution guards:** `src/daily-stats.js` resolves its cache dir with
+explicit precedence — `CACHE_DIR_OVERRIDE` > jest temp dir keyed by
+`JEST_WORKER_ID` > `~/.cache/second-brain` — so parallel Jest workers never
+collide on the same counter file even without an explicit override.
 
-## Mocking
+### Mocking
 
-No Sinon, no `nock` in active use (it's a devDependency but no test file currently `require`s it) — **all mocking is hand-rolled `jest.mock()` with factory functions delegating to shared `jest.fn()` instances**, reset per-test:
-
+No Sinon, no active `nock` — **all mocking is hand-rolled `jest.mock()` with
+factory functions delegating to shared `jest.fn()` instances**, reset per-test:
 ```javascript
 const mockEmbed = jest.fn();
 jest.mock('voyageai', () => ({
@@ -80,142 +102,196 @@ jest.mock('voyageai', () => ({
     embed: (...args) => mockEmbed(...args),
   })),
 }));
-jest.mock('../src/content-policy', () => ({
-  checkContent: (...args) => mockCheckContent(...args),
-}));
-
 beforeEach(() => {
   jest.resetModules();
   mockEmbed.mockReset();
-  mockCheckContent.mockReset();
-  mockCheckContent.mockResolvedValue({ decision: 'PASS' });
 });
 ```
 (`test/semantic-index.test.js:23-49,77-96`)
 
-This indirection (module-level `mockFn` closed over by the `jest.mock` factory) exists so each test can call `.mockReset()`/`.mockReturnValue()`/`.mockResolvedValue()` on the same reference the mocked module calls — a plain `jest.fn()` inline in the factory can't be reached from test bodies after the module is required.
+**What to mock:** external SDKs (`voyageai`), other `src/` modules when
+testing integration/orchestration logic one layer up.
 
-**What to mock:** external SDKs (`voyageai`), other `src/` modules when testing integration/orchestration logic one layer up (`integration-pipeline.test.js` mocks `../src/classifier` and `../src/vault-gateway` wholesale to test the `/new` pipeline's orchestration, not classifier internals — `test/integration-pipeline.test.js:63-70`).
+**What NOT to mock:** filesystem operations on temp dirs (real `fs` +
+`mkdtempSync`, not a memory-fs mock).
 
-**What NOT to mock:** filesystem operations on temp dirs (real `fs` + `mkdtempSync`, not a memory-fs mock) — pure Node modules get exercised for real inside an isolated temp directory rather than mocked.
+### Fixtures and Factories
 
-## Fixtures and Factories
+Static test data lives in `test/fixtures/`. For structured mock return
+values, tests define local factory functions above the `describe` block
+rather than repeating literal object shapes inline — one named factory per
+outcome shape (`test/integration-pipeline.test.js:17-59`: `successRight`,
+`successLeft`, `blocked`, `deadLettered`).
 
-Static test data lives in `test/fixtures/` (e.g. `memory-sample.md`) for the handful of tests that need a real file on disk to parse.
+### Live-API Integration Tests
 
-For structured mock return values, tests define local factory functions above the `describe` block rather than repeating literal object shapes inline — each factory takes the few fields that vary and fills in the rest:
-```javascript
-function successRight(directory = 'research', confidence = 0.9) {
-  return {
-    correlationId: 'integration-corr-id',
-    blocked: false,
-    side: 'RIGHT',
-    directory,
-    confidence,
-    sonnetEscalated: false,
-    stage1: { side: 'RIGHT', confidence: 0.9 },
-    stage2: { directory, confidence, sonnetEscalated: false },
-  };
-}
-```
-(`test/integration-pipeline.test.js:17-28`, with sibling factories `successLeft`, `blocked`, `deadLettered` at lines 30-59). Use this pattern — a named factory per outcome shape — when a mock's return value has more than 2-3 fields and appears in multiple tests, instead of copy-pasting the object literal.
-
-## Live-API Integration Tests
-
-`test:integration:voyage` runs `test/uat/semantic-search.uat.test.js` against the real Voyage AI embeddings API. Guarded by a `describe.skip` ternary at file scope, not a per-test `if`:
+`test:integration:voyage` runs `test/uat/semantic-search.uat.test.js` against
+the real Voyage AI embeddings API, guarded by a `describe.skip` ternary at
+file scope:
 ```javascript
 const describeMaybe = (process.env.CI === 'true' || !process.env.VOYAGE_API_KEY)
-  ? describe.skip
-  : describe;
-describeMaybe('UAT-19: Semantic Memory Search (real Voyage AI)', () => { ... });
+  ? describe.skip : describe;
 ```
-(`test/uat/semantic-search.uat.test.js:29-33`). The npm script itself no-ops before Jest even starts if the key is absent: `test:integration:voyage` runs a `node -e` guard that prints `SKIP: VOYAGE_API_KEY not set` and exits 0 (`package.json:12`). Real API tests carry an explicit long timeout as the second arg to `test(...)`, e.g. `}, 30000);` for embedding calls (`test/uat/semantic-search.uat.test.js:126,146,194,206`).
+Other UAT files use related but distinct CI-guard idioms — check the exact
+one before copying: `uat-classification.test.js`/`uat-wikilinks.test.js` use
+`process.env.CI === 'true'`; `memory-retrieval.uat.test.js` uses a truthy
+check (`process.env.CI ? describe.skip : describe`);
+`validate-archive.test.js` keys on filesystem state instead of CI.
 
-Other UAT files use two related but distinct guard idioms — check the exact one in the file before copying it: `test/uat/uat-classification.test.js:151` and `test/uat/uat-wikilinks.test.js:118` use `const skipInCI = process.env.CI === 'true';`; `test/uat/memory-retrieval.uat.test.js:29` uses `process.env.CI ? describe.skip : describe` (truthy check, not `=== 'true'`). `test/validate-archive.test.js:90` uses a third variant keyed on filesystem state rather than CI: `fs.existsSync(realArchive) ? describe : describe.skip`.
+### Eval Harness (v1.8 Measured Memory)
 
-## Eval Harness (Phase 32, v1.8 Measured Memory)
+`npm run eval:recall` (→ `scripts/eval-recall.js`) scores `/recall` quality
+over a frozen seed vault against a golden set, across keyword/semantic/hybrid
+modes, compared against the newest baseline. Not a Jest test — a standalone
+Node CLI. recall@5 is set-membership, never exact rank. Exit codes: `0` ok,
+`1` regression, `2` preflight failure, `3` live-cache isolation violation.
 
-`npm run eval:recall` (→ `scripts/eval-recall.js`) scores `/recall` quality over a **frozen seed vault** (`eval/seed-vault/`) against a **golden set** (`eval/golden-recall.json`), across keyword/semantic/hybrid modes, and compares against the newest `eval/baseline-*.json`. Not a Jest test — a standalone Node CLI script.
+### Root Coverage — Current Numbers
 
-Key mechanics (`scripts/eval-recall.js:1-80`):
-- **recall@5 is set-membership** (any expected `content_hash` in the top 5 = hit), never exact rank — semantic scores reorder daily via recency decay, so rank-exact would be flaky by design. MRR is reported but never gates.
-- **Isolation:** `VAULT_ROOT` → `eval/seed-vault`, `CACHE_DIR_OVERRIDE` → `eval/.cache` (persistent across runs, gitignored, so entry embeddings are reused rather than re-embedded every run).
-- **Live-cache isolation is asserted, not assumed:** the script fingerprints (`sha256` + `mtimeMs` + `size`) the live `~/.cache/second-brain/embeddings.jsonl` before and after the run and exits 3 if it changed — a real regression guard against the eval accidentally touching production cache.
-- Env overrides are set **before** any `src/` require, with a comment explaining why: `vault-gateway` freezes `VAULT_ROOT` at module load (`scripts/eval-recall.js:35`).
-- Exit codes: `0` ok, `1` recall@5 regression vs baseline, `2` preflight failure or baseline refusal, `3` live-cache isolation violation.
-- `-- --baseline` flag re-anchors the baseline file instead of comparing against it.
-- A `ponytail:`-tagged comment documents a deliberate pacing shortcut for Voyage's free-tier rate limit (3 RPM / 10K TPM), with the upgrade path spelled out: `Set EVAL_EMBED_PACE_MS=0 on a paid key` (`scripts/eval-recall.js:65-66`).
+**1568 total tests across 82 test files.** Local run (default env): 1539
+passing / 29 skipped. CI run (`CI=true`, skip-logic active): 1530 passing /
+38 skipped, 80 of 82 suites executed — the wider CI skip count reflects
+UAT/live-API guards triggering under `CI=true`, not test loss. Coverage
+(CI=true, `coverage-summary.json` `total.*.pct`): branches 80.95%, statements
+92.03%, functions 95.78%, lines 92.99% — all clear the 80/90/90/90 gate,
+branches the tightest margin. When checking whether a number clears the
+gate, read `coverage-summary.json`'s `total.*.pct` fields — the "All files"
+text row in the terminal/HTML report is not what CI reads. Lint is clean
+(zero ESLint warnings).
 
-## Git Hooks Touching Tests/Quality
+## Agent Canvas: node:test + Vitest, `npm run verify` is the real gate
 
-Installed via `hooks/` (repo-managed: `npm run prepare` sets `core.hooksPath=hooks`, so these are live hooks, not `.git/hooks/` templates):
-- **`hooks/pre-commit`** — runs three checks in sequence: `pre-commit-schema-validate.js` (AJV validation of `config/*.json` against `config/schema/*.schema.json`, via `src/config-validator.js`), `pre-commit-vault-boundary.js` (LEFT/RIGHT boundary check), and `scripts/validate-archive.js` (archive integrity). Exits non-zero (via `set -euo pipefail`) on first failure.
-- **`hooks/pre-push`** — blocks the push if the current branch was based on a now-stale local `master` (compares `git merge-base` against `origin/master`), then runs `pre-push-docsync.js` (docs-sync gate, bypass with `SKIP_DOCSYNC=1`) and `scripts/verify-baseline.js` (bypass with `SKIP_BASELINE=1`).
-- **`hooks/post-merge`** — docs drift warning; non-blocking by design (never exits non-zero), so it never fails a merge.
+**`npm test` alone is BACKEND ONLY and has never been the gate.** A change can
+pass `npm test` while the frontend suite or the production build is red. The
+actual verification command, documented in `agent-canvas/CLAUDE.md:17-21` and
+mirrored in `agent-canvas/package.json`, is:
+```json
+"verify": "npm test && npm run test:frontend && npm run build --prefix frontend && bash -n deploy/deploy.sh && bash deploy/deploy.sh --selftest"
+```
+That is five checks chained with `&&` (any failure stops the chain): backend
+`node:test`, frontend `vitest run`, the frontend production Vite build,
+`deploy/deploy.sh` syntax check (`bash -n`), and the deploy script's own
+`--selftest` self-check. `agent-canvas/CLAUDE.md` also directs adding
+`npm audit --omit=dev` (root and `frontend/`) before proposing a commit —
+that step is manual, not wired into the `verify` npm script itself.
 
-Each of these has a matching test under `test/hooks/` (`pre-commit-schema-validate.test.js`, `pre-commit-vault-boundary.test.js`, `pre-push-docsync.test.js`, `post-merge-doc-sync.test.js`) plus `.test.sh` counterparts for the bash-only hooks (`auto-test.test.sh`, `protected-file-guard.test.sh`, `security-scan-gate.test.sh`).
+### Backend: `node:test`
 
-**Claude Code hooks** (`.claude/hooks/`, separate from git hooks) include `auto-test.sh`: on every source-file edit, it derives the matching `test/{basename}.test.js` and runs `npx jest --testPathPatterns="test/{basename}\.test\.js" --no-coverage` if that test file exists, else no-ops (`.claude/hooks/auto-test.sh:19-37`). This is the mechanism that gives fast feedback on every file save without running the whole suite.
+**Runner:** Node's built-in test runner, no Jest, no Mocha
+(`agent-canvas/package.json`: `"test": "node --test \"test/*.test.js\""`).
+Uses `require('node:test')` and `require('node:assert')` directly:
+```javascript
+const test = require('node:test');
+const assert = require('node:assert');
+```
+(`agent-canvas/test/rooms.test.js:6-7`)
 
-## Coverage
+**Current count: 385 tests across 44 files** (`agent-canvas/test/*.test.js`,
+verified via `node --test`). All 385 pass, 0 fail, 0 skipped as of this
+analysis. Naming: kebab-case, `{feature}.test.js` — `access-control.test.js`,
+`agent-authority.test.js`, `agent-builder.test.js`, `canvas-files-tool.test.js`,
+`enrichment-dispatch.test.js`, `hardening.test.js`, `standing-rules` coverage
+spread across several files, `docs-contract.test.js` (see below).
 
-**Run with coverage:**
+**Setup pattern** — real Express server on an isolated ephemeral `DATA_DIR`,
+started once per test file, exercised over real HTTP via `fetch`:
+```javascript
+process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-rooms-'));
+process.env.DEV_AUTH = '1';
+process.env.ANTHROPIC_API_KEY = 'test'; // placeholder, never called
+
+const { server } = require('../server/index');
+runner._internal.setCallModel(async () => ({
+  content: [{ type: 'text', text: 'stubbed refresh' }], stop_reason: 'end_turn', usage: {},
+}));
+```
+(`agent-canvas/test/rooms.test.js:11-25`). LLM calls are stubbed via an
+injectable `_internal.setCallModel()` hook on the orchestrator runner rather
+than mocking the Anthropic SDK module — the real HTTP/auth/DB stack runs, only
+the model call is faked. Auth for test requests goes through a real dev
+sign-in endpoint (`POST /api/auth/dev`) that returns a session cookie, then
+every subsequent call passes that cookie — this exercises the actual
+cookie-auth code path rather than bypassing it.
+
+**Multi-role fixtures** — tests define named actors up front
+(`OWNER`, `VIEWER`, `EDITOR`, and an unauthorized "outsider") and sign each
+in separately, so permission-boundary tests read as "as VIEWER, expect 403"
+rather than re-deriving roles per assertion.
+
+### `docs-contract.test.js` — structural documentation validation
+
+`agent-canvas/test/docs-contract.test.js` is a `node:test` file that validates
+the *structure* of `agent-canvas/docs/` (not the truth of any claim in them —
+that's what the evidence hierarchy in `docs/README.md` is for). Four checks:
+1. Every governed doc (everything in `docs/*.md` plus `README.md`/`CLAUDE.md`)
+   is linked from `docs/README.md` — an unlisted new file fails the suite.
+2. `docs/README.md` never links a file that doesn't exist on disk.
+3. Every local markdown link in every governed doc resolves to a real file
+   (walks all of them, not just the index).
+4. Every doc listed under "Historical records" in the index opens with a
+   blockquote banner naming it historical, within its first 12 lines.
+Plus a hard structural ceiling: `docs/HANDOFF.md` must be ≤200 lines (it once
+grew to 1666 lines with the live claim buried mid-file); `HANDOFF-HISTORY.md`
+must still exist. This is the pattern to follow for any repo where a status
+doc has previously rotted or been buried — enforce shape with a test, not
+just a review-time skim.
+
+### Frontend: Vitest
+
+**Runner:** Vitest 4.1.10 + `@testing-library/react` 16 + `@testing-library/user-event`
+14 + jsdom 29 (`agent-canvas/frontend/package.json` devDependencies).
+`"test": "vitest run"` (`frontend/package.json:8`). No Jest anywhere in the
+frontend — do not port Jest-specific APIs (`jest.mock`, `jest.fn`) into
+`frontend/test/*.test.jsx`; Vitest's `vi.mock`/`vi.fn` equivalents apply
+there, `jsdom` is the test environment (not the default `node`).
+
+**Current count: 107 tests across 10 files**
+(`frontend/test/*.test.jsx`): `api-upload.test.jsx`, `builder.test.jsx`,
+`dialog.test.jsx`, `format.test.jsx`, `home.test.jsx`, `light-theme.test.jsx`,
+`nodes.test.jsx`, `rooms.test.jsx`, `rules.test.jsx`,
+`workspace-cleanup.test.jsx`, plus a shared `setup.js`. All 107 pass.
+
+**Run:**
 ```bash
-npx jest --coverage
+npm run test:frontend          # from agent-canvas/, = npm test --prefix frontend
+npm test --prefix frontend     # equivalent, direct
 ```
-**Enforce CI thresholds locally:**
-```bash
-npx jest --coverage --coverageThreshold='{"global":{"branches":80,"functions":90,"lines":90,"statements":90}}'
-```
-Coverage report written to `coverage/` (uploaded as a CI artifact per Node version, 14-day retention — `ci.yml:31-37`). When checking whether a number clears the gate, read `coverage/coverage-summary.json`'s `total.*.pct` fields — the "All files" text row in the HTML/terminal report is not what the CI gate reads. Measure with `CI=true` too: the CI skip-logic changes which suites execute, so a local run's percentages are not the numbers the gate sees.
 
-**Current numbers (CI=true, `coverage-summary.json` `total.*.pct`, measured 2026-07-31):** branches 80.95%, statements 92.03%, functions 95.78%, lines 92.99% — all clear the 80/90/90/90 gate. Branches is the tightest margin, consistent with the "future milestone" note above.
+### Deploy Self-Test
 
-## Test Types
+The last two legs of `npm run verify` are shell, not a JS test runner:
+- `bash -n deploy/deploy.sh` — syntax-only check, catches malformed bash
+  before any real deploy attempt.
+- `bash deploy/deploy.sh --selftest` — the script's own `--selftest` flag
+  proves its internal functions against fixtures without touching Cloud Run,
+  reachable at `deploy/deploy.sh:40-46`. Treat this as a real test suite for
+  the deploy script, not an optional extra — it is chained into `verify` with
+  `&&`, so a broken deploy script fails the whole gate the same as a failing
+  unit test.
 
-**Unit tests:** the bulk of `test/*.test.js` — one module in isolation, dependencies mocked via `jest.mock()`.
+## CI Matrix
 
-**Integration tests:** `test/integration/`, `test/integration.test.js`, `test/integration-pipeline.test.js`, `test/classifier-integration.test.js` — exercise multiple `src/` modules together (e.g. classify → format → write → wikilink for the `/new` pipeline) while still mocking the outermost boundaries (LLM calls, vault-gateway writes).
+`.github/workflows/ci.yml` defines two separate jobs, both `ubuntu-latest`:
 
-**UAT (User Acceptance Tests):** `test/uat/` — full end-to-end scenarios against real or near-real conditions, gated out of default CI runs by the CI/API-key skip idioms described above. Run explicitly via `npm run test:uat` (forces `CI=` empty) or `npm run test:integration:voyage` for the live-API subset.
+**`test` job (root):** matrix `node-version: [22]`. Steps: `npm ci` → lint →
+`jest --coverage` with the injected threshold string above → upload coverage
+artifact (14-day retention, per Node version) → `npm run license-check` →
+`npm audit --audit-level=high --omit=dev` (production-dependency-only,
+deliberately since 2026-07-27 after an unscoped audit went red on a dev-only
+GHSA advisory with no code change — see `ci.yml` inline comment for the
+full incident rationale).
 
-**E2E against a frozen dataset:** the eval harness (`npm run eval:recall`) is the closest thing to a full end-to-end regression suite, but it's a scored comparison against a baseline, not a pass/fail unit test — treat a regression as a signal to investigate ranking/threshold changes, not a simple red/green.
-
-## Common Patterns
-
-**Async testing** — `async () => { ... }` test bodies with `await` on the module under test, no `done` callbacks anywhere sampled:
-```javascript
-test('UAT-1: /recall --semantic "leadership" returns ≥3 results...', async () => {
-  const { indexNewEntries } = require('../../src/semantic-index');
-  const embedResult = await indexNewEntries(MEMORY_ENTRIES);
-  expect(embedResult.embedded).toBe(10);
-}, 30000);
-```
-(`test/uat/semantic-search.uat.test.js:107-126`)
-
-**Error/fail-open testing** — assert both the non-throw and the resulting default state in the same test, rather than just wrapping in `expect(...).not.toThrow()`:
-```javascript
-test('a corrupt/garbage health file fails open to defaults (no throw)', () => {
-  fs.writeFileSync(health.getHealthPath(), '{ this is not json ', 'utf8');
-  expect(() => health.readHealth()).not.toThrow();
-  expect(health.readHealth().consecutive_failures).toBe(0);
-});
-```
-(`test/utils/classifier-health.test.js:62-67`)
-
-**Spy-and-restore for negative-call assertions** — confirm a gate short-circuits before an expensive/external call, then clean up the spy:
-```javascript
-const embedSpy = jest.spyOn(voyageai.VoyageAIClient.prototype, 'embed');
-const result = await semanticSearch('ISPN strategy');
-const embedCallCount = embedSpy.mock.calls.length;
-embedSpy.mockRestore();
-```
-(`test/uat/semantic-search.uat.test.js:152-168`)
-
-## Current Test Counts (verified 2026-07-31, post PR #96)
-
-**1568 total tests across 82 test files** (+16 since the 2026-07-26 count of 1552, from PRs #94-#96). Local run (default env): **1539 passing / 29 skipped**. CI run (`CI=true`, skip-logic active): **1530 passing / 38 skipped, 80 of 82 suites executed** — the wider CI skip count reflects UAT/live-API guards described above triggering under `CI=true`, not test loss. Lint is clean (ESLint 10 flat config, zero warnings). Quote the CI split (1530/38), not the local split (1539/29), when documenting "what CI sees."
+**`agent-canvas-test` job:** separate job, own checkout, own `npm ci` scoped
+to `agent-canvas/` (cache keyed off `agent-canvas/package-lock.json`), runs
+`npm test` (backend `node:test`) then a second `npm ci` inside
+`agent-canvas/frontend/` and `npm run test:frontend`. **CI runs backend +
+frontend tests but does NOT run the full `npm run verify` chain** — the
+production build, `deploy.sh` syntax check, and deploy self-test are not
+CI-gated as of this analysis; they run locally as part of `verify` before a
+commit is proposed, per `agent-canvas/CLAUDE.md`'s house rule, but are not
+enforced by GitHub Actions. Treat local `npm run verify` as the real
+pre-commit bar for agent-canvas changes; CI is a narrower backstop.
 
 ---
 
-*Testing analysis: 2026-07-31*
+*Testing analysis: 2026-08-18*
