@@ -51,8 +51,8 @@ service serves — the deployed code is `master`'s application code (`9a6abaf`;
 production image is tagged `:latest` with no git-SHA provenance, so "which
 commit is running" is only inferable from bundle fingerprints; production runs
 `MODEL_PROVIDER=anthropic` while `deploy/deploy.sh` prose still describes a
-`vertex` default; `FAST_PROVIDER`/`STRONG_PROVIDER` are set by `deploy.sh` but
-no server code reads them.
+`vertex` default (the divergence is guarded — `deploy.sh` inherits the live
+provider and will not silently move it).
 
 ## Released workspace cleanup
 

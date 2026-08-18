@@ -1,78 +1,166 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-07-31
+**Analysis Date:** 2026-08-18
 
-## Tech Debt
+Scope: `agent-canvas/` (application subtree of this repo) plus a scan of the
+root pipeline (`src/`, `scripts/`, `.planning/backlog.md`). Every item below
+was checked against the file/line cited, or against `agent-canvas/docs/HANDOFF.md`
+(dated 2026-08-18, labels its own claims git/test/live-proven vs unverified).
 
-**Five briefing-section catches in `src/today-command.js` degrade silently — OPEN, found 2026-07-31, not fixed**
-- Each of the five `/today` composition sections swallows its error with no log line: Memory Echo (`:288`, sets a `{skipped:true}` sentinel), the echo-shown stats record (`:299`), Memory Health (`:314`), compounding trend (`:332`), sweep status (`:338`). All five carry a `/* non-fatal — briefing-is-the-product */`-style comment and nothing else.
-- The rationale is sound — the briefing ships even if a sub-fetch fails — but nothing records *that* it failed, so a permanently-broken `readDailyStats` renders as a permanently-missing section with no signal anywhere. The same shape repeats in the stats-recording aggregate at `:459-496`, where `:498` states the reason outright: `// Per CLAUDE.md ESLint config: no console.* in production. Silent catch.` That reads the convention too narrowly — `logDecision()` and `process.stderr.write` are the sanctioned channels and are already used elsewhere in this same file.
-- Impact: observability, not correctness. A degraded `/today` is indistinguishable from a `/today` with genuinely nothing to report.
-- Fix approach: replace each bare catch with a one-line `logDecision('TODAY', '<section>', 'DEGRADED', err.message)`. Same fail-open behavior, plus a stderr breadcrumb. This is exactly the pattern PR #96 applied to `loadExcludedTerms()`.
+## High Severity
 
-**`src/utils/classifier-health.js` increments are read-modify-write, not atomic — OPEN, found 2026-07-31, not fixed**
-- `recordFailure()` (`:98-105`) and `recordHaikuCall()` (`:146-152`) both do `readHealth()` → mutate → `_writeHealth(state)`. Two concurrent invocations interleaving between the read and the write lose one increment.
-- The state is explicitly cross-invocation by design (interactive session, 23:45 sweep, monthly dream all share `~/.cache/second-brain/classifier-health.json`), so concurrency is the expected case, not the exotic one.
-- Impact: bounded but real — an undercounted `haiku_calls` lets the nightly Haiku cap (`haikuNightlyCap: 50`) be exceeded, and an undercounted `consecutive_failures` delays the degraded-mode window that exists to stop burning timeouts on a wedged local model.
-- Fix approach: the same lease-lock pattern `memory-proposals.js` already uses, or a compare-and-swap on the file's mtime. Not worth a new dependency.
+**`server/routes.js` is a 2,532-line, 147KB route monolith**
+- `agent-canvas/server/routes.js` — 150,858 bytes, 2,532 lines, one file for every
+  HTTP route in the service (canvases, agents, runs, notes, files, roster,
+  standing rules, auth-adjacent config, admin). Confirmed by direct `wc -l`/`ls -la`.
+- Impact: any route change risks touching unrelated handlers in the same diff;
+  code review has no natural seam; merge conflicts concentrate here (this file
+  is also the most-cited file in `docs/IMPROVE-FINDINGS.md`'s prior audit).
+- Fix approach: split by resource (`routes/canvases.js`, `routes/agents.js`,
+  `routes/runs.js`, `routes/notes.js`, `routes/files.js`, `routes/standing-rules.js`)
+  mounted from a thin `routes/index.js`. Mechanical, not urgent — do it the next
+  time a route file touches more than one resource area, not as a standalone
+  refactor PR.
 
-**Haiku fallback is invisible in `classifier:decision` instrumentation — OPEN, found 2026-07-31, not fixed**
-- The instrumentation payload built at `src/classifier.js:365-373` carries `correlationId`, `inputLength`, `interactive`, `stage1`, `stage2`, `sonnetEscalated`, `destination` — and no field naming which provider actually served the call.
-- `classifyLocalWithHealth()` (`src/pipeline-infra.js:356-382`) falls back from LM Studio to Anthropic Haiku on any local failure and emits a `logDecision` line only on the *cap-reached* path; a normal fallback records the failure in the health tracker and returns silently.
-- Impact: cost and diagnosis. Reading `classifier:decision` logs, a run that quietly paid for 50 Haiku calls looks identical to one served entirely by the local model.
-- Fix approach: add `provider` (and `fallback: true|false`) to the instrumentation payload, sourced from the client result. One field, no behavior change.
+**Squash-merge workflow leaves stale pre-squash branches that look ahead but are behind**
+- `agent-canvas/docs/HANDOFF.md`: *"The working branch
+  `agent/agent-canvas-enrichment-documents` is a stale pre-squash subset of #207
+  and must not be used as a base."* This is a live, dated incident note
+  (2026-08-18), not a hypothetical — the branch's own history reads as ahead of
+  `master` by commit count while being behind it in actual content, because
+  PR #207 squash-merged.
+- Impact: any agent or operator that branches from a stale pre-squash head
+  silently drops merged work and reintroduces already-fixed code. This already
+  happened once (2026-08-18).
+- Fix approach: no code fix — this is a process trap inherent to squash-merge.
+  Mitigation: always branch from `origin/master` after confirming
+  `git log origin/master -1` matches the latest merged PR, never from a
+  same-named local/agent branch that predates a squash-merge.
 
-**`scripts/daily-sweep.js` has no overall wall-clock deadline — OPEN, found 2026-07-31, not fixed**
-- The script tracks elapsed time (`startedAt` at `:215`, `durationMs` at `:298`) purely to *report* it; a grep for `timeout` in the file returns nothing, and it passes no `timeoutMs` into `extractMemories`. Its 23:45 launchd slot has no `ExitTimeOut`-style bound either.
-- The Stop hook has exactly this bound (50000ms, honored end-to-end since PR #96's budget propagation) — the sweep, which processes strictly more material, has none.
-- Impact: at the raised local-model timeout (`localTimeoutMs: 900000`) and ~86 tok/s cold prefill, a multi-chunk sweep can run for hours and overlap the next night's run. The extraction-wide deadline plumbing already exists; the sweep just never passes one.
-- Fix approach: pass a `timeoutMs` budget from `daily-sweep.js` into `extractMemories` (the mechanism landed in PR #96 — the sweep is the caller that should use it).
+## Medium Severity
 
-**Interactive `/today` echo can print pre-redaction text — ACCEPTED RESIDUAL**
-- `src/today-command.js:403-414`: `vaultWrite()` returns only `{decision:'WRITTEN', path}` on the SANITIZED path (`src/vault-gateway.js:484-485,535`) — the sanitized content itself is never handed back to the caller.
-- `written` stays bound to the original `briefing` variable, so when the gateway redacts ≤half the paragraphs (partial contamination) instead of quarantining, the file on disk is clean but the in-process `written`/console echo still holds the pre-redaction body.
-- Impact: contained to the interactive terminal echo of a single command; the persisted vault file is correctly sanitized either way.
-- Fix approach: have `vaultWrite` return the sanitized `content` alongside `decision`/`path` on the SANITIZED branch, then have `today-command.js` use that returned text for `written` instead of the original `briefing`.
+**Production image tagged `:latest`, no git-SHA provenance**
+- `agent-canvas/deploy/deploy.sh:77` — `IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:latest"`.
+  Every deploy overwrites the same tag; nothing in the image name or Cloud Run
+  revision ties it to a commit SHA.
+- `docs/HANDOFF.md` confirms this is a known, accepted gap: *"the production
+  image is tagged `:latest` with no git-SHA provenance, so 'which commit is
+  running' is only inferable from bundle fingerprints."* The doc's own
+  workaround — matching the frontend's content-hashed bundle filename
+  (`dist/assets/index-3gl5dacv.js`) against a fresh `master` build — is the only
+  current way to answer "what's live."
+- Impact: incident response and rollback both require an out-of-band bundle-hash
+  comparison instead of reading the revision metadata directly.
+- Fix approach: tag the image with the git SHA in `cloudbuild.yaml`'s `_IMAGE`
+  substitution (`deploy.sh:343,348,370`) in addition to `:latest`, and have
+  `deploy.sh` print it post-deploy. Small, deliberately deferred so far.
 
-**`ARCHIVE_DIR` constant duplicated across 4 files — HYGIENE**
-- Independently defined as `path.join(VAULT_ROOT(), 'archive', 'memory')` in `src/memory-proposals.js:28`, `src/promote-memories.js:21`, `scripts/validate-archive.js:18`, and `scripts/verify-baseline.js` (grep confirms the same literal), plus the name is echoed in `config/vault-paths.json`.
-- Impact: none today — all four copies agree. Risk is drift if the archive path ever needs to move.
-- Fix approach: extract to a single shared constant/export (e.g. in `vault-gateway.js` or a new small `paths.js`) — touches all 4+ call sites in one pass; not worth doing speculatively.
+**`docs/HANDOFF.md` misstates that no server code reads `FAST_PROVIDER`/`STRONG_PROVIDER`**
+- The doc's "Recorded gaps" section says these are *"set by `deploy.sh` but no
+  server code reads them."* That's incorrect as written: `providerForTier()` in
+  `agent-canvas/server/orchestrator/anthropic.js:56` reads
+  `process.env.FAST_PROVIDER` / `STRONG_PROVIDER` directly, and `tierConfig()`
+  (which calls it) is invoked from `server/routes.js:410,1048,1265,2281,2378`,
+  `server/orchestrator/runner.js:97`, and `server/orchestrator/tools.js:801`.
+- What's actually true: `deploy.sh:378-381` only *sets* those two env vars when
+  `MODEL_PROVIDER != anthropic`, and production currently runs
+  `MODEL_PROVIDER=anthropic` (live-proven in the same HANDOFF.md), so the vars
+  are unset in the live environment today — the mechanism is dormant, not unread.
+- Impact: low on its own, but it's a docs-vs-code drift in the file explicitly
+  billed as *"the concise current-state authority"* — the kind of claim that
+  gets copy-pasted into a future incident writeup.
+- Fix approach: correct the HANDOFF.md line to say the vars are read but
+  currently unset (mixed-fleet path is dormant under `MODEL_PROVIDER=anthropic`),
+  not unread.
 
-**Memory-pipeline internal writers bypass content/style guards — KNOWN, BOUNDED**
-- `src/promote-memories.js` (`fs.writeFileSync` at lines 192, 267, 360, 444, 453, 650), `src/memory-proposals.js` (lines 155, 328, 361, 399), `src/dream.js` (lines 511, 816, 933, 939, 965), and `src/lifecycle.js` (lines 220, 247, 341) all write directly via raw `fs` to fixed RIGHT-side paths (`memory.md`, `memory-proposals.md`, archive files, dream changesets) instead of routing through `vaultWrite()`.
-- Impact: bounded — these are already human-gated pipeline outputs (promotion requires explicit accept, dream apply is human-invoked-only per `npm run dream:apply`), not raw external input reaching the vault unchecked.
-- Fix approach: none planned; routing through the gateway would add redundant guard overhead on already-vetted content.
+**`MODEL_PROVIDER` live value (`anthropic`) diverges from `deploy.sh`'s documented default (`vertex`)**
+- `agent-canvas/deploy/deploy.sh:12-14` describes the default as `vertex`
+  (Claude on Vertex AI) and line 91 hard-codes `MODEL_PROVIDER="${MODEL_PROVIDER:-vertex}"`.
+  Production is live-proven running `MODEL_PROVIDER=anthropic` (`docs/HANDOFF.md`).
+- This divergence is guarded, not accidental: `deploy.sh:254-261` refuses to
+  silently move a live service off its current provider unless
+  `DEPLOY_PROVIDER_CHANGE=1` is set, and inherits the live value when
+  `MODEL_PROVIDER` isn't explicitly exported. So a redeploy today keeps
+  `anthropic` correctly — the risk is purely in the header prose reading as if
+  a fresh/unset deploy would land on Vertex, when in practice it inherits
+  whatever's live.
+- Fix approach: none code-side (the guard already does the right thing).
+  Update the comment block (`deploy.sh:12-14`) to state the *live* default is
+  operator-observed, not script-declared, so a reader doesn't assume Vertex.
 
-**`src/memory-extractor.js` reads vault files via raw fs, bypassing the `vaultRead` allowlist**
-- `src/memory-extractor.js:301,410,504,553` use `fs.readFileSync`/`fs.readdirSync` directly on vault-relative paths (transcripts, daily notes, memory files) rather than going through a `vaultRead` boundary check.
-- Impact: read-only, so no write-boundary violation, but it means extraction can pull from any path the caller passes without the allowlist enforcement writes get.
-- Fix approach: none urgent — no `vaultRead` gateway function currently exists to route through; would need to be added as a companion to `vaultWrite` if read-side allowlisting is ever required.
+**Cloud Scheduler `agent-canvas-standing-rules` is PAUSED; P5 expiry is unproven**
+- `docs/HANDOFF.md`: *"Cloud Scheduler job `agent-canvas-standing-rules`
+  remains PAUSED... Expiry under scheduler operation remains unproven. The
+  scheduler is currently paused, so no unattended rule can run until an
+  operator deliberately resumes it."*
+- This is deliberate (a safety default, not a bug) but it means P5 Standing
+  Rules is explicitly marked "not complete" in the same doc's phase table —
+  scheduled dispatch/pause has historical live evidence, but expiry behavior
+  under real scheduler ticks has never been exercised end to end.
+- Fix approach: per HANDOFF's own release gate #2 — exercise expiry with an
+  explicitly bounded fixture before calling P5 complete, and resume the
+  scheduler only on separate, deliberate operator action.
 
-## Vault Hygiene
+**Signed-in journey acceptance is outstanding (release gate, not yet exercised)**
+- `docs/HANDOFF.md` repeats this at three points: the live-observation section
+  ("Signed-in journey acceptance remains outstanding"), the phase table (every
+  recently-merged/deployed row notes "signed-in journey not replayed"), and
+  release gate #1, which lists the full manual checklist (no Workbook/Run
+  cleanup surface, note CRUD, file upload/read/remove, view-only restrictions,
+  a new agent run whose receipt names the canvas file, removed content absent
+  from subsequent agent context, recommended-team creation, Enrichment
+  availability, safe agent removal).
+- Impact: everything shipped since the workspace cleanup is bundle- and
+  replica-proven but not human-verified in a real signed-in session. That's the
+  actual gap between "deployed" and "accepted."
+- Fix approach: no code change — this is a manual QA pass HANDOFF.md already
+  scopes precisely; run it before treating the cleanup/Enrichment/document-intake
+  work as fully accepted.
 
-**One empty vault folder left of the five — MOSTLY RESOLVED 2026-07-31**
-- `~/Claude Cowork/Untitled/`, `Daily Standups/`, `memory-archive/`, and `memory-proposals-archive/` are gone (verified by `find`), swept with 8 empty dirs in the 2026-07-31 vault triage (16 files moved, nothing deleted; log at `archive/dispatch/vault-triage-log.md`).
-- Still present: `~/Claude Cowork/RIGHT/` — now holding a single `.DS_Store` and nothing else.
-- Tracked daily by the `vault_hygiene` stats column; not blocking anything, pending Pete's manual cleanup.
-- Fix approach: operator deletes when convenient; no code change needed.
+## Low Severity / Unverified
 
-**The unrouted quarantine is 97% of the vault's file count — MEASUREMENT SKEW, not debt**
-- `~/Claude Cowork/archive/unrouted-quarantine-20260720/` holds 4,560 files / ~18 MB — about 97% of every file in the vault. A `README.md` manifest documenting it was added 2026-07-31, and the directory is excluded from Obsidian graph and search.
-- Impact: any vault-wide file count (`find | wc -l`, a plugin's "N notes" readout, an ad-hoc size check) is dominated by inert dead-letters and says nothing about the live vault. `src/daily-stats.js`'s `vault_hygiene` column is *not* affected — it counts vault-root loose files plus top-level folders off the LEFT/RIGHT lists, and `archive` is an allowlisted RIGHT folder (`src/daily-stats.js:71-86`).
-- Fix approach: none for the code. When quoting a vault file count in any doc or report, state whether the quarantine is included — the two numbers differ by ~30x.
+**Cloud Run `maxScale` annotation claim could not be confirmed in this repo**
+- The only autoscaling ceiling found anywhere in `agent-canvas/` is
+  `--max-instances 1` in `deploy/deploy.sh:443` (documented and deliberate —
+  SQLite single-writer, `deploy.sh:373`, `docs/DEPLOY.md:204`: *"`--max-instances 1`
+  is required (single writer). If the workspace ever outgrows this, the storage
+  layer is isolated in `server/db.js` for a Cloud SQL migration."*).
+- A repo-wide search (including hidden files, `cloudbuild.yaml`, and all
+  `docs/*.md`) found no `maxScale` string and no reference to a `maxScale=20`
+  service-level default anywhere in the checked-out tree. The claimed
+  "annotation contradicts service-level maxScale=20" could not be verified —
+  it may describe GCP project-level defaults not captured in this repo, or may
+  be stale. Flagging as unverified rather than asserting it.
+- Fix approach: if a real `maxScale=20` annotation exists on the live Cloud Run
+  service (outside this repo, e.g. set via console or a prior `gcloud` call not
+  scripted here), reconcile it against the intentional `--max-instances 1` in
+  `deploy.sh` so a future `gcloud run services update` doesn't silently widen it.
 
-**`source-ref::` provenance strings in `memory/memory.md` point at pre-restructure paths — INERT**
-- At least 5 entries (`memory/memory.md:28,40,52,64,76`) carry `source-ref:: session-6X-*` values referencing session/path conventions from before the 2026-07-26 vault restructure (PR #93).
-- Impact: none — these are provenance breadcrumbs, not resolved at read time by any code path. Inert metadata.
-- Fix approach: no action needed unless a future feature starts resolving `source-ref::` against live paths.
+**`docs/IMPROVE-FINDINGS.md` — one partially-open item from the prior 15-finding audit**
+- All 15 findings in that survey are marked FIXED as of 2026-08-14 except
+  #11 (`PATCH /canvases/:id/agents/:id` lets any member rewrite an agent's
+  `system_prompt` unaudited): audit logging was added, but whether the route
+  should be `requireOwner`-gated (matching the sibling `resync` route) is
+  explicitly left as "Pete's decision," unresolved.
+- Impact: low — ~10 allowlisted workspace members, accountability gap not an
+  attack path.
+- Fix approach: gate `system_prompt` PATCH behind `auth.requireOwner` if members
+  aren't relied on to edit prompts through the UI; otherwise accept as-is.
 
-## Scope Boundaries (not debt)
-
-**`.planning/BACKLOG.md` items are current as of the 2026-07-21 audit**
-- All open items (B-11, B-13, B-18, B-19) are explicitly dispositioned as DEFER/KEEP with evidence; nothing new surfaced in a fresh grep of `src/` and `scripts/` for `TODO|FIXME|HACK|XXX` beyond the pre-existing string literal at `src/memory-extractor.js:163` (`'- TODO items and task lists'`), which is descriptive text, not a marker.
-- No action needed — backlog disposition stands.
+**Root pipeline (`src/`, `scripts/`) has no new open concerns**
+- `.planning/backlog.md` is fully dispositioned as of the 2026-07-21 audit
+  (13 resolved, 2 partial-deferred, 4 open-but-accepted, 2 dropped) — nothing
+  agent-canvas-related lives there; it tracks the second-brain memory pipeline,
+  a separate subtree.
+- A grep for `TODO|FIXME|HACK|XXX` across `agent-canvas/server`,
+  `agent-canvas/frontend/src`, and `agent-canvas/scripts` returned no bare
+  markers. Ten `ponytail:` comments exist instead (`server/google/workspace.js:302`,
+  `server/routes.js:351,2477`, `server/standing-rules.js:111,298,412`,
+  `server/orchestrator/tools.js:34`, `server/orchestrator/runner.js:24`,
+  `frontend/src/format.jsx:9,125`) — each names its ceiling and upgrade
+  trigger inline (e.g. runner.js:24's flat char cap → "per-tool budgets if a
+  tool ever needs more"). These read as intentional scope decisions, not debt.
 
 ---
 
-*Concerns audit: 2026-07-31*
+*Concerns audit: 2026-08-18*
