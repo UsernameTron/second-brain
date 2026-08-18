@@ -65,6 +65,7 @@ roster.seedRoster();
 roster.seedEnrichmentAgent();
 roster.seedSdrAgent();
 roster.backfillRosterTemplateKeys();
+roster.reseedSdrTools();
 // Re-seed propagates a changed roster prompt to already-seeded workspaces
 // (seedRoster is one-shot); heal refreshes pristine pre-roster exec prompts;
 // link stamps provenance on anything matching a template byte-for-byte.

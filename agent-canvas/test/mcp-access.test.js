@@ -251,6 +251,17 @@ test('def filtering: owner-only connectors and role scoping', async () => {
   assert.ok(!targetingAfterDirectScope.includes('mcp_mock_search'), 'an Enrichment-only connector does not leak back to Radar');
 });
 
+test('the authority map governs connector defs like any governed tool', () => {
+  // Precondition from the previous test: mcp_mock_search is cached, scoped to
+  // role enrichment, access owner. An explicit allowlist must gate it exactly
+  // as it gates hs_*/ws_* — this is the contract the SDR roster entry's
+  // mcp_gtm_marts_gtm_account_lookup grant rides on.
+  const withGrant = toolsForRole('enrichment', { userRole: 'owner', authority: ['mcp_mock_search'] }).map((t) => t.name);
+  assert.ok(withGrant.includes('mcp_mock_search'), 'granted connector def is offered');
+  const withoutGrant = toolsForRole('enrichment', { userRole: 'owner', authority: ['hs_search'] }).map((t) => t.name);
+  assert.ok(!withoutGrant.includes('mcp_mock_search'), 'an authority map without the def name strips it');
+});
+
 test('management routes are owner-only; probe returns tool inventory; mutation reloads', async () => {
   assert.equal((await call('GET', '/api/mcp/servers', memberCookie)).status, 403);
   assert.equal((await call('POST', '/api/mcp/servers', memberCookie, { name: 'x', url: 'https://x.example' })).status, 403);
