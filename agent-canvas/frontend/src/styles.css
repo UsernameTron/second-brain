@@ -388,7 +388,11 @@ a:hover { text-decoration: underline; }
 
 .user-menu-wrap { position: relative; }
 .user-menu {
-  position: absolute; right: 0; top: 36px;
+  /* fixed, not absolute: the topbar is a scroll container (overflow-x: auto,
+     overflow-y: hidden), and an absolute dropdown inside it gets clipped to
+     the bar's 50px height — the menu opened invisibly. Fixed escapes the
+     clip; the bar is a fixed 50px tall, so top: 54px lands just under it. */
+  position: fixed; right: 8px; top: 54px;
   min-width: 230px;
   background: var(--bg2);
   border: 1px solid var(--line);

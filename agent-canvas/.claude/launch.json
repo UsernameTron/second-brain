@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "agent-canvas-dev",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["DEV_AUTH=1", "ANTHROPIC_API_KEY=dev-never-called", "DATA_DIR=/tmp/agent-canvas-dev-data", "node", "server/index.js"],
+      "port": 8080
+    }
+  ]
+}
