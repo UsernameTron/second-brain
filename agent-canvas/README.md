@@ -59,6 +59,13 @@ Key files: `server/memory.js` (contract), `server/orchestrator/runner.js` (run l
   lead using Radar's lead-data connections, without requiring the lead to meet
   Radar's hot-lead threshold. It reports provenance and gaps instead of hiding
   records that do not qualify.
+- **SDR:** a roster agent that takes a target-account list from enrichment to
+  human-approved CRM staging and draft-only opener emails, and assembles
+  pre-call briefs from canvas memory. CRM writes go through preview → Needs You
+  approval → apply, against the sandbox HubSpot portal only and only when the
+  ops-runner is configured; paid enrichment requires the enrichment dispatch
+  lane (currently dark in production); opener drafts exist only under full
+  Gmail scopes and are never sent — no send capability exists.
 - **Standing Rules:** interpret, rehearse, activate, pause, and revoke scheduled
   read-only work. The scheduler must be wired separately; visible UI is not
   proof that scheduled execution is live.

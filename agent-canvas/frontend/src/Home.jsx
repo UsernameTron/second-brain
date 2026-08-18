@@ -14,6 +14,8 @@ const SUGGESTED = [
   'What did we decide about our ICP scoring, and why?',
   'What renewals are coming up, and what risks do we know about?',
   'What has the team learned about our top competitor?',
+  'Prepare a pre-call brief for our most active account.',
+  'Which target-list leads are enriched but not yet in HubSpot?',
 ];
 
 const MODES = [

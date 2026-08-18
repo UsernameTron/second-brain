@@ -18,6 +18,12 @@ export const TEAM_TEMPLATES = Object.freeze([
     agentKeys: Object.freeze(['enrichment', 'darren']),
   }),
   Object.freeze({
+    id: 'sdr-pipeline',
+    name: 'SDR pipeline',
+    description: 'Enrich a target list, stage CRM records for your approval, draft opener emails, and build pre-call briefs.',
+    agentKeys: Object.freeze(['sdr', 'enrichment', 'darren']),
+  }),
+  Object.freeze({
     id: 'marketing',
     name: 'Marketing & content',
     description: 'Research an audience, shape the message, and create Workspace-ready content.',

@@ -17,7 +17,7 @@ process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
 const { server } = require('../server/index'); // boots app + runs all seeds
 const { db, getSetting } = require('../server/db');
 const roster = require('../server/roster');
-const { readRegistry } = require('../server/orchestrator/tools');
+const { readRegistry, governedTool } = require('../server/orchestrator/tools');
 const ICP_FILE = require('../server/config/icp-sr-icp-v6.json');
 
 let base;
@@ -53,17 +53,17 @@ test.before(async () => {
 
 test.after(() => new Promise((resolve) => server.close(resolve)));
 
-test('roster seeds exactly once with 10 entries in order', () => {
+test('roster seeds exactly once with 11 entries in order', () => {
   assert.ok(getSetting('seed_roster_v1'), 'seed guard key set');
   const rows = db.prepare('SELECT * FROM roster_agents ORDER BY sort').all();
-  assert.equal(rows.length, 10);
+  assert.equal(rows.length, 11);
   assert.deepEqual(rows.map((r) => r.name),
-    ['Fred', 'Darren', 'Jess', 'Atlas', 'Scout', 'Forge', 'Sentinel', 'Gauge', 'Radar', 'Enrichment']);
+    ['Fred', 'Darren', 'Jess', 'Atlas', 'Scout', 'Forge', 'Sentinel', 'Gauge', 'Radar', 'Enrichment', 'SDR']);
   assert.deepEqual(rows.map((r) => r.template_key),
-    ['fred', 'darren', 'jess', 'atlas', 'scout', 'forge', 'sentinel', 'gauge', 'radar', 'enrichment']);
+    ['fred', 'darren', 'jess', 'atlas', 'scout', 'forge', 'sentinel', 'gauge', 'radar', 'enrichment', 'sdr']);
   const again = roster.seedRoster();
   assert.equal(again.seeded, false, 'second call must be a no-op');
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM roster_agents').get().n, 10);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM roster_agents').get().n, 11);
   // The proven exec set is pre-checked for new canvases; nothing else is.
   assert.deepEqual(rows.filter((r) => r.default_on).map((r) => r.name), ['Fred', 'Darren', 'Jess', 'Atlas']);
   // Gauge ships disabled until the owner turns it on.
@@ -97,6 +97,45 @@ test('the additive Enrichment seed upgrades an existing roster without overwriti
   assert.equal(entry.enabled, 1);
   assert.match(entry.system_prompt, /without deciding whether anyone is a hot lead/i);
   assert.equal(roster.seedEnrichmentAgent().inserted, 0, 'the versioned migration is idempotent');
+});
+
+test('the additive SDR seed installs a least-authority commercial agent', () => {
+  db.prepare('DELETE FROM settings WHERE key = ?').run(roster.SDR_ROSTER_KEY);
+  db.prepare("DELETE FROM roster_agents WHERE name = 'SDR'").run();
+  const result = roster.seedSdrAgent();
+  assert.equal(result.inserted, 1);
+  const entry = db.prepare("SELECT * FROM roster_agents WHERE name = 'SDR'").get();
+  assert.equal(entry.role, 'commercial');
+  assert.equal(entry.model_tier, 'strong');
+  assert.equal(entry.enabled, 1);
+  assert.equal(entry.default_on, 0);
+  assert.equal(entry.step_budget, 32);
+  assert.equal(entry.wall_ms_budget, 480000);
+
+  const tools = JSON.parse(entry.tools_json);
+  for (const name of ['hs_preview_change', 'hs_apply_change', 'ws_gmail_draft', 'get_enriched_contact']) {
+    assert.ok(tools.includes(name), `SDR authority includes ${name}`);
+  }
+  for (const name of ['ws_sheets_update', 'ws_docs_create', 'ws_calendar_create', 'web_search']) {
+    assert.ok(!tools.includes(name), `SDR authority excludes ${name}`);
+  }
+  assert.ok(tools.every((name) => governedTool(name)), 'every listed tool is a real governed name');
+
+  assert.match(entry.system_prompt, /preserve every requested record/i);
+  assert.match(entry.system_prompt, /hs_preview_change per new or changed record/);
+  assert.match(entry.system_prompt, /never claim an email went out/i);
+  assert.equal(roster.seedSdrAgent().inserted, 0, 'the versioned migration is idempotent');
+
+  // Collision safety: an owner-edited row named SDR is never overwritten.
+  db.prepare('DELETE FROM settings WHERE key = ?').run(roster.SDR_ROSTER_KEY);
+  db.prepare("UPDATE roster_agents SET system_prompt = 'custom' WHERE name = 'SDR'").run();
+  assert.equal(roster.seedSdrAgent().inserted, 0);
+  assert.equal(db.prepare("SELECT system_prompt FROM roster_agents WHERE name = 'SDR'").get().system_prompt, 'custom');
+
+  // Restore the shipped row for the prompt-guard and instantiation tests below.
+  db.prepare('DELETE FROM settings WHERE key = ?').run(roster.SDR_ROSTER_KEY);
+  db.prepare("DELETE FROM roster_agents WHERE name = 'SDR'").run();
+  assert.equal(roster.seedSdrAgent().inserted, 1, 'reseeds cleanly after removal');
 });
 
 test('fresh boot creates no demo canvas or other product content', () => {
@@ -152,10 +191,10 @@ test('the ICP source of truth is the committed read_registry surface, not a canv
 test('GET /api/roster: members see enabled only; owner sees all', async () => {
   const asMember = await call('GET', '/api/roster', memberCookie);
   assert.equal(asMember.status, 200);
-  assert.equal(asMember.data.roster.length, 9, 'disabled Gauge hidden from members');
+  assert.equal(asMember.data.roster.length, 10, 'disabled Gauge hidden from members');
   assert.ok(!asMember.data.roster.some((r) => r.name === 'Gauge'));
   const asOwner = await call('GET', '/api/roster', ownerCookie);
-  assert.equal(asOwner.data.roster.length, 10, 'owner sees disabled entries too');
+  assert.equal(asOwner.data.roster.length, 11, 'owner sees disabled entries too');
 });
 
 test('roster mutation is owner-only', async () => {
@@ -199,6 +238,16 @@ test('re-adding an agent still creates no companion note', async () => {
   assert.equal(added.status, 200);
   assert.equal(added.data.agent.name, 'Fred');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM notes WHERE canvas_id = ?').get(canvasId).n, 0);
+});
+
+test('instantiating SDR carries its authority map and budgets onto the canvas agent', async () => {
+  const sdrRoster = db.prepare("SELECT id, tools_json FROM roster_agents WHERE name = 'SDR'").get();
+  const added = await call('POST', `/api/canvases/${canvasId}/agents`, memberCookie, { roster_id: sdrRoster.id });
+  assert.equal(added.status, 200);
+  const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(added.data.agent.id);
+  assert.equal(agent.step_budget, 32);
+  assert.equal(agent.wall_ms_budget, 480000);
+  assert.deepEqual(JSON.parse(agent.tools_json), JSON.parse(sdrRoster.tools_json), 'authority map copied verbatim');
 });
 
 test('disabled roster entries cannot be instantiated; unknown ids abort canvas creation atomically', async () => {
