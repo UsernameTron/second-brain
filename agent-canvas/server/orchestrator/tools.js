@@ -407,7 +407,7 @@ function connectorRoles(role) {
 // agent asked for.
 const REGISTRIES = {
   icp: {
-    load: () => require('../config/icp-sr-icp-v6.json'),
+    load: () => require('../config/icp-sr-icp-v7.json'),
     rows: (data) => Object.entries(data).map(([key, value]) => ({ key, value })),
     text: (row) => `${row.key} ${JSON.stringify(row.value)}`,
   },

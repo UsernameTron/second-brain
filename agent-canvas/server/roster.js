@@ -25,7 +25,7 @@ const { EXEC_AGENTS, CONFIDENTIALITY_GUARD } = require('./seed');
 
 // Committed assets — a missing or corrupt file must fail the boot loudly, not
 // half-seed a roster.
-const ICP = require('./config/icp-sr-icp-v6.json');
+const ICP = require('./config/icp-sr-icp-v7.json');
 const CP = require('./config/content-policy-v1.json');
 
 const execPrompt = (name) => EXEC_AGENTS.find((a) => a.name === name).system_prompt;
@@ -163,7 +163,7 @@ USING THE LEAD FINDER (find_icp_leads / check_lead_search — an async pair):
 
 SCORING MODEL (digest of ${ICP.icp_version}—read exact lists from read_registry(registry: "icp") before scoring):
 - Score = industry_weight × title-tier multiplier × revenue-role factor × seat-band factor. Show the multiplication in every scoring output.
-- Industry tiers: tier-1 ×${W['Healthcare']} — ${T1}. Tier-2 ×${W['Education']} — ${T2}. Tier-3 ×${W['Automotive']} — ${T3}. Excluded ×${ICP.industry_excluded_weight} — ${EXCLUDED}. An industry off the taxonomy → ×${ICP.industry_off_weight}, and label the mapping an inference.
+- Industry tiers: tier-1 ×${W['Healthcare']} — ${T1}. Tier-2 ×${W['Travel & Hospitality']} — ${T2}. Tier-3 ×${W['Automotive']} — ${T3}. Excluded ×${ICP.industry_excluded_weight} — ${EXCLUDED}. An industry off the taxonomy → ×${ICP.industry_off_weight}, and label the mapping an inference.
 - Title categories (match against the registry's title_taxonomy): decision_maker ×${TM['1']}; cx_buyer ×${TM['2']}; it_leader ×${TM['3']}; champion ×${TM['4']}.
 - Revenue rule: at or above the ${PROXY} Fortune-1000 proxy, c_suite and executive_vice_president score ×0.5 — too senior to buy this; find the VP or Director who owns it. SVP and every level below stay ×1.0 at that size. Below the proxy, all levels ×1.0.
 - Seat band ${SEAT_LO}–${SEAT_HI.toLocaleString('en-US')}; outside it ×${ICP.seatband_off_weight}, not zero.
@@ -622,7 +622,7 @@ function supersedeStaleIcpMemory(ownerEmail) {
 // change: run scripts/snapshot-roster-prompts.js BEFORE editing (captures the
 // about-to-be-previous text), edit the prompt, bump the key below.
 const LEGACY_ROSTER_PROMPTS = require('./config/legacy-roster-prompts.json').prompts;
-const RESEED_KEY = 'seed_roster_prompts_v6'; // v6: remove demo change-set/note dependencies; registry is a tool
+const RESEED_KEY = 'seed_roster_prompts_v7'; // v7: sr-icp-v7 registry (Higher Education tier 3, CEO ruling 2026-08-17)
 
 // Companion notes were generated from exact committed templates before v6.
 // Their rows have no provenance column, so the migration uses a deliberately
@@ -633,7 +633,7 @@ const RESEED_KEY = 'seed_roster_prompts_v6'; // v6: remove demo change-set/note 
 //
 // Hashes were generated from the shipped ROSTER_NOTES templates at:
 //   6953f5b — Synthesis protocol + sr-icp-v5
-//   98f7a5f^ — Synthesis protocol + sr-icp-v6
+//   98f7a5f^ — Synthesis protocol + sr-icp-v6 (now sr-icp-v7)
 // Keep the historical rows (and their content) for export/audit: retirement is
 // a tombstone, never a DELETE.
 const COMPANION_RETIRE_KEY = 'retire_roster_companion_notes_v1';

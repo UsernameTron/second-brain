@@ -64,7 +64,7 @@ test('drifted seed prompts are healed to the current template', () => {
   const darren = agentByName('Darren');
   // The template interpolates the shipped registry's own version — assert
   // against that artifact so this test never re-pins a drifting version string.
-  const ICP = require('../server/config/icp-sr-icp-v6.json');
+  const ICP = require('../server/config/icp-sr-icp-v7.json');
   assert.ok(darren.system_prompt.includes(`per ICP registry ${ICP.icp_version}`), 'Darren states the shipped registry version');
   assert.match(darren.system_prompt, /250–10,000 seats/, 'current seat band');
   assert.ok(!darren.system_prompt.includes('500–10,000+ seats'), 'stale ICP line is gone');
@@ -101,10 +101,10 @@ test('the stale ICP memory anchor is superseded through the append-only path', (
   assert.ok(old, 'the original entry still exists — nothing is deleted');
   assert.ok(old.superseded_by, 'and is stamped superseded');
   const correction = db.prepare('SELECT * FROM memory_entries WHERE id = ?').get(old.superseded_by);
-  assert.match(correction.content, /sr-icp-v6/);
+  assert.match(correction.content, /sr-icp-v7/);
   assert.match(correction.content, /250-10,000 seats/);
   assert.ok(!/500-10,000\+|500-10000\+/.test(correction.content), 'the stale figure is gone');
-  assert.equal(correction.supersede_reason, 'superseded by ICP registry sr-icp-v6');
+  assert.equal(correction.supersede_reason, 'superseded by ICP registry sr-icp-v7');
   assert.equal(correction.epistemic, 'verified');
   assert.match(correction.source, /icp_registry\.py/, 'names the source of truth');
   const cites = db.prepare('SELECT cites_entry_id FROM citations WHERE entry_id = ?').all(correction.id);
