@@ -5,7 +5,7 @@
 
 const { db, tx, nowIso, getSetting, setSetting } = require('./db');
 const { audit } = require('./audit');
-const ICP = require('./config/icp-sr-icp-v6.json');
+const ICP = require('./config/icp-sr-icp-v7.json');
 
 const OWNER_EMAIL = (process.env.OWNER_EMAIL || 'pete@cloudtechgurus.com').toLowerCase();
 const SEED_MEMBERS = (process.env.SEED_MEMBERS ||

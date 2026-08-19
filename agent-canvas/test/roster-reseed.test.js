@@ -28,7 +28,7 @@ test('the snapshot captured a genuinely earlier Radar prompt', () => {
   assert.ok(NEW.includes('VERSION CHECK'), 'Radar checks the lead finder version rather than naming one');
   assert.ok(NEW.includes('unverified this run'), 'and has an honest fallback when ping is not enabled');
   assert.ok(NEW.includes('read_registry(registry: "icp")'), 'exact ICP data comes from the registry tool, not a canvas note');
-  assert.ok(NEW.includes(require('../server/config/icp-sr-icp-v6.json').icp_version), 'stamped with the loaded registry version');
+  assert.ok(NEW.includes(require('../server/config/icp-sr-icp-v7.json').icp_version), 'stamped with the loaded registry version');
 });
 
 test('re-seed updates a pristine roster row and its pristine live agents, once', () => {
@@ -49,7 +49,7 @@ test('re-seed updates a pristine roster row and its pristine live agents, once',
 
   // The guard is set by boot in other suites sharing this module; clear it so
   // this test drives the migration itself.
-  setSetting('seed_roster_prompts_v6', '');
+  setSetting('seed_roster_prompts_v7', '');
   const res = roster.reseedRosterPrompts();
 
   assert.equal(res.updated, 1, 'exactly the one pristine live agent updated');
@@ -61,7 +61,11 @@ test('re-seed updates a pristine roster row and its pristine live agents, once',
 });
 
 test('upgrade tombstones only pristine generated companion notes, even after prompt v6 already ran', () => {
-  const icp = roster.ICP;
+  // The retired companion notes were generated from the v6 registry; the
+  // signature map (roster.js LEGACY_COMPANION_NOTE_SIGNATURES) hashes that
+  // exact content. Build the fixture from the committed v6 snapshot, not
+  // the live (now v7) registry.
+  const icp = require('./fixtures/icp-sr-icp-v6.json');
   const title = `ICP registry — ${icp.icp_version}`;
   const generatedContent = `# ${title}
 Version: ${icp.icp_version} — source of truth: ${icp.source_of_truth} (exported by scripts/export_icp.py, ctg-signal-radar). The lists below are authoritative for scoring; prompts carry only the arithmetic digest. A fresh export is a new commit of the config/icp-sr-icp-<version>.json artifact.
@@ -118,7 +122,7 @@ Single-lane questions skip the chain: dispatch directly to the right voice.`;
 
   // Simulate an installation that already ran the original PR's prompt v6
   // migration but not this separately versioned companion cleanup.
-  setSetting('seed_roster_prompts_v6', nowIso());
+  setSetting('seed_roster_prompts_v7', nowIso());
   setSetting(roster.COMPANION_RETIRE_KEY, '');
   const result = roster.reseedRosterPrompts();
   assert.equal(result.updated, 0, 'prompt migration remains guarded');
@@ -215,7 +219,7 @@ test('Gauge tools re-seed fills only NULL authority maps', () => {
 test('re-seed does NOT touch a hand-edited roster row', () => {
   const EDITED_ROW = 'You are Radar. Owner-edited roster entry.';
   db.prepare("UPDATE roster_agents SET system_prompt = ? WHERE name = 'Radar'").run(EDITED_ROW);
-  setSetting('seed_roster_prompts_v6', '');
+  setSetting('seed_roster_prompts_v7', '');
   roster.reseedRosterPrompts();
   assert.equal(db.prepare("SELECT system_prompt FROM roster_agents WHERE name = 'Radar'").get().system_prompt, EDITED_ROW,
     'a roster row that no longer matches the previous template is an owner edit — never overwritten');

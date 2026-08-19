@@ -52,7 +52,7 @@ const SEED_SERVERS = [
     // starts a search, the second collects it. Agents must be told to poll.
     //
     // Scoring version: this service scores server-side against the registry
-    // baked into its deployment — re-exported to sr-icp-v6 on 2026-08-14, so
+    // baked into its deployment — re-exported to sr-icp-v7 on 2026-08-19, so
     // it now matches the canvas. Its `ping` tool reports the live version;
     // check it rather than assuming, and re-deploy the fly.dev service
     // whenever the canvas registry moves again.

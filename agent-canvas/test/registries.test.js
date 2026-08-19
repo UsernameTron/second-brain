@@ -14,7 +14,7 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-regis
 process.env.ANTHROPIC_API_KEY = 'test-key-never-called';
 
 const { readRegistry, toolsForRole } = require('../server/orchestrator/tools');
-const icp = require('../server/config/icp-sr-icp-v6.json');
+const icp = require('../server/config/icp-sr-icp-v7.json');
 const suppliers = require('../server/config/supplier-catalog.json');
 const orgContext = require('../server/config/org-context.json');
 const contentPolicy = require('../server/config/content-policy-v1.json');

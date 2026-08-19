@@ -18,7 +18,7 @@ const { server } = require('../server/index'); // boots app + runs all seeds
 const { db, getSetting } = require('../server/db');
 const roster = require('../server/roster');
 const { readRegistry, governedTool, toolsForRole } = require('../server/orchestrator/tools');
-const ICP_FILE = require('../server/config/icp-sr-icp-v6.json');
+const ICP_FILE = require('../server/config/icp-sr-icp-v7.json');
 
 let base;
 let ownerCookie;
@@ -197,7 +197,7 @@ test('every roster prompt carries the guard; Radar qualifies while Enrichment pr
   }
   const radar = rows.find((r) => r.name === 'Radar');
   // version-agnostic (ICP-REG-01): stamped with whatever registry is loaded, not a pinned string
-  const icpVersion = require('../server/config/icp-sr-icp-v6.json').icp_version;
+  const icpVersion = require('../server/config/icp-sr-icp-v7.json').icp_version;
   assert.ok(radar.system_prompt.includes(icpVersion), `Radar is stamped with the loaded registry version (${icpVersion})`);
   assert.match(radar.system_prompt, /industry_weight × title-tier multiplier/, 'arithmetic model stated');
   assert.match(radar.system_prompt, /SVP and every level below stay ×1\.0/, 'SVP carve-out explicit');
