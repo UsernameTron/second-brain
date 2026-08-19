@@ -120,7 +120,18 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
   const [roomType, setRoomType] = useState('deal');
   const [externalRef, setExternalRef] = useState('');
   const [staff, setStaff] = useState(() => new Set());
+  const [people, setPeople] = useState([]);
+  const [members, setMembers] = useState(() => new Set());
   const isOwner = user.role === 'owner';
+
+  // Owner-only: the allowlist feeds the "players" picker so a room is visible
+  // to its people from the moment it exists (restricted canvas + members).
+  useEffect(() => {
+    if (!isOwner) return;
+    api('/api/allowlist')
+      .then((d) => setPeople((d.allowlist || []).filter((p) => p.email !== user.email)))
+      .catch(() => setPeople([]));
+  }, [isOwner, user.email]);
 
   const loadList = useCallback(() => {
     api('/api/rooms').then((d) => { setRooms(d.rooms); setArchived(d.archived || []); }).catch((e) => toast(e.message));
@@ -144,8 +155,8 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
     if (!name.trim() || busy) return;
     setBusy(true);
     try {
-      const d = await api('/api/rooms', { method: 'POST', body: { name: name.trim(), room_type: roomType, external_ref: externalRef.trim(), roster_ids: [...staff] } });
-      setName(''); setExternalRef(''); setStaff(new Set());
+      const d = await api('/api/rooms', { method: 'POST', body: { name: name.trim(), room_type: roomType, external_ref: externalRef.trim(), roster_ids: [...staff], member_emails: [...members] } });
+      setName(''); setExternalRef(''); setStaff(new Set()); setMembers(new Set());
       loadList();
       open(d.room.id);
       toast('Room created', 'ok');
@@ -291,6 +302,17 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
               </label>
             ))}
           </div>
+          {people.length ? (
+            <div className="room-staff" aria-label="Players — people who can see this room">
+              {people.map((p) => (
+                <label key={p.email} className="chip staff-chip">
+                  <input type="checkbox" checked={members.has(p.email)}
+                    onChange={(e) => setMembers((cur) => { const next = new Set(cur); if (e.target.checked) next.add(p.email); else next.delete(p.email); return next; })} />
+                  {p.email}
+                </label>
+              ))}
+            </div>
+          ) : null}
           <button className="btn primary" type="submit" disabled={busy || !name.trim()}>{busy ? 'Creating…' : 'Create room'}</button>
         </form>
       ) : null}

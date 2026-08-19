@@ -16,7 +16,7 @@ const TYPE_LABELS = {
   brief_ready: 'brief ready',
 };
 
-function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onOpenRule }) {
+function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onDismiss, onOpenRule }) {
   const [answer, setAnswer] = useState('');
   const [mode, setMode] = useState(null); // escalation: null | 'accept' | 'redirect'
   const [target, setTarget] = useState('');
@@ -135,6 +135,11 @@ function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, o
             <button className="btn ghost small" onClick={() => onOpenRun(row.sourceRef)}>Open run</button>
           </>
         ) : null}
+        {/* Projected cards (conflict / overdue review / failed run) carry a
+            server-issued dismissKey — "not now" without touching the record. */}
+        {row.dismissKey && onDismiss ? (
+          <button className="btn ghost small dim-btn" title="Hide this card — the underlying record is untouched" onClick={() => onDismiss(row)}>Dismiss</button>
+        ) : null}
         {row.type === 'rule_alert' || row.type === 'brief_ready' ? (
           <>
             <button className="btn ok small" onClick={() => onAcknowledgeRuleRun(row.sourceRef)}>Acknowledge</button>
@@ -153,7 +158,7 @@ function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, o
   );
 }
 
-export default function NeedsYouView({ rows, userEmail, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onOpenRule }) {
+export default function NeedsYouView({ rows, userEmail, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onDismiss, onOpenRule }) {
   const [scope, setScope] = useState('all');
   const me = String(userEmail || '').toLowerCase();
 
@@ -199,6 +204,7 @@ export default function NeedsYouView({ rows, userEmail, agentsById, people, agen
             onRetryRun={onRetryRun}
             onExtendReview={onExtendReview}
             onAcknowledgeRuleRun={onAcknowledgeRuleRun}
+            onDismiss={onDismiss}
             onOpenRule={onOpenRule}
           />
         ))}

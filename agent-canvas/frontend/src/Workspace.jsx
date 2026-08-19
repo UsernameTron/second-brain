@@ -648,6 +648,18 @@ export default function Workspace() {
     }
   }, [loadAttention, toast]);
 
+  // Dismiss a projected card (conflict / overdue review / failed run) — "not
+  // now", persisted server-side; the source record is untouched.
+  const dismissAttention = useCallback(async (row) => {
+    try {
+      await api('/api/attention/dismiss', { method: 'POST', body: { canvas_id: row.sourceRef.canvasId, key: row.dismissKey } });
+      toast('Dismissed', 'ok');
+      loadAttention();
+    } catch (e) {
+      toast(e.message);
+    }
+  }, [loadAttention, toast]);
+
   const resolveEscalation = useCallback(async (id, body) => {
     try {
       await api(`/api/escalations/${id}/resolve`, { method: 'POST', body });
@@ -1387,6 +1399,7 @@ export default function Workspace() {
               onRetryRun={retryRun}
               onExtendReview={extendReview}
               onAcknowledgeRuleRun={acknowledgeRuleRun}
+              onDismiss={dismissAttention}
               onOpenRule={rulesOn ? (ref) => { setRuleFocusId(ref.ruleId); setView('rules'); } : null}
             />
           ) : null}

@@ -613,6 +613,19 @@ CREATE TABLE IF NOT EXISTS standing_rule_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_rule_runs_attention ON standing_rule_runs(state, needs_attention, acknowledged_at);
 
+-- NEEDS YOU dismissals: the attention projection has no backing table, so a
+-- "not now" on a projected card (memory conflict, overdue review, failed run)
+-- persists here as an opaque per-canvas key. The source record stays
+-- authoritative — a NEW conflict pair, review date, or run gets a new key and
+-- surfaces again. Escalations and rule runs keep their source-record acks.
+CREATE TABLE IF NOT EXISTS attention_dismissals (
+  canvas_id TEXT NOT NULL REFERENCES canvases(id),
+  key TEXT NOT NULL,
+  dismissed_by TEXT NOT NULL,
+  dismissed_at TEXT NOT NULL,
+  PRIMARY KEY (canvas_id, key)
+);
+
 CREATE TABLE IF NOT EXISTS standing_authorizations (
   id TEXT PRIMARY KEY,
   rule_id TEXT NOT NULL REFERENCES standing_rules(id),
