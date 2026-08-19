@@ -1,11 +1,11 @@
 # Session handoff (auto-written by Stop hook)
 
-- When: 2026-08-18 00:30 CDT
-- Branch: chore/agent-canvas-reconcile
-- Dirty at stop: 2 files
+- When: 2026-08-19 00:27 CDT
+- Branch: chore/codebase-map-2026-08-19
+- Dirty at stop: 1 files
 - Recent commits:
-  - 54afda0 docs: refresh CONCERNS map; correct HANDOFF FAST/STRONG_PROVIDER claim
-  - 13c135b docs(planning): refresh codebase map — CONVENTIONS, TESTING (2026-08-18)
-  - ba56d05 chore(session): auto-commit session work (2026-08-18)
-  - 3d1aa7f docs(agent-canvas): record 2026-08-18 reconciliation; add canvas health agents
-  - 8f8a226 chore(session): auto-commit session work (2026-08-18)
+  - 5a1c45c docs: refresh .planning/codebase map (2026-08-19 pass)
+  - 9dd4db3 agent-canvas: HANDOFF truth — 00059-hqb observation; #213/#214 deployed (#217)
+  - 6f09242 agent-canvas: user menu escapes the topbar scroll-clip (#216)
+  - 3b992c5 agent-canvas: activation runbook + docs truth for #213/#214 (#215)
+  - b953a49 agent-canvas: content lane — Quill agent, content-policy registry, deterministic gate (#214)
