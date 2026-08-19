@@ -98,13 +98,29 @@ function fromGeminiResponse(response, model) {
   };
 }
 
-async function callGemini({ model, system, messages, tools, maxTokens = 8192, signal }) {
-  const client = getGeminiClient();
-  const functionDeclarations = toFunctionDeclarations(tools);
+// Vertex default safety filters trip on ordinary commercial/CRM content
+// (competitor analysis, disputes, churn), and a Gemini refusal is a hard
+// halt with no cross-model fallback — so only genuinely high-severity
+// content may block.
+const SAFETY_SETTINGS = [
+  'HARM_CATEGORY_HARASSMENT',
+  'HARM_CATEGORY_HATE_SPEECH',
+  'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+  'HARM_CATEGORY_DANGEROUS_CONTENT',
+].map((category) => ({ category, threshold: 'BLOCK_ONLY_HIGH' }));
+
+// Gemini 2.5 counts thinking against maxOutputTokens; unbounded, a
+// reasoning-heavy turn can spend the whole budget thinking and return no
+// text. 2048 keeps room for the actual answer.
+const THINKING_BUDGET = 2048;
+
+function buildConfig({ system, maxTokens, signal, functionDeclarations, responseFormat }) {
   const config = {
     systemInstruction: system,
     maxOutputTokens: maxTokens,
     abortSignal: signal,
+    safetySettings: SAFETY_SETTINGS,
+    thinkingConfig: { thinkingBudget: THINKING_BUDGET },
     // The Anthropic clients carry a 120s per-request timeout; this path had
     // none, so a hung Gemini request had no upper bound of its own. The
     // runner's deadline signal now covers it too, but a transport-level
@@ -112,8 +128,20 @@ async function callGemini({ model, system, messages, tools, maxTokens = 8192, si
     httpOptions: { timeout: 120_000 },
   };
   if (functionDeclarations.length) config.tools = [{ functionDeclarations }];
+  // The route-level parses (builder proposal, rule parse, inquiry routing,
+  // intent parse) JSON.parse the reply — when the caller declares that, ask
+  // Gemini for JSON outright instead of relying on brace-slicing prose.
+  // Explicit opt-in only: a tool-less persona chat must stay prose.
+  else if (responseFormat === 'json') config.responseMimeType = 'application/json';
+  return config;
+}
+
+async function callGemini({ model, system, messages, tools, maxTokens = 8192, signal, responseFormat }) {
+  const client = getGeminiClient();
+  const functionDeclarations = toFunctionDeclarations(tools);
+  const config = buildConfig({ system, maxTokens, signal, functionDeclarations, responseFormat });
   const response = await client.models.generateContent({ model, contents: toContents(messages), config });
   return fromGeminiResponse(response, model);
 }
 
-module.exports = { callGemini, toContents, toFunctionDeclarations, fromGeminiResponse, nameFromToolId };
+module.exports = { callGemini, toContents, toFunctionDeclarations, fromGeminiResponse, nameFromToolId, buildConfig };

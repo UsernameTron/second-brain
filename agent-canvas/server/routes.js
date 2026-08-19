@@ -19,7 +19,7 @@ const auth = require('./auth');
 const control = require('./orchestrator/control');
 const { dispatchRun, resumePump, queueState, RUN_MODES } = require('./orchestrator/queue');
 const { createEscalation, canvasFileFormat, readCanvasFile } = require('./orchestrator/tools');
-const { callModel, tierConfig, FAST_MODEL, STRONG_MODEL, currentProvider } = require('./orchestrator/anthropic');
+const { callModel, tierConfig, currentProvider } = require('./orchestrator/anthropic');
 
 const { rateLimit } = require('./ratelimit');
 const workspace = require('./google/workspace');
@@ -71,7 +71,7 @@ router.get('/config', (req, res) => {
     googleClientId: auth.GOOGLE_CLIENT_ID || null,
     devAuth: auth.DEV_AUTH,
     domain: auth.ALLOWED_DOMAIN,
-    models: { fast: FAST_MODEL, strong: STRONG_MODEL },
+    models: { fast: tierConfig('fast').model, strong: tierConfig('strong').model },
     // P1 reversible exposure: Inquiry Home as the signed-in landing view.
     // setSetting('inquiry_home', '0') reverts sign-in to the canvas, no deploy.
     inquiryHome: getSetting('inquiry_home', '1') === '1',
@@ -289,7 +289,10 @@ router.get('/health/integrations', (req, res) => {
       id: 'model', label: `MODEL · ${provider.toUpperCase()}`, probe: modelConfigured,
       status: modelConfigured ? 'ready' : 'down',
       detail: modelConfigured
-        ? `${FAST_MODEL} (fast) / ${STRONG_MODEL} (strong) via ${provider}`
+        // Live per-tier truth (lamps never fake green): tierConfig follows
+        // MODEL_PROVIDER and the FAST/STRONG_PROVIDER overrides, so a Gemini
+        // or mixed fleet reads as what is actually serving.
+        ? `${tierConfig('fast').model} (fast, ${tierConfig('fast').provider}) / ${tierConfig('strong').model} (strong, ${tierConfig('strong').provider})`
         : (keyCorrupted
           ? 'ANTHROPIC_API_KEY contains non-ASCII characters (e.g. \u2022 bullets from a masked terminal paste) — the stored secret is not the real key. Re-add the secret version with the actual key and roll a new revision.'
           : 'No model credential: set VERTEX_PROJECT_ID (keyless) or ANTHROPIC_API_KEY. Every agent run fails until this is set.'),
@@ -1061,7 +1064,7 @@ router.post('/agent-drafts/propose', rateLimit('model'), asyncRoute(async (req, 
         provider: fastTier.provider, model: fastTier.model, signal: abort.signal,
         system: builder.PROPOSAL_SYSTEM(menu),
         messages: [{ role: 'user', content: brief }],
-        maxTokens: 1500,
+        maxTokens: 1500, responseFormat: 'json',
       });
     } finally {
       control.unregisterAbort(abortId);
@@ -1278,7 +1281,7 @@ router.post('/canvases/:canvasId/standing-rules/parse', rateLimit('model'), auth
         provider: fastTier.provider, model: fastTier.model, signal: abort.signal,
         system: standingRules.PARSE_SYSTEM(agents),
         messages: [{ role: 'user', content: instruction }],
-        maxTokens: 1000,
+        maxTokens: 1000, responseFormat: 'json',
       });
     } finally {
       control.unregisterAbort(abortId);
@@ -2311,7 +2314,7 @@ router.post('/canvases/:canvasId/inquiries', rateLimit('model'), auth.requireCan
           provider: fastTier.provider, model: fastTier.model, signal: abort.signal,
           system: `You route a company question to the best agent. Available agents:\n${agents.map((a) => `- ${a.name} (${a.role}, id ${a.id})`).join('\n')}\nReturn ONLY JSON: {"agent_id": "<id>", "echo": "<short confirmation, e.g. 'Asking Scout (research)'>"}. Pick the agent whose role best fits the question.`,
           messages: [{ role: 'user', content: question }],
-          maxTokens: 200,
+          maxTokens: 200, responseFormat: 'json',
         });
       } finally {
         control.unregisterAbort(abortId);
@@ -2408,7 +2411,7 @@ router.post('/canvases/:canvasId/intent', rateLimit('model'), auth.requireCanvas
     signal: abort.signal,
     system: `You parse spoken/typed commands for a multi-agent canvas. Available agents:\n${agents.map((a) => `- ${a.name} (${a.role}, id ${a.id})`).join('\n')}\nReturn ONLY a JSON object, no prose: {"action": "dispatch"|"pause"|"resume"|"unknown", "agent_id": "<id or null>", "agent_name": "<name or null>", "instruction": "<what the agent should do, cleaned up>", "echo": "<short confirmation of what will happen, e.g. 'Ask Scout (research) to review the uploaded brief'>"}. If the command names no agent but implies a role, pick the matching agent. If genuinely unclear, action "unknown" with echo explaining why.`,
     messages: [{ role: 'user', content: text }],
-    maxTokens: 300,
+    maxTokens: 300, responseFormat: 'json',
     });
   } finally {
     control.unregisterAbort(intentAbortId);

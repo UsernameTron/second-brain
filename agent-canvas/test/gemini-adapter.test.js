@@ -70,3 +70,24 @@ test('safety blocks map to refusal; token caps map to max_tokens', () => {
   assert.equal(fromGeminiResponse({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: 'partial' }] } }] }, 'g').stop_reason, 'max_tokens');
   assert.equal(fromGeminiResponse({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'done' }] } }] }, 'g').stop_reason, 'end_turn');
 });
+
+test('buildConfig hardens the live call: safety, thinking budget, JSON opt-in', () => {
+  const { buildConfig } = require('../server/orchestrator/gemini');
+  const base = { system: 'sys', maxTokens: 1000, signal: undefined };
+
+  const withTools = buildConfig({ ...base, functionDeclarations: [{ name: 't' }] });
+  // Vertex default filters trip on ordinary commercial content — only
+  // genuinely high-severity content may block.
+  assert.equal(withTools.safetySettings.length, 4);
+  assert.ok(withTools.safetySettings.every((s) => s.threshold === 'BLOCK_ONLY_HIGH'));
+  // Thinking is bounded so it cannot eat the whole output budget.
+  assert.equal(withTools.thinkingConfig.thinkingBudget, 2048);
+  assert.ok(withTools.tools);
+  assert.equal(withTools.responseMimeType, undefined); // tool calls stay free-form
+
+  // JSON is explicit opt-in: parse routes get it, persona chats never do.
+  const parse = buildConfig({ ...base, functionDeclarations: [], responseFormat: 'json' });
+  assert.equal(parse.responseMimeType, 'application/json');
+  const chat = buildConfig({ ...base, functionDeclarations: [] });
+  assert.equal(chat.responseMimeType, undefined);
+});
