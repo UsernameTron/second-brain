@@ -1,6 +1,6 @@
 # Architecture
 
-**Analysis Date:** 2026-08-18
+**Analysis Date:** 2026-08-19
 
 This repository hosts two independently-architected systems that share a git history and top-level directory but nothing at runtime: the **second-brain memory pipeline** (root `src/`, `scripts/`, `config/`, `hooks/`) and **agent-canvas** (`agent-canvas/`), a multi-agent workspace product for cloudtechgurus.com. See "How the two systems cohabit" at the end of this document.
 
@@ -142,7 +142,7 @@ This repository hosts two independently-architected systems that share a git his
 - Location: `server/orchestrator/{runner.js, queue.js, control.js, tools.js, anthropic.js, gemini.js, pdf-extract-worker.js}`
 - `runner.js`: the run loop — builds the system prompt (shared memory contract, retrieved-content-is-data warning, mode-specific rules for ask/rehearse/act), calls the model, executes tools, caps tool results re-sent into history (`TOOL_RESULT_CHAR_CAP = 40,000`, head+tail truncation)
 - `queue.js`: dispatch, bounded concurrency, mode/authority/initiator inheritance for child runs (handoff/retry/resume), stranded-run reconciliation, orphan recovery on process restart
-- `tools.js` (1,295 lines): tool definitions per agent role, authority intersection/allowlisting, mode-blocking (e.g. no `mcp_*` tools outside act mode), escalation creation
+- `tools.js` (1,347 lines): tool definitions per agent role, authority intersection/allowlisting, mode-blocking (e.g. no `mcp_*` tools outside act mode), escalation creation
 - `control.js`: global pause/resume, daily token budget enforcement
 - `anthropic.js`/`gemini.js`: model provider adapters, tier config (fast/strong)
 
@@ -240,4 +240,4 @@ This repository hosts two independently-architected systems that share a git his
 
 ---
 
-*Architecture analysis: 2026-08-18*
+*Architecture analysis: 2026-08-19*
