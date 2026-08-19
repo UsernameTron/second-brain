@@ -3,6 +3,10 @@
 This index prevents plans, historical handoffs, and live claims from being
 treated as interchangeable.
 
+**Non-technical users start elsewhere:** the plain-English product guide is
+[../USER-GUIDE.md](../USER-GUIDE.md) — overview, the agent team, how to ask,
+and the safety promises. Everything below is for builders and operators.
+
 ## Authority order
 
 When two claims conflict, use this order:

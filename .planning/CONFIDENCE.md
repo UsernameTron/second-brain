@@ -1,29 +1,43 @@
 # Confidence Report
 
-- Date: 2026-08-19
-- Branch at sweep: chore/codebase-map-2026-08-19 → merged to master as 8e2eb04 (PR #218)
+- Date: 2026-08-19 (evening close-out sweep — supersedes the morning report)
+- Branch at sweep: docs/canvas-user-guide-and-close (master at defa7f8 + docs commit)
 - Verdict: **SHIP-READY**
-- score: n/a (no phase 4D VERIFICATION files exist — milestones archived)
 
 ## Leg results
 
 | Leg | Result | Evidence |
-|-----|--------|----------|
-| 1. health | PASS | `gsd-tools validate health`: status healthy, 0 errors, 0 warnings, 0 repairable |
-| 2. quality-sweep | PASS (3 legs skipped by design) | deps audit PASS (0 CVEs across 502 deps, licenses clean, 0 staleness flags — voyageai/chokidar holds documented). UAT audit skipped (no `.planning/phases/` — milestones archived). validate-phase skipped (nyquist_validation=false). agents leg skipped (no `./agents/` GSD roster). |
-| 3. build-verify | PASS | `npm test`: 1539 passed / 29 skipped / 81 of 82 suites, exit 0. `npm run lint`: clean, exit 0. Note: one Jest teardown warning ("worker process failed to exit gracefully") — non-blocking, pre-existing. |
-| 4. map refresh | PASS | All 7 `.planning/codebase/` docs refreshed 2026-08-19 and merged in PR #218. Real drift fixed: test suite 58→82 files documented; 5 test subdirs added; tools.js line count corrected. |
-| 5. doc sync | PASS (drift fixed) | `/gsd:sync-docs` run 2026-08-19: CLAUDE.md status block, README.md, PROJECT.md, DEVOPS-HANDOFF.md, HANDOFF.md all refreshed. Staleness hook satisfied. |
-| 6. repo cleanliness | PASS | untracked 0, stale [gone] branches 0 (2 deleted), tracked files >5MB 0, orphaned _absorbed 0. Debug files: 1 (`memory-pipeline-audit.md`, 2026-07-19, status "diagnosed" — the dotenv zero-vector bug it documents was fixed in the PR #96 era; recall smoke-tested working today; file kept as historical record). 9 stale agent worktrees removed (all held copies older than committed docs). |
-| 7. scorecard | this file | — |
+|---|---|---|
+| 1 Planning health | PASS | STATE/ROADMAP/PROJECT/CONFIDENCE all present; milestone v1.8; no orphan phase dirs |
+| 2 Quality audits | PASS | `npm audit --omit=dev` = 0 vulnerabilities in all three package roots (root, agent-canvas, agent-canvas/frontend); license-check allowlist clean |
+| 3 Build/test/lint | PASS | Root Jest: 1568 tests / 82 files (1530 pass, 38 CI-skip), 16s. agent-canvas `npm run verify`: 420 backend + 112 frontend + production build + deploy preflight, all green. Root ESLint: 0 warnings. CodeQL clean on master (last scan of #228). |
+| 4 Codebase map | CURRENT | `.planning/codebase/` refreshed this morning (PR #218, files dated 2026-08-19 01:00). Today's canvas deltas (v7 registry, 16-agent roster, web_fetch, escalation coalescing) are documented in `agent-canvas/docs/HANDOFF.md`, the authority for that subtree. |
+| 5 Doc sync | PASS | This session: USER-GUIDE.md added + linked; agent-canvas HANDOFF rewritten to current state (00064-nq9, defa7f8) with superseded blocks moved to HANDOFF-HISTORY; root CLAUDE.md counts verified against a live jest run — zero drift. |
+| 6 Repo cleanliness | PASS w/ note | Working tree clean; 3 merged local branches pruned; remote branches auto-deleted at merge. NOTE: ~80 stale pre-squash local branches remain (squash-merge hides merged-ness); bulk removal needs force-delete, deferred to operator: `git branch \| grep -vE 'master' \| xargs git branch -D` after eyeballing. |
+| 7 Scorecard | This file | — |
 
-## Findings log (informational)
+## What shipped today (all merged, deployed, live-verified)
 
-1. **Stop-hook auto-commit loop** — hook commits then rewrites `.planning/HANDOFF.md`, re-dirtying the tree; produced ~13 no-op commits on PR #218 (collapsed by squash-merge). Fix in progress in a separate session (task: "Fix Stop-hook auto-commit loop in second-brain").
-2. **Codex PR reviewer out of quota** — returned a usage-limit message instead of a review on #218; claude-review passed. External review coverage was thinner than the green checks imply.
-3. **CONCERNS.md highlights** (see full doc): `.claude/hooks/hook-debug.log` tracked in git; launchd job health assumed, not verified; single-machine path coupling (accepted constraint).
-4. **Jest teardown warning** — worker force-exit on suite completion; candidate for `--detectOpenHandles` pass someday.
+Seven PRs on the canvas subtree: #221 (WS3 UI fixes) → #223 (Gemini default,
+parallel session) → #224 (ICP v7) → #225 (revenue-squad roster) → #226
+(handoff truth) → #227 (plain-English lamps + probe-gated MODEL) → #228
+(escalation coalescing, web_fetch with SSRF hardening, member-scope default).
+Plus the four-repo ICP v7 ship (signal-radar #129, Fly connector redeploy,
+enrichment-dispatch #44, estate-sentinel pins agree) and the operator-approved
+scheduler resume (post-resume tick HTTP 200 observed).
 
-## Gate
+Production: revision `agent-canvas-00064-nq9`, healthz 200, zero ERROR logs,
+systems board fully green in a signed-in session.
 
-SHIP-READY. PR #218 shipped (squash-merged, all 6 CI checks green). No blocking findings.
+## Outstanding (documented, not blocking)
+
+1. Signed-in acceptance of the new agent lanes (Dossier/Qualifier/Wedge/
+   web_fetch live runs) — listed as release gates in agent-canvas HANDOFF.
+2. P5 standing-rule expiry proof (pre-existing gate).
+3. Six pre-hygiene NEEDS YOU cards await the owner's 30-second triage.
+4. Stale local branch pile (note in Leg 6).
+
+## Ship gate
+
+Verdict SHIP-READY. Remaining ship step: PR this docs branch
+(USER-GUIDE + HANDOFF sync + this scorecard) to master and merge on green.
