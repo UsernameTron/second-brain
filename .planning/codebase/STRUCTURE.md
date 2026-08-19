@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-08-18
+**Analysis Date:** 2026-08-19
 
 This repository contains two independently-structured projects: the second-brain memory pipeline at the repo root, and the `agent-canvas/` subproject (its own `package.json`, test runner, deploy pipeline, and `CLAUDE.md`). See ARCHITECTURE.md for how they relate.
 
@@ -12,10 +12,14 @@ second-brain/
 │   ├── today/               # /today orchestrator's extracted stages (Phase 15 refactor)
 │   ├── connectors/          # External API connectors (calendar, gmail, github) + shared result-shape contract
 │   └── utils/               # Cross-cutting utilities (health trackers, hashing, schema validation)
-├── test/                    # Jest suite (58 files), mirrors src/ layout plus integration/uat/fixtures
+├── test/                    # Jest suite (82 files), mirrors src/ layout plus integration/uat/fixtures
 │   ├── today/               # Tests for src/today/* stages
+│   ├── connectors/          # Tests for src/connectors/*
+│   ├── agents/               # Tests for .claude/agents/* subagent contracts
+│   ├── hooks/                # Tests for .claude/hooks/*
+│   ├── integration/           # Cross-module integration tests
 │   ├── uat/                 # End-to-end UAT tests, skip-gated from CI (process.env.CI && test.skip)
-│   └── unit/, utils/        # Focused unit tests
+│   └── unit/, utils/, fixtures/  # Focused unit tests, shared fixtures
 ├── config/                  # JSON config, optionally overlaid by gitignored *.local.json
 │   └── schema/              # AJV JSON Schema definitions, one per config file
 ├── scripts/                 # Standalone CLI entry points (each loads dotenv itself)
@@ -56,8 +60,8 @@ second-brain/
 - Key files: `voyage-health.js`/`classifier-health.js` (Pattern 7 adaptive denial trackers, persist to `~/.cache/second-brain/`), `memory-utils.js` (hashing), `validate-schema.js`
 
 **`test/`:**
-- Purpose: Jest suite, 58 files, structure mirrors `src/`
-- Subdirs: `today/` (mirrors `src/today/`), `uat/` (end-to-end, CI-skip-gated), `unit/` (focused single-function tests), `utils/`
+- Purpose: Jest suite, 82 files, structure mirrors `src/`
+- Subdirs: `today/` (mirrors `src/today/`), `connectors/` (mirrors `src/connectors/`), `agents/` (subagent contract tests), `hooks/` (`.claude/hooks/` tests), `integration/` (cross-module flows), `uat/` (end-to-end, CI-skip-gated), `unit/` (focused single-function tests), `utils/`, `fixtures/`
 - Convention: `<module>.test.js` co-located by name with its `src/` counterpart, not by directory nesting (e.g. `test/vault-gateway.test.js` for `src/vault-gateway.js`)
 
 **`config/`:**
@@ -240,4 +244,4 @@ agent-canvas/
 
 ---
 
-*Structure analysis: 2026-08-18*
+*Structure analysis: 2026-08-19*

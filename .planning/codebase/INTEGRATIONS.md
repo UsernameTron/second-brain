@@ -1,6 +1,6 @@
 # External Integrations
 
-**Analysis Date:** 2026-08-18
+**Analysis Date:** 2026-08-19
 
 Two integration surfaces: the **second-brain pipeline** (local-only, vault +
 LLM providers) and **agent-canvas** (a deployed Cloud Run service with a much
@@ -152,4 +152,4 @@ BigQuery data, and MCP connectors).
 
 ---
 
-*Integration audit: 2026-08-18*
+*Integration audit: 2026-08-19*

@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-08-18
+**Analysis Date:** 2026-08-19
 
 Two independent test stacks live in this repo: **root** (`src/`/`test/`, Jest)
 and **`agent-canvas/`** (backend `node:test`, frontend Vitest, plus a build
@@ -186,9 +186,10 @@ const assert = require('node:assert');
 ```
 (`agent-canvas/test/rooms.test.js:6-7`)
 
-**Current count: 385 tests across 44 files** (`agent-canvas/test/*.test.js`,
-verified via `node --test`). All 385 pass, 0 fail, 0 skipped as of this
-analysis. Naming: kebab-case, `{feature}.test.js` — `access-control.test.js`,
+**File count: 45 files** (`agent-canvas/test/*.test.js`) as of this analysis
+(up from 44); test-case totals and pass/fail were not re-run in this pass —
+verify via `node --test` before citing an exact count. Naming: kebab-case,
+`{feature}.test.js` — `access-control.test.js`,
 `agent-authority.test.js`, `agent-builder.test.js`, `canvas-files-tool.test.js`,
 `enrichment-dispatch.test.js`, `hardening.test.js`, `standing-rules` coverage
 spread across several files, `docs-contract.test.js` (see below).
@@ -294,4 +295,4 @@ pre-commit bar for agent-canvas changes; CI is a narrower backstop.
 
 ---
 
-*Testing analysis: 2026-08-18*
+*Testing analysis: 2026-08-19*

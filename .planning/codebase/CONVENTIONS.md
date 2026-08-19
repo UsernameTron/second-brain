@@ -1,6 +1,6 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-08-18
+**Analysis Date:** 2026-08-19
 
 This repo has two independently-governed codebases sharing one git tree: the
 **root** (`src/`, `test/`, `hooks/`) is the second-brain vault engine; the
@@ -313,4 +313,4 @@ tombstone" removal pattern for notes/files in `docs/HANDOFF.md:66-76`).
 
 ---
 
-*Convention analysis: 2026-08-18*
+*Convention analysis: 2026-08-19*

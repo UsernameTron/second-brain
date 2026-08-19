@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Analysis Date:** 2026-08-18
+**Analysis Date:** 2026-08-19
 
 This repo hosts two independently-versioned Node projects: the **second-brain
 pipeline** at the repo root, and the **agent-canvas** subproject at
@@ -134,4 +134,4 @@ main agent-canvas backend's npm workspace.
 
 ---
 
-*Stack analysis: 2026-08-18*
+*Stack analysis: 2026-08-19*

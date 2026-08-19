@@ -22,7 +22,7 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 
 ## Project Status
 
-> Last verified: 2026-07-31  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
+> Last verified: 2026-08-19  <!-- refresh at each /gsd:sync-docs; read by the SessionStart staleness hook (.claude/hooks/staleness-check.js, v1.6 REQ-CTX-01) -->
 
 **Latest Release:** v1.7 Prove Compounding (2026-07-16)
 **v1.8 Measured Memory (in progress):** Phases 32-35 shipped — Phase 32 Retrieval Eval Baseline 2026-07-19 (PR #74: `npm run eval:recall`, golden set, frozen seed vault, first baseline); Phase 33 Capture Reliability, Phase 34 Promotion Integrity + Dream Consolidation, and Phase 35 Proactive-Memory SessionStart Injection all 2026-07-21 (PRs #88/#86/#89). Phase 36 (Ingest Breadth) decision-gated, unscheduled. Vault restructure + guard-gap fixes (reach-egress fail-closed, /today briefing through the gateway, whole-token exclusion match) shipped 2026-07-26 (PR #93). Audit & improvement pass shipped 2026-07-31 (PR #96): 13 pipeline-reliability fixes — pid-probed stale-lock reclaim in `memory-proposals.js` (closed the silent buffered-loss path; the fix released the buffered backlog), per-call LLM timeout plumbing plus a single extraction-wide deadline, enforced `oversizeThresholdBytes` (was dead config), non-zero exit when a scheduled `/today` produces no briefing, per-file extraction-error recording instead of aborting a directory sweep, staged-vs-buffered counts in `/wrap`, and a logged (no longer silent) excluded-terms load failure. Same pass added the vault `maps/` MOC layer and a ranked P1-P8 audit report.
@@ -30,7 +30,7 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 **v1.6 complete (2026-07-15):** Promotion Safety, Cross-Surface Reach (ADR-018/019), Context Honesty (staleness hook, ADR-020 authority hierarchy, fail-closed exclusions), Surface Completion (/reroute, pre-push docs gate)
 
 - **Test count:** 1568 total across 82 test files (1530 passing, 38 skipped in CI)
-- **Coverage:** Branch 80.95%, Statements 92.03%, Functions 95.78%, Lines 92.99% (CI-measured 2026-07-31)
+- **Coverage:** Branch 80.95%, Statements 92.05%, Functions 95.78%, Lines 93.01% (measured 2026-08-19, local `CI=true` run, `coverage-summary.json total.*.pct`)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
 
