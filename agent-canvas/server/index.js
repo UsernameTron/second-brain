@@ -65,6 +65,7 @@ roster.seedRoster();
 roster.seedEnrichmentAgent();
 roster.seedSdrAgent();
 roster.seedContentAgent();
+roster.seedRevenueSquadAgents();
 roster.backfillRosterTemplateKeys();
 roster.reseedSdrTools();
 roster.reseedGaugeTools();

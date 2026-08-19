@@ -29,6 +29,7 @@ the timestamped production evidence in [HANDOFF.md](HANDOFF.md).
 | Cross-cutting workspace cleanup | Merged on `9a6abaf` | Deployed on `00057-47c`; replica/bundle/health/log proven, signed-in journey not replayed | Complete signed-in note/file/removal acceptance |
 | Recommended teams, Enrichment, documents, agent removal | Merged on `9a6abaf` | Deployed on `00057-47c`; bundle/replica proven, signed-in journey not replayed | Complete signed-in team/create/upload/enrich/remove acceptance |
 | SDR pipeline — roster agent, team template, pre-call briefs | Implemented on `feat/sdr-roster-agent` | Not deployed | Signed-in sandbox acceptance: list → enrich → preview → approve → apply → draft |
+| ICP v7 + revenue-squad roster (Dossier, Qualifier, Pitch, Wedge) | Merged (wave 2026-08-19) | Registry sr-icp-v7 live at the Fly lead finder; canvas agents not yet deployed | Deploy, then signed-in acceptance: Qualifier routes without computing; Dossier cites `gtm_account_lookup`; Wedge passes the gate |
 | P6 — Outcomes and reviewed learning | Planned only | Not started | Begin only after P4/P5 acceptance |
 | P7 — selective integrations and portability | Planned only | Not started | Begin only after P6 earns its acceptance evidence |
 
@@ -184,6 +185,46 @@ summary (or a new Doc for an article) → the run receipt shows the
 **Status: merged (PR #214, squashed as `b953a49`) with the activation wiring
 (PR #213, `0b11d6a`). Not deployed; signed-in acceptance outstanding. Owner
 activation steps live in [ACTIVATION-RUNBOOK.md](ACTIVATION-RUNBOOK.md).**
+
+## Revenue squad — four ctg-revenue-squad agents on governed canvas tools
+
+### Why
+
+The four revenue-squad capabilities (account brief, batch lead routing,
+proposal drafting, competitive battlecards) lived in a Claude Code layer only
+Pete could invoke. Porting them as roster agents converts a single-operator
+capability into buttons the team can press, on tools the canvas already
+governs — no new integrations, no new roles, no Skill system.
+
+### What it adds
+
+1. **Dossier** (commercial, strong): one-screen sourced account dossier —
+   CRM reads, `gtm_account_lookup` tier, enrichment firmographics, ICP fit.
+   Never invents a tier; empty reads reported as empty.
+2. **Qualifier** (targeting, fast): batch A/B/C routing that reads ONLY the
+   live scorers (lead finder + `gtm_tier_list`); unknown records are "needs
+   scoring", never a guess. Its allowlist has no CRM or enrichment tools by
+   design — it structurally cannot compute a score.
+3. **Pitch** (commercial, strong): proposal/ROI Google Doc with a draft-only
+   cover email; every figure grounded or `[CLIENT TO CONFIRM]`-placeholdered;
+   commission economics disclosed; pricing terms escalate to Darren's lane.
+4. **Wedge** (research, strong): peer-TSD battlecards with provenance on
+   every claim and `content_gate_check` before delivery; degrades honestly
+   when web search is unavailable on the deployed provider/tier.
+
+Seeded by the additive `seedRevenueSquadAgents()` migration
+(`seed_roster_revenue_squad_v1`), name-collision-safe, all `default_on: 0`.
+ICP v7 (`sr-icp-v7`, Higher Education tier 3 — CEO ruling 2026-08-17) ships in
+the same wave across signal-radar, the Fly lead finder, enrichment-dispatch,
+and this repo's committed registry.
+
+### Acceptance
+
+- Qualifier returns A/B/C + "needs scoring" without computing any score.
+- Dossier's tier line cites `gtm_account_lookup` or a version-stamped lead
+  finder score.
+- Wedge's battlecard passes `content_gate_check` with zero watchlist names.
+- estate-sentinel ICP pins agree on `sr-icp-v7` across all consumers.
 
 ## P6 — outcomes, earned trust, and reviewed episodic learning
 

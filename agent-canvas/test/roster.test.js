@@ -53,17 +53,17 @@ test.before(async () => {
 
 test.after(() => new Promise((resolve) => server.close(resolve)));
 
-test('roster seeds exactly once with 12 entries in order', () => {
+test('roster seeds exactly once with 16 entries in order', () => {
   assert.ok(getSetting('seed_roster_v1'), 'seed guard key set');
   const rows = db.prepare('SELECT * FROM roster_agents ORDER BY sort').all();
-  assert.equal(rows.length, 12);
+  assert.equal(rows.length, 16);
   assert.deepEqual(rows.map((r) => r.name),
-    ['Fred', 'Darren', 'Jess', 'Atlas', 'Scout', 'Forge', 'Sentinel', 'Gauge', 'Radar', 'Enrichment', 'SDR', 'Quill']);
+    ['Fred', 'Darren', 'Jess', 'Atlas', 'Scout', 'Forge', 'Sentinel', 'Gauge', 'Radar', 'Enrichment', 'SDR', 'Quill', 'Dossier', 'Qualifier', 'Pitch', 'Wedge']);
   assert.deepEqual(rows.map((r) => r.template_key),
-    ['fred', 'darren', 'jess', 'atlas', 'scout', 'forge', 'sentinel', 'gauge', 'radar', 'enrichment', 'sdr', 'quill']);
+    ['fred', 'darren', 'jess', 'atlas', 'scout', 'forge', 'sentinel', 'gauge', 'radar', 'enrichment', 'sdr', 'quill', 'dossier', 'qualifier', 'pitch', 'wedge']);
   const again = roster.seedRoster();
   assert.equal(again.seeded, false, 'second call must be a no-op');
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM roster_agents').get().n, 12);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM roster_agents').get().n, 16);
   // The proven exec set is pre-checked for new canvases; nothing else is.
   assert.deepEqual(rows.filter((r) => r.default_on).map((r) => r.name), ['Fred', 'Darren', 'Jess', 'Atlas']);
   // Gauge ships staffable (sibling prompts delegate CRM legwork to it) but
@@ -179,6 +179,82 @@ test('content role is gated by absence; the gate tool rides even in ask mode', (
   assert.ok(!ask.includes('ws_docs_create'), 'mutating writes absent in ask mode');
 });
 
+test('the additive revenue-squad seed installs four least-authority agents', () => {
+  db.prepare('DELETE FROM settings WHERE key = ?').run(roster.REVENUE_SQUAD_ROSTER_KEY);
+  db.prepare("DELETE FROM roster_agents WHERE name IN ('Dossier', 'Qualifier', 'Pitch', 'Wedge')").run();
+  const result = roster.seedRevenueSquadAgents();
+  assert.equal(result.inserted, 4);
+
+  const expected = {
+    Dossier: { role: 'commercial', tier: 'strong', step: 24 },
+    Qualifier: { role: 'targeting', tier: 'fast', step: 24 },
+    Pitch: { role: 'commercial', tier: 'strong', step: 24 },
+    Wedge: { role: 'research', tier: 'strong', step: 32 },
+  };
+  for (const [name, want] of Object.entries(expected)) {
+    const row = db.prepare('SELECT * FROM roster_agents WHERE name = ?').get(name);
+    assert.equal(row.role, want.role, `${name} role`);
+    assert.equal(row.model_tier, want.tier, `${name} tier`);
+    assert.equal(row.enabled, 1);
+    assert.equal(row.default_on, 0, `${name} is staffed deliberately, never pre-checked`);
+    assert.equal(row.step_budget, want.step);
+    assert.equal(row.wall_ms_budget, 480000);
+    const tools = JSON.parse(row.tools_json);
+    assert.ok(tools.every((n) => governedTool(n)), `${name}: every listed tool is a real governed name`);
+  }
+
+  // Dossier reads everywhere but writes nowhere.
+  const dossier = JSON.parse(db.prepare("SELECT tools_json FROM roster_agents WHERE name = 'Dossier'").get().tools_json);
+  for (const name of ['hs_search', 'hs_activities', 'mcp_gtm_marts_gtm_account_lookup', 'enrich_company', 'verify_email', 'mcp_sr_icp_leadfinder_ping']) {
+    assert.ok(dossier.includes(name), `Dossier authority includes ${name}`);
+  }
+  for (const name of ['hs_preview_change', 'hs_apply_change', 'ws_gmail_draft', 'ws_docs_create', 'web_search']) {
+    assert.ok(!dossier.includes(name), `Dossier authority excludes ${name}`);
+  }
+
+  // Qualifier can only read the live scorers — it structurally cannot compute.
+  const qualifier = JSON.parse(db.prepare("SELECT tools_json FROM roster_agents WHERE name = 'Qualifier'").get().tools_json);
+  assert.deepEqual(qualifier.sort(), ['mcp_gtm_marts_gtm_tier_list', 'mcp_sr_icp_leadfinder_check_lead_search', 'mcp_sr_icp_leadfinder_find_icp_leads', 'mcp_sr_icp_leadfinder_ping'].sort());
+  assert.ok(!qualifier.some((n) => n.startsWith('hs_') || n.startsWith('enrich_')), 'no CRM or enrichment tools by design');
+
+  // Pitch drafts only; Wedge searches only.
+  const pitch = JSON.parse(db.prepare("SELECT tools_json FROM roster_agents WHERE name = 'Pitch'").get().tools_json);
+  assert.ok(pitch.includes('ws_docs_create') && pitch.includes('ws_gmail_draft'));
+  assert.ok(!pitch.includes('hs_apply_change') && !pitch.includes('hs_preview_change'));
+  const wedge = JSON.parse(db.prepare("SELECT tools_json FROM roster_agents WHERE name = 'Wedge'").get().tools_json);
+  assert.deepEqual(wedge.sort(), ['web_search', 'ws_docs_create'].sort());
+
+  // Prompt contracts.
+  const q = db.prepare("SELECT system_prompt FROM roster_agents WHERE name = 'Qualifier'").get().system_prompt;
+  assert.match(q, /needs scoring/);
+  assert.match(q, /never compute, adjust, estimate/i);
+  const d = db.prepare("SELECT system_prompt FROM roster_agents WHERE name = 'Dossier'").get().system_prompt;
+  assert.match(d, /Never invent a tier|never a guess/i);
+  assert.match(d, /reported as empty/i);
+  const pr = db.prepare("SELECT system_prompt FROM roster_agents WHERE name = 'Pitch'").get().system_prompt;
+  assert.match(pr, /CLIENT TO CONFIRM/);
+  assert.match(pr, /no send exists/i);
+  const w = db.prepare("SELECT system_prompt FROM roster_agents WHERE name = 'Wedge'").get().system_prompt;
+  assert.match(w, /content_gate_check/);
+  assert.match(w, /never fabricate a web claim/i);
+
+  assert.equal(roster.seedRevenueSquadAgents().inserted, 0, 'the versioned migration is idempotent');
+
+  // Collision safety: an owner-edited row sharing a name is never overwritten,
+  // while the missing names still seed.
+  db.prepare('DELETE FROM settings WHERE key = ?').run(roster.REVENUE_SQUAD_ROSTER_KEY);
+  db.prepare("UPDATE roster_agents SET system_prompt = 'custom' WHERE name = 'Wedge'").run();
+  db.prepare("DELETE FROM roster_agents WHERE name = 'Pitch'").run();
+  const partial = roster.seedRevenueSquadAgents();
+  assert.equal(partial.inserted, 1, 'only the missing template reseeds');
+  assert.equal(db.prepare("SELECT system_prompt FROM roster_agents WHERE name = 'Wedge'").get().system_prompt, 'custom');
+
+  // Restore the shipped rows for the tests below.
+  db.prepare('DELETE FROM settings WHERE key = ?').run(roster.REVENUE_SQUAD_ROSTER_KEY);
+  db.prepare("DELETE FROM roster_agents WHERE name IN ('Dossier', 'Qualifier', 'Pitch', 'Wedge')").run();
+  assert.equal(roster.seedRevenueSquadAgents().inserted, 4, 'reseeds cleanly after removal');
+});
+
 test('fresh boot creates no demo canvas or other product content', () => {
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM canvases').get().n, 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM notes').get().n, 0);
@@ -234,10 +310,10 @@ test('GET /api/roster: members see enabled only; owner sees all', async () => {
   db.prepare("UPDATE roster_agents SET enabled = 0 WHERE name = 'Gauge'").run();
   const asMember = await call('GET', '/api/roster', memberCookie);
   assert.equal(asMember.status, 200);
-  assert.equal(asMember.data.roster.length, 11, 'disabled entry hidden from members');
+  assert.equal(asMember.data.roster.length, 15, 'disabled entry hidden from members');
   assert.ok(!asMember.data.roster.some((r) => r.name === 'Gauge'));
   const asOwner = await call('GET', '/api/roster', ownerCookie);
-  assert.equal(asOwner.data.roster.length, 12, 'owner sees disabled entries too');
+  assert.equal(asOwner.data.roster.length, 16, 'owner sees disabled entries too');
   db.prepare("UPDATE roster_agents SET enabled = 1 WHERE name = 'Gauge'").run();
 });
 
