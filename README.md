@@ -190,7 +190,7 @@ npm run test:uat           # UAT tests (requires CI= to unblock)
 - Critical modules (auth, vault boundary): ≥95%
 - All other modules: ≥80%
 
-Current coverage (CI-measured 2026-07-31): Statements 92.03%, Functions 95.78%, Lines 92.99%, Branch 80.95%
+Current coverage (measured 2026-08-19, `CI=true` local run): Statements 92.05%, Functions 95.78%, Lines 93.01%, Branch 80.95%
 
 ### Retrieval eval
 

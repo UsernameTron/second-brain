@@ -197,8 +197,8 @@ Local-only project — no cloud deployment. CI pipeline via GitHub Actions:
 | Gate | Tool | Threshold |
 |---|---|---|
 | Lint | ESLint 10 (flat config) | 0 errors |
-| Unit + integration tests | Jest 30, Node 22 matrix | 1568 total across 82 files; 1530 passing + 38 skipped, 80 of 82 suites run (CI, 2026-07-31) |
-| Branch coverage | Jest coverage | ≥80% enforced (currently 80.95%; statements 92.03%, functions 95.78%, lines 92.99%) |
+| Unit + integration tests | Jest 30, Node 22 matrix | 1568 total across 82 files; 1530 passing + 38 skipped, 80 of 82 suites run (`CI=true`, 2026-08-19) |
+| Branch coverage | Jest coverage | ≥80% enforced (currently 80.95%; statements 92.05%, functions 95.78%, lines 93.01%) |
 | Security scan | CodeQL SAST | 0 high/critical |
 | Secrets scan | GitGuardian | 0 secrets |
 | License check | license-checker | MIT/ISC/Apache/BSD only |

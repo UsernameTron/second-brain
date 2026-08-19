@@ -18,7 +18,7 @@ An Obsidian vault orchestrated into a personal operating system with compounding
 
 **Memory corpus seeded 27 → 97 entries (2026-07-12)** by mining 70 durable proposals from the decision log, ADR register, CTG docs, standups, and philosophy corpus. Embeddings sidecar stood at 125 vectors then; keyword, semantic, and hybrid `/recall` were all verified against that corpus. The compounding thesis is now testable against a real corpus rather than a near-empty one.
 
-**Stats (measured 2026-07-31, post-PR #96):** 1568 tests across 82 test files — CI-measured (`CI=true`) 1530 passing / 38 skipped with 80 of 82 suites run; local (no CI env) 1539 passing / 29 skipped. Coverage from `coverage/coverage-summary.json` `total.*.pct`: branches 80.95% / statements 92.03% / functions 95.78% / lines 92.99%. `npm run lint` clean, 0 warnings. 26 modules at the top level of `src/`.
+**Stats (measured 2026-08-19, post-PR #96):** 1568 tests across 82 test files — CI-measured (`CI=true`) 1530 passing / 38 skipped with 80 of 82 suites run; local (no CI env) 1539 passing / 29 skipped. Coverage from `coverage/coverage-summary.json` `total.*.pct`: branches 80.95% / statements 92.05% / functions 95.78% / lines 93.01%. `npm run lint` clean, 0 warnings. 26 modules at the top level of `src/`.
 
 **What works end-to-end:**
 - `/new` classifies input, enforces left/right routing, filters excluded content (15 terms with substring matching), suggests wikilinks
