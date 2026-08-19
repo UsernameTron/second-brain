@@ -18,6 +18,26 @@ with web sources refuse to activate) — fallback lever `STRONG_PROVIDER=vertex`
 discount; no cross-provider refusal fallback. **Outstanding:** signed-in
 model probe + journey re-check on Gemini (provider-specific per DEPLOY.md).
 
+## ICP v7 + revenue-squad wave (2026-08-19)
+
+**Git-proven:** the committed ICP registry is `server/config/icp-sr-icp-v7.json`
+(`sr-icp-v7`: Education → Higher Education, tier 3 — CEO ruling 2026-08-17,
+upstream CTG_Signal_Detection_App#129). The roster holds **16 templates**: the
+prior 12 plus the revenue-squad port — Dossier (commercial, account dossiers),
+Qualifier (targeting, A/B/C routing off live scorers only), Pitch (commercial,
+placeholdered proposal docs, draft-only cover), Wedge (research, gated
+battlecards) — seeded additively by `seed_roster_revenue_squad_v1`, all
+`default_on: 0`. `RESEED_KEY` bumped to `seed_roster_prompts_v7` with the
+legacy prompt snapshot refreshed pre-swap.
+
+**Live-proven at 2026-08-19:** `sr-icp-connector.fly.dev` ping reports
+`sr-icp-v7` (redeployed; state.json reset accepted — company-search credits
+re-spend). estate-sentinel ICP pins agree: canonical, connector, and
+enrichment-dispatch all `sr-icp-v7`. **Unverified:** the new roster agents are
+merged but not deployed; connector tools require an owner Admin tick per
+deployment before Dossier/Qualifier can use them; Wedge's `web_search` is
+ineligible on Gemini tiers (degrades honestly per its prompt).
+
 This file is the concise current-state authority. Historical implementation and
 incident detail lives in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); phase intent
 lives in [ROADMAP.md](ROADMAP.md); release commands live in
