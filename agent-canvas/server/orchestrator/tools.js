@@ -1323,8 +1323,16 @@ async function executeTool(name, input, ctx) {
       if (agent.role !== 'research') {
         return { content: 'REFUSED: web_fetch is scoped to research agents — hand the URL to the research lane.', isError: true };
       }
+      // Every attempt is audited, success or failure — a refused/failed fetch
+      // must still leave a trail of where the model tried to go (security
+      // review #2). Query strings are redacted in the audit line: they are
+      // the natural exfiltration channel, and the audit log should not
+      // amplify whatever was smuggled into one.
+      const requested = String((input || {}).url || '').slice(0, 500);
+      const redacted = requested.split('?')[0];
       try {
-        const out = await webfetch.fetchUrl((input || {}).url);
+        const out = await webfetch.fetchUrl(requested);
+        audit('agent', agent.id, 'web_fetch', { runId: run.id, url: redacted, ok: true });
         bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
         const refId = evidence.recordRef({
           runId: run.id, sourceKind: 'web', sourceId: out.url,
@@ -1332,6 +1340,7 @@ async function executeTool(name, input, ctx) {
         });
         return { content: externalContent('web page', `URL: ${out.url}\n\n${out.text}`) + evidence.refMarker(refId) };
       } catch (err) {
+        audit('agent', agent.id, 'web_fetch', { runId: run.id, url: redacted, ok: false, error: String(err.message || err).slice(0, 200) });
         return { content: externalContent('web page', String(err.message || err)), isError: true };
       }
     }
