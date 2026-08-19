@@ -33,10 +33,15 @@ legacy prompt snapshot refreshed pre-swap.
 **Live-proven at 2026-08-19:** `sr-icp-connector.fly.dev` ping reports
 `sr-icp-v7` (redeployed; state.json reset accepted — company-search credits
 re-spend). estate-sentinel ICP pins agree: canonical, connector, and
-enrichment-dispatch all `sr-icp-v7`. **Unverified:** the new roster agents are
-merged but not deployed; connector tools require an owner Admin tick per
-deployment before Dossier/Qualifier can use them; Wedge's `web_search` is
-ineligible on Gemini tiers (degrades honestly per its prompt).
+enrichment-dispatch all `sr-icp-v7`. **Live-proven at 2026-08-19T17:45Z:** revision
+`agent-canvas-00062-hfs` serves 100% with the served bundle fingerprints
+(`index-CIrliqYi.css` / `index-CoM3z8Nn.js`) matching `master`'s build through
+#225 — the v7 registry, the 16-template roster, and the #221 UI fixes are
+deployed; `/api/healthz` 200, zero ERROR logs post-deploy. **Unverified:**
+signed-in journey on the new agents; connector tools require an owner Admin
+tick per deployment before Dossier/Qualifier can use them; Wedge's
+`web_search` is ineligible on Gemini tiers (degrades honestly per its
+prompt).
 
 This file is the concise current-state authority. Historical implementation and
 incident detail lives in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); phase intent
