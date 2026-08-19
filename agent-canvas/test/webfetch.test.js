@@ -64,3 +64,11 @@ test('the kill switch reads ENABLE_WEB_FETCH', () => {
     if (prev === undefined) delete process.env.ENABLE_WEB_FETCH; else process.env.ENABLE_WEB_FETCH = prev;
   }
 });
+
+test('tag filter survives whitespace end-tags and never double-unescapes entities', () => {
+  const t1 = htmlToText('<body><script type="x">evil()</script ><p>Safe text</p></body>');
+  assert.ok(!t1.includes('evil'), 'a "</script >" end tag must still terminate the script block');
+  assert.ok(t1.includes('Safe text'));
+  const t2 = htmlToText('<p>&amp;lt;script&amp;gt; is literal text</p>');
+  assert.ok(t2.includes('&lt;script&gt; is literal text'), '&amp;lt; unescapes once, to the literal &lt;');
+});
