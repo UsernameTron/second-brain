@@ -1650,3 +1650,24 @@ The hazard itself is retired on this branch: the script now inherits the live
 value and requires `DEPLOY_PROVIDER_CHANGE=1` to depart from it. Note the deploy
 script's first-deploy default (`vertex`) differs from what production actually
 runs; inheritance is what keeps that difference harmless.
+
+---
+
+## Superseded 2026-08-19 (moved from HANDOFF.md during the close-out sync)
+
+The 2026-08-18/19 interim observations below were replaced by the consolidated
+current-state block in HANDOFF.md; kept verbatim for the record.
+
+- **Provider flip observation:** revision `agent-canvas-00061-zz4` served 100%
+  with `MODEL_PROVIDER=gemini` (hardening #222: BLOCK_ONLY_HIGH safety,
+  thinking budget 2048, JSON parse routes, per-tier MODEL lamp truth).
+- **Wave observation:** revision `agent-canvas-00062-hfs` served 100% with
+  bundle fingerprints `index-CIrliqYi.css` / `index-CoM3z8Nn.js` matching
+  master through #225 (ICP v7 registry, 16-template roster, #221 UI fixes);
+  sr-icp-connector.fly.dev pinged `sr-icp-v7`; estate-sentinel ICP pins agreed.
+- **2026-08-18 observation:** revision `agent-canvas-00059-hqb` served 100%
+  (#213/#214 activation wiring + content lane; bundle
+  `index-CVFOB6zI.css`/`index-DvYGXaHp.js` = master at `6f09242`, 404 backend /
+  109 frontend tests). Cloud Scheduler `agent-canvas-standing-rules` was PAUSED
+  (operator, 2026-08-17T15:49Z) until the operator-approved resume on
+  2026-08-19.
