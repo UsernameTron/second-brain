@@ -68,6 +68,9 @@ test('the kill switch reads ENABLE_WEB_FETCH', () => {
 test('tag filter survives whitespace end-tags and never double-unescapes entities', () => {
   const t1 = htmlToText('<body><script type="x">evil()</script ><p>Safe text</p></body>');
   assert.ok(!t1.includes('evil'), 'a "</script >" end tag must still terminate the script block');
+  const t1b = htmlToText('<body><script>evil2()</script data-x="y"><p>Also safe</p></body>');
+  assert.ok(!t1b.includes('evil2'), 'an end tag with stray attributes must still terminate the block');
+  assert.ok(t1b.includes('Also safe'));
   assert.ok(t1.includes('Safe text'));
   const t2 = htmlToText('<p>&amp;lt;script&amp;gt; is literal text</p>');
   assert.ok(t2.includes('&lt;script&gt; is literal text'), '&amp;lt; unescapes once, to the literal &lt;');

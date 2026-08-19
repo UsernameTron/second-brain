@@ -67,9 +67,10 @@ async function assertPublicHttpsUrl(rawUrl) {
 // context material for a model, not a render.
 function htmlToText(html) {
   return String(html)
-    // CodeQL js/bad-tag-filter: end tags may carry whitespace ("</script >")
-    .replace(/<script\b[\s\S]*?<\/script\s*>/gi, ' ')
-    .replace(/<style\b[\s\S]*?<\/style\s*>/gi, ' ')
+    // CodeQL js/bad-tag-filter: end tags may carry whitespace or stray
+    // attributes ("</script >", "</script x>") — browsers still honor them.
+    .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, ' ')
+    .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/<(br|\/p|\/div|\/h[1-6]|\/li|\/tr)[^>]*>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
