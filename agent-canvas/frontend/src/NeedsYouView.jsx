@@ -158,8 +158,10 @@ function AttentionCard({ row, agentsById, people, agents, onResolveEscalation, o
   );
 }
 
-export default function NeedsYouView({ rows, userEmail, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onDismiss, onOpenRule }) {
-  const [scope, setScope] = useState('all');
+export default function NeedsYouView({ rows, userEmail, defaultScope = 'all', agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onDismiss, onOpenRule }) {
+  // Members land on Mine — unowned technical noise is the owner's to triage.
+  // The All tab stays one click away; nothing is hidden, only defaulted.
+  const [scope, setScope] = useState(defaultScope);
   const me = String(userEmail || '').toLowerCase();
 
   // Scope is a client-side filter over the one fetched projection: mine =

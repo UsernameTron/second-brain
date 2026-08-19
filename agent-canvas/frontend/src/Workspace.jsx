@@ -1002,8 +1002,14 @@ export default function Workspace() {
   // ---------- render ----------
   const visiblePresence = canvasId ? presence : [];
   const visibleAgents = canvasId ? (state?.agents || []) : [];
+  // Members see only what is theirs by default — unowned technical
+  // escalations are the owner's noise, not the team's. Same predicate as the
+  // Mine scope in NeedsYouView and server/attention.js.
+  const badgeRows = isOwner
+    ? (attention || [])
+    : (attention || []).filter((r) => r.owner.email && r.owner.email.toLowerCase() === String(user.email).toLowerCase());
   const visibleAttentionCount = canvasId
-    ? (needsYouOn ? (attention || []).length : openEscalations.length)
+    ? (needsYouOn ? badgeRows.length : openEscalations.length)
     : 0;
   let sidePanel = null;
   if (canvasId && panel && state) {
@@ -1294,7 +1300,7 @@ export default function Workspace() {
             onClick={() => setView(view === 'needsyou' ? 'canvas' : 'needsyou')}
             title="Everything waiting on a human — escalations, conflicts, overdue reviews, failed runs, alerts, and briefs"
           >
-            Needs you{attention && attention.length ? <span className="tray-badge">{attention.length}</span> : null}
+            Needs you{badgeRows.length ? <span className="tray-badge">{badgeRows.length}</span> : null}
           </button>
         ) : null}
         {roomsOn ? (
@@ -1389,6 +1395,7 @@ export default function Workspace() {
             <NeedsYouView
               rows={attention}
               userEmail={user.email}
+              defaultScope={isOwner ? 'all' : 'mine'}
               agentsById={agentsById}
               people={state.people || []}
               agents={state.agents || []}
@@ -1478,7 +1485,7 @@ export default function Workspace() {
               onResolve={resolveEscalation}
               onAssign={assignEscalation}
               badgeOnly={needsYouOn}
-              badgeCount={needsYouOn ? (attention || []).length : null}
+              badgeCount={needsYouOn ? badgeRows.length : null}
               onOpen={() => setView('needsyou')}
             />
           ) : null}

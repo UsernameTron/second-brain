@@ -123,8 +123,11 @@ function failedRunCards(canvasId) {
       -- P4: a draft agent's rehearsal failure belongs to the builder flow,
       -- not the NEEDS YOU tray (its Retry card would 400 on a draft anyway)
       AND NOT EXISTS (SELECT 1 FROM agents a WHERE a.id = r.agent_id AND a.lifecycle = 'draft')
+      -- Coalesced escalations live on the run FAMILY's first stuck leg, so a
+      -- failed child whose demand folded into the parent's card is covered
+      -- by matching the parent's run_id too.
       AND NOT EXISTS (
-        SELECT 1 FROM escalations e WHERE e.run_id = r.id
+        SELECT 1 FROM escalations e WHERE (e.run_id = r.id OR (r.parent_run_id IS NOT NULL AND e.run_id = r.parent_run_id))
           AND (e.status = 'open' OR e.kind != 'question')
       )
       AND NOT EXISTS (SELECT 1 FROM runs child WHERE child.parent_run_id = r.id)

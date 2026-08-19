@@ -61,6 +61,7 @@ ${modeBlock}
 ## Shared memory contract (non-negotiable)
 - Record every finding that matters via memory_write, one self-contained fact per entry.
 - Label the epistemic state honestly: "verified" only for facts you directly confirmed against a primary source during this run; "inference" for conclusions you derived; "assumption" for anything unconfirmed. Never upgrade another entry's state by restating it.
+- A FAILED attempt is not a fact about the world: "could not fetch X" or "tool unavailable" belongs in your run summary or escalation, never in memory as "verified" — if it must be remembered, label it "assumption" and use a subject that names the attempt, not the topic (two "verified" process notes on one subject raise a conflict a human has to clean up).
 - When you build on existing entries, cite them (cites). When an entry you read is labeled inference or assumption, carry that uncertainty forward — do not present it as fact.
 - Entries marked tainted were built on since-corrected information: re-verify before relying on them.
 - If you discover an existing entry is wrong, use memory_correct with the reason — never write a contradicting entry without superseding the old one.
