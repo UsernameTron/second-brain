@@ -17,17 +17,19 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-resee
 const { db, nowIso, getSetting, setSetting } = require('../server/db');
 const roster = require('../server/roster');
 
-const OLD = roster.LEGACY_ROSTER_PROMPTS.Radar;
-const NEW = roster.ROSTER_AGENTS.find((a) => a.name === 'Radar').system_prompt;
+// v8 changes SCOUT's prompt (web_fetch lane + process-note epistemics), so
+// Scout is the fixture agent this round — the snapshot equals the previously
+// shipped text for every agent, and only changed prompts heal.
+const OLD = roster.LEGACY_ROSTER_PROMPTS.Scout;
+const NEW = roster.ROSTER_AGENTS.find((a) => a.name === 'Scout').system_prompt;
 
-test('the snapshot captured a genuinely earlier Radar prompt', () => {
+test('the snapshot captured a genuinely earlier Scout prompt', () => {
   assert.ok(OLD && NEW, 'both texts exist');
   assert.notEqual(OLD, NEW, 'the prompt actually changed — otherwise re-seed has nothing to prove');
   // Deliberately generic: the snapshot is whatever the last release rendered,
   // so pinning its exact wording forces an edit at every RESEED_KEY bump.
-  assert.ok(NEW.includes('VERSION CHECK'), 'Radar checks the lead finder version rather than naming one');
-  assert.ok(NEW.includes('unverified this run'), 'and has an honest fallback when ping is not enabled');
-  assert.ok(NEW.includes('read_registry(registry: "icp")'), 'exact ICP data comes from the registry tool, not a canvas note');
+  assert.ok(NEW.includes('web_fetch'), 'Scout knows the exact-URL lane');
+  assert.ok(NEW.includes('never a "verified" memory entry'), 'failed fetches are process notes, not facts');
   assert.ok(NEW.includes(require('../server/config/icp-sr-icp-v7.json').icp_version), 'stamped with the loaded registry version');
 });
 
@@ -36,24 +38,24 @@ test('re-seed updates a pristine roster row and its pristine live agents, once',
   db.prepare("INSERT INTO canvases (id, name, created_at) VALUES (?, 'Reseed', ?)").run(canvasId, nowIso());
   roster.seedRoster();
 
-  // Simulate an already-seeded workspace whose Radar still carries the OLD text
+  // Simulate an already-seeded workspace whose Scout still carries the OLD text
   // (both the roster row and a live canvas agent), plus one hand-edited agent.
-  db.prepare("UPDATE roster_agents SET system_prompt = ? WHERE name = 'Radar'").run(OLD);
+  db.prepare("UPDATE roster_agents SET system_prompt = ? WHERE name = 'Scout'").run(OLD);
   const pristineId = crypto.randomUUID();
-  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at) VALUES (?, ?, 'Radar', 'targeting', '#6B4FBB', 'fast', ?, 0, 0, ?)")
+  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at) VALUES (?, ?, 'Scout', 'research', '#2080D0', 'strong', ?, 0, 0, ?)")
     .run(pristineId, canvasId, OLD, nowIso());
-  const EDITED = 'You are Radar. Pete rewrote this by hand — keep it.';
+  const EDITED = 'You are Scout. Pete rewrote this by hand — keep it.';
   const editedId = crypto.randomUUID();
-  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at) VALUES (?, ?, 'Radar', 'targeting', '#6B4FBB', 'fast', ?, 0, 0, ?)")
+  db.prepare("INSERT INTO agents (id, canvas_id, name, role, color, model_tier, system_prompt, x, y, created_at) VALUES (?, ?, 'Scout', 'research', '#2080D0', 'strong', ?, 0, 0, ?)")
     .run(editedId, canvasId, EDITED, nowIso());
 
   // The guard is set by boot in other suites sharing this module; clear it so
   // this test drives the migration itself.
-  setSetting('seed_roster_prompts_v7', '');
+  setSetting('seed_roster_prompts_v8', '');
   const res = roster.reseedRosterPrompts();
 
   assert.equal(res.updated, 1, 'exactly the one pristine live agent updated');
-  assert.equal(db.prepare("SELECT system_prompt FROM roster_agents WHERE name = 'Radar'").get().system_prompt, NEW, 'pristine roster row adopts the new prompt');
+  assert.equal(db.prepare("SELECT system_prompt FROM roster_agents WHERE name = 'Scout'").get().system_prompt, NEW, 'pristine roster row adopts the new prompt');
   assert.equal(db.prepare('SELECT system_prompt FROM agents WHERE id = ?').get(pristineId).system_prompt, NEW, 'pristine live agent follows');
   assert.equal(db.prepare('SELECT system_prompt FROM agents WHERE id = ?').get(editedId).system_prompt, EDITED, 'the hand-edited agent is left verbatim');
 
@@ -122,7 +124,7 @@ Single-lane questions skip the chain: dispatch directly to the right voice.`;
 
   // Simulate an installation that already ran the original PR's prompt v6
   // migration but not this separately versioned companion cleanup.
-  setSetting('seed_roster_prompts_v7', nowIso());
+  setSetting('seed_roster_prompts_v8', nowIso());
   setSetting(roster.COMPANION_RETIRE_KEY, '');
   const result = roster.reseedRosterPrompts();
   assert.equal(result.updated, 0, 'prompt migration remains guarded');
@@ -219,7 +221,7 @@ test('Gauge tools re-seed fills only NULL authority maps', () => {
 test('re-seed does NOT touch a hand-edited roster row', () => {
   const EDITED_ROW = 'You are Radar. Owner-edited roster entry.';
   db.prepare("UPDATE roster_agents SET system_prompt = ? WHERE name = 'Radar'").run(EDITED_ROW);
-  setSetting('seed_roster_prompts_v7', '');
+  setSetting('seed_roster_prompts_v8', '');
   roster.reseedRosterPrompts();
   assert.equal(db.prepare("SELECT system_prompt FROM roster_agents WHERE name = 'Radar'").get().system_prompt, EDITED_ROW,
     'a roster row that no longer matches the previous template is an owner edit — never overwritten');

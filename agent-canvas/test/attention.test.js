@@ -213,3 +213,36 @@ test('dismiss requires canvas edit access and a key', async () => {
     assert.ok([401, 403].includes(res.status));
   }
 });
+
+test('escalations from one handoff family coalesce into a single open card', async () => {
+  // The ccaas-migration failure: parent hands off, child stalls, both legs
+  // and the terminal run each raised a card — five for one stuck article.
+  db.prepare(`INSERT INTO runs (id, canvas_id, agent_id, status, trigger_kind, instruction, step_budget, wall_ms_budget, created_at)
+    VALUES ('run-fam-parent', ?, ?, 'running', 'user', 'rewrite the article', 10, 60000, ?)`).run(canvasId, agentId, nowIso());
+  db.prepare(`INSERT INTO runs (id, canvas_id, agent_id, status, trigger_kind, instruction, step_budget, wall_ms_budget, created_at, parent_run_id)
+    VALUES ('run-fam-child', ?, ?, 'failed', 'handoff', 'fetch the article', 10, 60000, ?, 'run-fam-parent')`).run(canvasId, agentId, nowIso());
+
+  const first = createEscalation({ canvasId, runId: 'run-fam-child', agentId, kind: 'question', question: 'Cannot fetch the article.', context: {} });
+  const second = createEscalation({ canvasId, runId: 'run-fam-parent', agentId, kind: 'question', question: 'Child could not finish.', context: {} });
+  const third = createEscalation({ canvasId, runId: 'run-fam-child', agentId, kind: 'steps', question: 'Out of steps on the same item.', context: {} });
+
+  assert.equal(second.id, first.id, 'parent-leg escalation folds into the child-leg card');
+  assert.equal(third.id, first.id, 'a second child-leg escalation folds too');
+  const open = db.prepare("SELECT * FROM escalations WHERE canvas_id = ? AND status = 'open' AND run_id IN ('run-fam-parent','run-fam-child')").all(canvasId);
+  assert.equal(open.length, 1, 'one open card for the whole family');
+  const ctx = JSON.parse(open[0].context);
+  assert.equal(ctx.updates.length, 2, 'later questions recorded as updates');
+  assert.match(ctx.updates[0].question, /could not finish/i);
+
+  // The failed child run raises no separate failed_run card while the family
+  // card is open — even though the open escalation sits on a different leg.
+  db.prepare("UPDATE escalations SET run_id = 'run-fam-parent' WHERE id = ?").run(first.id);
+  const res = await call('GET', `/api/attention?canvas_id=${canvasId}`);
+  assert.ok(!res.data.attention.some((r) => r.type === 'failed_run' && r.sourceRef.id === 'run-fam-child'),
+    'family-coalesced escalation suppresses the failed-run card');
+
+  // Resolution reopens nothing: a NEW escalation after resolve starts fresh.
+  db.prepare("UPDATE escalations SET status = 'resolved' WHERE id = ?").run(first.id);
+  const fresh = createEscalation({ canvasId, runId: 'run-fam-child', agentId, kind: 'question', question: 'New question after resolve.', context: {} });
+  assert.notEqual(fresh.id, first.id, 'resolved cards never absorb new demands');
+});

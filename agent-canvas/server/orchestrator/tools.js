@@ -344,6 +344,20 @@ const HUBSPOT_TOOLS = [
 // CRM-bound goes through hs_preview_change/hs_apply_change (ADR-0041).
 // Offered only to the lead-gen roles, and only when the deployment is
 // configured — see ENRICHMENT_ROLES below.
+// web_fetch: read ONE public https page as text. web_search is index-based —
+// an uncrawled page (most cloudtechgurus.com posts) is invisible to it, and
+// that gap once turned one article rewrite into five escalations. Research
+// role only, free, read-only; SSRF guards live in server/webfetch.js.
+const WEB_FETCH_TOOL = {
+  name: 'web_fetch',
+  description: 'Fetch one public https page and return its readable text. Use when you have an exact URL (from the user, a search result, or memory) — web_search cannot see pages its index has not crawled. Read-only; no logins, no forms, no internal hosts.',
+  input_schema: {
+    type: 'object',
+    properties: { url: { type: 'string', description: 'the exact https:// URL to read' } },
+    required: ['url'],
+  },
+};
+
 const ENRICHMENT_TOOLS = [
   {
     name: 'enrich_contact',
@@ -732,7 +746,7 @@ function blockedInMode(name, mode) {
 function governedTool(name) {
   return name.startsWith('ws_') || name.startsWith('hs_') || name.startsWith('mcp_')
     || name.startsWith('enrich_') || name === 'verify_email' || name === 'get_enriched_contact'
-    || name === 'web_search';
+    || name === 'web_search' || name === 'web_fetch';
 }
 
 // authority: null = legacy full role surface; an array = the explicit
@@ -806,7 +820,10 @@ function toolsForRole(role, { userRole = 'member', mode = 'act', authority = nul
   // and report "nothing matched" over a CRM nobody is watching. Absent, not
   // inert — the systems board already shows the lamp dark.
   const hubspot = require('../hubspot/opsrunner').configured() ? HUBSPOT_TOOLS : [];
-  return [...COMMON_TOOLS, REGISTRY_TOOL, CONTENT_GATE_TOOL, ...wsRead, ...wsWrite, ...hubspot, ...enrichment, ...mcpDefs]
+  // Research role only — the same lane discipline as web_search, but this is
+  // a real tool (executes server-side), so it works on every provider.
+  const webFetch = require('../webfetch').enabled() && role === 'research' ? [WEB_FETCH_TOOL] : [];
+  return [...COMMON_TOOLS, REGISTRY_TOOL, CONTENT_GATE_TOOL, ...wsRead, ...wsWrite, ...hubspot, ...enrichment, ...webFetch, ...mcpDefs]
     .filter((t) => !blockedInMode(t.name, mode) && allowedByAuthority(t.name, authority));
 }
 
@@ -1298,6 +1315,36 @@ async function executeTool(name, input, ctx) {
       }
     }
 
+    case 'web_fetch': {
+      const webfetch = require('../webfetch');
+      if (!webfetch.enabled()) {
+        return { content: 'Web fetch is switched off on this deployment (ENABLE_WEB_FETCH=0).', isError: true };
+      }
+      if (agent.role !== 'research') {
+        return { content: 'REFUSED: web_fetch is scoped to research agents — hand the URL to the research lane.', isError: true };
+      }
+      // Every attempt is audited, success or failure — a refused/failed fetch
+      // must still leave a trail of where the model tried to go (security
+      // review #2). Query strings are redacted in the audit line: they are
+      // the natural exfiltration channel, and the audit log should not
+      // amplify whatever was smuggled into one.
+      const requested = String((input || {}).url || '').slice(0, 500);
+      const redacted = requested.split('?')[0];
+      try {
+        const out = await webfetch.fetchUrl(requested);
+        audit('agent', agent.id, 'web_fetch', { runId: run.id, url: redacted, ok: true });
+        bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
+        const refId = evidence.recordRef({
+          runId: run.id, sourceKind: 'web', sourceId: out.url,
+          title: out.url, uri: out.url, directedBy: run.initiated_by || null, meta: { tool: name },
+        });
+        return { content: externalContent('web page', `URL: ${out.url}\n\n${out.text}`) + evidence.refMarker(refId) };
+      } catch (err) {
+        audit('agent', agent.id, 'web_fetch', { runId: run.id, url: redacted, ok: false, error: String(err.message || err).slice(0, 200) });
+        return { content: externalContent('web page', String(err.message || err)), isError: true };
+      }
+    }
+
     case 'enrich_contact': case 'enrich_company':
     case 'verify_email': case 'get_enriched_contact': {
       const dispatch = require('../enrichment/dispatch');
@@ -1332,9 +1379,60 @@ async function executeTool(name, input, ctx) {
   }
 }
 
+// A handoff chain is one piece of work spread over parent/child runs — walk
+// to its root so escalations from every leg can be recognized as siblings.
+function rootRunId(runId) {
+  let id = runId;
+  for (let hops = 0; id && hops < 10; hops += 1) {
+    const row = db.prepare('SELECT parent_run_id FROM runs WHERE id = ?').get(id);
+    if (!row || !row.parent_run_id) break;
+    id = row.parent_run_id;
+  }
+  return id || null;
+}
+
+function familyRunIds(runId) {
+  const root = rootRunId(runId);
+  if (!root) return runId ? [runId] : [];
+  const ids = [root];
+  for (let i = 0; i < ids.length && ids.length < 50; i += 1) {
+    for (const child of db.prepare('SELECT id FROM runs WHERE parent_run_id = ?').all(ids[i])) ids.push(child.id);
+  }
+  return ids;
+}
+
 function createEscalation({ canvasId, runId, agentId, kind, question, context }) {
-  const id = crypto.randomUUID();
   const ts = nowIso();
+  // One open escalation per stuck run family. Before this, a stalled handoff
+  // raised a separate card at every leg — the ccaas-migration article rewrite
+  // produced FIVE near-identical questions for one missing page. If any run
+  // in this run's parent/child family already has an OPEN escalation, fold
+  // the new question into it (context.updates, capped) instead of inserting
+  // a sibling. Human-raised or run-less escalations never coalesce.
+  if (runId) {
+    const family = familyRunIds(runId);
+    const existing = family.length
+      ? db.prepare(`SELECT * FROM escalations WHERE canvas_id = ? AND status = 'open' AND run_id IN (${family.map(() => '?').join(',')}) ORDER BY created_at ASC LIMIT 1`)
+        .get(canvasId, ...family)
+      : null;
+    if (existing) {
+      let ctx; try { ctx = JSON.parse(existing.context || '{}'); } catch { ctx = {}; }
+      const updates = Array.isArray(ctx.updates) ? ctx.updates : [];
+      if (updates.length < 8) {
+        updates.push({ at: ts, agentId, kind, question: String(question).slice(0, 400) });
+      }
+      ctx.updates = updates;
+      db.prepare('UPDATE escalations SET context = ? WHERE id = ?').run(JSON.stringify(ctx), existing.id);
+      audit('agent', agentId || 'system', 'escalation.coalesce', { escalationId: existing.id, kind, runId });
+      const escalation = {
+        id: existing.id, canvasId, runId: existing.run_id, agentId: existing.agent_id,
+        kind: existing.kind, question: existing.question, context: ctx, status: 'open', createdAt: existing.created_at,
+      };
+      bus.emit('event', { type: 'escalation', canvasId, escalation });
+      return escalation;
+    }
+  }
+  const id = crypto.randomUUID();
   db.prepare(
     'INSERT INTO escalations (id, canvas_id, run_id, agent_id, kind, question, context, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(id, canvasId, runId, agentId, kind, question, JSON.stringify(context || {}), 'open', ts);

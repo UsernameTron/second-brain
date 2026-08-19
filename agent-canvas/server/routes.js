@@ -2226,9 +2226,15 @@ router.post('/escalations/:id/resolve', asyncRoute(async (req, res) => {
       // escalating agent attached as context — previously dropped on resume.
       const context = JSON.parse(escalation.context || '{}');
       const contextIds = Array.isArray(context.entry_ids) ? context.entry_ids : [];
+      // Coalescing folds sibling questions from the same stuck run family
+      // into context.updates — the resumed run must see them, or those legs'
+      // demands silently vanish with the card (security review #3).
+      const folded = Array.isArray(context.updates) && context.updates.length
+        ? `\nThis card also absorbed ${context.updates.length} related question(s) from the same stuck task — the decision above covers them; address each in your work:\n${context.updates.map((u) => `- ${String(u.question).slice(0, 300)}`).join('\n')}`
+        : '';
       run = dispatchRun({
         agentId, canvasId: escalation.canvas_id,
-        instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}\nHuman decision (${req.user.email}): ${answer}\nThe decision is already recorded as verified memory (entry ${decisionEntry.id}) — do not re-record it. Apply the decision using only your currently granted tools, then complete. Your summary must state exactly what you changed — nothing more.`,
+        instruction: `A human resolved your escalation (escalation_id: ${escalation.id}).\nOriginal question: ${escalation.question}${folded}\nHuman decision (${req.user.email}): ${answer}\nThe decision is already recorded as verified memory (entry ${decisionEntry.id}) — do not re-record it. Apply the decision using only your currently granted tools, then complete. Your summary must state exactly what you changed — nothing more.`,
         triggerKind: 'escalation_resume', actor: req.user.email, initiatedBy: req.user.email,
         // Carry the escalating run as parent so the resume INHERITS its mode —
         // resolving an ask/rehearse run's question must not silently produce

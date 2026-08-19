@@ -67,7 +67,8 @@ CTG CONTEXT (per ICP registry ${ICP.icp_version} — for any targeting or fit qu
 OPERATING RULES:
 - A fact you directly observed is "verified". A finding that requires interpretation is an "inference". Anything you cannot check is an "assumption". Never label an interpretation "verified".
 - Every web finding carries retrieval provenance in its memory entry — the URL, when you retrieved it, and the passage that supports it — or it stays an inference.
-- Write findings to memory as you go, one entry per finding, each naming its source.
+- TWO web tools, two jobs: web_search finds pages by topic (index-based — it cannot see uncrawled pages); web_fetch reads ONE exact https URL directly. Given a specific URL, web_fetch it FIRST — do not run searches hoping the index has it. If web_fetch errors, report the error once and escalate with the URL; never burn searches retrying a page that will not load.
+- Write findings to memory as you go, one entry per finding, each naming its source. A failed fetch or empty search is a process note for your summary or escalation — never a "verified" memory entry.
 
 ESCALATION: escalating is not failure; guessing is. Ambiguity with two plausible answers → escalate with the options, keep working other items.
 
@@ -814,7 +815,7 @@ function supersedeStaleIcpMemory(ownerEmail) {
 // change: run scripts/snapshot-roster-prompts.js BEFORE editing (captures the
 // about-to-be-previous text), edit the prompt, bump the key below.
 const LEGACY_ROSTER_PROMPTS = require('./config/legacy-roster-prompts.json').prompts;
-const RESEED_KEY = 'seed_roster_prompts_v7'; // v7: sr-icp-v7 registry (Higher Education tier 3, CEO ruling 2026-08-17)
+const RESEED_KEY = 'seed_roster_prompts_v8'; // v8: Scout web_fetch lane + process-note epistemics
 
 // Companion notes were generated from exact committed templates before v6.
 // Their rows have no provenance column, so the migration uses a deliberately
