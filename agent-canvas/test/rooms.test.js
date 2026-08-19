@@ -294,3 +294,25 @@ test('archive is lossless and flips room + canvas together', async () => {
   assert.equal(back.sections.work.tasks.length, 1);
   assert.equal(back.refreshes.length, 1);
 });
+
+test('room create accepts member_emails: players see the room immediately', async () => {
+  // Demo bug (2026-08-17): rooms Pete created never appeared for Fred — the
+  // restricted canvas got zero members and no UI could add one. The create
+  // route now takes the players up front.
+  const bad = await call(ownerCookie, 'POST', '/api/rooms', { name: 'Bad members', room_type: 'deal', member_emails: ['nobody@example.com'] });
+  assert.equal(bad.status, 400);
+
+  const created = await call(ownerCookie, 'POST', '/api/rooms', {
+    name: 'Hunter Douglas deal', room_type: 'deal', member_emails: ['fred@cloudtechgurus.com', 'FRED@cloudtechgurus.com'],
+  });
+  assert.equal(created.status, 200);
+  const rid = created.data.room.id;
+  const cid = created.data.room.canvasId;
+  // Deduped, lowercased, edit access.
+  const members = db.prepare('SELECT user_email, access FROM canvas_members WHERE canvas_id = ?').all(cid);
+  assert.deepEqual(members, [{ user_email: 'fred@cloudtechgurus.com', access: 'edit' }]);
+  // Fred sees the room in the list and can open it — no separate grant step.
+  const listed = await call(outsiderCookie, 'GET', '/api/rooms');
+  assert.ok(listed.data.rooms.some((r) => r.id === rid));
+  assert.equal((await call(outsiderCookie, 'GET', `/api/rooms/${rid}`)).status, 200);
+});

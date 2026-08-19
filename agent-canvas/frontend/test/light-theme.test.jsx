@@ -126,4 +126,22 @@ describe('light-theme CSS contracts', () => {
       expect(contrast(foreground, background), `${name} contrast on --bg1`).toBeGreaterThanOrEqual(4.5);
     }
   });
+
+  it('themes error/warning text and accents through tokens defined in BOTH themes', () => {
+    // 2026-08-17 demo: dark-red/brown literals picked for the light theme were
+    // near-invisible on dark grounds, and --accent was referenced but never
+    // defined, so per-rule hex fallbacks won everywhere.
+    for (const literal of ['#a32b20', '#9a4a0b', 'var(--accent,', 'background: #fff']) {
+      expect(css, `stale literal ${literal} must not return`).not.toContain(literal);
+    }
+    const root = variables(':root');
+    const dark = variables('[data-theme="dark"]');
+    for (const name of ['--accent', '--red', '--magenta']) {
+      expect(resolve(root[name], root), `${name} in :root`).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(resolve(dark[name] ?? root[name], { ...root, ...dark }), `${name} in dark`).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+    expect(declaration(rule('.signin-error'), 'color')).toBe('var(--red)');
+    expect(declaration(rule('.tray.has-items .tray-head'), 'color')).toBe('var(--magenta)');
+    expect(declaration(rule('.topbar .canvas-switch option'), 'background')).toBe('var(--surface-solid)');
+  });
 });

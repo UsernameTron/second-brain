@@ -712,14 +712,22 @@ router.post('/rooms', auth.requireOwner, (req, res) => {
   const roomType = req.body.room_type;
   if (!rooms.ROOM_TYPES.includes(roomType)) return res.status(400).json({ error: `room_type must be one of ${rooms.ROOM_TYPES.join(', ')}` });
   const rosterIds = Array.isArray(req.body.roster_ids) ? req.body.roster_ids : [];
+  const memberEmails = Array.isArray(req.body.member_emails)
+    ? [...new Set(req.body.member_emails.map((e) => String(e).toLowerCase().trim()).filter(Boolean))]
+    : [];
+  const badMember = memberEmails.find((email) => !auth.allowlistEntry(email));
+  if (badMember) return res.status(400).json({ error: `member must be on the workspace allowlist: ${badMember}` });
   const canvasId = crypto.randomUUID();
   const roomId = crypto.randomUUID();
   try {
-    // Canvas (restricted by default), staffing, and the room record land
-    // atomically — a Room never exists without its canvas or vice versa.
+    // Canvas (restricted by default), staffing, members, and the room record
+    // land atomically — a Room never exists without its canvas or vice versa.
     tx(() => {
       db.prepare('INSERT INTO canvases (id, name, description, access_mode, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
         .run(canvasId, name, req.body.description || '', 'restricted', req.user.email, nowIso());
+      for (const email of memberEmails) {
+        db.prepare('INSERT INTO canvas_members (canvas_id, user_email, access) VALUES (?, ?, ?)').run(canvasId, email, 'edit');
+      }
       for (const rosterId of rosterIds) {
         roster.instantiateOnCanvas({ canvasId, rosterId, actor: req.user.email });
       }
@@ -729,7 +737,7 @@ router.post('/rooms', auth.requireOwner, (req, res) => {
   } catch (err) {
     return res.status(err.status || 400).json({ error: err.message });
   }
-  audit('user', req.user.email, 'room.create', { roomId, canvasId, roomType, roster: rosterIds.length });
+  audit('user', req.user.email, 'room.create', { roomId, canvasId, roomType, roster: rosterIds.length, members: memberEmails.length });
   bus.emit('event', { type: 'canvas_structure', canvasId });
   res.json({ room: rooms.getRoom(roomId) });
 });
@@ -2099,6 +2107,22 @@ router.get('/attention', (req, res) => {
       .filter((id) => auth.canAccessCanvas(req.user, id).ok);
   }
   res.json({ attention: attention.listAttention({ email: req.user.email, scope, canvasIds }), scope });
+});
+
+// Dismiss a projected NEEDS YOU card (memory conflict, overdue review, failed
+// run). The key is the card's own dismissKey — opaque, canvas-scoped, and only
+// hides the exact card it names; the source record is untouched and a new
+// conflict pair / review date / run surfaces again. Idempotent.
+router.post('/attention/dismiss', (req, res) => {
+  const canvasId = String(req.body.canvas_id || '');
+  const key = String(req.body.key || '').slice(0, 300);
+  if (!canvasId || !key) return res.status(400).json({ error: 'canvas_id and key required' });
+  const check = auth.canEditCanvas(req.user, canvasId);
+  if (!check.ok) return res.status(check.status).json({ error: check.error });
+  db.prepare('INSERT INTO attention_dismissals (canvas_id, key, dismissed_by, dismissed_at) VALUES (?, ?, ?, ?) ON CONFLICT(canvas_id, key) DO NOTHING')
+    .run(canvasId, key, req.user.email, nowIso());
+  audit('user', req.user.email, 'attention.dismiss', { canvasId, key });
+  res.json({ ok: true });
 });
 
 // P2: assign an open escalation to a person (allowlisted email) or an agent,

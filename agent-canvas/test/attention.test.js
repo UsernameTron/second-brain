@@ -175,3 +175,41 @@ test('workspace-wide listing covers accessible canvases without canvas_id', asyn
   assert.equal(res.status, 200);
   assert.ok(res.data.attention.some((r) => r.sourceRef.canvasId === canvasId));
 });
+
+test('projected cards can be dismissed: hidden, idempotent, source untouched', async () => {
+  const res = await call('GET', `/api/attention?canvas_id=${canvasId}`);
+  const conflict = res.data.attention.find((r) => r.type === 'conflict');
+  assert.ok(conflict, 'expected a conflict card');
+  assert.ok(conflict.dismissKey, 'projected cards carry a dismissKey');
+  assert.ok(conflict.actions.includes('dismiss'));
+
+  const dismissed = await call('POST', '/api/attention/dismiss', { canvas_id: canvasId, key: conflict.dismissKey });
+  assert.equal(dismissed.status, 200);
+  // Hidden from the projection…
+  const after = await call('GET', `/api/attention?canvas_id=${canvasId}`);
+  assert.ok(!after.data.attention.some((r) => r.dismissKey === conflict.dismissKey));
+  // …but the source record is untouched: the conflict endpoint still reports it.
+  const conflicts = await call('GET', `/api/canvases/${canvasId}/memory/conflicts`);
+  const pair = [conflict.sourceRef.id, conflict.sourceRef.secondId].sort();
+  assert.ok(conflicts.data.conflicts.some((c) => {
+    const p = c.entries.map((e) => e.id).sort();
+    return p[0] === pair[0] && p[1] === pair[1];
+  }));
+  // Idempotent.
+  assert.equal((await call('POST', '/api/attention/dismiss', { canvas_id: canvasId, key: conflict.dismissKey })).status, 200);
+  // Escalations keep their source-record path — no dismissKey on them.
+  assert.ok(res.data.attention.filter((r) => r.type === 'escalation').every((r) => !r.dismissKey));
+});
+
+test('dismiss requires canvas edit access and a key', async () => {
+  assert.equal((await call('POST', '/api/attention/dismiss', { canvas_id: canvasId })).status, 400);
+  const outsider = await signIn('outsider-dismiss@cloudtechgurus.com').catch(() => null);
+  if (outsider) {
+    const res = await fetch(`${base}/api/attention/dismiss`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: outsider },
+      body: JSON.stringify({ canvas_id: canvasId, key: 'x' }),
+    });
+    assert.ok([401, 403].includes(res.status));
+  }
+});

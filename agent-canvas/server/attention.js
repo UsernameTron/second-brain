@@ -81,7 +81,7 @@ function conflictCards(canvasId) {
     context: c.entries.map((e) => `"${String(e.content).slice(0, 120)}"`).join(' vs '),
     consequence: 'Agents citing this subject may build on the wrong version.',
     recommendation: 'Correct the entry that is wrong; supersession keeps the loser on record.',
-    actions: ['correct'],
+    actions: ['correct', 'dismiss'],
     sourceRef: { kind: 'memory_conflict', id: c.entries[0].id, secondId: c.entries[1].id, canvasId },
     // The pair is id-ordered, not time-ordered: the newer entry is what
     // CREATED the conflict, so the card sorts by it.
@@ -102,7 +102,7 @@ function overdueReviewCards(canvasId, nowIsoStr) {
     consequence: 'Stale entries keep informing answers as if current.',
     recommendation: 'Re-affirm with a new review date, or correct it.',
     due: m.review_at,
-    actions: ['review'],
+    actions: ['review', 'dismiss'],
     sourceRef: { kind: 'memory_entry', id: m.id, canvasId: m.canvas_id },
     createdAt: m.created_at,
   }));
@@ -147,7 +147,7 @@ function failedRunCards(canvasId) {
     consequence: 'The work it was asked to do did not happen.',
     recommendation: 'Retry it, or rephrase the instruction if the failure looks structural.',
     owner: { agentId: r.agent_id },
-    actions: ['retry'],
+    actions: ['retry', 'dismiss'],
     sourceRef: { kind: 'run', id: r.id, canvasId: r.canvas_id },
     createdAt: r.created_at,
   }));
@@ -212,14 +212,28 @@ function standingRuleCards(canvasId) {
   });
 }
 
+// A projected card (no backing record state of its own) earns a stable,
+// opaque dismissal key. The key encodes exactly what makes the card THIS
+// card — a new conflict pair, a new review date, or a new run resurfaces.
+// Escalations and rule runs have source-record acks and get no key.
+function dismissKey(c) {
+  if (c.type === 'conflict') return `conflict:${[c.sourceRef.id, c.sourceRef.secondId].sort().join('+')}`;
+  if (c.type === 'overdue_review') return `overdue_review:${c.sourceRef.id}@${c.due}`;
+  if (c.type === 'failed_run') return `failed_run:${c.sourceRef.id}`;
+  return null;
+}
+
 function canvasAttention(canvasId, nowIsoStr, scopeOpts) {
+  const dismissed = new Set(db.prepare('SELECT key FROM attention_dismissals WHERE canvas_id = ?').all(canvasId).map((r) => r.key));
   return [
     ...escalationCards(canvasId, scopeOpts),
     ...conflictCards(canvasId),
     ...overdueReviewCards(canvasId, nowIsoStr),
     ...failedRunCards(canvasId),
     ...standingRuleCards(canvasId),
-  ];
+  ]
+    .map((c) => ({ ...c, dismissKey: dismissKey(c) }))
+    .filter((c) => !c.dismissKey || !dismissed.has(c.dismissKey));
 }
 
 // scope: 'mine' = owned by this email; 'team' = owned by someone/something
@@ -235,3 +249,4 @@ function listAttention({ email, scope = 'all', canvasIds, now = new Date().toISO
 }
 
 module.exports = { listAttention };
+
