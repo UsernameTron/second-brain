@@ -342,6 +342,53 @@ test('a bullet-masked ANTHROPIC_API_KEY shows a named down lamp, not a deep SDK 
   }
 });
 
+test('the model lamp is probe-gated: configured + failed probe reads down, not green', async () => {
+  // Lamps never fake green: MODEL used to be status-green from config
+  // presence alone even while its recorded probe evidence said FAILED.
+  const prevKey = process.env.ANTHROPIC_API_KEY;
+  const prevProvider = process.env.MODEL_PROVIDER;
+  process.env.ANTHROPIC_API_KEY = 'sk-ant-test-not-real';
+  process.env.MODEL_PROVIDER = 'anthropic';
+  const probestate = require('../server/probestate');
+  const express = require('express');
+  const app = express();
+  app.use(express.json());
+  app.use('/api', require('../server/routes'));
+  db.prepare("INSERT OR IGNORE INTO allowlist (email, role, display_name, added_by, added_at) VALUES ('pete@cloudtechgurus.com', 'owner', 'Pete', 'test', '')").run();
+  const server = app.listen(0);
+  await new Promise((r) => server.once('listening', r));
+  try {
+    const auth = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/dev`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'pete@cloudtechgurus.com' }),
+    });
+    const cookie = auth.headers.get('set-cookie').split(';')[0];
+    const lamp = async () => {
+      const res = await fetch(`http://127.0.0.1:${server.address().port}/api/health/integrations`, { headers: { cookie } });
+      return (await res.json()).integrations.find((i) => i.id === 'model');
+    };
+    // configured, never probed -> amber, not green
+    let model = await lamp();
+    assert.equal(model.status, 'attention', 'config presence alone must not be green');
+    assert.match(model.detail, /unprobed/i);
+    // successful probe -> green with the measurement
+    probestate.record('model', { ok: true, ms: 12 });
+    model = await lamp();
+    assert.equal(model.status, 'ready');
+    assert.match(model.detail, /Probe OK \(12ms\)/);
+    // failed probe -> down with the named error, config still present
+    probestate.record('model', { ok: false, error: 'quota exhausted' });
+    model = await lamp();
+    assert.equal(model.status, 'down', 'a failed model probe must not leave the lamp green');
+    assert.match(model.detail, /quota exhausted/);
+  } finally {
+    server.close();
+    probestate._state.delete('model');
+    if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = prevKey;
+    if (prevProvider === undefined) delete process.env.MODEL_PROVIDER; else process.env.MODEL_PROVIDER = prevProvider;
+  }
+});
+
 test('agent system-prompt edits are owner-only and audited (finding 11)', async () => {
   const crypto = require('node:crypto');
   const { nowIso } = require('../server/db');

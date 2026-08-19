@@ -258,7 +258,7 @@ router.get('/health/integrations', (req, res) => {
   // (process lifetime — a restart honestly forgets).
   const provenStatus = (id) => {
     const p = probestate.get(id);
-    if (!p) return { status: 'attention', note: ' Configured but unprobed this process — Probe to earn green.' };
+    if (!p) return { status: 'attention', note: ' Unprobed — press Probe to earn green.' };
     if (!p.ok) return { status: 'down', note: ` Last probe FAILED: ${p.error}` };
     return { status: 'ready', note: ` Probe OK (${p.ms}ms).` };
   };
@@ -266,7 +266,7 @@ router.get('/health/integrations', (req, res) => {
     if (id === 'gmail' && standardMode) {
       return {
         id, label, probe: false, status: 'planned',
-        detail: 'Disabled: GOOGLE_WORKSPACE_SCOPES=standard drops the restricted Gmail scopes so Connect works without Google\'s tester list. Flip to full after verification or the org move.',
+        detail: 'Gmail off in standard mode — flip GOOGLE_WORKSPACE_SCOPES to full after verification or the org move.',
       };
     }
     const proven = connected ? provenStatus(id) : null;
@@ -274,9 +274,9 @@ router.get('/health/integrations', (req, res) => {
       id, label, probe: probe && oauth && connected,
       status: !oauth ? 'planned' : (connected ? proven.status : 'attention'),
       detail: !oauth
-        ? 'OAuth client not configured on this deployment — see docs/DEPLOY.md.'
-        : (connected ? `Connected as you. Agents you direct act with your permissions.${id === 'drive' && standardMode ? ' Standard scopes: Drive is limited to files the app creates.' : ''}${proven.note}`
-                     : 'Your Google account is not connected — Capabilities → Connect.'),
+        ? 'Not set up on this deployment (docs/DEPLOY.md).'
+        : (connected ? `Connected as you — agents use your permissions.${id === 'drive' && standardMode ? ' Limited to files the app creates.' : ''}${proven.note}`
+                     : 'Not connected — click Connect in Capabilities.'),
     };
   };
   let chainOk = true;
@@ -287,15 +287,17 @@ router.get('/health/integrations', (req, res) => {
   const integrations = [
     {
       id: 'model', label: `MODEL · ${provider.toUpperCase()}`, probe: modelConfigured,
-      status: modelConfigured ? 'ready' : 'down',
+      // Probe-gated like every other lamp (lamps never fake green): config
+      // presence alone reads amber until a probe earns green, and a failed
+      // model probe turns the lamp red instead of leaving it green.
+      status: modelConfigured ? provenStatus('model').status : 'down',
       detail: modelConfigured
-        // Live per-tier truth (lamps never fake green): tierConfig follows
-        // MODEL_PROVIDER and the FAST/STRONG_PROVIDER overrides, so a Gemini
-        // or mixed fleet reads as what is actually serving.
-        ? `${tierConfig('fast').model} (fast, ${tierConfig('fast').provider}) / ${tierConfig('strong').model} (strong, ${tierConfig('strong').provider})`
+        // Live per-tier truth: tierConfig follows MODEL_PROVIDER and the
+        // FAST/STRONG_PROVIDER overrides, so a mixed fleet reads honestly.
+        ? `${tierConfig('fast').model} (fast) / ${tierConfig('strong').model} (strong) via ${tierConfig('strong').provider}.${provenStatus('model').note}`
         : (keyCorrupted
-          ? 'ANTHROPIC_API_KEY contains non-ASCII characters (e.g. \u2022 bullets from a masked terminal paste) — the stored secret is not the real key. Re-add the secret version with the actual key and roll a new revision.'
-          : 'No model credential: set VERTEX_PROJECT_ID (keyless) or ANTHROPIC_API_KEY. Every agent run fails until this is set.'),
+          ? 'Model key is broken — re-add the secret with the real key (non-ASCII characters, e.g. \u2022 bullets from a masked terminal paste).'
+          : 'No model connected — set VERTEX_PROJECT_ID or ANTHROPIC_API_KEY. Agents cannot run.'),
     },
     wsSurface('gmail', 'GMAIL', true),
     wsSurface('drive', 'DRIVE / DOCS', true),
@@ -304,32 +306,32 @@ router.get('/health/integrations', (req, res) => {
     {
       id: 'audit', label: 'AUDIT CHAIN',
       status: chainOk ? 'ready' : 'down',
-      detail: chainOk ? 'Hash chain tail verified just now (full walk runs on the audit view).' : 'AUDIT CHAIN BROKEN — records were altered or lost. Investigate before trusting any log.',
+      detail: chainOk ? 'Tamper check passed just now.' : 'AUDIT LOG BROKEN — records altered or lost. Do not trust it; investigate.',
     },
     {
       id: 'db', label: 'DATABASE',
       status: replicated ? 'ready' : (process.env.NODE_ENV === 'production' ? 'attention' : 'ready'),
-      detail: replicated ? 'SQLite replicated continuously to Cloud Storage (Litestream).'
-        : (process.env.NODE_ENV === 'production' ? 'PRODUCTION WITHOUT REPLICATION — a container restart loses data.' : 'Local dev disk — replication applies on Cloud Run.'),
+      detail: replicated ? 'Every change backed up to the cloud within seconds.'
+        : (process.env.NODE_ENV === 'production' ? 'NO BACKUP — a restart loses data.' : 'Local disk (dev) — cloud backup applies on Cloud Run.'),
     },
     {
       id: 'websearch', label: 'WEB SEARCH',
       status: process.env.ENABLE_WEB_SEARCH === '0' ? 'planned' : 'ready',
-      detail: process.env.ENABLE_WEB_SEARCH === '0' ? 'Disabled by ENABLE_WEB_SEARCH=0.' : 'Research agents can search with citations; $10/1k searches, metered per run.',
+      detail: process.env.ENABLE_WEB_SEARCH === '0' ? 'Switched off (ENABLE_WEB_SEARCH=0).' : 'Research agents can search the web with citations ($10 per 1,000 searches).',
     },
     {
       id: 'hubspot', label: 'HUBSPOT · OPS RUNNER', probe: opsrunner.configured(),
       status: opsrunner.configured() ? provenStatus('hubspot').status : 'planned',
       detail: opsrunner.configured()
-        ? `Wired to ctg-hs-ops-runner (sandbox portal 246460341 — real CRM unreachable by design). Reads free; changes preview-first, applied only after human approval.${provenStatus('hubspot').note}`
-        : 'Not wired — set HS_OPS_RUNNER_URL and grant run.invoker to the canvas service account (see docs/DEPLOY.md).',
+        ? `HubSpot connected (practice portal — real CRM unreachable by design). Reads free; changes need human approval.${provenStatus('hubspot').note}`
+        : 'Not wired — set HS_OPS_RUNNER_URL (docs/DEPLOY.md).',
     },
     {
       id: 'enrichment', label: 'ENRICHMENT · DISPATCH', probe: require('./enrichment/dispatch').configured(),
       status: require('./enrichment/dispatch').configured() ? provenStatus('enrichment').status : 'planned',
       detail: require('./enrichment/dispatch').configured()
-        ? `Wired to enrichment-dispatch (IAM client, keyless). Reads free (get_enriched_contact); paid enrichment spends real credits, research/targeting/commercial agents only, never on system-triggered runs.${provenStatus('enrichment').note}`
-        : 'Not wired — ED_DISPATCH_URL unset (held dark until the owner lights it; see HANDOFF).',
+        ? `Contact lookups connected. Reads free; paid enrichment spends real credits, only when a person directs it.${provenStatus('enrichment').note}`
+        : 'Not wired — ED_DISPATCH_URL unset (see HANDOFF).',
     },
     // P5: the scheduling lane. Without it a rule can be written, rehearsed,
     // activated and displayed as "active · next 08:00" while NOTHING will ever
@@ -342,12 +344,12 @@ router.get('/health/integrations', (req, res) => {
       const id = 'standing_rules';
       const label = 'STANDING RULES · TICK';
       if (!standingRules.flagOn()) {
-        return { id, label, status: 'planned', detail: 'Switched off: setSetting(\'standing_rules\',\'0\'). The nav is hidden and the tick no-ops before a rule row is read — the no-deploy rollback.' };
+        return { id, label, status: 'planned', detail: 'Switched off by the owner (setSetting standing_rules=0 — the no-deploy rollback).' };
       }
       if (!process.env.TICK_AUDIENCE || !process.env.TICK_INVOKER_SA) {
         return {
           id, label, status: 'planned',
-          detail: 'Declared, NOT wired: TICK_AUDIENCE / TICK_INVOKER_SA unset on this revision, so POST /api/standing-rules/tick 503s every scheduled caller. Rules can still be written, rehearsed and activated — and none of them will ever run. Set both vars (deploy/deploy.sh passes them through) and create the Cloud Scheduler job.',
+          detail: 'Not wired — TICK_AUDIENCE / TICK_INVOKER_SA unset, so scheduled rules can never run (deploy/deploy.sh passes them through; create the Cloud Scheduler job).',
         };
       }
       const last = standingRules.lastSchedulerTick();
@@ -357,34 +359,35 @@ router.get('/health/integrations', (req, res) => {
       return {
         id, label, status: stale ? 'attention' : 'ready',
         detail: last
-          ? `Last scheduler-signed tick ${last}.${stale ? ' NO TICK IN OVER 6 HOURS — check the Cloud Scheduler job; nothing has been dispatched since.' : ''}`
-          : 'Configured, but no scheduler-signed tick has ever reached this deployment — the Cloud Scheduler job may not exist. Env presence is not evidence; a manual owner tick does not count.',
+          ? (stale ? `NOTHING HAS RUN IN 6+ HOURS — the schedule is paused or stuck. Last check ${last}.`
+                   : `Running on schedule — last check ${last}.`)
+          : 'Waiting for its first scheduled run — the Cloud Scheduler job may not exist yet.',
       };
     })(),
     ...(mcp.configError() ? [{
       id: 'mcp', label: 'MCP CONFIG',
       status: 'down',
-      detail: `MCP configuration failed to parse: ${mcp.configError()} — no connector is active until this is fixed.`,
+      detail: `Connector settings failed to load: ${mcp.configError()} — all connectors off until fixed.`,
     }] : (mcp.listServers().length ? mcp.listServers().map((srv) => {
       const refused = (mcp.refusedToolReport().find((r) => r.server === srv.name) || {}).tools || [];
       // Amber, not red: the connector works and every read tool it was given
       // is live. Amber says "your intent was partly denied, come look" —
       // the honest colour for a partial refusal.
       const refusalNote = refused.length
-        ? ` ${refused.length} tool(s) refused as writes (${refused.join(', ')}) — connectors are read lanes; CRM writes go through the ops-runner preview/apply lane.`
+        ? ` ${refused.length} write tool(s) blocked (${refused.join(', ')}) — changes go through the approval lane.`
         : '';
       const proven = provenStatus(`mcp:${srv.name}`);
       return {
         id: `mcp:${srv.name}`, label: `MCP · ${srv.name.toUpperCase()}`, probe: true,
         status: refused.length ? 'attention' : (srv.enabledTools.length ? proven.status : 'attention'),
         detail: (srv.enabledTools.length
-          ? `${srv.enabledTools.length} tool(s) enabled by the owner: ${srv.enabledTools.join(', ')}. Third-party tools do what their server says they do — every call is audited.${proven.note}`
-          : 'Server configured but no tools enabled — nothing is exposed to agents until the owner names tools in enabledTools.') + refusalNote,
+          ? `${srv.enabledTools.length} tool(s) on: ${srv.enabledTools.join(', ')}. Every call is audited.${proven.note}`
+          : 'Connected but off — tick tools in Admin to turn it on.') + refusalNote,
       };
     }) : [{
       id: 'mcp', label: 'MCP CONNECTORS',
       status: 'planned',
-      detail: 'No connectors configured. Set MCP_SERVERS (or config/mcp.json) with per-tool enablement — see docs/DEPLOY.md.',
+      detail: 'No connectors configured (docs/DEPLOY.md).',
     }])),
   ];
   const rank = { down: 3, attention: 2, ready: 1, planned: 0 };
