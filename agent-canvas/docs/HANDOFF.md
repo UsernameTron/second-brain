@@ -1,4 +1,22 @@
-# Agent Canvas — Current Handoff (2026-08-18)
+# Agent Canvas — Current Handoff (2026-08-19)
+
+## Provider flip (2026-08-19)
+
+**Live-proven at 2026-08-19:** revision `agent-canvas-00061-zz4` serves 100%
+of traffic with `MODEL_PROVIDER=gemini` — Gemini on Vertex, keyless ADC,
+inside the GCP perimeter. `/api/config` reports
+`gemini-2.5-flash` (fast) / `gemini-2.5-pro` (strong); `/api/healthz` 200;
+zero ERROR logs post-deploy. Hardening merged as #222: BLOCK_ONLY_HIGH
+safety settings, thinking budget 2048, explicit `responseFormat:'json'` on
+the four parse routes, MODEL lamp/config read per-tier `tierConfig()` truth.
+
+**Deliberate state, not cruft:** the `ANTHROPIC_API_KEY` secret binding stays
+mounted — it is the one-env-flip fallback (`MODEL_PROVIDER=anthropic`).
+**Known regressions on Gemini tiers:** no web search (Scout; standing rules
+with web sources refuse to activate) — fallback lever `STRONG_PROVIDER=vertex`
+(Claude-on-Vertex, requires Model Garden enablement); no prompt-cache
+discount; no cross-provider refusal fallback. **Outstanding:** signed-in
+model probe + journey re-check on Gemini (provider-specific per DEPLOY.md).
 
 This file is the concise current-state authority. Historical implementation and
 incident detail lives in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); phase intent
