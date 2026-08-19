@@ -156,10 +156,10 @@ function withCacheMarkers({ system, messages }) {
 // One model call. On a safety-classifier refusal (stop_reason "refusal"),
 // retries once on the fallback model; if that also refuses, the caller sees
 // stop_reason "refusal" and escalates.
-async function callModel({ provider = currentProvider(), model, system, messages, tools, maxTokens = 8192, signal }) {
+async function callModel({ provider = currentProvider(), model, system, messages, tools, maxTokens = 8192, signal, responseFormat }) {
   if (provider === 'gemini') {
     const { callGemini } = require('./gemini');
-    return callGemini({ model, system, messages, tools, maxTokens, signal });
+    return callGemini({ model, system, messages, tools, maxTokens, signal, responseFormat });
   }
   const anthropic = getClient(provider);
   const onVertex = provider === 'vertex';
