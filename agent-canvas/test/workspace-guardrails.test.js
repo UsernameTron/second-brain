@@ -500,3 +500,51 @@ test('a transient refresh failure never deletes the grant', async () => {
   assert.ok(db.prepare('SELECT 1 FROM google_tokens WHERE user_email = ?').get(email),
     'a 5xx is transient — the grant must survive it');
 });
+
+// ---------- calendar search (the "why is this on my calendar" case) ----------
+test('calendarList searches by text across all time, and can read a shared calendar', async () => {
+  const email = 'cal@cloudtechgurus.com';
+  db.prepare("INSERT OR REPLACE INTO google_tokens (user_email, refresh_token_enc, scopes, connected_at, updated_at) VALUES (?, ?, '', '', '')")
+    .run(email, ws._internal.encrypt('refresh'));
+  const seen = [];
+  const realFetch = global.fetch;
+  global.fetch = async (url) => {
+    const u = new URL(String(url));
+    if (u.hostname === 'oauth2.googleapis.com') return { ok: true, status: 200, json: async () => ({ access_token: 'at', expires_in: 3600 }) };
+    seen.push(u);
+    return { ok: true, status: 200, json: async () => ({ items: [{
+      id: 'e1', summary: 'CCE happy hour', start: {}, end: {},
+      description: 'Pre-conference hold', organizer: { email: 'jess@cloudtechgurus.com' },
+    }] }) };
+  };
+  try {
+    const out = await ws.calendarList({ email, q: 'CCE happy hour', calendarId: 'jess@cloudtechgurus.com' });
+    // the description and organizer are what answer "why is this here"
+    assert.equal(out[0].description, 'Pre-conference hold');
+    assert.equal(out[0].organizer, 'jess@cloudtechgurus.com');
+  } finally { global.fetch = realFetch; }
+  const call = seen[0];
+  assert.equal(call.searchParams.get('q'), 'CCE happy hour');
+  // a search must span all time — a now-floor would hide the event being asked about
+  assert.equal(call.searchParams.get('timeMin'), null);
+  assert.ok(call.pathname.includes(encodeURIComponent('jess@cloudtechgurus.com')), 'must target the named calendar');
+});
+
+test('an unbounded list starts from now, not the calendar’s oldest event', async () => {
+  const email = 'cal2@cloudtechgurus.com';
+  db.prepare("INSERT OR REPLACE INTO google_tokens (user_email, refresh_token_enc, scopes, connected_at, updated_at) VALUES (?, ?, '', '', '')")
+    .run(email, ws._internal.encrypt('refresh'));
+  const seen = [];
+  const realFetch = global.fetch;
+  global.fetch = async (url) => {
+    const u = new URL(String(url));
+    if (u.hostname === 'oauth2.googleapis.com') return { ok: true, status: 200, json: async () => ({ access_token: 'at', expires_in: 3600 }) };
+    seen.push(u);
+    return { ok: true, status: 200, json: async () => ({ items: [] }) };
+  };
+  try { await ws.calendarList({ email }); } finally { global.fetch = realFetch; }
+  const tmin = seen[0].searchParams.get('timeMin');
+  assert.ok(tmin, 'orderBy=startTime with no floor returns ancient events — a default timeMin is required');
+  assert.ok(Math.abs(Date.parse(tmin) - Date.now()) < 60_000, 'default floor should be ~now');
+  assert.ok(seen[0].pathname.includes('primary'), 'default calendar is the user’s own');
+});

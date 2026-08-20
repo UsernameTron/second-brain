@@ -229,8 +229,8 @@ const WORKSPACE_READ_TOOLS = [
   },
   {
     name: 'ws_calendar_list',
-    description: 'List the directing user\'s calendar events (ISO timeMin/timeMax optional).',
-    input_schema: { type: 'object', properties: { time_min: { type: 'string' }, time_max: { type: 'string' }, limit: { type: 'integer' } }, required: [] },
+    description: 'Search or list calendar events. Use `query` to find an event by name/description/location/attendee across all time (e.g. why an event is on the calendar) — that is almost always right for a question about a SPECIFIC event, and beats listing a window and scanning. Without a query, lists upcoming events from now. `calendar_id` reads another calendar the directing user can already see (a colleague\'s email, a room, a team calendar); default is their own. Returns each event\'s description and organizer, which is usually where the answer to \'why is this here\' lives.',
+    input_schema: { type: 'object', properties: { query: { type: 'string' }, time_min: { type: 'string' }, time_max: { type: 'string' }, limit: { type: 'integer' }, calendar_id: { type: 'string' } }, required: [] },
   },
 ];
 const WORKSPACE_WRITE_TOOLS = [
@@ -1215,7 +1215,7 @@ async function executeTool(name, input, ctx) {
           case 'ws_drive_read': out = await ws.driveReadText({ email: initiator, fileId: input.file_id }); break;
           case 'ws_gmail_search': out = await ws.gmailSearch({ email: initiator, query: input.query, limit: input.limit }); break;
           case 'ws_gmail_read': out = await ws.gmailRead({ email: initiator, messageId: input.message_id }); break;
-          case 'ws_calendar_list': out = await ws.calendarList({ email: initiator, timeMin: input.time_min, timeMax: input.time_max, limit: input.limit }); break;
+          case 'ws_calendar_list': out = await ws.calendarList({ email: initiator, timeMin: input.time_min, timeMax: input.time_max, limit: input.limit, q: input.query, calendarId: input.calendar_id }); break;
           case 'ws_sheets_append': out = await ws.sheetsAppend({ email: initiator, spreadsheetId: input.spreadsheet_id, range: input.range, values: input.values }); break;
           case 'ws_sheets_update': out = await ws.sheetsUpdate({ email: initiator, spreadsheetId: input.spreadsheet_id, range: input.range, values: input.values }); break;
           case 'ws_gmail_draft': out = await ws.gmailCreateDraft({ email: initiator, to: input.to, subject: input.subject, body: input.body }); break;

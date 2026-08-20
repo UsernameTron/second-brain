@@ -95,7 +95,7 @@ const CAPABILITIES = [
   {
     surface: 'Calendar', icon: 'calendar',
     can: [
-      { id: 'calendar_list', label: 'Read calendars', detail: 'Sees the connected user\'s events for scheduling context.' },
+      { id: 'calendar_list', label: 'Read and search calendars', detail: 'Searches or lists events on the connected user\'s calendar and any calendar already shared with them (a colleague\'s, a room, a team calendar).' },
       { id: 'calendar_create', label: 'Create events', detail: 'Can propose and create new events with attendees.' },
     ],
     cannot: [
@@ -527,13 +527,30 @@ async function gmailCreateDraft({ email, to, subject, body }) {
 }
 
 // --- Calendar ---
-async function calendarList({ email, timeMin, timeMax, limit = 15 }) {
+// `q` is a free-text search over the event's summary, description, location,
+// and attendees — without it an agent asked "why is X on the calendar" can
+// only page a time window and eyeball it. `calendarId` reads any calendar the
+// connected user can already see (a colleague's shared calendar, a room, a
+// team calendar); the calendar.events grant covers those, so no new scope.
+async function calendarList({ email, timeMin, timeMax, limit = 15, q, calendarId = 'primary' }) {
   const p = new URLSearchParams({ singleEvents: 'true', orderBy: 'startTime', maxResults: String(Math.min(limit, 30)) });
+  // orderBy=startTime with no lower bound starts at the calendar's OLDEST
+  // event, so an unbounded list returned ancient history and nothing current.
+  // Default to now — except for a search, which should span all time.
   if (timeMin) p.set('timeMin', timeMin);
+  else if (!q) p.set('timeMin', new Date().toISOString());
   if (timeMax) p.set('timeMax', timeMax);
-  const d = await gcall(email, `https://www.googleapis.com/calendar/v3/calendars/primary/events?${p}`);
-  audit('user', email, 'workspace.calendar_list', {});
-  return (d.items || []).map((e) => ({ id: e.id, summary: e.summary, start: e.start, end: e.end, attendees: (e.attendees || []).map((a) => a.email), link: e.htmlLink }));
+  if (q) p.set('q', q);
+  const d = await gcall(email, `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${p}`);
+  audit('user', email, 'workspace.calendar_list', { calendarId, q: q || null });
+  return (d.items || []).map((e) => ({
+    id: e.id, summary: e.summary, start: e.start, end: e.end,
+    attendees: (e.attendees || []).map((a) => a.email), link: e.htmlLink,
+    // The answer to "why is this on my calendar" usually lives in these three.
+    description: e.description ? String(e.description).slice(0, 500) : undefined,
+    organizer: e.organizer ? e.organizer.email : undefined,
+    calendarId,
+  }));
 }
 async function calendarCreate({ email, summary, description, startIso, endIso, attendees = [] }) {
   const d = await gcall(email, 'https://www.googleapis.com/calendar/v3/calendars/primary/events', {
