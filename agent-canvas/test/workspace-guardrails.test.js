@@ -460,3 +460,43 @@ test('the enrichment lamp exists: planned when unwired, probe-evidence when wire
     if (prev === undefined) delete process.env.ED_DISPATCH_URL; else process.env.ED_DISPATCH_URL = prev;
   }
 });
+
+// ---------- grant revocation is recorded, not silent ----------
+test('invalid_grant clears the grant, audits it, and says how to reconnect', async () => {
+  const email = 'revoked@cloudtechgurus.com';
+  db.prepare("INSERT OR REPLACE INTO google_tokens (user_email, refresh_token_enc, scopes, connected_at, updated_at) VALUES (?, ?, '', '', '')")
+    .run(email, ws._internal.encrypt('stale-refresh'));
+  const realFetch = global.fetch;
+  global.fetch = async () => ({
+    ok: false, status: 400,
+    json: async () => ({ error: 'invalid_grant', error_description: 'Token has been expired or revoked.' }),
+  });
+  try {
+    await assert.rejects(
+      () => ws.driveSearch({ email, query: 'anything' }),
+      (err) => {
+        assert.ok(err.notConnected, 'a dead grant must be flagged notConnected, not a generic failure');
+        assert.match(err.message, /Capabilities/, 'the error must name the reconnect path');
+        return true;
+      },
+    );
+  } finally { global.fetch = realFetch; }
+  // the grant is gone...
+  assert.equal(db.prepare('SELECT 1 FROM google_tokens WHERE user_email = ?').get(email), undefined);
+  // ...and its destruction is on the record (this was silent before)
+  const logged = db.prepare("SELECT * FROM audit_log WHERE action = 'workspace.grant_revoked' AND actor_id = ?").get(email);
+  assert.ok(logged, 'clearing a credential must leave an audit entry');
+});
+
+test('a transient refresh failure never deletes the grant', async () => {
+  const email = 'transient@cloudtechgurus.com';
+  db.prepare("INSERT OR REPLACE INTO google_tokens (user_email, refresh_token_enc, scopes, connected_at, updated_at) VALUES (?, ?, '', '', '')")
+    .run(email, ws._internal.encrypt('good-refresh'));
+  const realFetch = global.fetch;
+  global.fetch = async () => ({ ok: false, status: 503, json: async () => ({ error: 'backendError' }) });
+  try {
+    await assert.rejects(() => ws.driveSearch({ email, query: 'anything' }), /token refresh failed/);
+  } finally { global.fetch = realFetch; }
+  assert.ok(db.prepare('SELECT 1 FROM google_tokens WHERE user_email = ?').get(email),
+    'a 5xx is transient — the grant must survive it');
+});
