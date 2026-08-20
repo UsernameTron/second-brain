@@ -12,8 +12,9 @@ evidence is an observation at one instant, not a permanent property.
 
 ## Current production state
 
-**Live-proven at 2026-08-19 (~18:45Z):** Cloud Run revision
-`agent-canvas-00064-nq9` serves 100% of traffic; `/api/healthz` 200
+**Live-proven at 2026-08-20 (~15:40Z):** Cloud Run revision
+`agent-canvas-00068-lzs` serves 100% of traffic (superseding `00064-nq9`
+after the 2026-08-20 schema/grant fixes and the reverted vertex experiment); `/api/healthz` 200
 `{"ok":true,"paused":false}`; zero ERROR logs post-deploy. Provider is
 `MODEL_PROVIDER=gemini` (Gemini on Vertex, keyless ADC) — `/api/config`
 reports `gemini-2.5-flash` (fast) / `gemini-2.5-pro` (strong). The systems
@@ -28,12 +29,27 @@ earned green. `sr-icp-connector.fly.dev` pings `sr-icp-v7`; estate-sentinel's
 ICP pins agree across signal-radar (canonical), the connector, and
 enrichment-dispatch.
 
+**Vertex Claude is quota-blocked (2026-08-20):** `STRONG_PROVIDER=vertex` was
+deployed and immediately 429'd —
+`Quota exceeded for aiplatform.googleapis.com/global_online_prediction_requests_per_base_model
+with base model: anthropic-claude-sonnet`. The project has NO Claude quota
+buckets at all; Model Garden enablement does not grant quota, and a
+quota-increase request (quota id
+`GlobalOnlinePredictionRequestsPerMinutePerProjectPerBaseModel`) is the only
+path. Reverted to both tiers on Gemini in revision `agent-canvas-00068-lzs`;
+service healthy. **Do not set `STRONG_PROVIDER=vertex` again until that quota
+is granted** — every strong-tier agent (Scout, Sentinel, Quill, the three
+personas) fails while it is set.
+
 **Deliberate state, not cruft:** the `ANTHROPIC_API_KEY` secret binding stays
 mounted — it is the one-env-flip fallback (`MODEL_PROVIDER=anthropic`).
 **Known Gemini-tier regressions:** provider-side `web_search` is ineligible
 (Scout's prompt and Wedge degrade honestly; the new server-side `web_fetch`
 covers exact-URL reads on every provider); no prompt-cache discount; no
-cross-provider refusal fallback. Fallback lever: `STRONG_PROVIDER=vertex`.
+cross-provider refusal fallback. The `STRONG_PROVIDER=vertex` lever is
+UNAVAILABLE (quota-blocked, above); the only working web-search fallback
+today is `STRONG_PROVIDER=anthropic`, which leaves the GCP perimeter for
+strong-tier calls and is deliberately not in use.
 
 ## What shipped 2026-08-19 (all merged and deployed)
 
