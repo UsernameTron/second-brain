@@ -229,7 +229,7 @@ const WORKSPACE_READ_TOOLS = [
   },
   {
     name: 'ws_calendar_list',
-    description: 'Search or list calendar events. Use `query` to find an event by name/description/location/attendee across all time (e.g. why an event is on the calendar) — that is almost always right for a question about a SPECIFIC event, and beats listing a window and scanning. Without a query, lists upcoming events from now. `calendar_id` reads another calendar the directing user can already see (a colleague\'s email, a room, a team calendar); default is their own. Returns each event\'s description and organizer, which is usually where the answer to \'why is this here\' lives.',
+    description: 'Search or list calendar events. Use `query` to find an event by name/description/location/attendee across all time (e.g. why an event is on the calendar) — that is almost always right for a question about a SPECIFIC event, and beats listing a window and scanning. Without a query, lists upcoming events from now. A search covers the last 90 days forward unless you pass time_min — widen it for older events. Results are oldest-first and capped; a `note` in the result says when more exist. `calendar_id` reads another calendar the directing user can already see (a colleague\'s email, a room, a team calendar); default is their own. Returns each event\'s description and organizer, which is usually where the answer to \'why is this here\' lives.',
     input_schema: { type: 'object', properties: { query: { type: 'string' }, time_min: { type: 'string' }, time_max: { type: 'string' }, limit: { type: 'integer' }, calendar_id: { type: 'string' } }, required: [] },
   },
 ];

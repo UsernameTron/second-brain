@@ -533,17 +533,29 @@ async function gmailCreateDraft({ email, to, subject, body }) {
 // connected user can already see (a colleague's shared calendar, a room, a
 // team calendar); the calendar.events grant covers those, so no new scope.
 async function calendarList({ email, timeMin, timeMax, limit = 15, q, calendarId = 'primary' }) {
-  const p = new URLSearchParams({ singleEvents: 'true', orderBy: 'startTime', maxResults: String(Math.min(limit, 30)) });
-  // orderBy=startTime with no lower bound starts at the calendar's OLDEST
-  // event, so an unbounded list returned ancient history and nothing current.
-  // Default to now — except for a search, which should span all time.
+  const cap = Math.min(limit, 30);
+  const p = new URLSearchParams({ singleEvents: 'true', orderBy: 'startTime', maxResults: String(cap) });
+  // orderBy=startTime sorts OLDEST-first and this call does not paginate, so
+  // an unbounded request returns the calendar's most ancient events and the
+  // current ones are unreachable. That bites hardest on a search:
+  // singleEvents=true expands a recurring meeting into instances, and a
+  // name search would answer from a years-old copy. Apply a floor whenever
+  // the caller gave NO bound at all — now for a plain list (upcoming), and a
+  // recent-past floor for a search so today's and future instances are what
+  // come back. A caller who wants older history passes time_min explicitly.
+  // Only when neither bound is given: setting a now-floor alongside a past
+  // time_max would invert the range and Google rejects it outright.
+  const RECENT_FLOOR_DAYS = 90;
   if (timeMin) p.set('timeMin', timeMin);
-  else if (!q) p.set('timeMin', new Date().toISOString());
   if (timeMax) p.set('timeMax', timeMax);
+  if (!timeMin && !timeMax) {
+    const floor = q ? new Date(Date.now() - RECENT_FLOOR_DAYS * 864e5) : new Date();
+    p.set('timeMin', floor.toISOString());
+  }
   if (q) p.set('q', q);
   const d = await gcall(email, `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${p}`);
   audit('user', email, 'workspace.calendar_list', { calendarId, q: q || null });
-  return (d.items || []).map((e) => ({
+  const events = (d.items || []).map((e) => ({
     id: e.id, summary: e.summary, start: e.start, end: e.end,
     attendees: (e.attendees || []).map((a) => a.email), link: e.htmlLink,
     // The answer to "why is this on my calendar" usually lives in these three.
@@ -551,6 +563,13 @@ async function calendarList({ email, timeMin, timeMax, limit = 15, q, calendarId
     organizer: e.organizer ? e.organizer.email : undefined,
     calendarId,
   }));
+  // Never let truncation read as "that's everything": this call does not
+  // follow nextPageToken, so a full page means more may exist.
+  const truncated = events.length >= cap && Boolean(d.nextPageToken);
+  const notes = [];
+  if (truncated) notes.push(`Only the first ${cap} matches are shown, oldest first; more exist. Narrow with time_min/time_max or raise limit.`);
+  if (!timeMin && !timeMax && q) notes.push(`Searched from ${RECENT_FLOOR_DAYS} days ago forward. Pass time_min to search further back.`);
+  return notes.length ? { events, note: notes.join(' ') } : { events };
 }
 async function calendarCreate({ email, summary, description, startIso, endIso, attendees = [] }) {
   const d = await gcall(email, 'https://www.googleapis.com/calendar/v3/calendars/primary/events', {

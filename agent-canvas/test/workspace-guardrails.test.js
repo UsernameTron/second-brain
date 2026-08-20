@@ -520,13 +520,17 @@ test('calendarList searches by text across all time, and can read a shared calen
   try {
     const out = await ws.calendarList({ email, q: 'CCE happy hour', calendarId: 'jess@cloudtechgurus.com' });
     // the description and organizer are what answer "why is this here"
-    assert.equal(out[0].description, 'Pre-conference hold');
-    assert.equal(out[0].organizer, 'jess@cloudtechgurus.com');
+    assert.equal(out.events[0].description, 'Pre-conference hold');
+    assert.equal(out.events[0].organizer, 'jess@cloudtechgurus.com');
   } finally { global.fetch = realFetch; }
   const call = seen[0];
   assert.equal(call.searchParams.get('q'), 'CCE happy hour');
-  // a search must span all time — a now-floor would hide the event being asked about
-  assert.equal(call.searchParams.get('timeMin'), null);
+  // A search must NOT floor at now (that hides a past event) and must NOT be
+  // unbounded either: oldest-first + no pagination would answer a recurring
+  // meeting from a years-old instance. Recent-past floor is the balance.
+  const searchFloor = Date.parse(call.searchParams.get('timeMin'));
+  assert.ok(searchFloor < Date.now(), 'search floor must be in the past');
+  assert.ok(searchFloor > Date.now() - 120 * 864e5, 'search floor must be recent, not the epoch');
   assert.ok(call.pathname.includes(encodeURIComponent('jess@cloudtechgurus.com')), 'must target the named calendar');
 });
 
@@ -547,4 +551,44 @@ test('an unbounded list starts from now, not the calendar’s oldest event', asy
   assert.ok(tmin, 'orderBy=startTime with no floor returns ancient events — a default timeMin is required');
   assert.ok(Math.abs(Date.parse(tmin) - Date.now()) < 60_000, 'default floor should be ~now');
   assert.ok(seen[0].pathname.includes('primary'), 'default calendar is the user’s own');
+});
+
+test('a past time_max without time_min is not inverted by the default floor', async () => {
+  // Codex P2 on #234: inserting a now-floor next to a past time_max makes
+  // timeMin > timeMax, which Google rejects outright.
+  const email = 'cal3@cloudtechgurus.com';
+  db.prepare("INSERT OR REPLACE INTO google_tokens (user_email, refresh_token_enc, scopes, connected_at, updated_at) VALUES (?, ?, '', '', '')")
+    .run(email, ws._internal.encrypt('refresh'));
+  const seen = [];
+  const realFetch = global.fetch;
+  global.fetch = async (url) => {
+    const u = new URL(String(url));
+    if (u.hostname === 'oauth2.googleapis.com') return { ok: true, status: 200, json: async () => ({ access_token: 'at', expires_in: 3600 }) };
+    seen.push(u);
+    return { ok: true, status: 200, json: async () => ({ items: [] }) };
+  };
+  const past = '2020-01-01T00:00:00.000Z';
+  try { await ws.calendarList({ email, timeMax: past }); } finally { global.fetch = realFetch; }
+  assert.equal(seen[0].searchParams.get('timeMin'), null, 'an upper-bounded request must keep its open lower bound');
+  assert.equal(seen[0].searchParams.get('timeMax'), past);
+});
+
+test('a truncated page says so instead of reading as the whole answer', async () => {
+  // Codex P1 on #234: oldest-first + no pagination means a full page can hide
+  // the current instance of a recurring event.
+  const email = 'cal4@cloudtechgurus.com';
+  db.prepare("INSERT OR REPLACE INTO google_tokens (user_email, refresh_token_enc, scopes, connected_at, updated_at) VALUES (?, ?, '', '', '')")
+    .run(email, ws._internal.encrypt('refresh'));
+  const realFetch = global.fetch;
+  global.fetch = async (url) => {
+    if (new URL(String(url)).hostname === 'oauth2.googleapis.com') return { ok: true, status: 200, json: async () => ({ access_token: 'at', expires_in: 3600 }) };
+    return { ok: true, status: 200, json: async () => ({
+      items: Array.from({ length: 2 }, (_, i) => ({ id: `e${i}`, summary: 'Weekly standup', start: {}, end: {} })),
+      nextPageToken: 'more-pages',
+    }) };
+  };
+  let out;
+  try { out = await ws.calendarList({ email, q: 'Weekly standup', limit: 2 }); } finally { global.fetch = realFetch; }
+  assert.equal(out.events.length, 2);
+  assert.match(out.note, /more exist/i, 'a full page with a nextPageToken must be declared incomplete');
 });
