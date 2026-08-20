@@ -205,7 +205,21 @@ async function accessTokenFor(email) {
   });
   const data = await res.json();
   if (!res.ok || !data.access_token) {
-    if (data.error === 'invalid_grant') db.prepare('DELETE FROM google_tokens WHERE user_email = ?').run(key);
+    // invalid_grant is terminal — the grant is gone (revoked, password change,
+    // or the 7-day refresh-token expiry an unverified external OAuth client
+    // gets). Dropping the row is right, but doing it silently made the
+    // deletion undiagnosable: the agent said "authorization expired" and
+    // nothing anywhere recorded that the credential had been destroyed or
+    // why. Audit it, and say the actionable thing.
+    if (data.error === 'invalid_grant') {
+      db.prepare('DELETE FROM google_tokens WHERE user_email = ?').run(key);
+      audit('user', key, 'workspace.grant_revoked', { reason: data.error_description || 'invalid_grant' });
+      const err = new Error(`Google Workspace access for ${key} is no longer authorized (${data.error_description || 'invalid_grant'}) — the stored grant has been cleared. Reconnect from the Capabilities panel (top bar).`);
+      err.notConnected = true;
+      throw err;
+    }
+    // Anything else (5xx, network, rate limit) is transient: the grant is
+    // still good, so it must NOT be deleted and the caller should retry.
     throw new Error(`Google token refresh failed for ${key}: ${data.error_description || data.error || res.status}`);
   }
   accessCache.set(key, { token: data.access_token, expiresAt: Date.now() + (data.expires_in || 3600) * 1000 });
