@@ -30,13 +30,31 @@ function getGeminiClient() {
   return clientPromiseCache;
 }
 
-// Anthropic tool definitions -> Gemini function declarations. The orchestrator
-// schemas use only JSON-schema keywords Gemini accepts (type, properties,
-// required, enum, items, description).
+// Gemini accepts only an OpenAPI-ish subset of JSON Schema. The orchestrator's
+// own schemas are clean, but MCP connector tools arrive with whatever their
+// server emits ("hidden", "default", "additionalProperties", "$schema", ...)
+// and one unknown key 400s the ENTIRE request — every tool, every run.
+// Sanitize recursively: keep the accepted keys, drop the rest.
+const SCHEMA_KEYS = ['type', 'description', 'enum', 'required', 'nullable'];
+function sanitizeSchema(schema) {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return schema;
+  const out = {};
+  for (const key of SCHEMA_KEYS) if (schema[key] !== undefined) out[key] = schema[key];
+  if (schema.items) out.items = sanitizeSchema(schema.items);
+  if (schema.properties && typeof schema.properties === 'object') {
+    out.properties = {};
+    for (const [name, prop] of Object.entries(schema.properties)) out.properties[name] = sanitizeSchema(prop);
+  }
+  // A properties object with no type reads as an object schema; make it explicit.
+  if (out.properties && !out.type) out.type = 'object';
+  return out;
+}
+
+// Anthropic tool definitions -> Gemini function declarations.
 function toFunctionDeclarations(tools) {
   return (tools || [])
     .filter((tool) => tool.input_schema) // server tools (web_search etc.) never reach here
-    .map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.input_schema }));
+    .map((tool) => ({ name: tool.name, description: tool.description, parameters: sanitizeSchema(tool.input_schema) }));
 }
 
 // tool_use ids must round-trip to function NAMES for functionResponse parts.

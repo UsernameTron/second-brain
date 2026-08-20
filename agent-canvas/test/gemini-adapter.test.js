@@ -91,3 +91,33 @@ test('buildConfig hardens the live call: safety, thinking budget, JSON opt-in', 
   const chat = buildConfig({ ...base, functionDeclarations: [] });
   assert.equal(chat.responseMimeType, undefined);
 });
+
+test('sanitizeSchema strips non-Gemini keywords from MCP tool schemas', () => {
+  // Live failure 2026-08-19: an MCP connector tool carried "hidden" inside
+  // properties and Vertex 400'd the whole request (every tool, every run).
+  const dirty = {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      q: { type: 'string', description: 'query', hidden: true, default: '' },
+      opts: { properties: { deep: { type: 'boolean', hidden: false } }, required: ['deep'] },
+      tags: { type: 'array', items: { type: 'string', examples: ['a'] } },
+    },
+    required: ['q'],
+  };
+  const decls = toFunctionDeclarations([{ name: 'mcp_tool', description: 'd', input_schema: dirty }]);
+  const p = decls[0].parameters;
+  assert.equal(JSON.stringify(p).includes('hidden'), false);
+  assert.equal(JSON.stringify(p).includes('default'), false);
+  assert.equal(JSON.stringify(p).includes('additionalProperties'), false);
+  assert.equal(JSON.stringify(p).includes('$schema'), false);
+  assert.equal(JSON.stringify(p).includes('examples'), false);
+  // Structure the model needs survives intact.
+  assert.equal(p.type, 'object');
+  assert.deepEqual(p.required, ['q']);
+  assert.equal(p.properties.q.type, 'string');
+  assert.equal(p.properties.opts.type, 'object'); // inferred for bare properties
+  assert.deepEqual(p.properties.opts.required, ['deep']);
+  assert.equal(p.properties.tags.items.type, 'string');
+});
