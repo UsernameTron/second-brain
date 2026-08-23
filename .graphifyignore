@@ -1,0 +1,6 @@
+.planning/
+eval/seed-vault/
+.claude/
+*.png
+*.pem
+.env.template

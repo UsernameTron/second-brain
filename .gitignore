@@ -23,3 +23,4 @@ eval/.cache/
 # FUSE artifacts: deleted-but-open file copies left by macOS/sync agents.
 # Transient, never tracked — they otherwise trip the pre-push dirty-tree guard.
 .fuse_hidden*
+graphify-out/
