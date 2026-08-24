@@ -51,6 +51,39 @@ UNAVAILABLE (quota-blocked, above); the only working web-search fallback
 today is `STRONG_PROVIDER=anthropic`, which leaves the GCP perimeter for
 strong-tier calls and is deliberately not in use.
 
+## Estate hub integration (2026-08-24, implemented - NOT deployed)
+
+**Test-proven (2026-08-24, `feat/estate-integration`):** two additive canvas-side
+pieces for the CTG hub integration. Neither is deployed; every new env var below
+is unset in production, so both lanes are dark until the ops step sets them.
+
+1. **Estate read tools** - `server/estate/reads.js`, a thin READ client of the
+   seo-monitor and ops-automation services (the enrichment thin-read-client
+   precedent: keyless OIDC via `identityToken`, fixed GET paths only, audited,
+   30k output cap). Three agent tools - `estate_seo_metrics`,
+   `estate_ops_hygiene`, `estate_pipeline_digest` - offered to the enrichment
+   role set (research/targeting/commercial/enrichment), read-only, no approval
+   ceremony, absent when the backing URL env is unset, results wrapped as
+   `external_content` with evidence refs (new evidence source kind `estate`).
+   Env: `SEO_MONITOR_URL` (audience = itself), `OPS_AUTOMATION_URL` (audience =
+   itself). Sealed-lane check re-verified in this change: no path from the tool
+   layer reaches enrichment `/v1/commit` (the only mention is dispatch.js's own
+   comment forbidding it).
+2. **Service "Needs You" count** - `GET /api/service/attention-count`,
+   registered above `requireAuth` in the tick's lane shape: Google-signed OIDC
+   ID token verified against `TICK_AUDIENCE` (shared audience for both service
+   lanes), caller must BE `STATUS_INVOKER_SA`; either unset returns 503.
+   Response `{ needsYou, generatedAt }`, computed by the same
+   `attention.listAttention` projection the signed-in `/api/attention` route
+   uses (all non-archived canvases, scope `all`) - no duplicated SQL.
+
+**Auth posture (hub integration):** the L10 hub (l10ctg.web.app) LINKS OUT to
+Agent Canvas; same Google account, separate `ac_session` cookie. Embedding via
+SameSite=None cookies / CORS-with-credentials was considered and deliberately
+rejected. Recorded upgrade path if an embedded future is ever demanded:
+accept Firebase ID tokens (issuer securetoken.google.com/l10ctg) as a second
+verified principal - not built, not planned.
+
 ## What shipped 2026-08-19 (all merged and deployed)
 
 1. **#221 WS3 UI fixes** — theme-token legibility (no dark-on-dark literals),

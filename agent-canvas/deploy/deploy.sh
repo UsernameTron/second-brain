@@ -406,6 +406,14 @@ if [ -n "${ED_DISPATCH_URL:-}" ]; then ENV_VARS="${ENV_VARS},ED_DISPATCH_URL=${E
 # darkens a lane that was already lit.
 if [ -n "${TICK_AUDIENCE:-}" ]; then ENV_VARS="${ENV_VARS},TICK_AUDIENCE=${TICK_AUDIENCE}"; fi
 if [ -n "${TICK_INVOKER_SA:-}" ]; then ENV_VARS="${ENV_VARS},TICK_INVOKER_SA=${TICK_INVOKER_SA}"; fi
+# CTG hub estate integration (optional): estate read tools (seo-monitor +
+# ops-automation, same IAM-client pattern as the ops runner) and the hub's
+# "Needs You" count lane. Any of these unset → that tool is absent / the
+# /api/service/attention-count lane 503s. The count lane also needs
+# TICK_AUDIENCE (shared audience for both service lanes, above).
+if [ -n "${SEO_MONITOR_URL:-}" ]; then ENV_VARS="${ENV_VARS},SEO_MONITOR_URL=${SEO_MONITOR_URL}"; fi
+if [ -n "${OPS_AUTOMATION_URL:-}" ]; then ENV_VARS="${ENV_VARS},OPS_AUTOMATION_URL=${OPS_AUTOMATION_URL}"; fi
+if [ -n "${STATUS_INVOKER_SA:-}" ]; then ENV_VARS="${ENV_VARS},STATUS_INVOKER_SA=${STATUS_INVOKER_SA}"; fi
 
 # Last gate before the only irreversible step in this script. --update-env-vars
 # cannot drop a name on its own, so a name that is live but absent from the

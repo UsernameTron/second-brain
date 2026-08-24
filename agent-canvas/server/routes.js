@@ -152,6 +152,35 @@ router.post('/standing-rules/tick', rateLimit('auth'), asyncRoute(async (req, re
   res.json(standingRules.tick({ source: 'scheduler', actor: invoker }));
 }));
 
+// ---------- estate hub: the "Needs You" count, service-to-service ----------
+// Registered ABOVE requireAuth, same lane shape as the tick: a Google-signed
+// OIDC ID token verified against the tick's audience (one audience env serves
+// both service lanes), and the caller must BE the configured status invoker
+// SA. Either env var unset → 503, never open by default. Read-only: the count
+// is the same projection /api/attention serves signed-in users, at owner
+// scope (every non-archived canvas, scope 'all').
+router.get('/service/attention-count', rateLimit('auth'), asyncRoute(async (req, res) => {
+  const audience = process.env.TICK_AUDIENCE;
+  const invoker = process.env.STATUS_INVOKER_SA;
+  if (!audience || !invoker) {
+    return res.status(503).json({ error: 'service status lane disabled (TICK_AUDIENCE / STATUS_INVOKER_SA unset)' });
+  }
+  const header = String(req.headers.authorization || '');
+  if (!header.startsWith('Bearer ')) return res.status(401).json({ error: 'missing bearer token' });
+  let payload;
+  try {
+    payload = await standingRules.verifyTickOidc(header.slice(7), audience);
+  } catch {
+    return res.status(401).json({ error: 'OIDC token verification failed' });
+  }
+  if (!payload || payload.email !== invoker || !payload.email_verified) {
+    return res.status(403).json({ error: 'caller is not the status invoker service account' });
+  }
+  const canvasIds = db.prepare('SELECT id FROM canvases WHERE archived = 0').all().map((c) => c.id);
+  const needsYou = attention.listAttention({ email: '', scope: 'all', canvasIds }).length;
+  res.json({ needsYou, generatedAt: nowIso() });
+}));
+
 // Everything below requires a signed-in allowlisted user.
 router.use(auth.requireAuth);
 

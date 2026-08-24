@@ -403,6 +403,28 @@ const ENRICHMENT_TOOLS = [
 ];
 const ENRICHMENT_ROLES = ['research', 'targeting', 'commercial', 'enrichment'];
 
+// Estate read tools - thin READ clients of the seo-monitor and ops-automation
+// services (server/estate/reads.js, the enrichment thin-read-client precedent).
+// Free reads, no approval ceremony, offered to the same roles as enrichment
+// and only when the deployment carries the service URL.
+const ESTATE_TOOLS = [
+  {
+    name: 'estate_seo_metrics',
+    description: "Read today's CTG SEO health metrics from the seo-monitor service.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'estate_ops_hygiene',
+    description: 'Read the current pipeline hygiene scan from the ops-automation service.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'estate_pipeline_digest',
+    description: 'Read the pipeline digest from the ops-automation service.',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+];
+
 // Enrichment is a distinct user-facing job and may have connectors scoped
 // directly to it, while also inheriting Radar's targeting connector lane.
 // Preserve both roles instead of replacing the first-class role with its
@@ -746,6 +768,7 @@ function blockedInMode(name, mode) {
 function governedTool(name) {
   return name.startsWith('ws_') || name.startsWith('hs_') || name.startsWith('mcp_')
     || name.startsWith('enrich_') || name === 'verify_email' || name === 'get_enriched_contact'
+    || name.startsWith('estate_')
     || name === 'web_search' || name === 'web_fetch';
 }
 
@@ -814,6 +837,12 @@ function toolsForRole(role, { userRole = 'member', mode = 'act', authority = nul
   const enrichment = require('../enrichment/dispatch').configured() && ENRICHMENT_ROLES.includes(role)
     ? ENRICHMENT_TOOLS
     : [];
+  // Estate reads: same disabled-by-absence rule, same roles, gated per tool
+  // because the two backing services are configured independently.
+  const estateReads = require('../estate/reads');
+  const estate = ENRICHMENT_ROLES.includes(role)
+    ? ESTATE_TOOLS.filter((t) => estateReads.configured(t.name))
+    : [];
   // Same rule for HubSpot, and for the same reason. With HS_OPS_RUNNER_URL
   // unset every hs_* call returns isError, so OFFERING them lets a standing
   // rule mint a non-empty grant over a lane it can never reach, run forever,
@@ -823,7 +852,7 @@ function toolsForRole(role, { userRole = 'member', mode = 'act', authority = nul
   // Research role only — the same lane discipline as web_search, but this is
   // a real tool (executes server-side), so it works on every provider.
   const webFetch = require('../webfetch').enabled() && role === 'research' ? [WEB_FETCH_TOOL] : [];
-  return [...COMMON_TOOLS, REGISTRY_TOOL, CONTENT_GATE_TOOL, ...wsRead, ...wsWrite, ...hubspot, ...enrichment, ...webFetch, ...mcpDefs]
+  return [...COMMON_TOOLS, REGISTRY_TOOL, CONTENT_GATE_TOOL, ...wsRead, ...wsWrite, ...hubspot, ...enrichment, ...estate, ...webFetch, ...mcpDefs]
     .filter((t) => !blockedInMode(t.name, mode) && allowedByAuthority(t.name, authority));
 }
 
@@ -1371,6 +1400,29 @@ async function executeTool(name, input, ctx) {
         return { content: externalContent('enrichment', out) + evidence.refMarker(refId) };
       } catch (err) {
         return { content: externalContent('enrichment', String(err.message || err)), isError: true };
+      }
+    }
+
+    case 'estate_seo_metrics': case 'estate_ops_hygiene': case 'estate_pipeline_digest': {
+      const estate = require('../estate/reads');
+      // Free reads, so no directing-user gate: a standing rule may watch these.
+      if (!estate.configured(name)) {
+        const envName = name === 'estate_seo_metrics' ? 'SEO_MONITOR_URL' : 'OPS_AUTOMATION_URL';
+        return { content: `Estate reads are not wired on this deployment (${envName} unset). Tell the owner.`, isError: true };
+      }
+      if (!ENRICHMENT_ROLES.includes(agent.role)) {
+        return { content: `REFUSED: estate reads are scoped to ${ENRICHMENT_ROLES.join('/')} agents; ${agent.role} agents do not have them.`, isError: true };
+      }
+      try {
+        const out = await estate.run(name, run.initiated_by || 'system');
+        bus.emit('event', { type: 'workspace_action', canvasId: canvas.id, runId: run.id, agentId: agent.id, tool: name, at: ts });
+        const refId = evidence.recordRef({
+          runId: run.id, sourceKind: 'estate', sourceId: name,
+          title: name, directedBy: run.initiated_by || null, meta: { tool: name },
+        });
+        return { content: externalContent('estate', out) + evidence.refMarker(refId) };
+      } catch (err) {
+        return { content: externalContent('estate', String(err.message || err)), isError: true };
       }
     }
 
