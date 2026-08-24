@@ -51,11 +51,19 @@ UNAVAILABLE (quota-blocked, above); the only working web-search fallback
 today is `STRONG_PROVIDER=anthropic`, which leaves the GCP perimeter for
 strong-tier calls and is deliberately not in use.
 
-## Estate hub integration (2026-08-24, implemented - NOT deployed)
+## Estate hub integration (2026-08-24, DEPLOYED)
+
+**Deployed (2026-08-24, later the same day):** `deploy/deploy.sh` run from master
+(`79ebb63`, PR #236) with `SEO_MONITOR_URL`, `OPS_AUTOMATION_URL`, and
+`STATUS_INVOKER_SA=553976212013-compute@developer.gserviceaccount.com` (the L10
+functions runtime SA) set, so both lanes below are LIVE. Probe evidence:
+`/api/healthz` returned `{"ok":true,"paused":false}` and an unauthenticated
+`GET /api/service/attention-count` returned 401 (fail-closed verified). The
+canvas runtime SA holds `roles/run.invoker` on both estate services in
+`ctg-ops-prod`, granted the same day.
 
 **Test-proven (2026-08-24, `feat/estate-integration`):** two additive canvas-side
-pieces for the CTG hub integration. Neither is deployed; every new env var below
-is unset in production, so both lanes are dark until the ops step sets them.
+pieces for the CTG hub integration.
 
 1. **Estate read tools** - `server/estate/reads.js`, a thin READ client of the
    seo-monitor and ops-automation services (the enrichment thin-read-client
