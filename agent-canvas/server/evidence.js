@@ -11,7 +11,7 @@
 const crypto = require('node:crypto');
 const { db, nowIso } = require('./db');
 
-const SOURCE_KINDS = ['web', 'drive', 'sheet', 'gmail', 'calendar', 'hubspot', 'mcp', 'enrichment', 'canvas_file'];
+const SOURCE_KINDS = ['web', 'drive', 'sheet', 'gmail', 'calendar', 'hubspot', 'mcp', 'enrichment', 'estate', 'canvas_file'];
 // Kinds whose URI can leak a private surface (a mailbox, a Drive file) —
 // redacted for anyone other than the directing user at read time.
 const PRIVATE_URI_KINDS = ['gmail', 'drive', 'sheet'];
