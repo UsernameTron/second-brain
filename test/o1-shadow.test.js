@@ -75,3 +75,105 @@ describe('o1-shadow window renderer', () => {
     expect(shadow.decisionOf('[{"decision": "reject"}]')).toBe('reject');
   });
 });
+
+describe('o1-shadow shadow() against a stubbed LM Studio', () => {
+  let tmpDir;
+  let realFetch;
+  const transcriptWith = (n) => {
+    const p = path.join(tmpDir, 'sess-1.jsonl');
+    fs.writeFileSync(p, Array.from({ length: n }, (_, i) => line('user', 'user', 'message number ' + i + ' with enough words')).join('\n') + '\n');
+    return p;
+  };
+  const reply = (model, content) => ({ ok: true, status: 200, json: async () => ({ model, choices: [{ message: { content } }] }) });
+  const logged = (p) => fs.readFileSync(p, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'o1-shadow-'));
+    realFetch = global.fetch;
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    delete process.env.O1_SHADOW_MAX_WINDOWS;
+    delete process.env.O1_SHADOW_LOG;
+    delete process.env.O1_SHADOW_MODELS;
+  });
+
+  test('logs one line per window with both arms, flags a served model that differs, resumes past logged windows', async () => {
+    const calls = [];
+    global.fetch = jest.fn(async (_url, init) => {
+      const body = JSON.parse(init.body);
+      calls.push(body.model);
+      expect(body.messages[0].content).toBe(shadow.SYSTEM_PROMPT_BINARY);
+      expect(body.max_tokens).toBe(32);
+      if (body.model === 'tuned') return reply('tuned', '{"decision": "reject"}');
+      return reply('whatever-is-loaded', '{"decision": "extract"}');   // LM Studio answered an unknown id
+    });
+    const file = transcriptWith(21);                                    // anchors 4, 11, 18
+    const logPath = path.join(tmpDir, 'log.jsonl');
+    const r = await shadow.shadow(file, 'sess-1', { models: 'tuned,base', endpoint: 'http://stub', logPath, maxWindows: 2 });
+    expect(r).toMatchObject({ messages: 21, windows: 2, done: 2, resumedFrom: 0 });
+    const rows = logged(logPath);
+    expect(rows.map((x) => [x.anchor, x.lo, x.hi])).toEqual([[4, 0, 7], [11, 7, 14]]);
+    expect(rows[0].session).toBe('sess-1');
+    expect(rows[0].arms.tuned).toMatchObject({ decision: 'reject' });
+    expect(rows[0].arms.base).toMatchObject({ decision: 'wrong_model', served: 'whatever-is-loaded' });
+    expect(calls).toHaveLength(4);
+    // A second pass over the same session only pays for the window past hi=14.
+    const again = await shadow.shadow(file, 'sess-1', { models: 'tuned,base', endpoint: 'http://stub', logPath });
+    expect(again).toMatchObject({ windows: 1, done: 1, resumedFrom: 14 });
+    expect(logged(logPath).map((x) => x.lo)).toEqual([0, 7, 14]);
+  });
+
+  test('a dead endpoint costs at most three windows and never throws', async () => {
+    global.fetch = jest.fn(async () => { throw new Error('ECONNREFUSED'); });
+    const file = transcriptWith(50);                                    // 7 windows
+    const logPath = path.join(tmpDir, 'log.jsonl');
+    const r = await shadow.shadow(file, 'sess-1', { models: 'tuned,base', endpoint: 'http://stub', logPath });
+    expect(r).toMatchObject({ windows: 7, done: 3 });
+    expect(logged(logPath)[0].arms.tuned).toMatchObject({ decision: 'error', error: 'ECONNREFUSED' });
+  });
+
+  test('HTTP errors log as http_<status>; garbage O1_SHADOW_MAX_WINDOWS falls back to the default; env selects models and log', async () => {
+    global.fetch = jest.fn(async () => ({ ok: false, status: 404 }));
+    process.env.O1_SHADOW_MAX_WINDOWS = 'all';
+    process.env.O1_SHADOW_MODELS = 'only-arm';
+    process.env.O1_SHADOW_LOG = path.join(tmpDir, 'env.jsonl');
+    const r = await shadow.shadow(transcriptWith(14), 'sess-1');     // endpoint from pipeline config
+    expect(r).toMatchObject({ windows: 2, done: 2 });
+    const rows = logged(process.env.O1_SHADOW_LOG);
+    expect(Object.keys(rows[0].arms)).toEqual(['only-arm']);
+    expect(rows[0].arms['only-arm'].decision).toBe('http_404');
+  });
+
+  test('a spent budget skips the transcript before reading it', async () => {
+    jest.resetModules();
+    const fresh = require('../src/o1-shadow');
+    const r = await fresh.shadow(transcriptWith(14), 'sess-1', { models: 'tuned', endpoint: 'http://stub', logPath: path.join(tmpDir, 'l.jsonl'), budgetMs: -1 });
+    expect(r).toEqual({ skipped: 'budget' });
+    expect(fs.existsSync(path.join(tmpDir, 'l.jsonl'))).toBe(false);
+  });
+
+  test('extractFromTranscript runs the shadow only when the caller opts in, and sends the same corpus either way', async () => {
+    global.fetch = jest.fn(async () => reply('tuned', '{"decision": "reject"}'));
+    process.env.VAULT_ROOT = tmpDir;
+    process.env.CONFIG_DIR_OVERRIDE = path.join(__dirname, '..', 'config');
+    process.env.O1_SHADOW_MODELS = 'tuned';
+    process.env.O1_SHADOW_LOG = path.join(tmpDir, 'hook.jsonl');
+    for (const d of ['proposals', 'memory', 'archive/memory']) fs.mkdirSync(path.join(tmpDir, d), { recursive: true });
+    jest.resetModules();
+    const extractor = require('../src/memory-extractor');
+    const file = transcriptWith(14);
+    const corpora = [];
+    const client = { classify: jest.fn(async (_s, user) => { corpora.push(user); return { success: true, data: [] }; }) };
+    await extractor.extractFromTranscript(file, 'sess-1', { _haikuClient: client });
+    expect(fs.existsSync(process.env.O1_SHADOW_LOG)).toBe(false);          // /wrap-style call: no opt-in
+    await extractor.extractFromTranscript(file, 'sess-1', { _haikuClient: client, o1Shadow: true, timeoutMs: 50000 });
+    expect(fs.existsSync(process.env.O1_SHADOW_LOG)).toBe(false);          // Stop-hook budget: never
+    await extractor.extractFromTranscript(file, 'sess-1', { _haikuClient: client, o1Shadow: true });
+    expect(logged(process.env.O1_SHADOW_LOG)).toHaveLength(2);
+    expect(corpora[0]).toBe(corpora[2]);
+    delete process.env.VAULT_ROOT;
+    delete process.env.CONFIG_DIR_OVERRIDE;
+  });
+});

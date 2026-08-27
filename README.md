@@ -24,7 +24,7 @@ Built for a technical executive who directs AI. The project code lives in this r
 ```bash
 npm install
 npm run lint  # ESLint 10 (flat config)
-npm test      # Jest 30 — 1571 total tests (1533 pass, 38 skipped in CI)
+npm test      # Jest 30 — 1576 total tests (1538 pass, 38 skipped in CI)
 ```
 
 **Optional: Semantic memory search** — Set `VOYAGE_API_KEY` in `.env` to enable `/recall --semantic` and `/recall --hybrid`. Without the key, `/recall` falls back to keyword search. See [docs/DEVOPS-HANDOFF.md](docs/DEVOPS-HANDOFF.md) for acquisition steps and configuration.
@@ -90,7 +90,7 @@ src/                          # Core modules (41 .js files total)
     ├── github.js            # UsernameTron repo activity
     └── types.js             # Connector registry + SOURCE enum
 
-test/                         # 1571 tests across 83 files
+test/                         # 1576 tests across 83 files
 ├── unit-style *.test.js     # Module-level tests mirroring src/
 ├── integration/             # Cross-module flow tests
 └── uat/                     # End-to-end command behavior (guarded from CI)
@@ -146,7 +146,7 @@ CLAUDE.md                    # Project governance, commands, conventions
 
 **Latest Release:** v1.7 Prove Compounding (2026-07-16) | Phases 29-31: Series Integrity, Outcome Instrumentation, Trend & Report
 **In progress:** v1.8 Measured Memory — Phases 32-35 shipped (Phase 35 Proactive Memory: SessionStart recall-injection hook); Phase 36 decision-gated. Audit & improvement pass 2026-07-31 (PR #96): 13 pipeline-reliability fixes, the vault `maps/` MOC layer, and a ranked P1-P8 audit report
-- **1571 total tests** across 83 test files (1533 passing, 38 skipped in CI; 1542 passing / 29 skipped locally)
+- **1576 total tests** across 83 test files (1538 passing, 38 skipped in CI; 1547 passing / 29 skipped locally)
 - **Branch coverage:** 80.95% (threshold: ≥80% enforced in CI)
 - **Memory layer:** 285 entries in `memory.md`, all 285 embedded in the sidecar (verified 2026-07-31)
 - **Lint:** 0 ESLint no-console warnings
@@ -180,7 +180,7 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 ### Test Coverage
 
 ```bash
-npm test                    # Run all tests (1571 total; set CI=true to skip UAT)
+npm test                    # Run all tests (1576 total; set CI=true to skip UAT)
 npm run lint               # ESLint validation
 npm run test:uat           # UAT tests (requires CI= to unblock)
 ```
