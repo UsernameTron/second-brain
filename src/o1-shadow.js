@@ -3,8 +3,9 @@
 /**
  * o1-shadow.js — log-only shadow of the two local O1 arms (tuned + base).
  *
- * ctg-model-forge Phase 3 (ROADMAP 03-01). With O1_SHADOW=1, the daily sweep
- * scores every 7-message window of each transcript with both arms and appends
+ * ctg-model-forge Phase 3 (ROADMAP 03-01). When the daily sweep passes
+ * `o1Shadow: true` (it does so only under O1_SHADOW=1), extractFromTranscript
+ * scores every 7-message window of the transcript with both arms and appends
  * one JSONL line per window to state/o1-shadow.jsonl. Nothing here changes what
  * the extractor sends or writes: the shim reads the transcript itself, talks to
  * LM Studio directly (not through classifyLocal, which has the Haiku fallback and
@@ -14,9 +15,9 @@
  * (load_transcript, build_window, user_message, SYSTEM_PROMPT_BINARY). They read
  * the nested `message.{role,content}` that real Claude Code transcripts carry —
  * NOT the flat `{role,content}` shouldExclude/buildCorpus read — so the arms see
- * exactly what they were trained on. The rendered `text` is the join key for the
- * forge's scripts/shadow_report.py, which anchors Connor's accepted candidates to
- * windows by token overlap; the two parsers never need matching indices.
+ * exactly what they were trained on, and message indices match the miner's. The
+ * forge's scripts/shadow_report.py anchors Connor's verdicts to a message index
+ * over the untruncated transcript and joins on the logged `lo`/`hi`.
  */
 
 const fs = require('fs');
@@ -48,6 +49,16 @@ const CAP = 1450;
 
 // The production candidate at the time of writing, then the base it was tuned from.
 const DEFAULT_MODELS = 'sb-extractor-4b-2026-08-27-3,qwen3.5-4b-mlx';
+const DEFAULT_MAX_WINDOWS = 200;
+// Whole-run wall-clock budget across every transcript of one sweep. At the
+// measured ~2.3 s per window the sweep adds ~45 min; if LM Studio degrades to
+// the 20 s abort on every call this is what keeps the 23:45 sweep from running
+// into the 06:45 briefing.
+const DEFAULT_BUDGET_MS = 90 * 60 * 1000;
+const CALL_TIMEOUT_MS = 20_000;
+// Consecutive windows on which EVERY arm failed (error/timeout/HTTP) before the
+// transcript is abandoned — a dead endpoint costs 20 s per window per arm.
+const DEAD_AFTER = 3;
 
 // Python len()/slicing count code points; JS counts UTF-16 units. An emoji in a
 // tool result would otherwise move the cut and break render parity with the miner.
@@ -55,6 +66,8 @@ const plen = (s) => Array.from(s).length;
 const pslice = (s, n) => Array.from(s).slice(0, n).join('');
 
 // json.dumps(v, ensure_ascii=False): ', ' and ': ' separators, unlike JSON.stringify.
+// Known, unexercised divergences: Python prints integral floats as 1.0, and
+// JS reorders integer-like object keys. 0 of 4,656 real tool_use inputs hit either.
 function pyDumps(v) {
   if (v === null || v === undefined) return 'null';
   if (Array.isArray(v)) return '[' + v.map(pyDumps).join(', ') + ']';
@@ -130,20 +143,18 @@ function buildWindow(msgs, idx) {
     const parts = [];
     for (let i = lo; i < hi; i++) parts.push(renderMsg(msgs[i].role, msgs[i].text, i === idx ? CAP : PER_MSG));
     const rendered = parts.join('\n\n');
-    if (plen(rendered) <= CAP || (lo === idx && hi === idx + 1)) return { text: rendered, lo, hi };
+    if (plen(rendered) <= CAP || (lo === idx && hi === idx + 1)) return { anchor: idx, text: rendered, lo, hi };
     // Shed the outermost message furthest from the anchor, never the anchor.
     if (idx - lo >= hi - 1 - idx && lo < idx) lo += 1;
     else if (hi - 1 > idx) hi -= 1;
-    else return { text: pslice(rendered, CAP), lo, hi };
+    else return { anchor: idx, text: pslice(rendered, CAP), lo, hi };
   }
 }
 
 /** mine_o1.mine_empty_windows' tiling: anchors at 4, 11, 18, … (stride 7). */
-function windows(msgs, max) {
+function windows(msgs) {
   const out = [];
-  for (let i = BEFORE; i < msgs.length - AFTER && out.length < max; i += BEFORE + AFTER + 1) {
-    out.push(buildWindow(msgs, i));
-  }
+  for (let i = BEFORE; i < msgs.length - AFTER; i += BEFORE + AFTER + 1) out.push(buildWindow(msgs, i));
   return out;
 }
 
@@ -153,19 +164,30 @@ function userMessage(sessionId, w) {
     + 'Extract the memory worth keeping from this excerpt, or reject it.';
 }
 
-/** First JSON object's `decision`, else 'unparsed' — run_eval.leading_object's rule. */
-function decisionOf(raw) {
-  const m = typeof raw === 'string' && raw.match(/\{[^{}]*\}/);
-  if (!m) return 'unparsed';
-  try {
-    const d = JSON.parse(m[0]).decision;
-    return d === 'extract' || d === 'reject' ? d : 'unparsed';
-  } catch (_) {
-    return 'unparsed';
+/** run_eval.leading_object: the first JSON object starting at the first '{',
+ *  fences and prose around it ignored, nesting and braces inside strings allowed. */
+function leadingObject(raw) {
+  if (typeof raw !== 'string') return null;
+  const start = raw.indexOf('{');
+  if (start < 0) return null;
+  for (let end = raw.indexOf('}', start); end >= 0; end = raw.indexOf('}', end + 1)) {
+    try {
+      const o = JSON.parse(raw.slice(start, end + 1));
+      return o && typeof o === 'object' && !Array.isArray(o) ? o : null;
+    } catch (_) { /* not closed yet — extend to the next brace */ }
   }
+  return null;
 }
 
-async function ask(endpoint, model, user, timeoutMs) {
+function decisionOf(raw) {
+  const o = leadingObject(raw);
+  const d = o && o.decision;
+  return d === 'extract' || d === 'reject' ? d : 'unparsed';
+}
+
+const FAILED = (a) => a.decision === 'error' || a.decision.startsWith('http_');
+
+async function ask(endpoint, model, user) {
   const t0 = Date.now();
   try {
     const res = await fetch(endpoint + '/v1/chat/completions', { // eslint-disable-line no-undef
@@ -178,16 +200,17 @@ async function ask(endpoint, model, user, timeoutMs) {
         stream: false,
         messages: [{ role: 'system', content: SYSTEM_PROMPT_BINARY }, { role: 'user', content: user }],
       }),
-      signal: AbortSignal.timeout(timeoutMs), // eslint-disable-line no-undef
+      signal: AbortSignal.timeout(CALL_TIMEOUT_MS), // eslint-disable-line no-undef
     });
     const ms = Date.now() - t0;
     if (!res.ok) return { decision: 'http_' + res.status, ms };
     const body = await res.json();
     // LM Studio answers an UNKNOWN model id with whatever is loaded, HTTP 200,
     // and only the response's `model` says so. Measured 2026-08-27: the tuned
-    // arm "answered" before it existed, with the base's decisions. Never score it.
+    // arm "answered" before it existed, with the base's decisions. Fail closed:
+    // anything but the exact id asked for is never scored.
     const served = body && body.model;
-    if (typeof served === 'string' && served !== model) return { decision: 'wrong_model', served, ms };
+    if (served !== model) return { decision: 'wrong_model', served: typeof served === 'string' ? served : null, ms };
     return { decision: decisionOf(body.choices?.[0]?.message?.content), ms };
   } catch (err) {
     return { decision: 'error', ms: Date.now() - t0, error: String((err && err.message) || err).slice(0, 120) };
@@ -202,37 +225,72 @@ function localEndpoint() {
   }
 }
 
+/** Highest `hi` already logged for this session: a resumed session (same path,
+ *  new mtime, re-swept every night) pays only for the windows it has grown. */
+function loggedHi(logPath, sessionId) {
+  let raw;
+  try {
+    raw = fs.readFileSync(logPath, 'utf8');
+  } catch (_) {
+    return 0;
+  }
+  let hi = 0;
+  for (const line of raw.split('\n')) {
+    if (!line.includes(sessionId)) continue;
+    try {
+      const r = JSON.parse(line);
+      if (r.session === sessionId && r.hi > hi) hi = r.hi;
+    } catch (_) { /* torn line */ }
+  }
+  return hi;
+}
+
+function envInt(name, fallback) {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n >= 1 ? n : fallback;
+}
+
+let deadline = null; // one budget per process, i.e. per sweep
+
 /**
  * Score every window of one transcript with every arm, one log line per window.
  * Both arms run concurrently per window; windows run in order.
  */
 async function shadow(transcriptPath, sessionId, opts = {}) {
+  if (deadline === null) deadline = Date.now() + (opts.budgetMs || envInt('O1_SHADOW_BUDGET_MS', DEFAULT_BUDGET_MS));
+  if (Date.now() > deadline) return { skipped: 'budget' };
   const models = (opts.models || process.env.O1_SHADOW_MODELS || DEFAULT_MODELS)
     .split(',').map((s) => s.trim()).filter(Boolean);
-  const max = Number(opts.maxWindows || process.env.O1_SHADOW_MAX_WINDOWS || 200);
+  const max = opts.maxWindows || envInt('O1_SHADOW_MAX_WINDOWS', DEFAULT_MAX_WINDOWS);
   const endpoint = opts.endpoint || localEndpoint();
   const logPath = opts.logPath || process.env.O1_SHADOW_LOG || path.join(__dirname, '..', 'state', 'o1-shadow.jsonl');
   const msgs = loadTranscript(transcriptPath);
-  const wins = windows(msgs, max);
+  const startAt = loggedHi(logPath, sessionId);
+  const wins = windows(msgs).filter((w) => w.lo >= startAt).slice(0, max);
   if (wins.length) fs.mkdirSync(path.dirname(logPath), { recursive: true });
-  let n = 0;
+  let done = 0;
+  let dead = 0;
   for (const w of wins) {
+    if (Date.now() > deadline) break;
     const user = userMessage(sessionId, w);
-    const answers = await Promise.all(models.map((m) => ask(endpoint, m, user, 20_000)));
+    const answers = await Promise.all(models.map((m) => ask(endpoint, m, user)));
     const arms = {};
     models.forEach((m, i) => { arms[m] = answers[i]; });
     fs.appendFileSync(logPath, JSON.stringify({
       ts: new Date().toISOString(),
       session: sessionId,
-      window: n++,
+      anchor: w.anchor,
       lo: w.lo,
       hi: w.hi,
       bytes: Buffer.byteLength(w.text, 'utf8'),
       text: w.text,
       arms,
     }) + '\n');
+    done++;
+    dead = answers.every(FAILED) ? dead + 1 : 0;
+    if (dead >= DEAD_AFTER) break;
   }
-  return { messages: msgs.length, windows: wins.length };
+  return { messages: msgs.length, windows: wins.length, done, resumedFrom: startAt };
 }
 
 module.exports = {
@@ -241,6 +299,7 @@ module.exports = {
   buildWindow,
   windows,
   userMessage,
+  leadingObject,
   decisionOf,
   shadow,
 };

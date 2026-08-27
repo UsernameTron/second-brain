@@ -142,7 +142,9 @@ async function sweepTranscripts() {
       let failed = false;
       try {
         const sessionId = path.basename(candidate.path, '.jsonl');
-        const results = await extractFromTranscript(candidate.path, sessionId);
+        // o1Shadow: opt in to the log-only O1 shadow (src/o1-shadow.js) — only this
+        // caller, only under O1_SHADOW=1; /wrap and the Stop hook never pay for it.
+        const results = await extractFromTranscript(candidate.path, sessionId, { o1Shadow: process.env.O1_SHADOW === '1' });
         extracted += Array.isArray(results) ? results.length : 0;
         if (results && results.errors && results.errors.length) {
           failed = true;

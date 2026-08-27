@@ -44,9 +44,9 @@ describe('o1-shadow window renderer', () => {
     expect(msgs[2].text).toBe('[tool_result] rule-a\nrule-b');
     expect(msgs[4].text).toBe('ok, record that as a constraint');
 
-    const wins = shadow.windows(msgs, 200);
+    const wins = shadow.windows(msgs);
     expect(wins).toHaveLength(1);                       // anchors at 4 only (11 > 8 - 2)
-    expect(wins[0]).toMatchObject({ lo: 0, hi: 7 });
+    expect(wins[0]).toMatchObject({ anchor: 4, lo: 0, hi: 7 });
     const parts = wins[0].text.split('\n\n');
     expect(parts).toHaveLength(7);
     expect(parts[0]).toBe('[user] Please move the Suppliers folder under Vendors.');
@@ -69,5 +69,9 @@ describe('o1-shadow window renderer', () => {
     expect(shadow.decisionOf('```json\n{"decision": "extract"}\n```\nbecause')).toBe('extract');
     expect(shadow.decisionOf('I would keep this.')).toBe('unparsed');
     expect(shadow.decisionOf('{"decision": "maybe"}')).toBe('unparsed');
+    // run_eval.leading_object's rule: nesting and braces inside strings do not break it.
+    expect(shadow.decisionOf('Sure. {"note": {"a": 1}, "decision": "reject"}')).toBe('reject');
+    expect(shadow.decisionOf('{"x": "}", "decision": "extract"} trailing')).toBe('extract');
+    expect(shadow.decisionOf('[{"decision": "reject"}]')).toBe('reject');
   });
 });

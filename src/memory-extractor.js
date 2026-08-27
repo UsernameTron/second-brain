@@ -327,10 +327,11 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
   }
 
   // O1 shadow (ctg-model-forge Phase 3): score the two local arms on this
-  // transcript, log-only. Daily-sweep path only — the Stop hook passes a
-  // timeoutMs budget and must never pay for this. It cannot change what is
-  // sent or written: the shim reads the file itself and every failure stays inside.
-  if (process.env.O1_SHADOW === '1' && !options.timeoutMs) {
+  // transcript, log-only. Only the daily sweep opts in (o1Shadow, under
+  // O1_SHADOW=1) — never the Stop hook (timeoutMs budget) and never /wrap. It
+  // cannot change what is sent or written: the shim reads the file itself and
+  // every failure stays inside.
+  if (options.o1Shadow && !options.timeoutMs) {
     try {
       await require('./o1-shadow').shadow(transcriptPath, sessionId);
     } catch (_) { /* log-only */ }
