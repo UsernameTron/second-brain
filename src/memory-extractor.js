@@ -326,6 +326,17 @@ async function extractFromTranscript(transcriptPath, sessionId, options = {}) {
     return recordFailure([], 'read-error', 'Could not read transcript: ' + err.message);
   }
 
+  // O1 shadow (ctg-model-forge Phase 3): score the two local arms on this
+  // transcript, log-only. Only the daily sweep opts in (o1Shadow, under
+  // O1_SHADOW=1) — never the Stop hook (timeoutMs budget) and never /wrap. It
+  // cannot change what is sent or written: the shim reads the file itself and
+  // every failure stays inside.
+  if (options.o1Shadow && !options.timeoutMs) {
+    try {
+      await require('./o1-shadow').shadow(transcriptPath, sessionId);
+    } catch (_) { /* log-only */ }
+  }
+
   if (messages.length === 0) {
     return [];
   }
