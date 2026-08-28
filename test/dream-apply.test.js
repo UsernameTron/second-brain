@@ -150,6 +150,49 @@ describe('dream: applyOps', () => {
     expect(memoryContent).toContain(`content_hash:: ${newHash}`);
   });
 
+  test('MERGE output lands with ^anchor, added:: and source-ref:: so its supersede pointers resolve', async () => {
+    // Regression: the merged entry used to land with content_hash:: and no
+    // ^anchor, so every `superseded-by:: <hash>` on a source dead-ended — a
+    // reader told to prefer the replacement could not find it and fell back
+    // on the stale source. Observed live as 8 unresolved pointers and 1
+    // dangling [[memory#^hash]]. It also had no added::, so memory-reader
+    // left addedAt '' and _daysSince defaulted to 365 (max recency penalty).
+    const changesetPath = buildChangeset();
+    let content = fs.readFileSync(changesetPath, 'utf8');
+    const ops = dream.parseChangesetOps(content);
+    const mergeId = ops.find(o => o.opType === 'MERGE').id;
+    content = acceptOp(content, mergeId);
+    fs.writeFileSync(changesetPath, content, 'utf8');
+
+    await dream.applyOps(content, CONFIG);
+
+    const memoryContent = fs.readFileSync(path.join(vaultRoot, 'memory', 'memory.md'), 'utf8');
+    const newHash = computeHash('MERGED: ' + CONTENT_A);
+
+    // The anchor exists, so the pointer resolves.
+    expect(memoryContent).toMatch(new RegExp(`^\\^${newHash}$`, 'm'));
+
+    // Every superseded-by:: target in the file has a matching ^anchor.
+    const anchors = new Set((memoryContent.match(/^\^[0-9a-f]{12}$/gm) || []).map(a => a.slice(1)));
+    const pointers = (memoryContent.match(/^superseded-by:: [0-9a-f]{12}$/gm) || []).map(p => p.slice(-12));
+    expect(pointers.length).toBeGreaterThan(0);
+    expect(pointers.filter(h => !anchors.has(h))).toEqual([]);
+
+    // Provenance + recency fields are present on the merged entry.
+    const mergedIdx = memoryContent.indexOf(`content_hash:: ${newHash}`);
+    const mergedBlock = memoryContent.slice(Math.max(0, mergedIdx - 600), mergedIdx + 100);
+    expect(mergedBlock).toMatch(/^added:: \d{4}-\d{2}-\d{2}T/m);
+    expect(mergedBlock).toMatch(/^source-ref:: \S/m);
+
+    // memory-reader must actually parse that addedAt, or recency decay still
+    // treats the entry as a year old.
+    const entries = await require('../src/memory-reader').readMemory();
+    const merged = entries.find(e => e.contentHash === newHash);
+    expect(merged).toBeDefined();
+    expect(merged.addedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(merged.sourceRef).toBeTruthy();
+  });
+
   test('STALE op appends its flag line to the target without deleting it', async () => {
     const changesetPath = buildChangeset();
     let content = fs.readFileSync(changesetPath, 'utf8');

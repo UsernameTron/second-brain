@@ -29,7 +29,7 @@ Obsidian vault serving as Pete Connor's second brain. Hybrid architecture inspir
 **v1.7 complete (2026-07-16):** Series Integrity (Phase 29), Outcome Instrumentation (Phase 30), Trend & Report (Phase 31)
 **v1.6 complete (2026-07-15):** Promotion Safety, Cross-Surface Reach (ADR-018/019), Context Honesty (staleness hook, ADR-020 authority hierarchy, fail-closed exclusions), Surface Completion (/reroute, pre-push docs gate)
 
-- **Test count:** 1576 total across 83 test files (1538 passing, 38 skipped in CI)
+- **Test count:** 1579 total across 83 test files (1541 passing, 38 skipped in CI)
 - **Coverage:** Branch 80.95%, Statements 92.05%, Functions 95.78%, Lines 93.01% (measured 2026-08-19, local `CI=true` run, `coverage-summary.json total.*.pct`)
 - **Lint:** 0 ESLint no-console warnings
 - **CI gates:** ESLint 10 flat config, CodeQL SAST, license-checker, Node 22 matrix, coverage thresholds (branches 80 / functions 90 / lines 90 / statements 90), GitGuardian secrets scan
@@ -52,7 +52,7 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 | `node scripts/recall.js "<query>"` | Standalone recall CLI — same flags as `/recall`, runnable from any directory/session on this machine (v1.6 reach layer, ADR-019) |
 | `/today` (with `## Compounding` section) | Daily briefing includes compounding evidence when available: last 7 entries added/modified, cumulative promotion count, memory growth trend (v1.7 Phase 30) |
 | `node scripts/compounding-report.js` | Standalone compounding evidence report CLI — summarizes memory growth metrics, promotion velocity, and verdict (v1.7 Phase 31) |
-| `npm run eval:recall` | Retrieval eval over the frozen seed vault (`eval/seed-vault/`) + golden set (`eval/golden-recall.json`) — recall@5 + MRR across keyword/semantic/hybrid, compared against `eval/baseline-*.json`. `-- --baseline` re-anchors. Exit 1 on regression (v1.8 Phase 32) |
+| `npm run eval:recall` | Retrieval eval over the frozen seed vault (`eval/seed-vault/`) + golden set (`eval/golden-recall.json`) — recall@5 + MRR across keyword/semantic/hybrid, compared against `eval/baseline-*.json`. `-- --baseline` re-anchors. Exit 1 on regression (v1.8 Phase 32). **Takes ~16 min** — `PACE_MS` defaults to 21s between embed calls to stay under free-tier Voyage limits (3 RPM / 10K TPM); it prints a duration banner and per-step progress so a normal run is not mistaken for a hang. `EVAL_EMBED_PACE_MS=0` on a paid key; at pace 0 on the free tier every semantic/hybrid question is rate-limited into degraded mode and the run exits 2 rather than scoring an incomplete set |
 | `npm run dream:propose` | Monthly dream-consolidation propose pass over `memory.md` — stages MERGE/STALE ops into `proposals/dream-changeset-YYYY-MM.md` + missed patterns into the normal proposals gate; applies nothing (v1.8 Phase 34). Also scheduled via `com.secondbrain.dream` launchd plist (1st of month, 07:15, Anthropic-pinned) |
 | `npm run dream:apply` | Human-invoked-only apply of the accepted dream changeset — snapshot-first, then an `eval:recall` retrievability gate with auto-restore on regression (v1.8 Phase 34) |
 | `npm run verify:baseline` | Verifies the 27 pre-governance memory-entry hashes; real exit code, wired into the pre-push gate (v1.8 Phase 34, VERIFY-SENTINEL-01) |

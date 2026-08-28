@@ -133,6 +133,21 @@ async function main() {
     console.log('SKIPPED: semantic + hybrid (VOYAGE_API_KEY not set) — keyword-only run');
   }
 
+  // Announce the paced cost BEFORE spending it. Without this the run prints
+  // nothing for 2-16 minutes and is indistinguishable from a wedged socket —
+  // which is exactly how it got misdiagnosed as a hang (issue #240).
+  if (hasKey && PACE_MS > 0) {
+    const chunks = Math.ceil(entries.length / EMBED_CHUNK);
+    const embedModes = modes.length - 1; // keyword embeds nothing
+    const worstCaseSec = Math.round(((chunks - 1) + questions.length * embedModes) * PACE_MS / 1000);
+    console.log(
+      `pacing ${PACE_MS}ms between embed calls for free-tier Voyage limits (3 RPM / 10K TPM).\n` +
+      `  ${entries.length} seed entries in ${chunks} warm-up chunks (skipped if eval/.cache is warm), ` +
+      `${questions.length} questions x ${embedModes} embedding modes.\n` +
+      `  Expect up to ~${Math.ceil(worstCaseSec / 60)} min. Set EVAL_EMBED_PACE_MS=0 on a paid key.`
+    );
+  }
+
   // --- Warm-up: index the seed vault in rate-limit-safe chunks ---------------
   // Left to selfHealIfNeeded, the first semantic query embeds all 135 entries in
   // one 128-entry batch, 429s on free-tier TPM, and opens voyage-health's 15-min
@@ -169,6 +184,9 @@ async function main() {
         fail(2, `seed-vault warm-up failed embedding (${res.failureMode || 'unknown'}) — cannot score semantic/hybrid`);
       }
       warmed += res.embedded;
+      if (res.embedded > 0) {
+        console.log(`  warm-up chunk ${Math.floor(i / EMBED_CHUNK) + 1}/${Math.ceil(toEmbed.length / EMBED_CHUNK)} — ${res.embedded} embedded`);
+      }
       if (res.embedded > 0 && i + EMBED_CHUNK < toEmbed.length) await sleep(PACE_MS);
     }
     if (warmed > 0) console.log(`warm-up: embedded ${warmed} seed entries into eval/.cache`);
@@ -181,8 +199,13 @@ async function main() {
 
   for (const mode of modes) {
     results[mode] = { perQuestion: {}, hits: 0, scored: 0, skipped: 0 };
+    let qNum = 0;
     for (const q of questions) {
-      if (mode !== 'keyword') await sleep(PACE_MS); // each semantic/hybrid call embeds the query
+      qNum += 1;
+      if (mode !== 'keyword') {
+        console.log(`  ${mode} ${qNum}/${questions.length} (${q.id})`);
+        await sleep(PACE_MS); // each semantic/hybrid call embeds the query
+      }
       const r = await runRecall([q.query, '--top', '5', ...modeFlags[mode]], { _internal: true });
       // Mode-integrity gate: never score a silent keyword-fallback as semantic/hybrid.
       if (r.blocked || r.degraded || r.mode !== mode) {

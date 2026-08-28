@@ -688,6 +688,46 @@ function restoreSnapshot(snapshotPath) {
  * @param {string} fieldLine - e.g. "superseded-by:: abc123" or "stale:: 2026-08-01 · reason"
  * @returns {{content:string, applied:boolean}}
  */
+/**
+ * Complete a merged-entry block with the fields the store's readers depend on.
+ *
+ * The propose-time renderer emits only category/merged-from/tags/content_hash,
+ * so merged entries landed in memory.md missing three things:
+ *   - `^<hash>` block anchor — without it every `[[memory#^hash]]` and every
+ *     `superseded-by:: <hash>` pointing at the merge dead-ends, so a reader
+ *     told to prefer the replacement cannot find it and falls back on the
+ *     stale source (8 unresolved pointers and 1 dangling link observed live).
+ *   - `added::` — memory-reader leaves addedAt '' and _daysSince defaults to
+ *     365, so every merged entry takes the maximum recency penalty.
+ *   - `source-ref::` — provenance, currently only implicit in the heading.
+ *
+ * Applied here rather than in the renderer so changesets written before this
+ * fix are repaired on apply, and so `added::` is the real insertion time
+ * rather than propose time. Idempotent: a block that already has a field
+ * keeps it.
+ *
+ * @param {string} block - merged-entry block as parsed from the changeset
+ * @param {string} newHash - the merged entry's content hash
+ * @param {string} addedAt - ISO timestamp to stamp when `added::` is absent
+ * @returns {string} block with the missing fields, newline-terminated
+ */
+function _completeMergedBlock(block, newHash, addedAt) {
+  let out = String(block).trimEnd();
+  if (!out) return out;
+
+  if (!/^added:: /m.test(out)) {
+    out = out.replace(/^content_hash:: /m, `added:: ${addedAt}\n$&`);
+  }
+  if (!/^source-ref:: /m.test(out)) {
+    const shortRef = (out.split('\n')[0] || '').split(' · ')[2] || 'dream-merge';
+    out = out.replace(/^content_hash:: /m, `source-ref:: ${shortRef.trim()}\n$&`);
+  }
+  if (!new RegExp(`^\\^${newHash}$`, 'm').test(out)) {
+    out += `\n^${newHash}`;
+  }
+  return out + '\n';
+}
+
 function _appendFieldToEntry(memoryContent, contentHash, fieldLine) {
   const marker = `content_hash:: ${contentHash}`;
   const idx = memoryContent.indexOf(marker);
@@ -778,7 +818,8 @@ async function applyOps(changesetContent, config) {
       const missingSources = sourceHashes.filter(h => memoryContent.indexOf(`content_hash:: ${h}`) === -1);
       if (missingSources.length > 0) continue;
 
-      const entryText = block + '\n';
+      const mergedAddedAt = new Date().toISOString();
+      const entryText = _completeMergedBlock(block, newHash, mergedAddedAt);
       if (memoryContent.includes(monthHeader)) {
         const monthIdx = memoryContent.indexOf(monthHeader);
         const afterHeader = memoryContent.indexOf('\n', monthIdx) + 1;
@@ -791,7 +832,9 @@ async function applyOps(changesetContent, config) {
         memoryContent = _appendFieldToEntry(memoryContent, srcHash, `superseded-by:: ${newHash}`).content;
       }
 
-      newMergeEntries.push({ contentHash: newHash, content, addedAt: new Date().toISOString(), category });
+      // Same stamp in the store text and the sidecar — they drifted before,
+      // because only the sidecar got one.
+      newMergeEntries.push({ contentHash: newHash, content, addedAt: mergedAddedAt, category });
       mergeCount++;
       appliedIds.push(op.id);
     } else if (op.opType === 'STALE') {
