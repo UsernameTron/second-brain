@@ -65,7 +65,7 @@ Not caused by this change, on two independent grounds:
 1. `scripts/eval-recall.js` never passes `since` to any search call — the only `since` in the file is a log string at :282. The changed line is unreachable from it.
 2. Control run with `git checkout HEAD~1 -- src/semantic-index.js` (genuine pre-fix source) hangs identically: `exit=124`, 0 bytes.
 
-Pre-existing defect, filed not fixed. Most likely a Voyage embed call on the seed vault with no timeout, but that is unverified — the script emits nothing to diagnose from, which is itself the first thing to fix.
+Pre-existing defect, filed not fixed as **[#240](https://github.com/UsernameTron/second-brain/issues/240)**. Most likely a Voyage embed call on the seed vault with no timeout, but that is unverified — the script emits nothing to diagnose from, which is itself the first thing to fix.
 
 ## 5. Vault store edits — `~/Claude Cowork/memory/memory.md`
 
@@ -93,6 +93,6 @@ Applied by `fix_memory.py` (job tmp, not durable), which asserts its invariants 
 
 ## 6. Explicitly not done
 
-- `src/dream.js` writer gaps — the merge path emits no `^anchor`, `added::`, or `source-ref::`. Left for the v1.8 memory-provenance-backfill milestone per instruction. **Until it is fixed, every future dream merge reintroduces the anchorless-entry defect this task just cleaned up.**
+- `src/dream.js` writer gaps — the merge path emits no `^anchor`, `added::`, or `source-ref::`. Left for the v1.8 memory-provenance-backfill milestone per instruction, filed as **[#241](https://github.com/UsernameTron/second-brain/issues/241)**. **Until it is fixed, every future dream merge reintroduces the anchorless-entry defect this task just cleaned up.**
 - Recall output does not display the `stale`/`superseded` marker to the reader (critic SHOULD-FIX 3). Flagging makes the 0.4 downrank apply; it does not label the entry on screen. Out of scope here.
 - Remaining critic findings untouched: the ~15 undated present-tense entries, the 19 dream-merge outputs missing `source-ref::`, and the reach-exporter egress gate dropping the entry that states the exclusion policy.
