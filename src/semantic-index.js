@@ -488,7 +488,19 @@ async function semanticSearch(query, options) {
   // Apply optional filters
   let candidates = stored;
   if (opts.category) candidates = candidates.filter(r => (r.category || '').toLowerCase() === opts.category.toLowerCase());
-  if (opts.since) candidates = candidates.filter(r => (r.addedAt || '') >= opts.since);
+  // --since filters on the entry's heading date, matching searchMemoryKeyword
+  // (memory-reader.js `r.date`). Comparing the sidecar's `addedAt` directly is
+  // wrong: it is a full ISO stamp in local offset, so an entry headed 2026-08-22
+  // but stamped 2026-08-21T23:05:00-05:00 string-sorts below "2026-08-22" and
+  // vanishes from --semantic while still returning from the keyword arm — which
+  // then poisons --hybrid, fusing a full list with a truncated one.
+  if (opts.since) {
+    candidates = candidates.filter(r => {
+      const entry = byHash.get(r.hash);
+      const date = (entry && entry.date) || (r.addedAt || '').slice(0, 10);
+      return date >= opts.since;
+    });
+  }
 
   const scored = candidates.map(r => {
     const base = _cosine(queryVec, r.embedding);

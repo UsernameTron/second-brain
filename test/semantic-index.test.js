@@ -325,6 +325,53 @@ describe('semanticSearch', () => {
     expect(ids).not.toContain('super');
   });
 
+  /**
+   * Seed one entry whose heading date and sidecar addedAt disagree, then run
+   * --since against it. Returns the result ids.
+   */
+  async function searchWithSince({ date, addedAt, since }) {
+    const queryVec = normalize([1, 0, 0, 0]);
+    const vHit = normalize([0.99, 0.1, 0, 0]);
+
+    mockEmbed.mockResolvedValueOnce({ data: [{ embedding: vHit }] });
+    mockReadMemory.mockResolvedValue([
+      { id: 'batch', contentHash: 'batch', content: 'deploy preflight', category: 'CONSTRAINT', addedAt, sourceRef: 's', date, supersededBy: null, stale: null },
+    ]);
+    await indexNewEntries([
+      { contentHash: 'batch', content: 'deploy preflight', addedAt, category: 'CONSTRAINT' },
+    ]);
+    mockEmbed.mockReset();
+
+    mockEmbed.mockResolvedValueOnce({ data: [{ embedding: queryVec }] });
+    const result = await semanticSearch('deploy', { top: 5, since });
+    return result.results.map(r => r.id);
+  }
+
+  test('--since filters on heading date, not the sidecar addedAt stamp (arm parity regression)', async () => {
+    // Real shape of the 2026-08-22 promotion batch: 200 entries headed 2026-08-22
+    // but stamped the prior evening in local offset. As a raw string,
+    // "2026-08-21T23:05:00-05:00" >= "2026-08-22" is false — so the semantic arm
+    // dropped all 200 while the keyword arm (memory-reader `r.date`) still
+    // returned them, and --hybrid fused a full list with an empty one.
+    const ids = await searchWithSince({
+      date: '2026-08-22',
+      addedAt: '2026-08-21T23:05:00-05:00',
+      since: '2026-08-22',
+    });
+    expect(ids).toContain('batch');
+  });
+
+  test('--since still excludes an entry headed before the cutoff', async () => {
+    // Guards the fix above: deleting the filter outright would pass that test
+    // but fail this one.
+    const ids = await searchWithSince({
+      date: '2026-08-20',
+      addedAt: '2026-08-19T23:05:00-05:00',
+      since: '2026-08-22',
+    });
+    expect(ids).not.toContain('batch');
+  });
+
   test('top=3 returns at most 3 results even when more pass threshold', async () => {
     const queryVec = normalize([1, 0, 0, 0]);
     const vecs = Array.from({ length: 5 }, (_, i) =>
