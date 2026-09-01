@@ -43,7 +43,7 @@ For detailed release history, see [.planning/MILESTONES.md](.planning/MILESTONES
 | `/today` | Daily prep list — 6-section briefing with slippage scan, frog identification, memory compounding |
 | `/new` | Route mixed input to correct location via two-stage LLM classifier |
 | `/wrap` | Session wrap with automatic memory extraction and proposal staging to `memory-proposals.md`. Bare invocation extracts from this project's newest Claude Code transcript; `--transcript/--file/--dir/--since` override. **Exits non-zero when extraction hard-fails** (Haiku error, malformed JSON, unreadable transcript) — a failed extraction is distinguishable from an empty one. CLI: `node scripts/wrap.js` |
-| `/promote-memories` | Human-in-the-loop memory promotion from staging to `memory.md` |
+| `/promote-memories` | Memory promotion from staging to `memory.md`. Since 2026-09-01 promotion is automatic nightly (`scripts/promote-scheduled.js`, `--auto`: unreviewed candidates count as accepted; explicit reject/defer checkboxes are still honored; exclusion, dedup, style, category and contradiction gates unchanged). Manual runs remain for review or vetoes before 00:45 |
 | `/reroute` | Re-route previously classified item to different vault location |
 | `/promote-unrouted` | Re-route a single unrouted dead-letter file to a target vault path |
 | `/recall <query>` | Keyword search over `memory.md` via minisearch — AND semantics, quoted phrases, negation. Flags: `--category <name>`, `--since YYYY-MM-DD`, `--top N` (default 5) |
@@ -88,7 +88,7 @@ Claude Code hooks live separately in `.claude/hooks/` (auto-test, protected-file
 - **Orchestration:** Claude Code (GSD framework for phases, planning, execution)
 - **Runtime:** Node.js 22 LTS or newer — required by `node:sqlite` (tested in CI)
 - **Integrations:** GitHub + Obsidian via Docker MCP Gateway (mcp__MCP_DOCKER__*); Gmail + Calendar via claude.ai connectors (mcp__claude_ai_*). Session/Desktop-connected — only context7 is registered in repo .mcp.json.
-- **AI models:** Anthropic Haiku/Sonnet, LM Studio for local fallback (`qwen/qwen3.6-27b` at 65536-token context, `localTimeoutMs` 900000 in `config/pipeline.local.json`)
+- **AI models:** Anthropic Haiku/Sonnet. LM Studio / local model path retired 2026-09-01 (`config/pipeline.local.json` removed; `com.ctg.mlx-server` unloaded); the `provider: local` seam remains in code but is unconfigured
 - **Testing:** Jest 30 (unit + integration), UAT tests guarded from CI via skip logic
 - **Quality gates:** ESLint 10, CodeQL SAST, AJV schema validation, coverage ≥80%
 
@@ -120,7 +120,7 @@ The system is deployed across five integration points:
 2. **Orchestration:** Claude Code via `/today`, `/new`, `/wrap` commands; GSD framework manages phases
 3. **External integrations:** GitHub + Obsidian via the Docker MCP Gateway (Claude Desktop); Gmail + Calendar via claude.ai connectors. None are registered in repo .mcp.json (context7 only).
 4. **AI models:** Anthropic Haiku (default) and Sonnet (heavier tasks), with LM Studio as local fallback — `qwen/qwen3.6-27b` loaded at 65536-token context (raised from 32768 on 2026-07-31; flash attention + q8_0 K/V cache, ~16.3 GiB on the M4 Pro / 48 GB box), `localTimeoutMs` 900000 in `config/pipeline.local.json`. The old 32768 ceiling was rejecting real 33k- and 63k-token extraction requests; the 900s timeout matches measured throughput (~86 tok/s cold prefill, ~6-7 tok/s generation). Callers that must finish sooner pass their own `timeoutMs` — the Stop hook passes 50000ms rather than inheriting 900s
-5. **Scheduling:** macOS launchd — `com.secondbrain.today` (weekdays 06:45), `com.secondbrain.daily-sweep` (23:45), `com.secondbrain.dream` (1st of month 07:15); plists versioned in `config/`. RemoteTrigger is vault-unreachable and disabled by design (`config/scheduling.json`)
+5. **Scheduling:** macOS launchd — `com.secondbrain.today` (weekdays 06:45), `com.secondbrain.daily-sweep` (23:45), `com.secondbrain.promote` (00:45, auto-promotion of the sweep's candidates; added 2026-09-01), `com.secondbrain.dream` (1st of month 07:15); plists versioned in `config/`. RemoteTrigger is vault-unreachable and disabled by design (`config/scheduling.json`)
 
 **Permission model:** LEFT vault side is read-only (human voice preserved); RIGHT side has full agent write access. OAuth scopes follow zero-trust: Gmail `gmail.compose` (draft-only, no send), Calendar read-only, GitHub issues-only.
 
