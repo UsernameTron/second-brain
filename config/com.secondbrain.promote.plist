@@ -2,15 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>Label</key>
-	<string>com.secondbrain.promote</string>
-	<key>ProgramArguments</key>
-	<array>
-		<string>/opt/homebrew/opt/node@22/bin/node</string>
-		<string>/Users/cpconnor/projects/second-brain/scripts/promote-scheduled.js</string>
-	</array>
-	<key>WorkingDirectory</key>
-	<string>/Users/cpconnor/projects/second-brain</string>
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
@@ -18,6 +9,18 @@
 		<key>VAULT_ROOT</key>
 		<string>/Users/cpconnor/Claude Cowork</string>
 	</dict>
+	<key>Label</key>
+	<string>com.secondbrain.promote</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/opt/node@22/bin/node</string>
+		<string>/Users/cpconnor/projects/second-brain/scripts/promote-scheduled.js</string>
+		<string>--drain</string>
+	</array>
+	<key>StandardErrorPath</key>
+	<string>/Users/cpconnor/Library/Logs/com.secondbrain.promote.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/cpconnor/Library/Logs/com.secondbrain.promote.log</string>
 	<key>StartCalendarInterval</key>
 	<dict>
 		<key>Hour</key>
@@ -25,9 +28,7 @@
 		<key>Minute</key>
 		<integer>45</integer>
 	</dict>
-	<key>StandardOutPath</key>
-	<string>/Users/cpconnor/Library/Logs/com.secondbrain.promote.log</string>
-	<key>StandardErrorPath</key>
-	<string>/Users/cpconnor/Library/Logs/com.secondbrain.promote.err.log</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/cpconnor/projects/second-brain</string>
 </dict>
 </plist>
