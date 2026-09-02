@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.secondbrain.pulse</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/opt/node@22/bin/node</string>
+		<string>/Users/cpconnor/projects/second-brain/scripts/pulse.js</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/cpconnor/projects/second-brain</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/opt/node@22/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>VAULT_ROOT</key>
+		<string>/Users/cpconnor/Claude Cowork</string>
+	</dict>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Weekday</key>
+		<integer>1</integer>
+		<key>Hour</key>
+		<integer>7</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Users/cpconnor/Library/Logs/com.secondbrain.pulse.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/cpconnor/Library/Logs/com.secondbrain.pulse.err.log</string>
+</dict>
+</plist>
