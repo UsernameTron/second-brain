@@ -34,12 +34,40 @@ No leg FAILED. Three WARNs, none of which block correctness of what is on master
    acted on, but the file was never closed out, so the sweep keeps counting it as open work.
    Fix: confirm the fix landed, then set `status: resolved` or move it under a phase summary.
 
+## Correction — the verdict above did not survive contact
+
+Written before the merged code was checked against the PR's own review findings.
+Doing that check found a defect every green gate missed: `skipStats` was added to
+promoteMemories' options but never to `ALLOWED_OPTIONS`, so `PROMOTE-FLAGS-01`
+rejected it, `promote-scheduled.js` exited 1 on round 1, and the nightly
+`com.secondbrain.promote` job promoted nothing from merge until `264cd81` fixed it
+in [#247](https://github.com/UsernameTron/second-brain/pull/247).
+
+The seven promote-scheduled tests all passed because they mocked `promoteMemories`.
+Lint, coverage, CodeQL, the baseline hashes and the schema gates were all green the
+whole time. The headline feature of the release had never run once.
+
+Both lessons are recorded in `tasks/lessons.md`: a mocked collaborator cannot verify
+that collaborator's contract, and "every gate green" is not "the feature works" —
+for an unattended job, run its real plist argv against a temp `VAULT_ROOT` and quote
+the exit code.
+
+Post-fix, verified on merged master (`264cd81`):
+
+```
+$ VAULT_ROOT=$TMP node scripts/promote-scheduled.js --drain
+{"round":1,"promoted":0,"deferred":0,...}
+{"done":true,"promoted":0,"rounds":1}
+EXIT=0
+```
+
 ## What this run actually proves
 
 The merged code passes every executable gate this repo owns: lint, the full Jest suite under CI
 skip-logic, the coverage thresholds, the 27-hash memory baseline, config-schema validation, and
-the LEFT/RIGHT vault-boundary check. The three warnings are staleness and housekeeping, not
-defects — none of them describe behavior that is wrong on master today.
+the LEFT/RIGHT vault-boundary check. As the correction above shows, that is a narrower claim than
+it sounds — it was true while the nightly job was exiting 1 every run. Gates bound what is
+checked, not what works.
 
 Not proven here: the two new launchd jobs have never fired on this machine. `com.secondbrain.promote`
 (00:45) and `com.secondbrain.pulse` (Monday 07:00) are versioned and now in the deploy checklist,
