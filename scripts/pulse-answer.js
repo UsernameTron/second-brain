@@ -28,8 +28,12 @@ const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/
 // the same file, so an overlapping nightly run would otherwise clobber this
 // write (or be clobbered by it) and lose promoted entries. Both sides now
 // serialize on the memory-proposals lock.
-// ponytail: one coarse pipeline mutex; dream:apply is human-invoked and
-// snapshot-first, so it stays outside this lane.
+// dream:apply is in this lane too: scripts/dream.js:148 takes the same
+// proposals/memory-proposals.md.lock before applyOps. Note it does so through
+// a SECOND implementation (src/dream.js:1001) that lacks the pid-probe stale
+// reclaim in src/memory-proposals.js — it waits out the timeout rather than
+// reclaiming a dead holder. Safe direction, but the two copies have diverged.
+// ponytail: one coarse pipeline mutex; collapse the duplicate if it drifts again.
 function markStale(hash, reason) {
   const raw = fs.readFileSync(MEMORY_FILE(), 'utf8');
   const line = `content_hash:: ${hash}`;

@@ -70,17 +70,29 @@ function openInObsidian(relNoExt) {
   try { execFileSync('open', [`obsidian://open?vault=${vault}&file=${encodeURIComponent(relNoExt)}`]); } catch { /* Obsidian absent */ }
 }
 
+const KNOWN_FLAGS = new Set(['--dry-run', '--show', '--no-open']);
+
 async function main(args = process.argv.slice(2)) {
   if (args[0] === 'yes' || args[0] === 'no') {
     const { answer } = require('./pulse-answer');
     return answer(args[0], args[1] || '', args.slice(2).join(' '));
   }
-  if (args.includes('--show')) {
+  // A bare `show` is the documented form in .claude/commands/pulse.md. It used
+  // to fall through to a real pulse: writing the brief, appending to the
+  // ledger, and firing the notification — the opposite of a read-only look.
+  if (args[0] === 'show' || args.includes('--show')) {
     const p = latestPulsePath();
     if (!p) { console.log('No pulse written yet. Run: node scripts/pulse.js'); return; }
     process.stdout.write(fs.readFileSync(p, 'utf8'));
     return;
   }
+  const unknown = args.filter((a) => !KNOWN_FLAGS.has(a));
+  if (unknown.length) {
+    console.error(`pulse: unknown argument(s): ${unknown.join(', ')}`);
+    console.error(`pulse: known: yes|no|show, ${[...KNOWN_FLAGS].join(', ')}`);
+    process.exit(2);
+  }
+
   const dryRun = args.includes('--dry-run');
   const now = today();
   const ledger = readLedger();

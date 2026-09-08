@@ -460,3 +460,51 @@ describe('pulse safety branches', () => {
     expect(t).not.toContain('## One question');
   });
 });
+
+describe('pulse.js argument safety', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  let dir, prevVault, prevLedger, log, out, err, exit;
+
+  beforeEach(() => {
+    jest.resetModules();
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pulse-args-'));
+    fs.mkdirSync(path.join(dir, 'briefings', 'pulse'), { recursive: true });
+    prevVault = process.env.VAULT_ROOT; prevLedger = process.env.PULSE_LEDGER;
+    process.env.VAULT_ROOT = dir; process.env.PULSE_LEDGER = path.join(dir, 'l.json');
+    log = jest.spyOn(console, 'log').mockImplementation(() => {});
+    err = jest.spyOn(console, 'error').mockImplementation(() => {});
+    out = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    exit = jest.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+  });
+  afterEach(() => {
+    if (prevVault === undefined) delete process.env.VAULT_ROOT; else process.env.VAULT_ROOT = prevVault;
+    if (prevLedger === undefined) delete process.env.PULSE_LEDGER; else process.env.PULSE_LEDGER = prevLedger;
+    log.mockRestore(); err.mockRestore(); out.mockRestore(); exit.mockRestore();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('a bare `show` reads, it does not write a pulse', async () => {
+    // .claude/commands/pulse.md documents `/pulse show`; before this it fell
+    // through to a real run — writing the brief and appending to the ledger.
+    const { main } = require('../scripts/pulse');
+    await main(['show']);
+    expect(fs.readdirSync(path.join(dir, 'briefings', 'pulse'))).toHaveLength(0);
+    expect(fs.existsSync(path.join(dir, 'l.json'))).toBe(false);
+  });
+
+  test('`show` prints the latest brief when one exists', async () => {
+    fs.writeFileSync(path.join(dir, 'briefings', 'pulse', '2026-09-08.md'), 'latest brief\n');
+    const { main } = require('../scripts/pulse');
+    await main(['show']);
+    expect(out.mock.calls.flat().join('')).toContain('latest brief');
+  });
+
+  test('an unknown flag exits 2 rather than writing a pulse', async () => {
+    const { main } = require('../scripts/pulse');
+    await expect(main(['--dryrun'])).rejects.toThrow('exit');
+    expect(exit).toHaveBeenCalledWith(2);
+    expect(fs.readdirSync(path.join(dir, 'briefings', 'pulse'))).toHaveLength(0);
+  });
+});
