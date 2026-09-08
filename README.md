@@ -10,6 +10,7 @@ CLI commands that orchestrate an Obsidian vault into a second brain. Three core 
 - **`/today`** — Daily prep list: 6-section briefing with cross-project slippage scanner, calendar summary, Gmail VIP filter, GitHub activity, and memory snapshot
 - **`/new`** — Input routing: two-stage LLM classifier that sends mixed input to correct vault location (LEFT for identity/context, RIGHT for active work)
 - **`/wrap`** — Session memory extraction: auto-extracts learnings, decisions, insights into `memory-proposals.md` for human-in-the-loop promotion
+- **`/pulse`** — Weekly memory pulse: a templated Monday brief over `memory.md` and one "is this still true?" question. Since promotion went unattended, the pulse and the monthly dream pass are the correction loop
 
 Built for a technical executive who directs AI. The project code lives in this repo (`src/`, `test/`, `.planning/`). The vault lives in Obsidian at `~/Claude Cowork/`, entered through the `maps/` MOC layer (`maps/home.md` is the single entry point, added 2026-07-31). They couple via MCP (Docker MCP Gateway + Obsidian Local REST API plugin).
 
@@ -234,7 +235,8 @@ For complete architecture details, see [.planning/PROJECT.md](.planning/PROJECT.
 | `/today` | Morning routine | Generate 7-section briefing: slippage, meetings, emails, GitHub, memory, compounding metrics, weather. Compounding section shows last 7 entries added/modified, cumulative promotion count, memory growth trend |
 | `/new` | Capture mixed input | Route to LEFT (identity) or RIGHT (work) vault via two-stage LLM |
 | `/wrap` | End of session | Extract learnings, decisions, patterns into `memory-proposals.md` |
-| `/promote-memories` | Review daily | Human-approve memory candidates from staging to `memory.md` |
+| `/promote-memories` | Manual review or veto before 00:45 | Promote memory candidates from staging to `memory.md`. Since 2026-09-01 this also runs nightly and unattended (`scripts/promote-scheduled.js --drain` via `com.secondbrain.promote`), where an unreviewed candidate counts as accepted; explicit reject/defer checkboxes are still honored, and every other gate is unchanged |
+| `/pulse` | Weekly (also scheduled via launchd, Monday 07:00) | Templated pulse over `memory.md`: what entered this week, what has stood 45+ days, one "is this still true?" question. `--show` prints the latest; `yes <hash>` / `no <hash> [reason]` answers it — `no` appends `stale::` rather than deleting |
 | `/reroute` | Fix misclassified item | Re-route previously classified note to different location |
 | `/promote-unrouted` | Bulk-promote | Move all unrouted items from staging to workspace |
 | `/recall <query>` | Keyword recall | Minisearch over `memory.md` — AND semantics, quoted phrases, negation. Flags: `--category <name>`, `--since YYYY-MM-DD`, `--top N` (default 5) |
