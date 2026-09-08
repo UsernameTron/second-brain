@@ -75,3 +75,47 @@ describe('promote-scheduled', () => {
     expect(exit).toHaveBeenCalledWith(1);
   });
 });
+
+/**
+ * The mocked suite above cannot catch a broken options contract: it replaces
+ * promoteMemories, so a key the real function rejects still "passes". That is
+ * exactly how `skipStats` shipped to master and made the nightly job exit 1
+ * every night without promoting anything. These tests use the REAL function.
+ */
+describe('promote-scheduled against the real promoteMemories', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  let dir, prevVault;
+
+  beforeEach(() => {
+    jest.resetModules();
+    jest.dontMock('../src/promote-memories');
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'promote-sched-real-'));
+    fs.mkdirSync(path.join(dir, 'memory'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'proposals'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'memory', 'memory.md'), '');
+    prevVault = process.env.VAULT_ROOT;
+    process.env.VAULT_ROOT = dir;
+  });
+  afterEach(() => {
+    if (prevVault === undefined) delete process.env.VAULT_ROOT; else process.env.VAULT_ROOT = prevVault;
+    fs.rmSync(dir, { recursive: true, force: true });
+    jest.resetModules();
+  });
+
+  test('every option promote-scheduled passes is accepted by promoteMemories', async () => {
+    const { promoteMemories } = jest.requireActual('../src/promote-memories');
+    // The exact shape scripts/promote-scheduled.js sends on each drain round.
+    for (const skipStats of [false, true]) {
+      const r = await promoteMemories({ auto: true, dryRun: false, skipStats });
+      expect(r.error).toBeUndefined();
+    }
+  });
+
+  test('an unknown option is still rejected, so the contract stays strict', async () => {
+    const { promoteMemories } = jest.requireActual('../src/promote-memories');
+    const r = await promoteMemories({ auto: true, nonsense: 1 });
+    expect(r.error).toMatch(/Unknown option/);
+  });
+});

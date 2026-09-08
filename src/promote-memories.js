@@ -38,7 +38,7 @@ const LIVE_STATUSES = new Set(['pending', 'deferred']);
 
 // PROMOTE-FLAGS-01: the full options contract for promoteMemories().
 // Anything outside this set is rejected loudly instead of silently ignored.
-const ALLOWED_OPTIONS = new Set(['max', 'dryRun', 'auto']);
+const ALLOWED_OPTIONS = new Set(['max', 'dryRun', 'auto', 'skipStats']);
 
 /**
  * Parse process.argv-style flags for /promote-memories.
@@ -456,7 +456,9 @@ function runMemoryArchive(archiveSizeThresholdKB, archiveEntriesThreshold) {
 
 /**
  * Promote candidate memories from staging to memory.md based on threshold,
- * deduplication, and content/style policy gates. Honors the human-reviewed
+ * deduplication, and content-policy gates (style lint is NOT applied here —
+ * checkStyle runs in vault-gateway, and promotion writes memory.md directly).
+ * Honors the human-reviewed
  * checkbox state on each candidate, dedupes against existing memory + archive,
  * archives stale proposals, and triggers tail-archive of memory.md when size
  * thresholds are exceeded.
