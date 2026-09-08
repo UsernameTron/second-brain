@@ -7,9 +7,13 @@
  * launchd entry point for nightly auto-promotion (com.secondbrain.promote).
  * Runs after the 23:45 daily sweep and promotes the unreviewed candidates it
  * staged, treating "no checkbox" as accepted (--auto). Every other gate still
- * applies: content-policy exclusions, dedup against memory + archive, style
- * lint, category coercion, contradiction flagging. Explicit reject / defer
- * checkboxes are still honored, so a human can still veto before 00:45.
+ * applies: content-policy exclusions, dedup against memory + archive, category
+ * coercion, contradiction flagging. Explicit reject / defer checkboxes are
+ * still honored, so a human can still veto before 00:45.
+ *
+ * Not a gate here: style lint. checkStyle() runs in vault-gateway on vault
+ * writes; promotion writes memory.md directly, so promoted text is never
+ * style-linted — that was true before this script and is unchanged by it.
  *
  * Decision 2026-09-01: the manual checkbox gate staged ~65 candidates a night
  * against a 10-per-batch review and accumulated 2,018 unreviewed proposals in
@@ -33,13 +37,26 @@ const { promoteMemories } = require('../src/promote-memories');
 
 const MAX_DRAIN_ROUNDS = 100;
 
-async function main() {
-  const drain = process.argv.includes('--drain');
-  const dryRun = process.argv.includes('--dry-run');
+const KNOWN_FLAGS = new Set(['--drain', '--dry-run']);
+
+async function main(argv = process.argv.slice(2)) {
+  // This command promotes unchecked candidates. A mistyped safety flag
+  // (`--dryrun`) must not silently fall through to a real promotion.
+  const unknown = argv.filter((a) => !KNOWN_FLAGS.has(a));
+  if (unknown.length) {
+    console.error(`promote-scheduled: unknown argument(s): ${unknown.join(', ')}`);
+    console.error(`promote-scheduled: known flags: ${[...KNOWN_FLAGS].join(', ')}`);
+    process.exit(2);
+  }
+
+  const drain = argv.includes('--drain');
+  const dryRun = argv.includes('--dry-run');
   const totals = { promoted: 0, duplicates: 0, rejected: 0, skipped: 0, rounds: 0 };
 
   for (let round = 1; round <= (drain ? MAX_DRAIN_ROUNDS : 1); round++) {
-    const r = await promoteMemories({ auto: true, dryRun });
+    // Only round 1 records the staged-proposals count; later rounds re-read the
+    // same queue and would accumulate a duplicate daily figure.
+    const r = await promoteMemories({ auto: true, dryRun, skipStats: round > 1 });
     if (r.error) {
       console.error(`promote-scheduled: round ${round} failed: ${r.error}`);
       process.exit(1);

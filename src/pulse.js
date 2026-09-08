@@ -39,8 +39,11 @@ function trimQuote(content) {
  */
 function pulsePlan(entries, { now, since, asked = [] }) {
   const live = entries.filter(isLive);
+  // `since` is the previous pulse's date. Nightly promotion runs at 00:45 and
+  // the pulse at 07:00, so entries added on that day were already reported —
+  // an inclusive bound double-counted them every week after the first.
   const added = live
-    .filter(e => dayOf(e.addedAt || e.date) >= since && dayOf(e.addedAt || e.date) <= now)
+    .filter(e => dayOf(e.addedAt || e.date) > since && dayOf(e.addedAt || e.date) <= now)
     .sort((a, b) => (b.addedAt || b.date).localeCompare(a.addedAt || a.date));
 
   const byCategory = {};
@@ -102,7 +105,7 @@ function pulseText(plan, { now, since }) {
     L.push('');
     L.push(`> ${trimQuote(e.content)}`);
     L.push('');
-    L.push(`Is that still true? Answer with \`/pulse yes\` or \`/pulse no\` (no marks it stale). Entry \`${e.contentHash}\`.`);
+    L.push(`Is that still true? Answer with \`/pulse yes ${e.contentHash}\` or \`/pulse no ${e.contentHash} [reason]\` (no marks it stale).`);
     L.push('');
   }
   if (plan.fallback) {

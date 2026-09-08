@@ -211,7 +211,14 @@ UAT tests (`test/uat/`) are guarded by `CI=true` skip logic and run on a separat
 - [ ] `VOYAGE_API_KEY` provisioned in `.env` (if semantic features are enabled)
 - [ ] Obsidian Local REST API plugin running on port 27123
 - [ ] Docker MCP Gateway running (for Gmail/Calendar/GitHub connectors)
-- [ ] launchd schedulers installed — all three plists are versioned in `config/` and copied to `~/Library/LaunchAgents/`: `com.secondbrain.today` (weekday `/today` 06:45 via `scripts/today-scheduled.js`, dotenv-gated, exits 1 on a briefing-less run), `com.secondbrain.daily-sweep` (23:45 nightly capture), `com.secondbrain.dream` (1st of month 07:15, propose-only, Anthropic-pinned — `dream:apply` is never scheduled). Load with `launchctl bootstrap gui/$(id -u) <plist>`
+- [ ] launchd schedulers installed — all five plists are versioned in `config/` and copied to `~/Library/LaunchAgents/`: `com.secondbrain.today` (weekday `/today` 06:45 via `scripts/today-scheduled.js`, dotenv-gated, exits 1 on a briefing-less run), `com.secondbrain.daily-sweep` (23:45 nightly capture), `com.secondbrain.promote` (00:45 nightly auto-promotion of the sweep's candidates via `scripts/promote-scheduled.js --drain`, Anthropic-pinned), `com.secondbrain.pulse` (Monday 07:00 weekly memory pulse via `scripts/pulse.js`, Anthropic-pinned), `com.secondbrain.dream` (1st of month 07:15, propose-only, Anthropic-pinned — `dream:apply` is never scheduled). Versioning a plist under `config/` does not activate it; each must be copied and bootstrapped:
+
+  ```bash
+  for j in today daily-sweep promote pulse dream; do
+    cp "config/com.secondbrain.$j.plist" ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.secondbrain.$j.plist
+  done
+  ```
 - [ ] `npm test` passes (1568 tests; 1530 passing + 38 skipped under CI)
 - [ ] `npm run lint` exits 0
 - [ ] `~/.cache/second-brain/` writable (auto-created on first `/recall --semantic`)

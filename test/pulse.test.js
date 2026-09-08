@@ -46,12 +46,64 @@ describe('pulseText', () => {
     expect(t).toContain('# Memory pulse, week of September 7');
     expect(t).toContain('**2 entries entered memory this week**');
     expect(t).toContain('> Old decision one.');
-    expect(t).toContain('Entry `old1`');
-    expect(t).toContain('/pulse yes');
+    // The answer command must carry the hash: pulse-answer refuses to guess
+    // between open questions, so the brief has to name the entry it asked about.
+    expect(t).toContain('/pulse yes old1');
+    expect(t).toContain('/pulse no old1');
     expect(t).not.toMatch(/[—–]/);
   });
   test('trimQuote keeps the first sentence and caps at 40 words', () => {
     expect(trimQuote('Chose Haiku for all extraction. Second sentence.')).toBe('Chose Haiku for all extraction.');
     expect(trimQuote(Array(60).fill('w').join(' ')).split(' ').length).toBe(41);
+  });
+});
+
+describe('pulsePlan week boundary', () => {
+  test('the previous pulse date is excluded, so entries are not counted twice', () => {
+    // Promotion runs 00:45 and the pulse 07:00, so entries dated `since` were
+    // already reported in that pulse. An inclusive bound re-counted them.
+    const onBoundary = [E({ hash: 'b', category: 'LEARNING', addedAt: '2026-08-31T10:00:00Z', content: 'On the boundary.' })];
+    expect(pulsePlan(onBoundary, { now: NOW, since: SINCE }).added).toBe(0);
+    expect(pulsePlan(onBoundary, { now: NOW, since: '2026-08-30' }).added).toBe(1);
+  });
+});
+
+describe('pulse answer selection', () => {
+  const { selectOpen } = require('../scripts/pulse-answer');
+
+  test('picks the single open question when only one is open', () => {
+    const ledger = [{ hash: 'a', answer: 'yes' }, { hash: 'b' }];
+    expect(selectOpen(ledger, '').entry.hash).toBe('b');
+  });
+
+  test('refuses to guess when more than one question is open', () => {
+    const ledger = [{ hash: 'a' }, { hash: 'b' }];
+    const r = selectOpen(ledger, '');
+    expect(r.entry).toBeUndefined();
+    expect(r.error).toMatch(/2 pulse questions are open/);
+    expect(r.error).toContain('a');
+    expect(r.error).toContain('b');
+  });
+
+  test('an explicit hash selects that entry even with several open', () => {
+    const ledger = [{ hash: 'a' }, { hash: 'b' }];
+    expect(selectOpen(ledger, 'a').entry.hash).toBe('a');
+  });
+
+  test('an unknown or already-answered hash is an error, not a fallback', () => {
+    expect(selectOpen([{ hash: 'a' }], 'zz').error).toMatch(/No open pulse question for entry zz/);
+    expect(selectOpen([{ hash: 'a', answer: 'yes' }], 'a').error).toBe('No open pulse question.');
+  });
+});
+
+describe('promote-scheduled argument handling', () => {
+  test('rejects an unknown flag instead of running a real promotion', async () => {
+    const { main } = require('../scripts/promote-scheduled');
+    const exit = jest.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+    const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(main(['--dryrun'])).rejects.toThrow('exit');
+    expect(exit).toHaveBeenCalledWith(2);
+    expect(err.mock.calls.flat().join(' ')).toMatch(/unknown argument/);
+    exit.mockRestore(); err.mockRestore();
   });
 });

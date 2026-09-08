@@ -31,7 +31,26 @@ const LEDGER = path.join(__dirname, '..', 'state', 'pulse-asked.json');
 const PULSE_DIR = 'briefings/pulse';
 
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-const readLedger = () => { try { return JSON.parse(fs.readFileSync(LEDGER, 'utf8')); } catch { return []; } };
+// A missing ledger is a first run. A truncated or invalid one is corruption:
+// treating it as empty would re-ask an answered entry and then overwrite the
+// file with a one-element history, discarding every prior question and answer.
+function readLedger() {
+  let raw;
+  try {
+    raw = fs.readFileSync(LEDGER, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return [];
+    throw err;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`pulse ledger ${LEDGER} is malformed (${err.message}); refusing to overwrite it`);
+  }
+  if (!Array.isArray(parsed)) throw new Error(`pulse ledger ${LEDGER} is not an array; refusing to overwrite it`);
+  return parsed;
+}
 const writeLedger = (l) => { fs.mkdirSync(path.dirname(LEDGER), { recursive: true }); fs.writeFileSync(LEDGER, JSON.stringify(l, null, 2) + '\n'); };
 
 function latestPulsePath() {
@@ -71,7 +90,7 @@ async function main() {
   const args = process.argv.slice(2);
   if (args[0] === 'yes' || args[0] === 'no') {
     const { answer } = require('./pulse-answer');
-    return answer(args[0], args.slice(1).join(' '));
+    return answer(args[0], args[1] || '', args.slice(2).join(' '));
   }
   if (args.includes('--show')) {
     const p = latestPulsePath();
