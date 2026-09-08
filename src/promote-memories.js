@@ -471,6 +471,22 @@ function runMemoryArchive(archiveSizeThresholdKB, archiveEntriesThreshold) {
  * @returns {Promise<{promoted: number, deferred: number, duplicates: number, rejected: number, skipped: number, archived: boolean, dryRun?: boolean, wouldPromote?: Array<{candidateId: string, category: string}>, wouldDefer?: string[], reach?: Object, contradictions?: Array<{candidateId: string, against: string, confidence: number}>, error?: string}>} Promotion outcome.
  */
 async function promoteMemories(options = {}) {
+  // The body reads memory-proposals.md, does embedding/link/contradiction work,
+  // then rewrites the whole file. Without the lock an append from /wrap or the
+  // daily sweep landing inside that window is overwritten and lost.
+  const { acquireLock, releaseLock } = require('./memory-proposals');
+  const lock = await acquireLock();
+  if (!lock.acquired) {
+    return { error: 'Could not acquire the memory-proposals lock; another writer is active' };
+  }
+  try {
+    return await _promoteMemoriesLocked(options);
+  } finally {
+    await releaseLock();
+  }
+}
+
+async function _promoteMemoriesLocked(options = {}) {
   // PROMOTE-FLAGS-01: unknown option keys are an error, never a silent no-op.
   const unknownKeys = Object.keys(options).filter(k => !ALLOWED_OPTIONS.has(k));
   if (unknownKeys.length > 0) {
@@ -523,7 +539,10 @@ async function promoteMemories(options = {}) {
 
   // Phase 20 (STATS-DAILY-01): emit proposals count — how many proposals were
   // staged (available in memory-proposals.md) at the time of this promotion run.
-  if (allCandidates.length > 0 && !dryRun) {
+  // `--drain` calls promoteMemories() once per round; recordProposalsBatch
+  // accumulates, so counting every round inflated the daily figure (201 staged
+  // became 201+201+101). The drain loop records once and passes skipStats after.
+  if (allCandidates.length > 0 && !dryRun && !options.skipStats) {
     try {
       const { recordProposalsBatch } = require('./daily-stats');
       recordProposalsBatch(allCandidates.length);
