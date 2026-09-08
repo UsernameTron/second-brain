@@ -21,7 +21,7 @@ const fs = require('fs');
 
 const VAULT_ROOT = () => process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude Cowork');
 const MEMORY_FILE = () => path.join(VAULT_ROOT(), 'memory', 'memory.md');
-const LEDGER = path.join(__dirname, '..', 'state', 'pulse-asked.json');
+const LEDGER = () => process.env.PULSE_LEDGER || path.join(__dirname, '..', 'state', 'pulse-asked.json');
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
 
 // markStale is a read-modify-write of the whole of memory.md. Promotion writes
@@ -46,7 +46,7 @@ function markStale(hash, reason) {
 function readLedger() {
   let raw;
   try {
-    raw = fs.readFileSync(LEDGER, 'utf8');
+    raw = fs.readFileSync(LEDGER(), 'utf8');
   } catch (err) {
     if (err.code === 'ENOENT') return [];
     throw err;
@@ -55,9 +55,9 @@ function readLedger() {
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    throw new Error(`pulse ledger ${LEDGER} is malformed (${err.message}); refusing to overwrite it`);
+    throw new Error(`pulse ledger ${LEDGER()} is malformed (${err.message}); refusing to overwrite it`);
   }
-  if (!Array.isArray(parsed)) throw new Error(`pulse ledger ${LEDGER} is not an array; refusing to overwrite it`);
+  if (!Array.isArray(parsed)) throw new Error(`pulse ledger ${LEDGER()} is not an array; refusing to overwrite it`);
   return parsed;
 }
 
@@ -104,7 +104,7 @@ async function answer(verdict, hashOrReason = '', reason = '') {
     open.answer = verdict;
     open.answeredAt = new Date().toISOString();
     if (reason) open.reason = reason;
-    fs.writeFileSync(LEDGER, JSON.stringify(ledger, null, 2) + '\n');
+    fs.writeFileSync(LEDGER(), JSON.stringify(ledger, null, 2) + '\n');
   } finally {
     await releaseLock();
   }

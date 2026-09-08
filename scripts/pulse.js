@@ -27,31 +27,15 @@ const { readMemory } = require('../src/memory-reader');
 const { pulsePlan, pulseText } = require('../src/pulse');
 
 const VAULT_ROOT = () => process.env.VAULT_ROOT || path.join(process.env.HOME, 'Claude Cowork');
-const LEDGER = path.join(__dirname, '..', 'state', 'pulse-asked.json');
+const LEDGER = () => process.env.PULSE_LEDGER || path.join(__dirname, '..', 'state', 'pulse-asked.json');
 const PULSE_DIR = 'briefings/pulse';
 
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-// A missing ledger is a first run. A truncated or invalid one is corruption:
-// treating it as empty would re-ask an answered entry and then overwrite the
-// file with a one-element history, discarding every prior question and answer.
-function readLedger() {
-  let raw;
-  try {
-    raw = fs.readFileSync(LEDGER, 'utf8');
-  } catch (err) {
-    if (err.code === 'ENOENT') return [];
-    throw err;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    throw new Error(`pulse ledger ${LEDGER} is malformed (${err.message}); refusing to overwrite it`);
-  }
-  if (!Array.isArray(parsed)) throw new Error(`pulse ledger ${LEDGER} is not an array; refusing to overwrite it`);
-  return parsed;
-}
-const writeLedger = (l) => { fs.mkdirSync(path.dirname(LEDGER), { recursive: true }); fs.writeFileSync(LEDGER, JSON.stringify(l, null, 2) + '\n'); };
+// One reader for the ledger, shared with pulse-answer.js: a missing file is a
+// first run, a truncated or invalid one aborts rather than being silently
+// treated as empty and then overwritten.
+const { readLedger } = require('./pulse-answer');
+const writeLedger = (l) => { fs.mkdirSync(path.dirname(LEDGER()), { recursive: true }); fs.writeFileSync(LEDGER(), JSON.stringify(l, null, 2) + '\n'); };
 
 function latestPulsePath() {
   const dir = path.join(VAULT_ROOT(), PULSE_DIR);
@@ -86,8 +70,7 @@ function openInObsidian(relNoExt) {
   try { execFileSync('open', [`obsidian://open?vault=${vault}&file=${encodeURIComponent(relNoExt)}`]); } catch { /* Obsidian absent */ }
 }
 
-async function main() {
-  const args = process.argv.slice(2);
+async function main(args = process.argv.slice(2)) {
   if (args[0] === 'yes' || args[0] === 'no') {
     const { answer } = require('./pulse-answer');
     return answer(args[0], args[1] || '', args.slice(2).join(' '));
