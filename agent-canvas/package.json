@@ -20,7 +20,7 @@
     "@anthropic-ai/vertex-sdk": "^0.19.1",
     "@google/genai": "^2.16.0",
     "exceljs": "4.4.0",
-    "express": "^4.21.2",
+    "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
     "google-auth-library": "^11.0.1",
     "jsonwebtoken": "^9.0.2",
