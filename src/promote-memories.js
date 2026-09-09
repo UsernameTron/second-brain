@@ -38,7 +38,7 @@ const LIVE_STATUSES = new Set(['pending', 'deferred']);
 
 // PROMOTE-FLAGS-01: the full options contract for promoteMemories().
 // Anything outside this set is rejected loudly instead of silently ignored.
-const ALLOWED_OPTIONS = new Set(['max', 'dryRun', 'auto']);
+const ALLOWED_OPTIONS = new Set(['max', 'dryRun', 'auto', 'skipStats']);
 
 /**
  * Parse process.argv-style flags for /promote-memories.
@@ -456,7 +456,9 @@ function runMemoryArchive(archiveSizeThresholdKB, archiveEntriesThreshold) {
 
 /**
  * Promote candidate memories from staging to memory.md based on threshold,
- * deduplication, and content/style policy gates. Honors the human-reviewed
+ * deduplication, and content-policy gates (style lint is NOT applied here —
+ * checkStyle runs in vault-gateway, and promotion writes memory.md directly).
+ * Honors the human-reviewed
  * checkbox state on each candidate, dedupes against existing memory + archive,
  * archives stale proposals, and triggers tail-archive of memory.md when size
  * thresholds are exceeded.
@@ -471,6 +473,22 @@ function runMemoryArchive(archiveSizeThresholdKB, archiveEntriesThreshold) {
  * @returns {Promise<{promoted: number, deferred: number, duplicates: number, rejected: number, skipped: number, archived: boolean, dryRun?: boolean, wouldPromote?: Array<{candidateId: string, category: string}>, wouldDefer?: string[], reach?: Object, contradictions?: Array<{candidateId: string, against: string, confidence: number}>, error?: string}>} Promotion outcome.
  */
 async function promoteMemories(options = {}) {
+  // The body reads memory-proposals.md, does embedding/link/contradiction work,
+  // then rewrites the whole file. Without the lock an append from /wrap or the
+  // daily sweep landing inside that window is overwritten and lost.
+  const { acquireLock, releaseLock } = require('./memory-proposals');
+  const lock = await acquireLock();
+  if (!lock.acquired) {
+    return { error: 'Could not acquire the memory-proposals lock; another writer is active' };
+  }
+  try {
+    return await _promoteMemoriesLocked(options);
+  } finally {
+    await releaseLock();
+  }
+}
+
+async function _promoteMemoriesLocked(options = {}) {
   // PROMOTE-FLAGS-01: unknown option keys are an error, never a silent no-op.
   const unknownKeys = Object.keys(options).filter(k => !ALLOWED_OPTIONS.has(k));
   if (unknownKeys.length > 0) {
@@ -523,7 +541,10 @@ async function promoteMemories(options = {}) {
 
   // Phase 20 (STATS-DAILY-01): emit proposals count — how many proposals were
   // staged (available in memory-proposals.md) at the time of this promotion run.
-  if (allCandidates.length > 0 && !dryRun) {
+  // `--drain` calls promoteMemories() once per round; recordProposalsBatch
+  // accumulates, so counting every round inflated the daily figure (201 staged
+  // became 201+201+101). The drain loop records once and passes skipStats after.
+  if (allCandidates.length > 0 && !dryRun && !options.skipStats) {
     try {
       const { recordProposalsBatch } = require('./daily-stats');
       recordProposalsBatch(allCandidates.length);

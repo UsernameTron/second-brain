@@ -10,6 +10,7 @@ CLI commands that orchestrate an Obsidian vault into a second brain. Three core 
 - **`/today`** — Daily prep list: 6-section briefing with cross-project slippage scanner, calendar summary, Gmail VIP filter, GitHub activity, and memory snapshot
 - **`/new`** — Input routing: two-stage LLM classifier that sends mixed input to correct vault location (LEFT for identity/context, RIGHT for active work)
 - **`/wrap`** — Session memory extraction: auto-extracts learnings, decisions, insights into `memory-proposals.md` for human-in-the-loop promotion
+- **`/pulse`** — Weekly memory pulse: a templated Monday brief over `memory.md` and one "is this still true?" question. Since promotion went unattended, the pulse and the monthly dream pass are the correction loop
 
 Built for a technical executive who directs AI. The project code lives in this repo (`src/`, `test/`, `.planning/`). The vault lives in Obsidian at `~/Claude Cowork/`, entered through the `maps/` MOC layer (`maps/home.md` is the single entry point, added 2026-07-31). They couple via MCP (Docker MCP Gateway + Obsidian Local REST API plugin).
 
@@ -24,7 +25,7 @@ Built for a technical executive who directs AI. The project code lives in this r
 ```bash
 npm install
 npm run lint  # ESLint 10 (flat config)
-npm test      # Jest 30 — 1579 total tests (1541 pass, 38 skipped in CI)
+npm test      # Jest 30 — 1626 total tests (1588 pass, 38 skipped in CI)
 ```
 
 **Optional: Semantic memory search** — Set `VOYAGE_API_KEY` in `.env` to enable `/recall --semantic` and `/recall --hybrid`. Without the key, `/recall` falls back to keyword search. See [docs/DEVOPS-HANDOFF.md](docs/DEVOPS-HANDOFF.md) for acquisition steps and configuration.
@@ -90,7 +91,7 @@ src/                          # Core modules (41 .js files total)
     ├── github.js            # UsernameTron repo activity
     └── types.js             # Connector registry + SOURCE enum
 
-test/                         # 1579 tests across 83 files
+test/                         # 1626 tests across 85 files
 ├── unit-style *.test.js     # Module-level tests mirroring src/
 ├── integration/             # Cross-module flow tests
 └── uat/                     # End-to-end command behavior (guarded from CI)
@@ -146,7 +147,7 @@ CLAUDE.md                    # Project governance, commands, conventions
 
 **Latest Release:** v1.7 Prove Compounding (2026-07-16) | Phases 29-31: Series Integrity, Outcome Instrumentation, Trend & Report
 **In progress:** v1.8 Measured Memory — Phases 32-35 shipped (Phase 35 Proactive Memory: SessionStart recall-injection hook); Phase 36 decision-gated. Audit & improvement pass 2026-07-31 (PR #96): 13 pipeline-reliability fixes, the vault `maps/` MOC layer, and a ranked P1-P8 audit report
-- **1579 total tests** across 83 test files (1541 passing, 38 skipped in CI; 1550 passing / 29 skipped locally)
+- **1626 total tests** across 85 test files (1588 passing, 38 skipped in CI; 1597 passing / 29 skipped locally)
 - **Branch coverage:** 80.95% (threshold: ≥80% enforced in CI)
 - **Memory layer:** 285 entries in `memory.md`, all 285 embedded in the sidecar (verified 2026-07-31)
 - **Lint:** 0 ESLint no-console warnings
@@ -180,7 +181,7 @@ For detailed release history and known gaps, see [.planning/MILESTONES.md](.plan
 ### Test Coverage
 
 ```bash
-npm test                    # Run all tests (1579 total; set CI=true to skip UAT)
+npm test                    # Run all tests (1626 total; set CI=true to skip UAT)
 npm run lint               # ESLint validation
 npm run test:uat           # UAT tests (requires CI= to unblock)
 ```
@@ -190,7 +191,7 @@ npm run test:uat           # UAT tests (requires CI= to unblock)
 - Critical modules (auth, vault boundary): ≥95%
 - All other modules: ≥80%
 
-Current coverage (measured 2026-08-19, `CI=true` local run): Statements 92.05%, Functions 95.78%, Lines 93.01%, Branch 80.95%
+Current coverage (measured 2026-09-08, `CI=true` local run): Statements 92.05%, Functions 95.53%, Lines 93.09%, Branch 80.48%
 
 ### Retrieval eval
 
@@ -234,7 +235,8 @@ For complete architecture details, see [.planning/PROJECT.md](.planning/PROJECT.
 | `/today` | Morning routine | Generate 7-section briefing: slippage, meetings, emails, GitHub, memory, compounding metrics, weather. Compounding section shows last 7 entries added/modified, cumulative promotion count, memory growth trend |
 | `/new` | Capture mixed input | Route to LEFT (identity) or RIGHT (work) vault via two-stage LLM |
 | `/wrap` | End of session | Extract learnings, decisions, patterns into `memory-proposals.md` |
-| `/promote-memories` | Review daily | Human-approve memory candidates from staging to `memory.md` |
+| `/promote-memories` | Manual review or veto before 00:45 | Promote memory candidates from staging to `memory.md`. Since 2026-09-01 this also runs nightly and unattended (`scripts/promote-scheduled.js --drain` via `com.secondbrain.promote`), where an unreviewed candidate counts as accepted; explicit reject/defer checkboxes are still honored, and every other gate is unchanged |
+| `/pulse` | Weekly (also scheduled via launchd, Monday 07:00) | Templated pulse over `memory.md`: what entered this week, what has stood 45+ days, one "is this still true?" question. `--show` prints the latest; `yes <hash>` / `no <hash> [reason]` answers it — `no` appends `stale::` rather than deleting |
 | `/reroute` | Fix misclassified item | Re-route previously classified note to different location |
 | `/promote-unrouted` | Bulk-promote | Move all unrouted items from staging to workspace |
 | `/recall <query>` | Keyword recall | Minisearch over `memory.md` — AND semantics, quoted phrases, negation. Flags: `--category <name>`, `--since YYYY-MM-DD`, `--top N` (default 5) |
