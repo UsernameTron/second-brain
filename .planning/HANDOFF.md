@@ -1,11 +1,11 @@
 # Session handoff (auto-written by Stop hook)
 
-- When: 2026-08-20 17:35 CDT
-- Branch: feat/canvas-calendar-search
-- Dirty at stop: 3 files
+- When: 2026-09-08 20:22 CDT
+- Branch: fix/js-yaml-3152-ghsa-2883
+- Dirty at stop: 1 files
 - Recent commits:
-  - b170bbc agent-canvas: make the calendar searchable, and readable beyond the user's own
-  - e34cb79 agent-canvas: record Google grant revocation instead of clearing it silently (#232)
-  - 9f291b7 agent-canvas: sanitize MCP tool schemas for Gemini function declarations (#231)
-  - db95d33 agent-canvas: USER-GUIDE + close-out docs sync + confidence scorecard (#229)
-  - defa7f8 agent-canvas: escalation hygiene — coalescing, web_fetch, member-scope default (#228)
+  - 9a199c0 docs(confidence): confidence sweep report — FIX-FIRST, with correction (#249)
+  - a66a93c docs(lessons): mocked collaborators hide contract breaks; green gates aren't a working feature (#248)
+  - 264cd81 fix(promotion): nightly auto-promotion was dead on arrival — allow skipStats (#247)
+  - 41b9326 feat(promotion): nightly auto-promotion + weekly memory pulse (#246)
+  - 52299a1 fix(eval+dream): make eval:recall observable; stop dream merges writing anchorless entries (#242)
