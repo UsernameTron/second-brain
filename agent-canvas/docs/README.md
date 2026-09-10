@@ -27,6 +27,8 @@ journey; tests alone do not establish it.
 
 ## Current operational documents
 
+- [SIMPLIFICATION.md](SIMPLIFICATION.md) — approved UX/reliability phases,
+  complete control destinations and local verification evidence; not a deploy claim.
 - [HANDOFF.md](HANDOFF.md) — the current-state block, and nothing else. Kept
   short on purpose so the live claim is never buried.
 - [ACTIVATION-RUNBOOK.md](ACTIVATION-RUNBOOK.md) — the enumerated owner
