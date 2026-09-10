@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api, fmtUSD, timeAgo, fmtClock, short } from './api.js';
 import { SummaryMarkdown, formatContractTail, plainPreview, formatRunEventPreview } from './format.jsx';
-import ExplainMap from './ExplainMap.jsx';
+import WorkDetails from './WorkDetails.jsx';
+import { RequestError } from './RequestState.jsx';
+import { useDraft } from './Drafts.jsx';
 
 export function Panel({ title, wide, onClose, headerExtra, children }) {
   return (
@@ -19,21 +21,24 @@ export function Panel({ title, wide, onClose, headerExtra, children }) {
 // P4: the agent's append-only config history. Rollback restores config
 // (prompt/tier/authority/budgets), never identity; owner-only server-side —
 // a member's click gets the server's 403 message inline.
-function AgentVersions({ canvasId, agentId }) {
+function AgentVersions({ canvasId, agentId, isOwner }) {
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState(null);
   const [note, setNote] = useState('');
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
 
   const load = () => api(`/api/canvases/${canvasId}/agents/${agentId}/versions`)
-    .then((d) => setVersions(d.versions)).catch((e) => setNote(e.message));
+    .then((d) => { setVersions(d.versions); setError(null); }).catch(setError);
 
   const rollback = async (versionId) => {
-    setNote('');
+    if (busy) return;
+    setBusy(true); setNote(''); setError(null);
     try {
       const d = await api(`/api/canvases/${canvasId}/agents/${agentId}/rollback/${versionId}`, { method: 'POST', body: {} });
       setNote(`Restored: ${Object.keys(d.diff).join(', ') || 'no fields differed'}`);
       load();
-    } catch (e) { setNote(e.message); }
+    } catch (e) { setError(e); } finally { setBusy(false); }
   };
 
   return (
@@ -44,8 +49,9 @@ function AgentVersions({ canvasId, agentId }) {
       </button>
       {open ? (
         <>
+          <RequestError error={error} subject="Loading or restoring agent settings" onRetry={load} retryLabel="Check versions" />
           {note ? <p className="dim">{note}</p> : null}
-          {versions === null ? <p className="dim">loading…</p> : null}
+          {versions === null && !error ? <p className="dim">loading…</p> : null}
           {versions && versions.length === 0 ? <p className="dim">No tracked versions yet — the first prompt/tier change or publish creates history.</p> : null}
           <ul className="room-list">
             {(versions || []).map((v) => (
@@ -54,7 +60,7 @@ function AgentVersions({ canvasId, agentId }) {
                 <span className={`chip tier-${v.model_tier}`}>{v.model_tier}</span>
                 <span className="dim mono">{timeAgo(v.created_at)} · {v.actor}</span>
                 <span>{short(v.system_prompt, 60)}</span>
-                <button className="btn ghost small" onClick={() => rollback(v.id)}>Rollback</button>
+                {isOwner ? <button disabled={busy} className="btn ghost small" onClick={() => rollback(v.id)}>Rollback</button> : null}
               </li>
             ))}
           </ul>
@@ -71,42 +77,23 @@ const RUN_STATUS_CLASS = {
   halted_paused: 'run-halted', halted_budget: 'run-halted',
 };
 
-export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvasId, onDispatch, onRemove, fetchRunEvents, fetchRunReceipt, onFeedback, onSelectEntry, onClose }) {
-  const [instruction, setInstruction] = useState('');
+export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvasId, onDispatch, onRemove, fetchRunEvents, fetchRunReceipt, onFeedback, onSelectEntry, onClose, isOwner = false, editable = true, onCheckStatus }) {
+  const [instruction, setInstruction] = useDraft(`agent:${canvasId}:${agent.id}`, '');
+  const [sendError, setSendError] = useState(null);
   const [sending, setSending] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [runSel, setRunSel] = useState(initialRunId);
-  const [events, setEvents] = useState(null);
-  const [receipt, setReceipt] = useState(null);
-  const [showMap, setShowMap] = useState(false);
-
-  useEffect(() => { setRunSel(initialRunId); }, [initialRunId, agent.id]);
-
-  useEffect(() => {
-    if (!runSel) { setEvents(null); setReceipt(null); return undefined; }
-    let alive = true;
-    setEvents(null);
-    setReceipt(null);
-    fetchRunEvents(runSel)
-      .then((evs) => { if (alive) setEvents(evs); })
-      .catch(() => { if (alive) setEvents([]); });
-    if (fetchRunReceipt) {
-      fetchRunReceipt(runSel)
-        .then((r) => { if (alive) setReceipt(r); })
-        .catch(() => { if (alive) setReceipt(null); });
-    }
-    return () => { alive = false; };
-  }, [runSel, fetchRunEvents, fetchRunReceipt]);
+  useEffect(() => { setRunSel(initialRunId); setSendError(null); }, [initialRunId, agent.id]);
 
   const send = async (e) => {
     e.preventDefault();
-    if (!instruction.trim() || sending) return;
-    setSending(true);
+    if (!instruction.trim() || sending || !editable || sendError?.unconfirmed) return;
+    setSending(true); setSendError(null);
     try {
       await onDispatch(instruction.trim());
       setInstruction('');
-    } finally {
+    } catch (error) { setSendError(error); } finally {
       setSending(false);
     }
   };
@@ -137,25 +124,29 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
       }
     >
       <div className="agent-panel-spend mono">
-        spend {spendRow ? fmtUSD(spendRow.cost_usd) : '$0.00'}
-        {spendRow ? ` · in ${spendRow.input_tokens} / out ${spendRow.output_tokens} tok · ${spendRow.runs} runs` : ' · no runs yet'}
+        spend {spendRow ? fmtUSD(spendRow.cost_usd) : 'unavailable'}
+        {spendRow ? ` · in ${spendRow.input_tokens} / out ${spendRow.output_tokens} tok · ${spendRow.runs} runs` : ''}
       </div>
 
-      <form className="dispatch-box" onSubmit={send}>
-        <label>Send to {agent.name}</label>
+      <RequestError error={sendError} subject="Sending the instruction" onRetry={sendError?.unconfirmed ? onCheckStatus : () => send({ preventDefault() {} })} />
+      {sendError?.unconfirmed ? <button className="btn small" onClick={() => setSendError(null)}>I checked recent work; keep editing</button> : null}
+      {editable ? <form className="dispatch-box" onSubmit={send}>
+        <label htmlFor="agent-instruction">Send to {agent.name}</label>
         <textarea
+          id="agent-instruction"
+          disabled={sending}
           rows="3"
           value={instruction}
           onChange={(e) => setInstruction(e.target.value)}
           placeholder={`Instruction for ${agent.name}…`}
         />
-        <button className="btn primary" type="submit" disabled={sending || !instruction.trim() || paused}
+        <button className="btn primary" type="submit" disabled={sending || !instruction.trim() || paused || sendError?.unconfirmed}
           title={paused ? 'Workspace is paused' : undefined}>
           {sending ? 'Dispatching…' : `Dispatch to ${agent.name}`}
         </button>
-      </form>
+      </form> : <p>View only. Ask the owner for edit access to send work.</p>}
 
-      {canvasId ? <AgentVersions canvasId={canvasId} agentId={agent.id} /> : null}
+      {canvasId ? <AgentVersions key={agent.id} canvasId={canvasId} agentId={agent.id} isOwner={isOwner} /> : null}
       {onRemove ? (
         <div className="agent-remove">
           <button className="btn ghost danger-link" type="button" disabled={removing} onClick={() => setConfirmRemove(true)}>
@@ -175,49 +166,13 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
           ) : null}
         </div>
       ) : null}
-      {selRun ? (
-        <div className="run-detail">
+      {runSel ? (
+        <>
           <button className="btn ghost small" onClick={() => setRunSel(null)}>← all runs</button>
-          <div className="run-detail-head">
-            <span className={`chip ${RUN_STATUS_CLASS[selRun.status] || ''}`}>{selRun.status}</span>
-            <span className="mono">{selRun.steps_used}/{selRun.step_budget} steps · {fmtUSD(selRun.cost_usd)}</span>
-          </div>
-          <div className="run-detail-instr">{short(selRun.instruction, 240)}</div>
-          {selRun.summary ? (
-            <div className="run-summary">
-              <SummaryMarkdown text={formatContractTail(selRun.summary, 'humanize')} />
-            </div>
-          ) : null}
-          {selRun.error ? <div className="run-error">⚠ {selRun.error}</div> : null}
-          {canvasId ? (
-            <button className="btn ghost small" aria-pressed={showMap} onClick={() => setShowMap(!showMap)}>
-              {showMap ? 'Hide map' : 'Why? → Map'}
-            </button>
-          ) : null}
-          {showMap && canvasId ? (
-            <ExplainMap canvasId={canvasId} runId={selRun.id} onSelectEntry={onSelectEntry} onSelectRun={setRunSel} />
-          ) : null}
-          {receipt ? (
-            <ContextReceipt
-              receipt={receipt}
-              onFeedback={onFeedback ? async (verdict, note) => {
-                const r = await onFeedback(selRun.id, verdict, note);
-                if (r) setReceipt({ ...receipt, feedback: r.feedback });
-              } : null}
-            />
-          ) : null}
-          <div className="run-events">
-            {events === null ? <div className="empty-hint">loading events…</div> : null}
-            {events && events.length === 0 ? <div className="empty-hint">no events recorded</div> : null}
-            {(events || []).map((ev) => (
-              <div key={ev.id} className="run-event">
-                <span className="mono re-ts">{fmtClock(ev.ts)}</span>
-                <span className={`chip re-type re-${ev.type}`}>{ev.type}</span>
-                <span className="re-payload">{runEventPreview(ev)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+          <WorkDetails embedded canvasId={canvasId} runId={runSel} fallbackRun={selRun} runTick={selRun?.status}
+            fetchRunEvents={fetchRunEvents} fetchRunReceipt={fetchRunReceipt} onFeedback={onFeedback}
+            onSelectEntry={onSelectEntry} onSelectRun={setRunSel} />
+        </>
       ) : (
         <div className="runs-list">
           <h3>Recent runs</h3>
@@ -243,7 +198,16 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
 // "cited" = what it wrote to memory. Retrieved ≠ used — only cites prove use.
 export function ContextReceipt({ receipt, onFeedback }) {
   const [note, setNote] = useState('');
+  receipt = { provided: [], searches: [], cited: [], evidence: [], ...receipt };
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
   const fb = receipt.feedback;
+  const rate = async (verdict) => {
+    if (busy) return;
+    setBusy(true); setError(null);
+    try { await onFeedback(verdict, note); } catch (e) { setError(e); }
+    finally { setBusy(false); }
+  };
   const entryLine = (e, extra) => (
     <div key={e.id} className={`receipt-entry epi-${e.epistemic}`}>
       <span className="chip">{e.epistemic}</span>
@@ -255,12 +219,15 @@ export function ContextReceipt({ receipt, onFeedback }) {
   return (
     <div className="context-receipt">
       <h3>Context receipt</h3>
+      <p>Retrieved information and memory written are different. Check each claim against its source.</p>
+      <h4>External sources ({receipt.evidence.length})</h4>
+      {receipt.evidence.map((e) => <p key={e.id}>{e.redacted ? 'Private source' : e.uri ? <a href={e.uri} target="_blank" rel="noopener noreferrer">{e.title || e.sourceKind}</a> : e.title || e.sourceKind}</p>)}
       <h4>Provided before start ({receipt.provided.length})</h4>
       {receipt.provided.length === 0 ? <div className="empty-hint">nothing attached — the run started from its instruction alone</div> : null}
       {receipt.provided.map((e) => entryLine(e))}
 
       <h4>Memory searches ({receipt.searches.length})</h4>
-      {receipt.searches.length === 0 ? <div className="empty-hint">the run never searched memory</div> : null}
+      {receipt.searches.length === 0 ? <div className="empty-hint">No memory search results were recorded</div> : null}
       {receipt.searches.map((s, i) => (
         <div key={i} className="receipt-search">
           <div className="mono receipt-query">“{s.query || '(recent entries)'}”</div>
@@ -276,13 +243,15 @@ export function ContextReceipt({ receipt, onFeedback }) {
 
       {onFeedback ? (
         <div className="run-feedback">
+          <RequestError error={error} subject="Saving feedback" />
+          {error ? <p>Use Refresh work to check the saved rating before rating again.</p> : null}
           {fb ? (
             <div className="mono">rated {fb.verdict === 'up' ? '👍' : '👎'} by {fb.by}{fb.note ? ` — ${fb.note}` : ''}</div>
           ) : (
             <>
-              <input placeholder="optional note" value={note} onChange={(e) => setNote(e.target.value)} />
-              <button className="btn ghost small" onClick={() => onFeedback('up', note)} title="This run did its job">👍</button>
-              <button className="btn ghost small" onClick={() => onFeedback('down', note)} title="This run missed">👎</button>
+              <input aria-label="Feedback note" placeholder="optional note" value={note} onChange={(e) => setNote(e.target.value)} />
+              <button className="btn ghost small" disabled={busy || error?.unconfirmed} onClick={() => rate('up')} title="This run did its job">👍</button>
+              <button className="btn ghost small" disabled={busy || error?.unconfirmed} onClick={() => rate('down')} title="This run missed">👎</button>
             </>
           )}
         </div>
@@ -293,34 +262,38 @@ export function ContextReceipt({ receipt, onFeedback }) {
 
 const runEventPreview = (ev) => formatRunEventPreview(ev, 'detail');
 
-export function NotePanel({ note, task, people = [], agents = [], pinnedNotes = [], editable = true, onAssignTask, onSave, onRemove, onClose }) {
-  const [draft, setDraft] = useState(() => (note ? { title: note.title, content: note.content, pinned: !!note.pinned } : null));
+export function NotePanel({ note, task, people = [], agents = [], pinnedNotes = [], editable = true, onAssignTask, onSave, onRemove, onClose, onCheckStatus }) {
+  const [draft, setDraft] = useDraft(`note:${note?.id}`, () => (note ? { title: note.title, content: note.content, pinned: !!note.pinned } : null));
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
-  useEffect(() => {
-    if (note) {
-      setDraft({ title: note.title, content: note.content, pinned: !!note.pinned });
-      setConfirmRemove(false);
-      setRemoving(false);
-    }
-  }, [note?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const assign = async (body) => {
+    if (assigning) return;
+    setAssigning(true); setError(null);
+    try { await onAssignTask(task.id, body); } catch (e) { setError(e); }
+    finally { setAssigning(false); }
+  };
 
   if (task) {
     return (
       <Panel title={task.title} onClose={onClose} headerExtra={<span className={`chip task-st tk-${task.status}`}>{task.status.replace('_', ' ')}</span>}>
+        <RequestError error={error} subject="Saving the assignment" onRetry={onCheckStatus} retryLabel="Check assignment" />
         <p className="task-desc">{task.description || 'No description.'}</p>
         {onAssignTask ? (
           <label className="task-assign">
             Assignee{' '}
             <select
+              disabled={assigning || error?.unconfirmed}
               value={task.assignee_email ? `p:${task.assignee_email}` : (task.assignee_agent_id ? `a:${task.assignee_agent_id}` : '')}
               onChange={(e) => {
                 const v = e.target.value;
-                if (v.startsWith('p:')) onAssignTask(task.id, { assignee_email: v.slice(2), assignee_agent_id: null });
-                else if (v.startsWith('a:')) onAssignTask(task.id, { assignee_agent_id: v.slice(2), assignee_email: null });
-                else onAssignTask(task.id, { assignee_email: null, assignee_agent_id: null });
+                if (v.startsWith('p:')) assign({ assignee_email: v.slice(2), assignee_agent_id: null });
+                else if (v.startsWith('a:')) assign({ assignee_agent_id: v.slice(2), assignee_email: null });
+                else assign({ assignee_email: null, assignee_agent_id: null });
               }}
             >
               <option value="">unassigned</option>
@@ -338,11 +311,12 @@ export function NotePanel({ note, task, people = [], agents = [], pinnedNotes = 
   const save = async (e) => {
     e.preventDefault();
     if (!editable || saving || !onSave) return;
-    setSaving(true);
+    if (error?.unconfirmed) return;
+    setSaving(true); setError(null); setSaved(false);
     try {
       const d = await onSave(note, draft);
-      if (d && d.note) setDraft({ title: d.note.title, content: d.note.content, pinned: !!d.note.pinned });
-    } catch { /* toast raised upstream */ }
+      if (d && d.note) { setDraft({ title: d.note.title, content: d.note.content, pinned: !!d.note.pinned }); setSaved(true); }
+    } catch (e) { setError(e); }
     setSaving(false);
   };
 
@@ -363,26 +337,29 @@ export function NotePanel({ note, task, people = [], agents = [], pinnedNotes = 
       onClose={onClose}
       headerExtra={note.pinned ? <span className="chip live-chip">LIVE CONTEXT</span> : null}
     >
+      <RequestError error={error} subject="Saving your note" onRetry={error?.unconfirmed ? onCheckStatus : () => save({ preventDefault() {} })} retryLabel={error?.unconfirmed ? 'Check status' : 'Retry save'} />
+      {error?.unconfirmed ? <button className="btn small" onClick={() => setError(null)}>I checked the saved note; keep editing</button> : null}
+      {saved ? <p role="status">Note saved.</p> : null}
       <form className="note-form" onSubmit={save}>
         <input
           className="note-title-input"
           aria-label="Note title"
           value={draft.title}
-          readOnly={!editable}
+          readOnly={!editable || saving}
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
         />
         <textarea
           aria-label="Note content"
           rows="14"
           value={draft.content}
-          readOnly={!editable}
+          readOnly={!editable || saving}
           onChange={(e) => setDraft({ ...draft, content: e.target.value })}
         />
         <label className="pin-toggle">
           <input
             type="checkbox"
             checked={draft.pinned}
-            disabled={!editable}
+            disabled={!editable || saving}
             onChange={(e) => setDraft({ ...draft, pinned: e.target.checked })}
           />
           <span className="pin-slider" />
@@ -398,7 +375,7 @@ export function NotePanel({ note, task, people = [], agents = [], pinnedNotes = 
         <div className="note-meta mono">v{note.version} · {note.updated_by || '—'} · {timeAgo(note.updated_at)}</div>
         {editable ? (
           <div className="note-actions">
-            <button className="btn primary" type="submit" disabled={saving || removing}>{saving ? 'Saving…' : 'Save note'}</button>
+            <button className="btn primary" type="submit" disabled={saving || removing || error?.unconfirmed}>{saving ? 'Saving…' : 'Save note'}</button>
             {onRemove ? (
               <button className="btn ghost danger-link" type="button" disabled={saving || removing} onClick={() => setConfirmRemove(true)}>
                 Remove note
@@ -428,11 +405,15 @@ export function NotePanel({ note, task, people = [], agents = [], pinnedNotes = 
 }
 
 export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onClose }) {
-  const [budgetInput, setBudgetInput] = useState('');
+  const [budgetInput, setBudgetInput] = useDraft('daily-budget', '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
   const pct = budget && budget.budget_usd > 0 ? Math.min(1, (budget.cost_usd || 0) / budget.budget_usd) : 0;
 
   return (
     <Panel title="Spend" onClose={onClose}>
+      <RequestError error={error} subject="Saving the daily budget" />
+      {error ? <p>Close and reopen Spending to check the saved cap before submitting again.</p> : null}
       <div className="spend-daily">
         <div className="spend-big mono">{budget ? fmtUSD(budget.cost_usd) : '—'}</div>
         <div className="spend-sub">today, of a {budget ? fmtUSD(budget.budget_usd) : '—'} daily budget</div>
@@ -447,17 +428,20 @@ export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onC
       {isOwner ? (
         <form
           className="budget-set"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             const v = Number(budgetInput);
-            if (Number.isFinite(v) && v >= 0) { onSetBudget(v); setBudgetInput(''); }
+            if (!Number.isFinite(v) || v < 0 || saving || error?.unconfirmed) return;
+            setSaving(true); setError(null);
+            try { await onSetBudget(v); setBudgetInput(''); } catch (err) { setError(err); }
+            finally { setSaving(false); }
           }}
         >
-          <label>Set daily budget (USD)</label>
+          <label htmlFor="daily-budget">Set daily budget (USD)</label>
           <div className="dev-row">
-            <input type="number" min="0" step="1" placeholder={budget ? String(budget.budget_usd) : '25'}
+            <input id="daily-budget" disabled={saving} type="number" min="0" step="1" placeholder={budget ? String(budget.budget_usd) : '25'}
               value={budgetInput} onChange={(e) => setBudgetInput(e.target.value)} />
-            <button className="btn primary" type="submit" disabled={budgetInput === ''}>Set</button>
+            <button className="btn primary" type="submit" disabled={saving || error?.unconfirmed || budgetInput === ''}>Set</button>
           </div>
         </form>
       ) : null}

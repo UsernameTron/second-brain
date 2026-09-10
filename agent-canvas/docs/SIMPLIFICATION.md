@@ -16,7 +16,7 @@ update USER-GUIDE.md and HANDOFF.md in the same commit. No deployment.
 |---|---|---|---|
 | 1 | Root package manifests; this inventory; documentation index | Compatible XML/request parser fixes; both audits; full gate | Verified locally |
 | 2 | App, api, Workspace, CapabilitiesModal, status helpers, styles | Startup/auth/config/timeout/malformed responses, reconnect, probes, pause/budget, theme/logout recovery | Verified locally |
-| 3 | Home, Panels, MemoryPanel, ExplainMap, Workspace, AddAgentModal, work details | Retained drafts, failed evidence/events/history, old runs, context races | Planned |
+| 3 | Home, Panels, MemoryPanel, ExplainMap, Workspace, AddAgentModal, work details | Retained drafts, failed evidence/events/history, old runs, context races | Verified locally |
 | 4 | Workspace, NeedsYouView, Tray, MemoryPanel, work details | Six card types, global scopes, permission/conflict failures, pending guards, source navigation, legacy fallback | Planned |
 | 5 | Workspace, Home, CommandBar, AddAgentModal, Nodes, format, header/context presentation, styles | Single Ask composer, Act on this, full control reachability, fresh boot, keyboard and responsive layouts | Planned |
 | 6A | RoomsView, helpers, styles, tests | List/detail/lens/activity failures, refresh progress, export lifecycle, permissions | Planned |
@@ -174,3 +174,12 @@ and Help with the four guide journeys. These add no server capability.
   Phase 2 full gate: 433 backend / 124 frontend tests, build and preflight
   passed; both production audits clean. Workspace tests additionally verify
   list recovery, HTTP-confirmed pause without sockets, and retained sign-out.
+
+- Phase 3: saved-work-reliability tests cover note retry, transient draft
+  retention, rejected dispatch/budget/correction, unavailable versus empty
+  answers/evidence/events, external citations without memory writes, old runs,
+  and late submissions across spaces. WorkDetails uses the existing receipt
+  endpoint independently of current agent/canvas lists. No server code changed.
+
+  Phase 3 full gate: 433 backend / 133 frontend tests, build and preflight
+  passed; both production audits clean. No existing tests deleted or skipped.

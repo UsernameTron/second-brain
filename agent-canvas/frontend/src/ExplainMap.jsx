@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { RequestError } from './RequestState.jsx';
 import { api } from './api.js';
 
 // P1 Explain Map. Deterministic columns (question → agent → actions →
@@ -35,15 +36,16 @@ export default function ExplainMap({ canvasId, runId, onSelectEntry, onSelectRun
   const [asSteps, setAsSteps] = useState(false);
   const [map, setMap] = useState(null);
   const [error, setError] = useState(null);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let alive = true;
     setMap(null); setError(null);
     api(`/api/canvases/${canvasId}/runs/${runId}/explain-map?lens=${lens}`)
       .then((m) => { if (alive) setMap(m); })
-      .catch((e) => { if (alive) setError(e.message); });
+      .catch((e) => { if (alive) setError(e); });
     return () => { alive = false; };
-  }, [canvasId, runId, lens]);
+  }, [canvasId, runId, lens, retry]);
 
   const select = (n) => {
     if (n.meta && n.meta.entryId && onSelectEntry) onSelectEntry(n.meta.entryId);
@@ -70,7 +72,7 @@ export default function ExplainMap({ canvasId, runId, onSelectEntry, onSelectRun
         </button>
       </div>
 
-      {error ? <div className="run-error">⚠ {error}</div> : null}
+      <RequestError error={error} subject="Loading the work map" onRetry={() => setRetry((n) => n + 1)} />
       {!map && !error ? <div className="empty-hint">building the map…</div> : null}
 
       {map && asSteps ? (

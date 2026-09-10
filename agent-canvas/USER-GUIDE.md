@@ -74,9 +74,10 @@ These are built in — not policies people have to remember:
   You review and hit send yourself.
 - **No CRM change without a human yes.** Any HubSpot change is shown to you
   as a preview first, and only happens after you approve it.
-- **Every answer shows its source.** Numbers, quotes, and claims trace back
-  to a real document, record, or web page. Agents are instructed to say
-  "I don't know" rather than make something up.
+- **Sources stay beside the answer when recorded.** Open **Sources and details**
+  to inspect retrieved information, external references and memory written.
+  These are different kinds of evidence, and they do not prove every claim.
+  If no supporting sources were recorded, the answer says so. Verify it before acting.
 - **Every action is logged.** There's a tamper-proof audit trail of who and
   what did everything.
 - **Spending is visible.** The cost counter in the top bar shows exactly
@@ -88,9 +89,10 @@ These are built in — not policies people have to remember:
 
 This is the special part. When you make a call — say, *"Higher education is
 tier 3 from now on"* — tell any agent, or answer it when an agent asks. The
-decision is recorded with your name on it, becomes the rule everywhere
-immediately, and every future answer respects it. No follow-up emails, no
-reminding anyone. You said it once; it's law.
+decision is recorded with your name and source in the current project space.
+Agents can retrieve that space’s memory and shared entries. A decision is not
+automatically copied into every other space or guaranteed to appear in every
+answer. Check its scope and sources before relying on it elsewhere.
 
 The **Memory** panel shows what the system knows. Each entry is labeled by
 how sure it is: *verified* (confirmed fact), *inference* (reasoned
@@ -160,3 +162,21 @@ service is working. Use **Check now** beside a service; failed checks cannot sho
 a current green light. Unavailable spending or pause status is shown as unknown.
 Appearance and sign-out failures stay visible; sign-out is only confirmed after
 the server accepts it.
+
+## Saved work and drafts
+
+Use **View work** beside an answer to reopen its summary, sources, history and
+feedback, including older work whose agent is no longer active. **Refresh work**
+checks its current state. A sources or events failure offers **Try again** and
+does not mean there were no sources or events.
+
+If a note, instruction, correction or budget change fails, its input stays in
+place. **Retry save** retries a confirmed failure; **Check status** reads saved
+work when acceptance is uncertain. Note, inquiry and correction drafts survive
+closing a panel or changing views while this workspace remains open. They are
+not saved drafts until accepted by the server; reloading or signing out loses
+unsaved text. View-only spaces show readable work without editing controls.
+
+A failed document upload keeps the file available for **Retry upload**. If it is
+not confirmed, use **Check documents** before uploading again. A missing team
+list must be reloaded before creating a new project space.

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
+import { useDraft } from './Drafts.jsx';
+import { RequestError, useResource } from './RequestState.jsx';
 import { ContextReceipt } from './Panels.jsx';
 import { SummaryMarkdown, formatContractTail } from './format.jsx';
 
@@ -32,23 +34,16 @@ const STATUS_COPY = {
 };
 
 function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, toast }) {
-  const [receipt, setReceipt] = useState(null);
+  const receiptState = useResource(() => !inquiry.run || inquiry.status === 'pending' ? Promise.resolve(null)
+    : api(`/api/canvases/${canvasId}/runs/${inquiry.run.id}/receipt`), `${canvasId}:${inquiry.run?.id}:${inquiry.status}`);
+  const receipt = receiptState.data;
   const [showReceipt, setShowReceipt] = useState(false);
   const run = inquiry.run;
 
-  useEffect(() => {
-    if (!run || inquiry.status === 'pending') { setReceipt(null); return undefined; }
-    let alive = true;
-    api(`/api/canvases/${canvasId}/runs/${run.id}/receipt`)
-      .then((r) => { if (alive) setReceipt(r); })
-      .catch(() => { if (alive) setReceipt(null); });
-    return () => { alive = false; };
-  }, [canvasId, run && run.id, inquiry.status]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const agent = inquiry.agent;
-  const cited = receipt ? receipt.cited : [];
+  const cited = receipt?.cited || [];
   const conflicts = cited.filter((e) => e.tainted);
-  const missing = receipt ? receipt.searches.filter((s) => s.results.length === 0) : [];
+  const missing = (receipt?.searches || []).filter((s) => s.results.length === 0);
   const evidenceRefs = receipt ? receipt.evidence || [] : [];
   const epiCounts = cited.reduce((m, e) => { m[e.epistemic] = (m[e.epistemic] || 0) + 1; return m; }, {});
 
@@ -87,6 +82,8 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, toast }) {
         </div>
       ) : null}
 
+      <RequestError error={receiptState.error} subject="Loading this answer's sources" onRetry={receiptState.refresh} />
+      {receiptState.loading && inquiry.status !== 'pending' ? <p role="status">Loading sources…</p> : null}
       {receipt ? (
         <>
           <div className="answer-chips">
@@ -106,18 +103,18 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, toast }) {
               Not found: {missing.map((s) => `“${short(s.query, 50)}”`).join(', ')} — memory has nothing on these yet.
             </div>
           ) : null}
-          {receipt.cited.length === 0 && inquiry.status === 'answered' ? (
-            <div className="answer-missing">This answer cites nothing — treat it as the agent's unsupported summary.</div>
+          {cited.length === 0 && evidenceRefs.length === 0 && !(receipt.provided || []).length && !(receipt.searches || []).some((s) => s.results?.length) && inquiry.status === 'answered' ? (
+            <div className="answer-missing">No supporting sources were recorded. Treat this answer as an unsupported summary and verify it before acting.</div>
           ) : null}
         </>
       ) : null}
 
       <div className="answer-actions">
         <button className="btn ghost small" aria-expanded={showReceipt} onClick={() => setShowReceipt(!showReceipt)}>
-          {showReceipt ? 'Hide receipt' : 'Full receipt'}
+          {showReceipt ? 'Hide details' : 'Sources and details'}
         </button>
         {run && onOpenRun ? (
-          <button className="btn ghost small" onClick={() => onOpenRun(run.agent_id || (agent && agent.id), run.id)}>Open run</button>
+          <button className="btn ghost small" onClick={() => onOpenRun(run.agent_id || (agent && agent.id), run.id)}>View work</button>
         ) : null}
       </div>
       {showReceipt && receipt ? <ContextReceipt receipt={receipt} onFeedback={null} /> : null}
@@ -125,13 +122,20 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, toast }) {
   );
 }
 
-export default function Home({ canvasId, agents, agentsById, paused, runTick, onOpenRun, toast }) {
-  const [question, setQuestion] = useState('');
-  const [mode, setMode] = useState('ask');
-  const [agentOverride, setAgentOverride] = useState('');
+export default function Home({ canvasId, agents, agentsById, paused, runTick, onOpenRun, toast, editable = true }) {
+  const [question, setQuestion] = useDraft(`inquiry:${canvasId}:question`, '');
+  const [mode, setMode] = useDraft(`inquiry:${canvasId}:mode`, 'ask');
+  const [agentOverride, setAgentOverride] = useDraft(`inquiry:${canvasId}:agent`, '');
   const [inquiries, setInquiries] = useState(null);
   const [busy, setBusy] = useState(false);
   const [savedOnly, setSavedOnly] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [sendError, setSendError] = useState(null);
+  const [saveErrors, setSaveErrors] = useState({});
+  const [saving, setSaving] = useState({});
+  const active = useRef(canvasId);
+  active.current = canvasId;
+  useEffect(() => { active.current = canvasId; setBusy(false); setSendError(null); setSaving({}); setSaveErrors({}); return () => { active.current = null; loadSeq.current += 1; }; }, [canvasId]);
 
   // Overlapping loads (canvas switch, Saved Only toggle, runTick bursts) may
   // resolve out of order — only the latest request may write the list.
@@ -139,9 +143,10 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
   const load = useCallback(() => {
     if (!canvasId) return;
     const seq = ++loadSeq.current;
-    api(`/api/canvases/${canvasId}/inquiries${savedOnly ? '?saved=1' : ''}`)
+    setLoadError(null);
+    return api(`/api/canvases/${canvasId}/inquiries${savedOnly ? '?saved=1' : ''}`)
       .then((d) => { if (seq === loadSeq.current) setInquiries(d.inquiries || []); })
-      .catch((e) => { if (seq === loadSeq.current) toast(e.message); });
+      .catch((e) => { if (seq === loadSeq.current) setLoadError(e); });
   }, [canvasId, savedOnly, toast]);
 
   useEffect(() => { setInquiries(null); load(); }, [load]);
@@ -151,27 +156,37 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
   const submit = async (e, text) => {
     if (e) e.preventDefault();
     const q = (text || question).trim();
-    if (!q || busy) return;
-    setBusy(true);
+    if (!q || busy || !editable || paused || sendError?.unconfirmed) return;
+    const cid = canvasId;
+    setBusy(true); setSendError(null);
     try {
       const body = { question: q, mode };
       if (agentOverride) body.agent_id = agentOverride;
       const d = await api(`/api/canvases/${canvasId}/inquiries`, { method: 'POST', body });
-      setQuestion('');
+      if (active.current !== cid) return;
+      if (question.trim() === q) setQuestion('');
+      loadSeq.current += 1;
       setInquiries((cur) => [d.inquiry, ...(cur || [])]);
-      if (d.selection.auto && d.selection.echo) toast(d.selection.echo, 'ok');
+      if (d.selection?.auto && d.selection.echo) toast(d.selection.echo, 'ok');
     } catch (e2) {
-      toast(e2.message);
+      if (active.current === cid) setSendError(e2);
     } finally {
-      setBusy(false);
+      if (active.current === cid) setBusy(false);
     }
   };
 
   const toggleSaved = async (inq) => {
+    if (!editable || saving[inq.id]) return;
+    const cid = canvasId;
+    setSaving((s) => ({ ...s, [inq.id]: true }));
+    setSaveErrors((s) => ({ ...s, [inq.id]: null }));
     try {
       const d = await api(`/api/inquiries/${inq.id}`, { method: 'PATCH', body: { saved: !inq.saved } });
+      if (active.current !== cid) return;
+      loadSeq.current += 1;
       setInquiries((cur) => (cur || []).map((i) => (i.id === inq.id ? d.inquiry : i)));
-    } catch (e) { toast(e.message); }
+    } catch (e) { if (active.current === cid) setSaveErrors((s) => ({ ...s, [inq.id]: e })); }
+    finally { if (active.current === cid) setSaving((s) => ({ ...s, [inq.id]: false })); }
   };
 
   return (
@@ -179,11 +194,16 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
       <div className="home-hero">
         <h1>Ask the company.</h1>
         <p className="home-sub">See the evidence. Assign the work. Approve the action.</p>
+        <RequestError error={sendError} subject="Sending your request" onRetry={sendError?.unconfirmed ? async () => { await load(); } : () => submit(null)} retryLabel={sendError?.unconfirmed ? 'Check status' : 'Try again'}>
+          {sendError?.unconfirmed ? <button className="btn small" onClick={() => setSendError(null)}>I checked the answers; keep editing</button> : null}
+        </RequestError>
+        {!editable ? <p>This project space is view only. Ask its owner for edit access to send or save work.</p> : null}
         <form className="home-ask" onSubmit={submit}>
           <label htmlFor="home-question" className="sr-only-label">Ask a question about the company</label>
           <textarea
             id="home-question"
             rows="2"
+            disabled={!editable || busy}
             value={question}
             placeholder="Ask anything — an agent is picked for you…"
             onChange={(e) => setQuestion(e.target.value)}
@@ -201,19 +221,19 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
               <option value="">auto-pick agent</option>
               {(agents || []).map((a) => <option key={a.id} value={a.id}>{a.name} ({a.role})</option>)}
             </select>
-            <button className="btn primary" type="submit" disabled={busy || !question.trim() || paused}
+            <button className="btn primary" type="submit" disabled={busy || !question.trim() || paused || !editable || sendError?.unconfirmed}
               title={paused ? 'Workspace is paused' : undefined}>
-              {busy ? 'Asking…' : 'Ask'}
+              {busy ? 'Sending…' : mode === 'act' ? 'Act' : mode === 'rehearse' ? 'Practice' : 'Ask'}
             </button>
           </div>
         </form>
       </div>
 
-      {inquiries !== null && inquiries.length === 0 && !savedOnly ? (
+      {inquiries !== null && inquiries.length === 0 && !savedOnly && !loadError ? (
         <div className="home-suggested">
           <h2>Try asking</h2>
           {SUGGESTED.map((q) => (
-            <button key={q} className="suggested-q" onClick={() => submit(null, q)} disabled={busy || paused}>{q}</button>
+            <button key={q} className="suggested-q" onClick={() => submit(null, q)} disabled={busy || paused || !editable}>{q}</button>
           ))}
         </div>
       ) : null}
@@ -225,15 +245,18 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
             {savedOnly ? 'Show all' : 'Saved only'}
           </button>
         </div>
-        {inquiries === null ? <div className="empty-hint">loading…</div> : null}
+        <RequestError error={loadError} subject="Loading answers" onRetry={load} />
+        {loadError && inquiries ? <p>Last known answers are shown. Refresh before acting on their status.</p> : null}
+        {inquiries === null && !loadError ? <div className="empty-hint">Loading answers…</div> : null}
         {(inquiries || []).map((inq) => (
           <div key={inq.id} className="home-item">
             <AnswerCard inquiry={inq} canvasId={canvasId} agentsById={agentsById} onOpenRun={onOpenRun} toast={toast} />
-            <button className="btn ghost small save-btn" aria-pressed={inq.saved}
+            <RequestError error={saveErrors[inq.id]} subject="Saving this answer" onRetry={() => load()} retryLabel="Check saved answers" />
+            <button disabled={!editable || saving[inq.id]} className="btn ghost small save-btn" aria-pressed={inq.saved}
               onClick={() => toggleSaved(inq)}>{inq.saved ? '★ saved' : '☆ save'}</button>
           </div>
         ))}
-        {inquiries !== null && inquiries.length === 0 && savedOnly ? (
+        {inquiries !== null && inquiries.length === 0 && savedOnly && !loadError ? (
           <div className="empty-hint">nothing saved yet — star an answer to keep it here</div>
         ) : null}
       </div>

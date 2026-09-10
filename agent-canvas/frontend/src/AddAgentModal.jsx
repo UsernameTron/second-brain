@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { api } from './api.js';
 import { useDialog } from './useDialog.js';
+import { RequestError } from './RequestState.jsx';
+import { useDraft } from './Drafts.jsx';
 import AgentBuilder from './AgentBuilder.jsx';
 
 // Staff a canvas: instantiate a vetted roster template (the normal path) or
@@ -9,30 +11,31 @@ import AgentBuilder from './AgentBuilder.jsx';
 // and only changes on an owner resync.
 export default function AddAgentModal({ canvasId, roster, builderOn, isOwner, onClose, onAdded, toast }) {
   const dialogRef = useDialog(onClose);
-  const [tab, setTab] = useState(builderOn ? 'builder' : (roster.length ? 'roster' : 'custom'));
+  const [tab, setTab] = useState('roster');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
 
   // custom form
-  const [name, setName] = useState('');
-  const [role, setRole] = useState('research');
-  const [tier, setTier] = useState('strong');
-  const [color, setColor] = useState('#2080D0');
-  const [prompt, setPrompt] = useState('');
+  const [name, setName] = useDraft(`custom-agent:${canvasId}:name`, '');
+  const [role, setRole] = useDraft(`custom-agent:${canvasId}:role`, 'research');
+  const [tier, setTier] = useDraft(`custom-agent:${canvasId}:tier`, 'strong');
+  const [color, setColor] = useDraft(`custom-agent:${canvasId}:color`, '#2080D0');
+  const [prompt, setPrompt] = useDraft(`custom-agent:${canvasId}:prompt`, '');
 
   const addFromRoster = async (entry) => {
-    if (busy) return;
-    setBusy(true);
+    if (busy || error?.unconfirmed) return;
+    setBusy(true); setError(null);
     try {
       await api(`/api/canvases/${canvasId}/agents`, { method: 'POST', body: { roster_id: entry.id } });
       toast(`${entry.name} added to the canvas`, 'ok');
       onAdded();
-    } catch (e) { toast(e.message); } finally { setBusy(false); }
+    } catch (e) { setError(e); } finally { setBusy(false); }
   };
 
   const addCustom = async (e) => {
     e.preventDefault();
-    if (busy || !name.trim()) return;
-    setBusy(true);
+    if (busy || !name.trim() || error?.unconfirmed) return;
+    setBusy(true); setError(null);
     try {
       await api(`/api/canvases/${canvasId}/agents`, {
         method: 'POST',
@@ -40,7 +43,7 @@ export default function AddAgentModal({ canvasId, roster, builderOn, isOwner, on
       });
       toast(`${name.trim()} added to the canvas`, 'ok');
       onAdded();
-    } catch (e2) { toast(e2.message); } finally { setBusy(false); }
+    } catch (e2) { setError(e2); } finally { setBusy(false); }
   };
 
   return (
@@ -55,6 +58,7 @@ export default function AddAgentModal({ canvasId, roster, builderOn, isOwner, on
           </nav>
           <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">✕</button>
         </header>
+        <RequestError error={error} subject="Adding your agent" onRetry={async () => { await api(`/api/canvases/${canvasId}`); onAdded(); }} retryLabel="Check team" />
         {tab === 'builder' ? (
           <div className="modal-body">
             <AgentBuilder canvasId={canvasId} isOwner={isOwner} onPublished={onAdded} toast={toast} />
@@ -66,7 +70,7 @@ export default function AddAgentModal({ canvasId, roster, builderOn, isOwner, on
             <ul className="roster-pick-list">
               {roster.map((entry) => (
                 <li key={entry.id}>
-                  <button className="roster-pick" disabled={busy} onClick={() => addFromRoster(entry)}>
+                  <button className="roster-pick" disabled={busy || error?.unconfirmed} onClick={() => addFromRoster(entry)}>
                     <span className="roster-dot big" style={{ background: entry.color }} />
                     <span className="roster-pick-name">{entry.name}</span>
                     <span className="chip">{entry.role === 'enrichment' ? 'lead information' : entry.role}</span>
@@ -91,7 +95,7 @@ export default function AddAgentModal({ canvasId, roster, builderOn, isOwner, on
             <textarea rows="8" placeholder="System prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
             <div className="canvas-new-actions">
               <button type="button" className="btn ghost small" onClick={onClose}>Cancel</button>
-              <button type="submit" className="btn primary small" disabled={busy || !name.trim()}>Add agent</button>
+              <button type="submit" className="btn primary small" disabled={busy || error?.unconfirmed || !name.trim()}>Add agent</button>
             </div>
           </form>
         ) : null}

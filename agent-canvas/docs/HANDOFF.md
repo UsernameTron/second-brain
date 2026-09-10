@@ -15,7 +15,8 @@ evidence is an observation at one instant, not a permanent property.
 **Test-proven locally:** Phase 1 installed compatible XML/request parser security
 updates; both production audits are clean. Phase 2 adds bounded requests,
 recoverable boot/session/status failures, explicit stale live updates, refreshed
-pause/spend state and honest connection checks. See [SIMPLIFICATION.md](SIMPLIFICATION.md)
+pause/spend state and honest connection checks. Phase 3 retains failed drafts,
+opens old work directly and exposes source/history/upload recovery. See [SIMPLIFICATION.md](SIMPLIFICATION.md)
 for control destinations and per-phase evidence. The production observations
 below are historical; no new production probe, push or deployment was performed.
 

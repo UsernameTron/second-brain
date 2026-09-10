@@ -2,6 +2,8 @@ import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } 
 import { AppCtx } from './App.jsx';
 import { api, rulesApi, wsUrl, normEsc, normHandoff, fmtUSD, fmtBytes, initials } from './api.js';
 import Canvas from './Canvas.jsx';
+import { DraftsContext } from './Drafts.jsx';
+import WorkDetails from './WorkDetails.jsx';
 import { RequestError } from './RequestState.jsx';
 import Tray from './Tray.jsx';
 import ActivityDock from './ActivityDock.jsx';
@@ -47,6 +49,7 @@ function encodeFileName(name) {
 export default function Workspace() {
   const { user, setUser, toast, theme, setTheme } = useContext(AppCtx);
   const isOwner = user.role === 'owner';
+  const drafts = useRef(new Map());
 
   const [canvases, setCanvases] = useState([]);
   const [canvasesLoaded, setCanvasesLoaded] = useState(false);
@@ -298,7 +301,7 @@ export default function Workspace() {
       setCanvasId(d.canvas.id);
       setNewCanvasOpen(false);
       setNewCanvasName('');
-    } catch (e) { toast(e.message); }
+    } catch (e) { setActionError(e); }
   }, [newCanvasName, roster, rosterChecked, refreshCanvases, toast]);
 
   const archiveCanvas = useCallback(async () => {
@@ -311,7 +314,7 @@ export default function Workspace() {
       // Archived canvases list in the user menu.
       const next = (d.canvases || [])[0];
       setCanvasId(next ? next.id : null);
-    } catch (e) { toast(e.message); }
+    } catch (e) { setActionError(e); }
   }, [canvasId, refreshCanvases, toast]);
 
   const restoreCanvas = useCallback(async (id) => {
@@ -321,18 +324,18 @@ export default function Workspace() {
       setCanvasId(id);
       setArchivedOpen(false);
       toast('Canvas restored', 'ok');
-    } catch (e) { toast(e.message); }
+    } catch (e) { setActionError(e); }
   }, [refreshCanvases, toast]);
 
   // ---------- roster (workspace template library) ----------
   const refreshRoster = useCallback(async () => {
     try {
-      const d = await api('/api/roster');
+      const d = await readResource('team templates', null, () => api('/api/roster'), () => {});
       const entries = d.roster || [];
       setRoster(entries);
       setRosterChecked((prev) => prev ?? new Set(entries.filter((r) => r.default_on).map((r) => r.id)));
-    } catch { /* roster endpoint unavailable - creation still works, unstaffed */ }
-  }, []);
+    } catch { /* persistent retry below */ }
+  }, [readResource]);
   useEffect(() => { refreshRoster(); }, [refreshRoster]);
 
   // ---------- boot: canvases + control status ----------
@@ -601,8 +604,9 @@ export default function Workspace() {
   // ---------- actions ----------
   const dispatchToAgent = useCallback(async (agentId, instruction, mode) => {
     const body = mode && mode !== 'act' ? { instruction, mode } : { instruction };
-    const d = await api(`/api/canvases/${canvasIdRef.current}/agents/${agentId}/dispatch`, { method: 'POST', body });
-    setState((s) => s && ({ ...s, runs: [d.run, ...s.runs] }));
+    const cid = canvasIdRef.current;
+    const d = await api(`/api/canvases/${cid}/agents/${agentId}/dispatch`, { method: 'POST', body });
+    setState((s) => s?.canvas?.id === cid ? { ...s, runs: [d.run, ...s.runs] } : s);
     return d.run;
   }, []);
 
@@ -614,7 +618,7 @@ export default function Workspace() {
       loadAttention();
       toast('Assigned', 'ok');
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
     }
   }, [loadEscalations, loadAttention, toast]);
 
@@ -624,7 +628,7 @@ export default function Workspace() {
       scheduleRefetch();
       toast('Assigned', 'ok');
     } catch (e) {
-      toast(e.message);
+      throw e;
     }
   }, [scheduleRefetch, toast]);
 
@@ -635,7 +639,7 @@ export default function Workspace() {
       toast('Person added to the canvas', 'ok');
       return true;
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
       return false;
     }
   }, [scheduleRefetch, toast]);
@@ -647,7 +651,7 @@ export default function Workspace() {
       toast('Retry dispatched', 'ok');
       loadAttention();
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
     }
   }, [loadAttention, toast]);
 
@@ -658,7 +662,7 @@ export default function Workspace() {
       toast('Acknowledged', 'ok');
       loadAttention();
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
     }
   }, [loadAttention, toast]);
 
@@ -671,7 +675,7 @@ export default function Workspace() {
       toast('Re-affirmed — review pushed 30 days', 'ok');
       loadAttention();
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
     }
   }, [loadAttention, toast]);
 
@@ -683,7 +687,7 @@ export default function Workspace() {
       toast('Dismissed', 'ok');
       loadAttention();
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
     }
   }, [loadAttention, toast]);
 
@@ -693,12 +697,13 @@ export default function Workspace() {
       markEscalationLeaving(id);
       toast(body.action === 'dismiss' ? 'Dismissed' : 'Decision sent back to the agent', 'ok');
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
     }
   }, [markEscalationLeaving, toast]);
 
   const saveNote = useCallback(async (note, draft) => {
-    const d = await api(`/api/canvases/${canvasIdRef.current}/notes/${note.id}`, {
+    const cid = canvasIdRef.current;
+    const d = await api(`/api/canvases/${cid}/notes/${note.id}`, {
       method: 'PUT',
       body: {
         title: draft.title,
@@ -708,7 +713,7 @@ export default function Workspace() {
         base_content: note.content,
       },
     });
-    setState((s) => s && ({ ...s, notes: s.notes.map((n) => (n.id === d.note.id ? d.note : n)) }));
+    setState((s) => s?.canvas?.id === cid ? { ...s, notes: s.notes.map((n) => (n.id === d.note.id ? d.note : n)) } : s);
     if (d.merged) toast('Someone edited this note at the same time — both edits were merged.', 'warn');
     return d;
   }, [toast]);
@@ -737,7 +742,7 @@ export default function Workspace() {
       }
       toast('Note created', 'ok');
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
     }
   }, [state, toast]);
 
@@ -753,7 +758,7 @@ export default function Workspace() {
       toast(note.pinned ? 'Pinned note removed from future agent context' : 'Note removed', 'ok');
       return true;
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
       return false;
     }
   }, [state?.access, toast]);
@@ -768,7 +773,7 @@ export default function Workspace() {
       toast(`${agent.name} removed from this canvas. History was retained.`, 'ok');
       return true;
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
       return false;
     }
   }, [state?.access, toast]);
@@ -838,7 +843,7 @@ export default function Workspace() {
         method: 'POST', body: { kind: 'file', id: uploaded.id, x, y },
       }).catch(() => toast('Document added, but its canvas position could not be saved.', 'warn'));
     } catch (e) {
-      setFileUpload({ kind: 'error', message: e.message || 'Document upload failed.' });
+      if (canvasIdRef.current === cid) setFileUpload({ kind: 'error', message: e.unconfirmed ? 'Upload is not confirmed. Check Documents & notes before choosing the file again.' : 'Upload failed. Choose the file again to retry.', file, error: e });
       toast(e.message || 'Document upload failed');
     } finally {
       input.value = '';
@@ -858,20 +863,21 @@ export default function Workspace() {
       toast('Document removed', 'ok');
       return true;
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
       return false;
     }
   }, [state?.access, toast]);
 
   const correctEntry = useCallback(async (entryId, body) => {
+    const cid = canvasIdRef.current;
     try {
-      await api(`/api/canvases/${canvasIdRef.current}/memory/${entryId}/correct`, { method: 'POST', body });
-      toast('Correction recorded — ripple incoming', 'ok');
+      await api(`/api/canvases/${cid}/memory/${entryId}/correct`, { method: 'POST', body });
+      await loadMemory(cid, showSupersededRef.current).catch(() => {});
+      toast('Correction recorded', 'ok');
     } catch (e) {
-      if (e.status === 409) toast('Correction conflict — escalated to a human decision', 'warn');
-      else toast(e.message);
+      throw e;
     }
-  }, [toast]);
+  }, [toast, loadMemory]);
 
   const moveLive = useCallback((kind, id, x, y) => applyMove(kind, id, x, y), []);
 
@@ -902,7 +908,7 @@ export default function Workspace() {
     setFitSignal((n) => n + 1);
     try {
       await Promise.all(moves.map((m) => api(`/api/canvases/${canvasIdRef.current}/positions`, { method: 'POST', body: m })));
-    } catch (e) { toast(e.message); }
+    } catch (e) { setActionError(e); }
   }, [state, toast]);
   const moveEnd = useCallback((kind, id, x, y) => {
     applyMove(kind, id, x, y);
@@ -973,27 +979,25 @@ export default function Workspace() {
   }, [setUser, signingOut]);
 
   const fetchRunEvents = useCallback(
-    (runId) => api(`/api/canvases/${canvasIdRef.current}/runs/${runId}/events`).then((d) => d.events || []),
-    []
+    (runId) => api(`/api/canvases/${canvasId}/runs/${runId}/events`).then((d) => d.events || []),
+    [canvasId]
   );
 
   const fetchRunReceipt = useCallback(
-    (runId) => api(`/api/canvases/${canvasIdRef.current}/runs/${runId}/receipt`),
-    []
+    (runId) => api(`/api/canvases/${canvasId}/runs/${runId}/receipt`),
+    [canvasId]
   );
 
   const sendRunFeedback = useCallback(
-    (runId, verdict, note) => api(`/api/canvases/${canvasIdRef.current}/runs/${runId}/feedback`, {
+    (runId, verdict, note) => api(`/api/canvases/${canvasId}/runs/${runId}/feedback`, {
       method: 'POST', body: { verdict, note },
     }),
-    []
+    [canvasId]
   );
 
-  const openRun = useCallback((runId) => {
-    const run = (state?.runs || []).find((r) => r.id === runId);
-    if (run) setPanel({ type: 'agent', id: run.agent_id, runId });
-    else toast('That run is not in the recent runs list', 'warn');
-  }, [state, toast]);
+  const openRun = useCallback((runId, cid = canvasIdRef.current) => {
+    if (runId && cid) setPanel({ type: 'work', runId, canvasId: cid });
+  }, []);
 
   // ---------- derived ----------
   const agentsById = useMemo(() => {
@@ -1026,10 +1030,10 @@ export default function Workspace() {
   const setBudgetUsd = useCallback(async (usd) => {
     try {
       await api('/api/control/budget', { method: 'POST', body: { daily_budget_usd: usd } });
-      const d = await api('/api/control/status');
+      const d = await api('/api/control/status').catch((e) => { throw Object.assign(e, { unconfirmed: true }); });
       setBudget(d);
       toast('Daily budget updated', 'ok');
-    } catch (e) { toast(e.message); }
+    } catch (e) { throw e; }
   }, [toast]);
 
   // ---------- render ----------
@@ -1049,6 +1053,7 @@ export default function Workspace() {
     if (panel.type === 'agent' && agentsById[panel.id]) {
       sidePanel = (
         <AgentPanel
+          key={`${canvasId}:${panel.id}`}
           agent={agentsById[panel.id]}
           runs={(state.runs || []).filter((r) => r.agent_id === panel.id)}
           spendRow={spendByAgent[panel.id]}
@@ -1058,14 +1063,17 @@ export default function Workspace() {
           onSelectEntry={() => setPanel({ type: 'memory' })}
           onDispatch={async (instruction) => {
             try { await dispatchToAgent(panel.id, instruction); toast(`Sent to ${agentsById[panel.id].name}`, 'ok'); }
-            catch (e) { toast(e.message); }
+            catch (e) { throw e; }
           }}
+          isOwner={isOwner}
+          editable={state.access !== 'view'}
+          onCheckStatus={() => loadState(canvasId)}
           onRemove={state.access !== 'view' ? removeAgent : null}
           fetchRunEvents={fetchRunEvents}
           fetchRunReceipt={fetchRunReceipt}
           onFeedback={async (runId, verdict, note) => {
             try { return await sendRunFeedback(runId, verdict, note); }
-            catch (e) { toast(e.message); return null; }
+            catch (e) { throw e; }
           }}
           onClose={() => setPanel(null)}
         />
@@ -1075,6 +1083,8 @@ export default function Workspace() {
       const task = panel.taskId ? (state.tasks || []).find((t) => t.id === panel.taskId) : null;
       sidePanel = (
         <NotePanel
+          key={`${canvasId}:${panel.id || panel.taskId}`}
+          onCheckStatus={() => loadState(canvasId)}
           note={note}
           task={task}
           people={state.people || []}
@@ -1109,7 +1119,10 @@ export default function Workspace() {
           onToggleSuperseded={toggleSuperseded}
           ripple={ripple}
           onOpenRun={openRun}
-          onCorrect={correctEntry}
+          onCorrect={state.access !== 'view' ? correctEntry : null}
+          loadStatus={requests.memory}
+          onRefresh={() => loadMemory(canvasId, showSuperseded).catch(() => {})}
+          initialEntryId={panel.entryId}
           onClose={() => setPanel(null)}
           toast={toast}
         />
@@ -1119,7 +1132,7 @@ export default function Workspace() {
         <SpendPanel
           spend={spend}
           analytics={analytics}
-          budget={budget}
+          budget={requests.control?.error ? null : budget}
           isOwner={isOwner}
           onSetBudget={setBudgetUsd}
           onClose={() => setPanel(null)}
@@ -1129,7 +1142,7 @@ export default function Workspace() {
   }
 
   return (
-    <div className="workspace">
+    <DraftsContext.Provider value={drafts}><div className="workspace">
       <header className="topbar">
         <div className="brand">
           <span className="brand-glyph" />
@@ -1217,7 +1230,7 @@ export default function Workspace() {
             ) : null}
             <div className="canvas-new-actions">
               <button className="btn ghost small" onClick={() => { setNewCanvasOpen(false); setNewCanvasName(''); }}>Cancel</button>
-              <button className="btn primary small" disabled={!newCanvasName.trim()} onClick={createCanvas}>Create</button>
+              <button className="btn primary small" disabled={!newCanvasName.trim() || rosterChecked === null} onClick={createCanvas}>Create</button>
             </div>
           </div>
         ) : null}
@@ -1299,6 +1312,11 @@ export default function Workspace() {
           >
             {fileUpload.kind === 'busy' ? <progress aria-label="Document upload in progress" /> : null}
             <span>{fileUpload.message}</span>
+            {fileUpload.kind === 'error' ? <button className="btn small" onClick={() => {
+              if (fileUpload.error?.unconfirmed) loadState(canvasId).catch(() => {});
+              else if (fileUpload.file) uploadFile({ currentTarget: { files: [fileUpload.file], value: '' } });
+              else fileInputRef.current?.click();
+            }}>{fileUpload.error?.unconfirmed ? 'Check documents' : fileUpload.file ? 'Retry upload' : 'Choose document'}</button> : null}
           </span>
         ) : null}
         {isOwner && canvasId ? (
@@ -1414,7 +1432,8 @@ export default function Workspace() {
       <div className="workspace-notices">
         {!wsOk ? <div className="stale-notice" role="status">Live updates are reconnecting. Displayed work may be out of date. <button className="btn small" onClick={refreshAll}>Refresh status</button></div> : null}
         {Object.entries(requests).filter(([, r]) => r?.error).map(([key, r]) => <RequestError key={key} error={r.error} subject={`Loading ${key}`} onRetry={() => {
-          if (key === 'spaces') refreshCanvases().then((d) => { if (!canvasId && d.canvases?.length) setCanvasId(d.canvases[0].id); }).catch(() => {});
+          if (key === 'team templates') refreshRoster();
+          else if (key === 'spaces') refreshCanvases().then((d) => { if (!canvasId && d.canvases?.length) setCanvasId(d.canvases[0].id); }).catch(() => {});
           else refreshAll();
         }} />)}
         <RequestError error={actionError} subject="Updating your workspace" onRetry={() => { refreshAll(); setActionError(null); }} retryLabel="Check status" />
@@ -1424,12 +1443,14 @@ export default function Workspace() {
         <div className="canvas-wrap">
           {canvasId && state && view === 'home' ? (
             <Home
+              key={canvasId}
+              editable={state.access !== 'view'}
               canvasId={canvasId}
               agents={state.agents || []}
               agentsById={agentsById}
               paused={pause.paused}
               runTick={runTick}
-              onOpenRun={(agentId, runId) => { setView('canvas'); openRun(runId); }}
+              onOpenRun={(agentId, runId) => openRun(runId)}
               toast={toast}
             />
           ) : null}
@@ -1457,13 +1478,7 @@ export default function Workspace() {
               user={user}
               roster={roster}
               onOpenCanvas={(id) => { setCanvasId(id); setView('canvas'); }}
-              onOpenRun={({ canvasId: cid, agentId, runId }) => {
-                // The room's canvas may not be the selected one — switch first;
-                // the agent panel renders as soon as that canvas state loads.
-                if (cid && cid !== canvasId) setCanvasId(cid);
-                setView('canvas');
-                setPanel({ type: 'agent', id: agentId, runId });
-              }}
+              onOpenRun={({ canvasId: cid, runId }) => openRun(runId, cid)}
               toast={toast}
             />
           ) : null}
@@ -1532,7 +1547,9 @@ export default function Workspace() {
             />
           ) : null}
 
-          {sidePanel}
+          {panel?.type === 'work' ? <WorkDetails key={`${panel.canvasId}:${panel.runId}`} canvasId={panel.canvasId} runId={panel.runId} runTick={runTick}
+            onClose={() => setPanel(null)} onSelectRun={(id) => openRun(id, panel.canvasId)}
+            onSelectEntry={(id) => setPanel({ type: 'memory', entryId: id })} /> : sidePanel}
 
           {canvasId && state ? (
             <CommandBar paused={pause.paused} onParse={parseIntent} onConfirm={confirmIntent} toast={toast} />
@@ -1606,7 +1623,7 @@ export default function Workspace() {
           isOwner={isOwner}
           roster={roster.filter((r) => r.enabled)}
           onClose={() => setAddAgentOpen(false)}
-          onAdded={() => { setAddAgentOpen(false); loadState(canvasId); }}
+          onAdded={() => { setAddAgentOpen(false); loadState(canvasId).catch(() => {}); }}
           toast={toast}
         />
       ) : null}
@@ -1618,7 +1635,7 @@ export default function Workspace() {
         />
       ) : null}
       {capsOpen ? <CapabilitiesModal onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}
-    </div>
+    </div></DraftsContext.Provider>
   );
 }
 

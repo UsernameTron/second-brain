@@ -1,5 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
+import { RequestError } from './RequestState.jsx';
+import { useDraft } from './Drafts.jsx';
 import { Panel } from './Panels.jsx';
 
 const DOT_SHAPE = { verified: 'filled', inference: 'half', assumption: 'hollow' };
@@ -36,9 +38,17 @@ function Provenance({ entry, onOpenRun }) {
 
 function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, depth }) {
   const [correcting, setCorrecting] = useState(false);
-  const [cContent, setCContent] = useState(entry.content);
-  const [cEpi, setCEpi] = useState('verified');
-  const [cReason, setCReason] = useState('');
+  const [cContent, setCContent] = useDraft(`correction:${entry.id}:content`, entry.content);
+  const [cEpi, setCEpi] = useDraft(`correction:${entry.id}:certainty`, 'verified');
+  const [cReason, setCReason] = useDraft(`correction:${entry.id}:reason`, '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const correct = async (body) => {
+    if (saving || error?.unconfirmed) return;
+    setSaving(true); setError(null);
+    try { await onCorrect(entry.id, body); setCorrecting(false); } catch (e) { setError(e); }
+    finally { setSaving(false); }
+  };
 
   const superseded = !!entry.supersededBy;
   const cls = [
@@ -82,7 +92,8 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
                 key={epi}
                 className="link-btn reclass-btn"
                 title={`Reclassify as ${epi} (supersedes this entry, same content)`}
-                onClick={() => onCorrect(entry.id, {
+                disabled={saving || error?.unconfirmed}
+                onClick={() => correct({
                   content: entry.content,
                   epistemic: epi,
                   reason: `reclassified ${entry.epistemic} → ${epi}`,
@@ -97,24 +108,25 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
           <button className="link-btn" onClick={() => onTrace(entry.id)}>Trace</button>
         </div>
       )}
+      <RequestError error={error} subject="Recording your correction" onRetry={() => onTrace(entry.id)} retryLabel="Check memory history" />
+      {error?.unconfirmed ? <button className="btn small" onClick={() => setError(null)}>I checked memory history; keep editing</button> : null}
       {correcting ? (
         <form
           className="correct-form"
           onSubmit={(e) => {
             e.preventDefault();
-            onCorrect(entry.id, { content: cContent, epistemic: cEpi, reason: cReason });
-            setCorrecting(false);
+            correct({ content: cContent, epistemic: cEpi, reason: cReason });
           }}
         >
-          <textarea rows="3" value={cContent} onChange={(e) => setCContent(e.target.value)} />
+          <textarea aria-label="Corrected memory" disabled={saving} rows="3" value={cContent} onChange={(e) => setCContent(e.target.value)} />
           <div className="correct-row">
-            <select value={cEpi} onChange={(e) => setCEpi(e.target.value)}>
+            <select aria-label="Certainty" disabled={saving} value={cEpi} onChange={(e) => setCEpi(e.target.value)}>
               <option value="verified">verified</option>
               <option value="inference">inference</option>
               <option value="assumption">assumption</option>
             </select>
-            <input placeholder="reason for the correction" value={cReason} onChange={(e) => setCReason(e.target.value)} />
-            <button className="btn primary small" type="submit" disabled={!cContent.trim()}>Correct</button>
+            <input aria-label="Reason for the correction" disabled={saving} placeholder="reason for the correction" value={cReason} onChange={(e) => setCReason(e.target.value)} />
+            <button className="btn primary small" type="submit" disabled={saving || error?.unconfirmed || !cContent.trim()}>Correct</button>
           </div>
         </form>
       ) : null}
@@ -123,28 +135,33 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
 }
 
 export default function MemoryPanel({
-  entries, agentsById, showSuperseded, onToggleSuperseded, ripple, onOpenRun, onCorrect, onClose, toast,
+  entries, agentsById, showSuperseded, onToggleSuperseded, ripple, onOpenRun, onCorrect, onClose, toast, initialEntryId, loadStatus, onRefresh,
 }) {
   const [lineage, setLineage] = useState(null); // {entryId, data|null}
   const [timeline, setTimeline] = useState(null); // P2: {entryId, events}|null
   const [filter, setFilter] = useState('');
   const [kindFilter, setKindFilter] = useState('');
+  const [lineageError, setLineageError] = useState(null);
+  const [timelineError, setTimelineError] = useState(null);
   const traceIdRef = useRef(null); // the entry being traced NOW — stale responses check it
 
   const trace = (entryId) => {
     traceIdRef.current = entryId;
+    setLineageError(null); setTimelineError(null);
     setLineage({ entryId, data: null });
     setTimeline(null);
     api(`/api/memory/${entryId}/lineage`)
       .then((d) => setLineage((cur) => (cur && cur.entryId === entryId ? { entryId, data: d } : cur)))
-      .catch((e) => { toast(e.message); setLineage(null); });
+      .catch((e) => { if (traceIdRef.current === entryId) setLineageError(e); });
     // The lifecycle timeline rides alongside lineage; failure never blocks it.
     // A slow response for a PREVIOUS entry must not clobber the current one's
     // timeline (codex on #184).
     api(`/api/memory/${entryId}/timeline`)
       .then((d) => { if (traceIdRef.current === entryId) setTimeline({ entryId, events: d.events || [] }); })
-      .catch(() => {});
+      .catch((e) => { if (traceIdRef.current === entryId) setTimelineError(e); });
   };
+
+  useEffect(() => { if (initialEntryId) trace(initialEntryId); return () => { traceIdRef.current = null; }; }, [initialEntryId]);
 
   if (lineage) {
     const d = lineage.data;
@@ -152,13 +169,15 @@ export default function MemoryPanel({
       <Panel
         title="Lineage"
         onClose={onClose}
-        headerExtra={<button className="btn ghost small" onClick={() => setLineage(null)}>← memory</button>}
+        headerExtra={<button className="btn ghost small" onClick={() => { traceIdRef.current = null; setLineage(null); }}>← memory</button>}
       >
         <Legend />
-        {!d ? <div className="empty-hint">tracing…</div> : (
+        <RequestError error={lineageError} subject="Loading memory sources" onRetry={() => trace(lineage.entryId)} />
+        <RequestError error={timelineError} subject="Loading memory history" onRetry={() => trace(lineage.entryId)} />
+        {!d && !lineageError ? <div className="empty-hint">Loading memory sources…</div> : d ? (
           <div className="lineage">
             <h3>Entry</h3>
-            <MemoryEntry entry={d.entry} ripple={ripple} onOpenRun={onOpenRun} onTrace={trace} compact />
+            <MemoryEntry key={d.entry.id} entry={d.entry} ripple={ripple} onOpenRun={onOpenRun} onTrace={trace} onCorrect={onCorrect} />
 
             {timeline && timeline.entryId === lineage.entryId && timeline.events.length > 0 ? (
               <>
@@ -214,7 +233,7 @@ export default function MemoryPanel({
               </>
             ) : null}
           </div>
-        )}
+        ) : null}
       </Panel>
     );
   }
@@ -226,7 +245,7 @@ export default function MemoryPanel({
 
   return (
     <Panel
-      title={`Memory (${entries.length})`}
+      title={`Memory (${loadStatus?.loading || loadStatus?.error ? '—' : entries.length})`}
       onClose={onClose}
       headerExtra={
         <label className="superseded-toggle" title="Include superseded history (struck-through)">
@@ -236,21 +255,25 @@ export default function MemoryPanel({
       }
     >
       <Legend />
+      <RequestError error={loadStatus?.error} subject="Loading memory" onRetry={onRefresh} />
+      {loadStatus?.loading ? <p role="status">Loading memory…</p> : null}
+      {loadStatus?.error && entries.length > 0 ? <p>Last known memory is shown; refresh before editing.</p> : null}
       <div className="mem-filter-row">
         <input
           className="mem-filter"
+          aria-label="Search memory"
           placeholder="filter entries…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <select className="mem-kind-filter" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} title="Filter by kind">
+        <select aria-label="Memory kind" className="mem-kind-filter" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} title="Filter by kind">
           <option value="">all kinds</option>
           {['fact', 'decision', 'preference', 'constraint', 'outcome', 'feedback'].map((k) => (
             <option key={k} value={k}>{k}</option>
           ))}
         </select>
       </div>
-      {visible.length === 0 ? (
+      {visible.length === 0 && !loadStatus?.loading && !loadStatus?.error ? (
         <div className="empty-hint">
           {entries.length === 0 ? 'No memory yet — agents write here as they work.' : 'Nothing matches that filter.'}
         </div>

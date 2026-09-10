@@ -9,10 +9,19 @@ export function errorMessage(error, subject = 'This request') {
 }
 
 export function RequestError({ error, subject, onRetry, retryLabel, children }) {
+  const [retryError, setRetryError] = useState(null);
+  const [retrying, setRetrying] = useState(false);
+  useEffect(() => { setRetryError(null); }, [error]);
   if (!error) return null;
+  const retry = async () => {
+    if (retrying) return;
+    setRetrying(true); setRetryError(null);
+    try { await onRetry(); } catch (e) { setRetryError(e); }
+    finally { setRetrying(false); }
+  };
   return <div className="request-error" role="alert">
-    <p>{errorMessage(error, subject)}</p>
-    {onRetry ? <button className="btn small" onClick={onRetry}>{retryLabel || (error.unconfirmed ? 'Check status' : 'Try again')}</button> : null}
+    <p>{errorMessage(retryError || error, subject)}</p>
+    {onRetry ? <button type="button" className="btn small" disabled={retrying} onClick={retry}>{retryLabel || (error.unconfirmed ? 'Check status' : 'Try again')}</button> : null}
     {children}
     {error.message ? <details><summary>Technical details</summary><div>{error.message}</div></details> : null}
   </div>;
