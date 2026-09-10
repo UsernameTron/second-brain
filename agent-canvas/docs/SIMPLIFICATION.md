@@ -15,7 +15,7 @@ update USER-GUIDE.md and HANDOFF.md in the same commit. No deployment.
 | Phase | Files / responsibility | Required verification | State |
 |---|---|---|---|
 | 1 | Root package manifests; this inventory; documentation index | Compatible XML/request parser fixes; both audits; full gate | Verified locally |
-| 2 | App, api, Workspace, CapabilitiesModal, status helpers, styles | Startup/auth/config/timeout/malformed responses, reconnect, probes, pause/budget, theme/logout recovery | Planned |
+| 2 | App, api, Workspace, CapabilitiesModal, status helpers, styles | Startup/auth/config/timeout/malformed responses, reconnect, probes, pause/budget, theme/logout recovery | Verified locally |
 | 3 | Home, Panels, MemoryPanel, ExplainMap, Workspace, AddAgentModal, work details | Retained drafts, failed evidence/events/history, old runs, context races | Planned |
 | 4 | Workspace, NeedsYouView, Tray, MemoryPanel, work details | Six card types, global scopes, permission/conflict failures, pending guards, source navigation, legacy fallback | Planned |
 | 5 | Workspace, Home, CommandBar, AddAgentModal, Nodes, format, header/context presentation, styles | Single Ask composer, Act on this, full control reachability, fresh boot, keyboard and responsive layouts | Planned |
@@ -164,3 +164,13 @@ and Help with the four guide journeys. These add no server capability.
   6.16.0; retained Express 4.22.2 and uuid override. Full verify passed
   (433 backend / 112 frontend), build/preflight passed; both production audits
   report zero vulnerabilities. No runtime behavior changed.
+
+- Phase 2: request-reliability and startup-status tests cover timeouts,
+  unconfirmed writes, malformed bodies, expired sessions, failed/recovered boot,
+  context invalidation and failed/recovered health checks. Existing upload tests
+  retain exact raw-body assertions with the added abort signal. Workspace
+  failures remain visible with refresh; control values come from a status read.
+
+  Phase 2 full gate: 433 backend / 124 frontend tests, build and preflight
+  passed; both production audits clean. Workspace tests additionally verify
+  list recovery, HTTP-confirmed pause without sockets, and retained sign-out.

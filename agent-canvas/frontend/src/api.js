@@ -31,8 +31,14 @@ export async function api(path, opts = {}) {
     throw Object.assign(new Error('invalid API path'), { status: 0 });
   }
   const url = `/api${candidate.slice(4)}`;
-  const { body, headers, ...rest } = opts;
+  const mutation = !['GET', 'HEAD'].includes((opts.method || 'GET').toUpperCase());
+  const { body, headers, timeoutMs = mutation ? 120_000 : 30_000, signal, ...rest } = opts;
   const init = { ...rest, headers: { ...(headers || {}) } };
+  const controller = new AbortController();
+  init.signal = controller.signal;
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  signal?.addEventListener('abort', abort, { once: true });
   if (body !== undefined) {
     // Canvas file uploads are a raw request body, never multipart or JSON.
     // Keep the ordinary API surface JSON-by-default while allowing browser
@@ -46,20 +52,49 @@ export async function api(path, opts = {}) {
     init.body = isRaw ? body : (typeof body === 'string' ? body : JSON.stringify(body));
     if (!isRaw && !init.headers['Content-Type']) init.headers['Content-Type'] = 'application/json';
   }
-  let res;
+  let timer;
+  let timedOut = false;
   try {
-    res = await fetch(url, init);
-  } catch {
-    throw Object.assign(new Error('network error — server unreachable'), { status: 0 });
+    // Race the whole response (including the body), not just response headers.
+    // Abort also releases the browser connection; it does not undo server work.
+    return await Promise.race([
+      (async () => {
+        const res = await fetch(url, init);
+        const text = await res.text();
+        let data = null;
+        try { data = text ? JSON.parse(text) : null; } catch {
+          if (res.ok) throw Object.assign(new Error('The server returned an unreadable response.'), { status: res.status, unconfirmed: mutation });
+        }
+        if (!res.ok) {
+          if (res.status === 401 && !candidate.startsWith('/api/auth/') && candidate !== '/api/me') {
+            window.dispatchEvent(new Event('ac-session-expired'));
+          }
+          throw Object.assign(new Error(data?.error || 'The server could not complete this request.'), { status: res.status, data });
+        }
+        if (data === null && res.status !== 204) {
+          throw Object.assign(new Error('The server returned an empty response.'), { status: res.status, unconfirmed: mutation });
+        }
+        return data;
+      })(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          timedOut = true;
+          reject(Object.assign(new Error(mutation
+            ? 'We could not confirm whether this was saved. Check status before trying again.'
+            : 'The server took too long to respond. Try again.'), { status: 0, timeout: true, unconfirmed: mutation }));
+          controller.abort();
+        }, timeoutMs);
+      }),
+    ]);
+  } catch (e) {
+    if (e.status !== undefined || timedOut) throw e;
+    throw Object.assign(new Error(mutation
+      ? 'The connection was interrupted. Check status before trying again.'
+      : 'Cannot reach the server. Check your connection and try again.'), { status: 0, unconfirmed: mutation });
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
   }
-  const text = await res.text();
-  let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch { data = null; }
-  if (!res.ok) {
-    const message = (data && data.error) || `${res.status} ${res.statusText || 'request failed'}`;
-    throw Object.assign(new Error(message), { status: res.status, data });
-  }
-  return data;
 }
 
 // P5 standing rules — thin wrappers over api(). Factory form so tests can

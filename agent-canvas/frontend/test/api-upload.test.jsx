@@ -21,6 +21,7 @@ describe('raw upload API bodies', () => {
     });
 
     expect(fetch).toHaveBeenCalledWith('/api/canvases/c1/files?name=Customer%20brief.md', {
+      signal: expect.any(AbortSignal),
       method: 'POST',
       headers: { 'Content-Type': 'text/markdown' },
       body,
@@ -34,6 +35,7 @@ describe('raw upload API bodies', () => {
     });
 
     expect(fetch).toHaveBeenCalledWith('/api/canvases/c1/files?name=customer..final.csv', {
+      signal: expect.any(AbortSignal),
       method: 'POST', headers: { 'Content-Type': 'text/csv' }, body,
     });
   });

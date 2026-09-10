@@ -10,6 +10,15 @@ Every claim below is labeled **git-proven**, **test-proven**,
 **live-proven**, **historical acceptance evidence**, or **unverified**. Live
 evidence is an observation at one instant, not a permanent property.
 
+## Local simplification (2026-09-10; not deployed)
+
+**Test-proven locally:** Phase 1 installed compatible XML/request parser security
+updates; both production audits are clean. Phase 2 adds bounded requests,
+recoverable boot/session/status failures, explicit stale live updates, refreshed
+pause/spend state and honest connection checks. See [SIMPLIFICATION.md](SIMPLIFICATION.md)
+for control destinations and per-phase evidence. The production observations
+below are historical; no new production probe, push or deployment was performed.
+
 ## Current production state
 
 **Live-proven at 2026-08-20 (~15:40Z):** Cloud Run revision

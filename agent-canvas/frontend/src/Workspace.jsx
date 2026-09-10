@@ -2,6 +2,7 @@ import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } 
 import { AppCtx } from './App.jsx';
 import { api, rulesApi, wsUrl, normEsc, normHandoff, fmtUSD, fmtBytes, initials } from './api.js';
 import Canvas from './Canvas.jsx';
+import { RequestError } from './RequestState.jsx';
 import Tray from './Tray.jsx';
 import ActivityDock from './ActivityDock.jsx';
 import CommandBar from './CommandBar.jsx';
@@ -83,7 +84,11 @@ export default function Workspace() {
   const [spend, setSpend] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [budget, setBudget] = useState(null);
-  const [pause, setPause] = useState({ paused: false, by: null });
+  const [pause, setPause] = useState({ paused: null, by: null });
+  const [requests, setRequests] = useState({});
+  const [controlBusy, setControlBusy] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [presence, setPresence] = useState([]);
   const [cursors, setCursors] = useState({});
   const [selections, setSelections] = useState({});
@@ -115,7 +120,7 @@ export default function Workspace() {
   const refreshHealth = useCallback(() => {
     api('/api/health/integrations')
       .then((d) => { setHealth(d); setHealthDown(false); })
-      .catch(() => setHealthDown(true));
+      .catch(() => { setHealthDown(true); setHealth(null); });
   }, []);
   useEffect(() => {
     refreshHealth();
@@ -123,7 +128,7 @@ export default function Workspace() {
     return () => clearInterval(t);
   }, [refreshHealth]);
   const refreshCaps = useCallback(() => {
-    api('/api/capabilities').then((d) => setWsConnected(!!d.connected)).catch(() => {});
+    api('/api/capabilities').then((d) => setWsConnected(!!d.connected)).catch(() => setWsConnected(null));
   }, []);
   useEffect(() => { refreshCaps(); }, [refreshCaps]);
   useEffect(() => {
@@ -159,45 +164,66 @@ export default function Workspace() {
   }, []);
 
   // ---------- loaders ----------
-  const loadState = useCallback(async (cid) => {
-    const d = await api(`/api/canvases/${cid}`);
-    if (canvasIdRef.current !== cid) return;
-    setState(d);
-    if (d.budget) {
-      setBudget(d.budget);
-      setPause((p) => ({ ...p, paused: !!d.budget.paused }));
+  const readSeq = useRef({});
+  const readResource = useCallback(async (key, cid, read, apply) => {
+    const request = (readSeq.current[key] || 0) + 1;
+    readSeq.current[key] = request;
+    setRequests((r) => ({ ...r, [key]: { loading: true, error: null } }));
+    const current = () => readSeq.current[key] === request && (!cid || canvasIdRef.current === cid);
+    try {
+      const data = await read();
+      if (current()) { apply(data); setRequests((r) => ({ ...r, [key]: { loading: false, error: null } })); }
+      return data;
+    } catch (error) {
+      if (current()) setRequests((r) => ({ ...r, [key]: { loading: false, error } }));
+      throw error;
     }
   }, []);
+  const loadControl = useCallback(() => readResource('control', null,
+    () => api('/api/control/status'), (d) => {
+      if (typeof d?.paused !== 'boolean' || !Number.isFinite(d.budget_usd) || !Number.isFinite(d.cost_usd)) throw new Error('Incomplete control status');
+      setBudget(d); setPause((p) => ({ ...p, paused: d.paused }));
+    }), [readResource]);
+  const loadState = useCallback(async (cid) => {
+    return readResource('workspace', cid, () => api(`/api/canvases/${cid}`), (d) => {
+    if (canvasIdRef.current !== cid) return;
+    setState(d);
+    });
+  }, [readResource]);
 
   const loadMemory = useCallback(async (cid, incl) => {
-    const d = await api(`/api/canvases/${cid}/memory${incl ? '?include_superseded=1' : ''}`);
+    return readResource('memory', cid, () => api(`/api/canvases/${cid}/memory${incl ? '?include_superseded=1' : ''}`), (d) => {
     if (canvasIdRef.current !== cid) return;
     setMemory(d.entries || []);
-  }, []);
+    });
+  }, [readResource]);
 
   const loadActivity = useCallback(async (cid) => {
-    const d = await api(`/api/canvases/${cid}/activity?limit=300`);
+    return readResource('activity', cid, () => api(`/api/canvases/${cid}/activity?limit=300`), (d) => {
     if (canvasIdRef.current !== cid) return;
     setActivity(d.events || []);
-  }, []);
+    });
+  }, [readResource]);
 
   const loadSpend = useCallback(async (cid) => {
-    const d = await api(`/api/canvases/${cid}/spend`);
+    return readResource('spending', cid, () => api(`/api/canvases/${cid}/spend`), (d) => {
     if (canvasIdRef.current !== cid) return;
     setSpend(d);
-    if (d.daily) setBudget(d.daily);
+
     // Analytics rides the same refresh cadence; failure never blocks spend.
     api(`/api/canvases/${cid}/analytics`)
       .then((a) => { if (canvasIdRef.current === cid) setAnalytics(a); })
-      .catch(() => {});
-  }, []);
+      .catch(() => setAnalytics(null));
+    });
+  }, [readResource]);
 
   const loadEscalations = useCallback(async () => {
     const cid = canvasIdRef.current;
-    const d = await api('/api/escalations');
+    return readResource('review', cid, () => api('/api/escalations'), (d) => {
     if (!cid || canvasIdRef.current !== cid) return;
     setEscalations((d.escalations || []).map(normEsc).filter((e) => e.status === 'open'));
-  }, []);
+    });
+  }, [readResource]);
 
   // P2: the attention projection for the current canvas (badge + NEEDS YOU
   // view share this one fetch). Failure never blocks the escalation tray.
@@ -205,12 +231,14 @@ export default function Workspace() {
     const cid = canvasIdRef.current;
     if (!cid) return;
     try {
-      const d = await api(`/api/attention?canvas_id=${encodeURIComponent(cid)}`);
-      if (canvasIdRef.current === cid) setAttention(d.attention || []);
-    } catch { /* projection only — tray still works */ }
-  }, []);
+      await readResource('attention', cid, () => api(`/api/attention?canvas_id=${encodeURIComponent(cid)}`), (d) => setAttention(d.attention || []));
+    } catch { /* persistent state is rendered below */ }
+  }, [readResource]);
 
   const refreshAll = useCallback(() => {
+    setRunTick((n) => n + 1);
+    loadControl().catch(() => {});
+    refreshHealth();
     const cid = canvasIdRef.current;
     if (!cid) return;
     Promise.allSettled([
@@ -224,7 +252,7 @@ export default function Workspace() {
       const failed = results.find((r) => r.status === 'rejected');
       if (failed) toast(failed.reason?.message || 'refresh failed');
     });
-  }, [loadState, loadMemory, loadActivity, loadSpend, loadEscalations, loadAttention, toast]);
+  }, [loadState, loadMemory, loadActivity, loadSpend, loadEscalations, loadAttention, loadControl, refreshHealth, toast]);
 
   const scheduleRefetch = useCallback(() => {
     clearTimeout(refetchTimerRef.current);
@@ -253,12 +281,12 @@ export default function Workspace() {
   // ---------- canvas lifecycle: create + archive/restore ----------
   // Archive is reversible by design (destroy-never): no confirm dialog needed.
   const refreshCanvases = useCallback(async () => {
-    const d = await api('/api/canvases');
+    return readResource('spaces', null, () => api('/api/canvases'), (d) => {
     setCanvases(d.canvases || []);
     setArchivedCanvases(d.archived || []);
     setCanvasesLoaded(true);
-    return d;
-  }, []);
+    });
+  }, [readResource]);
 
   const createCanvas = useCallback(async () => {
     const name = newCanvasName.trim();
@@ -309,18 +337,16 @@ export default function Workspace() {
 
   // ---------- boot: canvases + control status ----------
   useEffect(() => {
-    api('/api/canvases')
-      .then((d) => {
-        setCanvases(d.canvases || []);
-        setArchivedCanvases(d.archived || []);
-        if (d.canvases && d.canvases.length) setCanvasId(d.canvases[0].id);
-      })
-      .catch((e) => toast(e.message))
-      .finally(() => setCanvasesLoaded(true));
-    api('/api/control/status')
-      .then((d) => { setBudget(d); setPause((p) => ({ ...p, paused: !!d.paused })); })
-      .catch(() => {});
-  }, [toast]);
+    refreshCanvases().then((d) => {
+      if (d.canvases?.length) setCanvasId((current) => current || d.canvases[0].id);
+    }).catch(() => {});
+    loadControl().catch(() => {});
+  }, [refreshCanvases, loadControl]);
+  useEffect(() => {
+    const focus = () => { if (document.visibilityState !== 'hidden') refreshAll(); };
+    window.addEventListener('focus', focus);
+    return () => window.removeEventListener('focus', focus);
+  }, [refreshAll]);
 
   // ---------- canvas switch ----------
   useEffect(() => {
@@ -352,6 +378,7 @@ export default function Workspace() {
       return;
     }
     canvasIdRef.current = canvasId;
+    setRequests((r) => ({ control: r.control, spaces: r.spaces }));
     setState(null); setMemory([]); setActivity([]); setSpend(null); setAnalytics(null);
     setEscalations([]); setPresence([]); setRunTick(0);
     setFileUpload({ kind: 'idle', message: '' });
@@ -905,15 +932,18 @@ export default function Workspace() {
     });
   }, [loadMemory, toast]);
 
-  const pauseAll = useCallback(async () => {
-    try { await api('/api/control/pause', { method: 'POST', body: {} }); toast('Workspace paused', 'warn'); }
-    catch (e) { toast(e.message); }
-  }, [toast]);
-
-  const resumeAll = useCallback(async () => {
-    try { await api('/api/control/resume', { method: 'POST', body: {} }); toast('Workspace resumed', 'ok'); }
-    catch (e) { toast(e.message); }
-  }, [toast]);
+  const changePause = useCallback(async (paused) => {
+    if (controlBusy) return;
+    setControlBusy(true); setActionError(null);
+    try {
+      await api(`/api/control/${paused ? 'pause' : 'resume'}`, { method: 'POST', body: {} });
+      await loadControl();
+      toast(paused ? 'Workspace paused' : 'Workspace resumed', paused ? 'warn' : 'ok');
+    } catch (e) { setActionError(e); throw e; }
+    finally { setControlBusy(false); }
+  }, [controlBusy, loadControl, toast]);
+  const pauseAll = useCallback(() => changePause(true), [changePause]);
+  const resumeAll = useCallback(() => changePause(false), [changePause]);
 
   const parseIntent = useCallback(
     // Mode rides client-side on the parsed intent — the parse itself is
@@ -935,9 +965,12 @@ export default function Workspace() {
   }, [dispatchToAgent, pauseAll, resumeAll, toast]);
 
   const signOut = useCallback(async () => {
-    try { await api('/api/auth/logout', { method: 'POST', body: {} }); } catch { /* noop */ }
-    setUser(null);
-  }, [setUser]);
+    if (signingOut) return;
+    setSigningOut(true); setActionError(null);
+    try { await api('/api/auth/logout', { method: 'POST', body: {} }); setUser(null); }
+    catch (e) { setActionError(e); }
+    finally { setSigningOut(false); }
+  }, [setUser, signingOut]);
 
   const fetchRunEvents = useCallback(
     (runId) => api(`/api/canvases/${canvasIdRef.current}/runs/${runId}/events`).then((d) => d.events || []),
@@ -1009,7 +1042,7 @@ export default function Workspace() {
     ? (attention || [])
     : (attention || []).filter((r) => r.owner.email && r.owner.email.toLowerCase() === String(user.email).toLowerCase());
   const visibleAttentionCount = canvasId
-    ? (needsYouOn ? badgeRows.length : openEscalations.length)
+    ? (needsYouOn ? (attention === null || requests.attention?.error ? '—' : badgeRows.length) : (requests.review?.error ? '—' : openEscalations.length))
     : 0;
   let sidePanel = null;
   if (canvasId && panel && state) {
@@ -1286,7 +1319,7 @@ export default function Workspace() {
         >
           <span className="budget-bar"><span className="budget-fill" style={{ width: `${budgetPct * 100}%` }} /></span>
           <span className="mono budget-label">
-            {budget ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '$ — / —'}
+            {budget && !requests.control?.error ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '$ — / —'}
           </span>
         </button>
         {canvasId && state ? (
@@ -1330,12 +1363,12 @@ export default function Workspace() {
           {theme === 'dark' ? 'Light' : 'Dark'}
         </button>
         <button className="btn ghost caps-btn" onClick={() => setCapsOpen(true)} title={wsConnected ? 'Google Workspace connected — see what agents can and cannot do' : 'Google Workspace not connected — click to see what agents can do and connect'}>
-          <span className={`caps-state-dot ${wsConnected ? 'on' : 'off'}`} />
+          <span className={`caps-state-dot ${'off'}`} />
           Capabilities
         </button>
         {pause.paused
-          ? (isOwner ? <button className="btn ok" onClick={resumeAll}>Resume</button> : <span className="chip paused-chip">paused</span>)
-          : <button className="btn danger" onClick={pauseAll} title="Emergency stop — halts every agent">Pause</button>}
+          ? (isOwner ? <button className="btn ok" disabled={controlBusy} onClick={() => resumeAll().catch(() => {})}>Resume</button> : <span className="chip paused-chip">paused</span>)
+          : <button className="btn danger" disabled={controlBusy} onClick={() => pauseAll().catch(() => {})} title="Emergency stop — halts every agent">Pause</button>}
         <div className="presence-stack" title={visiblePresence.filter((p) => p.email !== user.email).map((p) => p.name).join(', ') || 'No one else is here'}>
           {visiblePresence.filter((p) => p.email !== user.email).slice(0, 6).map((p) => (
             <span key={p.email} className="avatar" style={{ background: p.color }} title={`${p.name} (${p.email})`}>
@@ -1364,7 +1397,7 @@ export default function Workspace() {
                   <a href="/api/export" download>Export operational ledger (JSON)</a>
                 </>
               ) : null}
-              <button onClick={signOut}>Sign out</button>
+              <button disabled={signingOut} onClick={signOut}>{signingOut ? 'Signing out…' : 'Sign out'}</button>
             </div>
           ) : null}
         </div>
@@ -1374,10 +1407,19 @@ export default function Workspace() {
         <div className="pause-banner">
           <span className="pause-glyph">■</span>
           WORKSPACE PAUSED{pause.by ? ` by ${pause.by}` : ''} — all agents are frozen
-          {isOwner ? <button className="btn ok small" onClick={resumeAll}>Resume</button> : null}
+          {isOwner ? <button className="btn ok small" disabled={controlBusy} onClick={() => resumeAll().catch(() => {})}>Resume</button> : null}
         </div>
       ) : null}
 
+      <div className="workspace-notices">
+        {!wsOk ? <div className="stale-notice" role="status">Live updates are reconnecting. Displayed work may be out of date. <button className="btn small" onClick={refreshAll}>Refresh status</button></div> : null}
+        {Object.entries(requests).filter(([, r]) => r?.error).map(([key, r]) => <RequestError key={key} error={r.error} subject={`Loading ${key}`} onRetry={() => {
+          if (key === 'spaces') refreshCanvases().then((d) => { if (!canvasId && d.canvases?.length) setCanvasId(d.canvases[0].id); }).catch(() => {});
+          else refreshAll();
+        }} />)}
+        <RequestError error={actionError} subject="Updating your workspace" onRetry={() => { refreshAll(); setActionError(null); }} retryLabel="Check status" />
+        {pause.paused === null && !requests.control?.error ? <p role="status">Checking pause and spending limits…</p> : null}
+      </div>
       <div className="stage">
         <div className="canvas-wrap">
           {canvasId && state && view === 'home' ? (
@@ -1455,14 +1497,14 @@ export default function Workspace() {
               onSelect={selectNode}
             />
           ) : null}
-          {!canvasId && canvasesLoaded && canvases.length === 0 ? (
+          {!canvasId && canvasesLoaded && !requests.spaces?.error && canvases.length === 0 ? (
             <div className="empty-canvas-cta no-canvases">
               <h2>Start with a canvas</h2>
               <p>Create a focused space for the agents, people, notes, and work that belong together.</p>
               <button className="btn primary" onClick={() => setNewCanvasOpen(true)}>Create a canvas</button>
             </div>
           ) : null}
-          {!canvasesLoaded || (canvasId && !state) ? (
+          {(!canvasesLoaded && !requests.spaces?.error) || (canvasId && !state && !requests.workspace?.error) ? (
             <div className="stage-loading">
               <div className="boot-glyph" />
               Loading canvas…
@@ -1485,7 +1527,7 @@ export default function Workspace() {
               onResolve={resolveEscalation}
               onAssign={assignEscalation}
               badgeOnly={needsYouOn}
-              badgeCount={needsYouOn ? badgeRows.length : null}
+              badgeCount={needsYouOn ? (requests.attention?.error || attention === null ? '—' : badgeRows.length) : null}
               onOpen={() => setView('needsyou')}
             />
           ) : null}
@@ -1499,10 +1541,10 @@ export default function Workspace() {
 
         <div className="hud" role="status" aria-label="Systems console">
           <button className="hud-cell hud-btn" onClick={() => setCapsOpen(true)}
-            title={healthDown ? 'TELEMETRY OFFLINE — the server predates this console or is unreachable. Restart the app (Ctrl+C, npm run dev).' : 'Open the systems board'}>
+            title={healthDown ? 'Status unavailable. Open Connections and check again.' : 'Open the systems board'}>
             <span className={`lamp hexlamp lamp-${healthDown ? 'down' : (health?.aggregate || 'planned')}`} />
             <span className="hud-label">Systems</span>
-            {healthDown ? <span className="hud-val mono hud-hot">TELEMETRY OFFLINE — RESTART SERVER</span> : null}
+            {healthDown ? <span className="hud-val mono hud-hot">Status unavailable</span> : null}
           </button>
           <span className={`hud-cell`} title={health?.integrations?.find((i) => i.id === 'model')?.detail || ''}>
             <span className={`lamp lamp-${health?.integrations?.find((i) => i.id === 'model')?.status || 'planned'}`} />
@@ -1542,7 +1584,7 @@ export default function Workspace() {
           <span className="hud-cell hud-gauge-cell" title="Daily spend against budget">
             <span className="hud-label">Spend</span>
             <span className="hud-gauge"><span className="hud-gauge-fill" style={{ width: `${Math.min(100, budget?.budget_usd ? (100 * (budget.cost_usd || 0)) / budget.budget_usd : 0)}%` }} /></span>
-            <span className="hud-val mono">{budget ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '—'}</span>
+            <span className="hud-val mono">{budget && !requests.control?.error ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '—'}</span>
           </span>
         </div>
         {canvasId ? (

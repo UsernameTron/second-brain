@@ -1696,3 +1696,13 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 /* Inside rule-history rows (.room-list is a flex row) the rendered summary
    takes the full row width instead of flowing inline with the chips. */
 .room-list li .summary-markdown { width: 100%; }
+
+/* Persistent request feedback: never use a transient toast as the only recovery. */
+.request-error { padding: 12px; margin: 8px 0; border: 1px solid var(--amber, #ad6500); border-radius: 8px; background: var(--surface, #fff); color: var(--text, #17212d); overflow-wrap: anywhere; }
+.request-error p { margin: 0 0 8px; }
+.request-error details { margin-top: 8px; font-size: 12px; }
+.request-error .btn + .btn { margin-left: 8px; }
+.workspace-notices { max-height: 28vh; overflow: auto; flex-shrink: 0; }
+.workspace-notices:empty { display: none; }
+.stale-notice, .session-banner { padding: 8px 16px; background: var(--surface, #fff); color: var(--text, #17212d); border-bottom: 1px solid var(--border, #ccd2d9); }
+.session-banner .btn, .stale-notice .btn { margin-left: 8px; }

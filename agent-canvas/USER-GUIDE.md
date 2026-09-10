@@ -142,3 +142,21 @@ automatically leaves out internal notes, assumptions, and anything private.
 
 Tell Pete. The system logs everything, so "it did something weird at 3pm"
 is genuinely enough to go on.
+
+## If the page cannot connect
+
+A failed check stays visible with a **Try again** or **Refresh status** action.
+A connection failure does not mean there are no answers or review items. While
+live updates reconnect, displayed work may be out of date; use **Refresh status**.
+If your session expires, copy any unsaved text before choosing **Sign in again**.
+
+Opening data waits up to 30 seconds. Sending a change waits up to two minutes.
+If a change is **not confirmed**, it may already have reached the server. Choose
+**Check status** and inspect the saved result before submitting again.
+The app never automatically repeats the change.
+
+In **Capabilities**, a connected account means access was granted, not that every
+service is working. Use **Check now** beside a service; failed checks cannot show
+a current green light. Unavailable spending or pause status is shown as unknown.
+Appearance and sign-out failures stay visible; sign-out is only confirmed after
+the server accepts it.

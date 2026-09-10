@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
+import { RequestError, useResource } from './RequestState.jsx';
 import { useDialog } from './useDialog.js';
 
 // The capability matrix — what agents can and cannot do, rendered from the
@@ -10,39 +11,44 @@ const ICONS = { mail: '✉', folder: '🗀', grid: '▦', calendar: '🗓', shie
 
 export default function CapabilitiesModal({ onClose, toast }) {
   const dialogRef = useDialog(onClose);
-  const [caps, setCaps] = useState(null);
-  const [health, setHealth] = useState(null);
+  const capsState = useResource(() => api('/api/capabilities'), 'capabilities');
+  const healthState = useResource(() => api('/api/health/integrations'), 'health');
+  const caps = capsState.data;
+  const health = healthState.data;
+  const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [probing, setProbing] = useState({});
 
-  const load = () => Promise.all([
-    api('/api/capabilities').then(setCaps),
-    api('/api/health/integrations').then(setHealth),
-  ]).catch((e) => toast(e.message));
+  const load = () => Promise.all([capsState.refresh(), healthState.refresh()]);
 
   const probe = async (surface) => {
-    setProbing((p0) => ({ ...p0, [surface]: '…' }));
+    if (probing[surface] === 'Checking…') return;
+    setError(null);
+    setProbing((p0) => ({ ...p0, [surface]: 'Checking…' }));
     try {
       const r = await api('/api/health/probe', { method: 'POST', body: { surface } });
       setProbing((p0) => ({ ...p0, [surface]: `${r.ms}ms` }));
     } catch (e) {
       setProbing((p0) => ({ ...p0, [surface]: 'FAIL' }));
-      toast(e.message);
-    }
+      setError(e);
+    } finally { await healthState.refresh(); }
   };
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const connect = async () => {
+    if (busy) return;
+    setError(null);
     setBusy(true);
     try {
       const d = await api('/api/google/connect', { method: 'POST' });
       window.location.href = d.url;
-    } catch (e) { toast(e.message); setBusy(false); }
+    } catch (e) { setError(e); setBusy(false); }
   };
   const disconnect = async () => {
+    if (busy) return;
+    setError(null);
     setBusy(true);
     try { await api('/api/google/disconnect', { method: 'POST' }); await load(); }
-    catch (e) { toast(e.message); }
+    catch (e) { setError(e); }
     setBusy(false);
   };
 
@@ -57,27 +63,32 @@ export default function CapabilitiesModal({ onClose, toast }) {
           <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">✕</button>
         </div>
         <div className="modal-body">
+          <RequestError error={capsState.error} subject="Loading your connections" onRetry={capsState.refresh} />
+          <RequestError error={healthState.error} subject="Checking system status" onRetry={healthState.refresh} />
+          <RequestError error={error} subject="Updating the connection" onRetry={async () => { await load(); setError(null); }} retryLabel="Check status" />
+          {capsState.loading || healthState.loading ? <p role="status">Checking connections and services…</p> : null}
+          {healthState.error && health ? <p>Last known details below. Current status is unavailable.</p> : null}
           <div className="sys-board">
             <div className="sys-title">Systems status</div>
             {(health?.integrations || []).map((i) => (
               <div className="sys-row" key={i.id} title={i.detail}>
                 <span className="sys-label">{i.label}</span>
                 <span className="sys-arrow">▶</span>
-                <span className={`lamp lamp-${i.status}`} />
+                <span className={`lamp lamp-${healthState.error || healthState.loading || probing[i.id] === 'Checking…' ? 'planned' : i.status}`} />
                 <span className="sys-detail dim">{i.detail}</span>
                 {i.probe ? (
-                  <button className="btn small sys-probe" onClick={() => probe(i.id)}>
-                    {probing[i.id] || 'Probe'}
+                  <button className="btn small sys-probe" disabled={probing[i.id] === 'Checking…'} onClick={() => probe(i.id)}>
+                    {probing[i.id] || 'Check now'}
                   </button>
                 ) : null}
               </div>
             ))}
           </div>
           <div className="caps-connect">
-            {caps?.connected ? (
+            {!caps || capsState.error || capsState.loading ? <p>Google connection status is not confirmed. Use Check status or try loading again.</p> : caps.connected ? (
               <>
-                <span className="chip caps-on">● Workspace connected</span>
-                <span className="dim">Agents you direct can use your Google account within the limits below.</span>
+                <span className="chip">Workspace account connected</span>
+                <span className="dim">Account access is granted. Check each service above to confirm it is working; the limits below always apply.</span>
                 <button className="btn small" disabled={busy} onClick={disconnect}>Disconnect</button>
               </>
             ) : caps?.oauthReady ? (
@@ -89,7 +100,7 @@ export default function CapabilitiesModal({ onClose, toast }) {
             ) : (
               <>
                 <span className="chip caps-off">○ Not configured</span>
-                <span className="dim">This deployment has no Workspace OAuth client yet — agents work on canvas data only. (Owner: see docs/DEPLOY.md.)</span>
+                <span className="dim">Google Workspace is not set up here. Ask the owner to connect it. Other available data sources are listed above.</span>
               </>
             )}
           </div>

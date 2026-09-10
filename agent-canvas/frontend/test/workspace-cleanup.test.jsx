@@ -452,3 +452,46 @@ describe('user-facing canvas cleanup', () => {
     expect(screen.queryByRole('button', { name: /workbook/i })).not.toBeInTheDocument();
   });
 });
+
+// Simplification phase 2: failures are visible even when no socket event arrives.
+describe('workspace status recovery', () => {
+  it('distinguishes an unavailable space list from an empty account and recovers', async () => {
+    const normal = api.getMockImplementation();
+    let offline = true;
+    api.mockImplementation((path, opts) => path === '/api/canvases' && offline
+      ? Promise.reject(new Error('offline')) : normal(path, opts));
+    renderWorkspace();
+    await screen.findByText('Loading spaces could not be completed. Check your connection and try again.');
+    expect(screen.queryByText('Start with a canvas')).not.toBeInTheDocument();
+    offline = false;
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('button', { name: '+ Note' })).toBeInTheDocument();
+  });
+
+  it('confirms pause from a status read without requiring a live event', async () => {
+    const normal = api.getMockImplementation();
+    let paused = false;
+    api.mockImplementation((path, opts) => {
+      if (path === '/api/control/pause') { paused = true; return Promise.resolve({ ok: true, paused: true }); }
+      if (path === '/api/control/status') return Promise.resolve({ ...BUDGET, paused });
+      return normal(path, opts);
+    });
+    renderWorkspace();
+    await screen.findByRole('button', { name: '+ Note' });
+    await userEvent.click(screen.getByRole('button', { name: /Pause/ }));
+    expect(await screen.findByText(/WORKSPACE PAUSED/)).toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith('/api/control/status');
+  });
+
+  it('keeps a failed sign-out visible and the workspace open', async () => {
+    const normal = api.getMockImplementation();
+    api.mockImplementation((path, opts) => path === '/api/auth/logout'
+      ? Promise.reject(new Error('offline')) : normal(path, opts));
+    renderWorkspace();
+    await screen.findByRole('button', { name: '+ Note' });
+    await userEvent.click(screen.getByTitle(USER.email));
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    await screen.findByText('Updating your workspace could not be completed. Check your connection and try again.');
+    expect(screen.getByRole('button', { name: '+ Note' })).toBeInTheDocument();
+  });
+});
