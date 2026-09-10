@@ -14,6 +14,10 @@
         "memory_entries": 0
       },
       "externalAttempts": 0,
+      "identity": {
+        "email": "teammate@agent-canvas.invalid",
+        "role": "member"
+      },
       "inquiries": [
         {
           "question": "What should we check before a customer renewal?",
@@ -30,14 +34,14 @@
         {
           "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
           "epistemic": "verified",
-          "source": "escalation c1728025-380e-460f-bbf6-44643a1cd0ee resolution"
+          "source": "escalation feec70ee-c7d5-490d-a49b-9dc3b5b10f55 resolution"
         }
       ],
       "escalations": [
         {
           "question": "Should we prepare the renewal checklist?",
           "status": "accepted",
-          "owner_email": "fred@cloudtechgurus.com"
+          "owner_email": "teammate@agent-canvas.invalid"
         }
       ],
       "result": "passed"
@@ -55,6 +59,10 @@
         "memory_entries": 0
       },
       "externalAttempts": 0,
+      "identity": {
+        "email": "teammate@agent-canvas.invalid",
+        "role": "member"
+      },
       "inquiries": [
         {
           "question": "What should we check before a customer renewal?",
@@ -71,14 +79,59 @@
         {
           "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
           "epistemic": "verified",
-          "source": "escalation 2702d00c-cae9-45e2-b443-0118ffa82168 resolution"
+          "source": "escalation 7d3f0e4d-8a75-434b-ad54-b25ac0d93e8a resolution"
         }
       ],
       "escalations": [
         {
           "question": "Should we prepare the renewal checklist?",
           "status": "accepted",
-          "owner_email": "fred@cloudtechgurus.com"
+          "owner_email": "teammate@agent-canvas.invalid"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "size": "pete-preview",
+      "bootCounts": {
+        "canvases": 0,
+        "agents": 0,
+        "notes": 0,
+        "files": 0,
+        "tasks": 0,
+        "runs": 0,
+        "inquiries": 0,
+        "memory_entries": 0
+      },
+      "externalAttempts": 0,
+      "identity": {
+        "email": "pete@cloudtechgurus.com",
+        "role": "owner"
+      },
+      "inquiries": [
+        {
+          "question": "What should we check before a customer renewal?",
+          "mode": "ask",
+          "status": "answered"
+        },
+        {
+          "question": "Follow-up request: Draft a short checklist from this answer.\n\nSelected answer for context (verify its claims before acting):\nQuestion: What should we check before a customer renewal?\nAnswer: Check the renewal date, account owner and open risks. Prepare a short checklist for review. This local test answer has no external sources.",
+          "mode": "act",
+          "status": "answered"
+        }
+      ],
+      "decisions": [
+        {
+          "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
+          "epistemic": "verified",
+          "source": "escalation a02a280c-9268-4765-be0a-c020adff4cfd resolution"
+        }
+      ],
+      "escalations": [
+        {
+          "question": "Should we prepare the renewal checklist?",
+          "status": "accepted",
+          "owner_email": "pete@cloudtechgurus.com"
         }
       ],
       "result": "passed"

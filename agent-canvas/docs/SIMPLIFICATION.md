@@ -256,6 +256,11 @@ once with `npx playwright install chromium` if it is not present. The runner
 builds the frontend, starts isolated test servers and regenerates the images
 below. `npm run preview:journeys` opens the same disposable setup for manual
 reproduction using [the guide](../USER-GUIDE.md#reproduce-the-four-journeys-locally).
+The manual preview uses **pete@cloudtechgurus.com** with the existing owner role
+and assigns its review item to Pete. Automated coverage separately uses the
+fictional **teammate@agent-canvas.invalid** member, plus a complete Pete preview
+journey that checks the signed-in identity, owner role and Mine assignment. The
+member screenshots use the fictional account. No teammate credentials are used.
 
 [Machine-readable results](screenshots/manifest.json) include empty-boot counts,
 accepted review state, verified decision memory, blocked-network counts and the

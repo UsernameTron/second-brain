@@ -11,8 +11,8 @@ const root = path.resolve(__dirname, '..');
 const output = path.join(root, 'docs', 'screenshots');
 fs.mkdirSync(output, { recursive: true });
 const evidence = { fixture: 'Disposable in-memory DB; real development auth and application routes; stubbed model; external network blocked. Does not verify Google OAuth or live integrations.', journeys: [], screenshots: [], browserErrors: [] };
-function launchFixture() {
-  const child = fork(path.join(__dirname, 'journey-fixture.js'), [], { env: { PATH: process.env.PATH, HOME: process.env.HOME, AGENT_CANVAS_JOURNEY_FIXTURE: '1' }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+function launchFixture(local) {
+  const child = fork(path.join(__dirname, 'journey-fixture.js'), local ? ['--local'] : [], { env: { PATH: process.env.PATH, HOME: process.env.HOME, AGENT_CANVAS_JOURNEY_FIXTURE: '1' }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
   let logs = '';
   child.stdout.on('data', (data) => { logs += data; }); child.stderr.on('data', (data) => { logs += data; });
   const ready = new Promise((resolve, reject) => {
@@ -28,7 +28,9 @@ function launchFixture() {
   });
   return { child, ready, snapshot, stop: () => new Promise((resolve) => { if (child.exitCode !== null) return resolve(); child.once('exit', resolve); child.kill('SIGTERM'); }) };
 }
+let capture = true;
 async function screenshot(page, name, description) {
+  if (!capture) return;
   await page.screenshot({ path: path.join(output, name), fullPage: false, animations: 'disabled' });
   evidence.screenshots.push({ file: name, description, viewport: page.viewportSize() });
 }
@@ -72,24 +74,32 @@ async function checkBrowserZoom(url, originalContext) {
 (async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
-      const size = viewport.width === 1280 ? 'desktop' : 'mobile';
-      const fixture = launchFixture();
+    for (const scenario of [
+      { size: 'desktop', viewport: { width: 1280, height: 900 } },
+      { size: 'mobile', viewport: { width: 390, height: 844 } },
+      { size: 'pete-preview', viewport: { width: 1280, height: 900 }, local: true },
+    ]) {
+      const { size, viewport, local } = scenario;
+      capture = !local;
+      const fixture = launchFixture(local);
       let context;
       try {
-        const { url, bootCounts } = await fixture.ready;
+        const { url, bootCounts, identity } = await fixture.ready;
         context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
         await context.route('**/*', (route) => new URL(route.request().url()).origin === url ? route.continue() : route.abort());
         const page = await context.newPage();
         page.on('pageerror', (error) => evidence.browserErrors.push(`${size}: ${error.message}`));
         await page.goto(url);
-        await page.getByLabel('Development sign-in').fill('fred@cloudtechgurus.com');
+        await page.getByLabel('Development sign-in').fill(identity.email);
         await screenshot(page, `journey-${size}-01-sign-in.png`, 'Development sign-in; Google OAuth is not configured in this isolated fixture.');
         await page.getByRole('button', { name: 'Sign in', exact: true }).click();
         await page.getByRole('button', { name: 'Create a project space', exact: true }).click();
         await page.getByLabel('Project-space name').fill('Renewal review');
         await page.getByRole('button', { name: 'Create', exact: true }).click();
         await page.getByRole('heading', { name: 'Ask the company.' }).waitFor();
+        const session = await (await context.request.get(`${url}/api/me`)).json();
+        assert.equal(session.user.email, identity.email, 'Signed in as the intended test identity');
+        assert.equal(session.user.role, identity.role, 'Existing account role preserved');
         assert.equal(await page.getByRole('textbox').count(), 1, 'One default composer');
         await page.getByRole('button', { name: 'Connections', exact: true }).click();
         await page.getByText('○ Not configured', { exact: true }).waitFor();
@@ -112,6 +122,7 @@ async function checkBrowserZoom(url, originalContext) {
         await page.getByText('Draft checklist:', { exact: true }).waitFor();
         await screenshot(page, `journey-${size}-03b-act-result.png`, 'Act produced the draft checklist through the existing inquiry endpoint.');
         await page.getByRole('button', { name: /^Needs you/ }).click();
+        if (local) await page.getByRole('tab', { name: 'Mine', exact: true }).click();
         const review = page.locator('.ny-card').filter({ hasText: 'Should we prepare the renewal checklist?' });
         await review.waitFor();
         await review.getByRole('button', { name: 'Answer', exact: true }).click();
@@ -155,10 +166,12 @@ async function checkBrowserZoom(url, originalContext) {
         assert.equal(saved.externalAttempts, 0, 'No external model or connector calls');
         assert.ok(saved.inquiries.some((item) => item.mode === 'ask' && item.status === 'answered'));
         assert.ok(saved.inquiries.some((item) => item.mode === 'act' && item.status === 'answered' && item.question.includes('Selected answer for context')));
-        assert.ok(saved.escalations.some((item) => item.status === 'accepted' && item.owner_email === 'fred@cloudtechgurus.com'));
+        assert.equal(saved.identity.email, local ? 'pete@cloudtechgurus.com' : 'teammate@agent-canvas.invalid');
+        assert.equal(saved.identity.role, local ? 'owner' : 'member');
+        assert.ok(saved.escalations.some((item) => item.status === 'accepted' && item.owner_email === identity.email));
         assert.ok(saved.decisions.some((item) => item.epistemic === 'verified' && item.content.includes('Yes, prepare a draft checklist for review.')), 'Human decision captured through the existing memory contract');
         evidence.journeys.push({ size, bootCounts, ...saved, result: 'passed' });
-        process.stdout.write(`${size}: four member journeys and queue recovery passed\n`);
+        process.stdout.write(`${size}: four ${identity.role} journeys and queue recovery passed\n`);
       } finally { await context?.close(); await fixture.stop(); }
     }
     assert.deepEqual(evidence.browserErrors, [], 'No browser runtime errors');

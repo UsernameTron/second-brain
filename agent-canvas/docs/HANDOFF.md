@@ -26,7 +26,7 @@ adds honest owner tables, retained edits, partial-order recovery, bounded downlo
 and unverified configuration labels. Phase 7 verifies all four member journeys at
 1280/390px, queue recovery, 768px and actual 200% zoom; all 16 images inspected.
 Final local gate: 433 backend / 177 frontend tests; both production audits clean.
-Use `npm run test:journeys` or `npm run preview:journeys`. See [SIMPLIFICATION.md](SIMPLIFICATION.md)
+Preview signs in Pete and assigns reviews to Pete; tests also use a fictional member. See [SIMPLIFICATION.md](SIMPLIFICATION.md)
 for control destinations and per-phase evidence. The production observations
 below are historical; no new production probe, push or deployment was performed.
 

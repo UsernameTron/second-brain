@@ -8,13 +8,15 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const https = require('node:https');
 const local = process.argv.includes('--local');
+const identity = local ? { email: 'pete@cloudtechgurus.com', role: 'owner' }
+  : { email: 'teammate@agent-canvas.invalid', role: 'member' };
 if (!local && process.env.AGENT_CANVAS_JOURNEY_FIXTURE !== '1') throw new Error('Start this test fixture through npm run test:journeys or npm run preview:journeys.');
 // Drop all inherited integration credentials before loading any application code.
 for (const key of Object.keys(process.env)) {
   if (!['PATH', 'HOME', 'TMPDIR', 'LANG', 'TERM', 'NODE_CHANNEL_FD', 'NODE_CHANNEL_SERIALIZATION_MODE'].includes(key)) delete process.env[key];
 }
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-canvas-journey-'));
-Object.assign(process.env, { DATA_DIR: dataDir, DB_PATH: ':memory:', NODE_ENV: 'test', DEV_AUTH: '1', ANTHROPIC_API_KEY: 'test-fixture-not-a-real-key', JWT_SECRET: 'test-only-disposable-journey-session-secret', ENABLE_WEB_SEARCH: '0' });
+Object.assign(process.env, { DATA_DIR: dataDir, DB_PATH: ':memory:', NODE_ENV: 'test', DEV_AUTH: '1', ANTHROPIC_API_KEY: 'test-fixture-not-a-real-key', JWT_SECRET: 'test-only-disposable-journey-session-secret', ENABLE_WEB_SEARCH: '0', SEED_MEMBERS: 'teammate@agent-canvas.invalid:Test teammate' });
 let externalAttempts = 0;
 const blockedNetwork = () => { externalAttempts += 1; throw new Error('External network is disabled in the journey fixture.'); };
 global.fetch = blockedNetwork;
@@ -38,7 +40,7 @@ const { db } = require('../server/db');
 const { audit } = require('../server/audit');
 require('../server/bus').on('event', (event) => {
   if (event.type === 'escalation' && event.escalation?.question === 'Should we prepare the renewal checklist?') {
-    db.prepare('UPDATE escalations SET owner_email = ? WHERE id = ?').run('fred@cloudtechgurus.com', event.escalation.id);
+    db.prepare('UPDATE escalations SET owner_email = ? WHERE id = ?').run(identity.email, event.escalation.id);
     audit('system', 'journey-fixture', 'test_fixture.assign_review', { escalationId: event.escalation.id });
   }
 });
@@ -48,7 +50,7 @@ const bootCounts = Object.fromEntries(contentTables.map((table) => [table, db.pr
 assert.ok(Object.values(bootCounts).every((count) => count === 0), 'Fresh boot must have no fabricated product content');
 function snapshot() {
   return {
-    bootCounts, externalAttempts,
+    bootCounts, externalAttempts, identity,
     inquiries: db.prepare('SELECT question, mode, status FROM inquiries ORDER BY created_at').all(),
     decisions: db.prepare("SELECT content, epistemic, source FROM memory_entries WHERE source LIKE 'escalation % resolution'").all(),
     escalations: db.prepare('SELECT question, status, owner_email FROM escalations').all(),
@@ -59,8 +61,8 @@ let closing = false;
 function close() { if (closing) return; closing = true; server.close(); db.close(); fs.rmSync(dataDir, { recursive: true, force: true }); process.exit(0); }
 process.on('SIGTERM', close); process.on('SIGINT', close);
 server.listen(0, '127.0.0.1', () => {
-  const ready = { type: 'ready', url: `http://127.0.0.1:${server.address().port}`, bootCounts };
+  const ready = { type: 'ready', url: `http://127.0.0.1:${server.address().port}`, bootCounts, identity };
   process.send?.(ready);
   process.stdout.write(`${JSON.stringify(ready)}\n`);
-  if (local) process.stdout.write('TEST ONLY: sign in as fred@cloudtechgurus.com and follow USER-GUIDE.md. Ctrl-C discards this fixture.\n');
+  if (local) process.stdout.write(`TEST ONLY: sign in as ${identity.email} (workspace owner) and follow USER-GUIDE.md. Your review item is assigned to you. Ctrl-C discards this fixture.\n`);
 });

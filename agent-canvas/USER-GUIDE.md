@@ -16,7 +16,7 @@ local build. Production remains unchanged until an owner deploys it.
    **Check now** beside the services you need. Account connection grants access;
    it does not prove every service works. Unconfigured services need the owner.
 
-In the isolated local test build only, enter **fred@cloudtechgurus.com** under
+In the isolated local preview, enter **pete@cloudtechgurus.com** under
 **Development sign-in**, then choose **Sign in**. This tests the workspace
 journey, not Google sign-in or a live connection.
 
@@ -195,11 +195,12 @@ npm run preview:journeys
 ```
 
 Open the local URL printed by the command. Follow sections 1–4 above using
-**fred@cloudtechgurus.com**, create **Renewal review** with the starting team,
+**pete@cloudtechgurus.com**, create **Renewal review** with the starting team,
 and use the exact example question, follow-up and answer. The test model supplies
 the answer and creates the assigned review item after Act. The account is a
-member; none of these steps requires Advanced or owner settings. Press Ctrl-C
-in the terminal to discard the fixture. Each restart begins with no project content.
+workspace owner, and the review item is assigned to Pete. None of these steps
+requires Advanced or owner settings. Press Ctrl-C in the terminal to discard
+the fixture. Each restart begins with no project content.
 
 To replay those steps automatically and regenerate desktop/mobile evidence:
 
@@ -209,7 +210,9 @@ npx playwright install chromium
 npm run test:journeys
 ```
 
-The runner also checks queue recovery, keyboard selection, 768px layout and actual
+The runner checks Pete's owner preview and separately tests member access using
+the fictional **teammate@agent-canvas.invalid** account. No teammate's Google
+credentials are used. It also checks queue recovery, keyboard selection, 768px layout and actual
 200% browser zoom. [Screenshots and verification details](docs/SIMPLIFICATION.md#journey-evidence)
 record the results. This is test-only: temporary in-memory databases, development
 sign-in and model stubs; external services are blocked. It does not verify Google
