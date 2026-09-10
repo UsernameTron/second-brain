@@ -117,6 +117,18 @@ function renderWorkspace({ user = USER, config = {} } = {}) {
   );
 }
 
+async function openDocuments() {
+  await waitFor(() => expect(screen.queryByLabelText('Current project space: Customer work') || screen.queryByLabelText('Switch project space')).toBeTruthy());
+  const more = screen.getByText('More', { selector: 'summary' });
+  if (!more.parentElement.open) await userEvent.click(more);
+  await userEvent.click(screen.getByRole('button', { name: 'Documents & notes' }));
+  return screen.findByRole('button', { name: 'Add note' });
+}
+async function openCreation() {
+  await userEvent.click(screen.getByLabelText('Project-space actions'));
+  await userEvent.click(screen.getByRole('button', { name: 'New project space' }));
+}
+
 beforeEach(() => {
   access = 'edit';
   canvasList = [{ id: 'c1', name: 'Customer work' }];
@@ -137,12 +149,12 @@ beforeEach(() => {
 describe('user-facing canvas cleanup', () => {
   it('removes the Workbook demo and creates then removes a real note without reload', async () => {
     renderWorkspace();
-    await screen.findByRole('button', { name: '+ Note' });
+    await openDocuments();
 
     expect(screen.queryByText('Workbook')).not.toBeInTheDocument();
     expect(screen.queryByText('Run cleanup')).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: '+ Note' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add note' }));
     expect(await screen.findByDisplayValue('Untitled note')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open note Untitled note' })).toBeInTheDocument();
     expect(api).toHaveBeenCalledWith('/api/canvases/c1/notes', expect.objectContaining({ method: 'POST' }));
@@ -160,6 +172,7 @@ describe('user-facing canvas cleanup', () => {
     renderWorkspace();
     await userEvent.click(await screen.findByRole('button', { name: 'Open agent Scout' }));
 
+    await userEvent.click(screen.getByText('Advanced', { selector: '.panel summary' }));
     await userEvent.click(screen.getByRole('button', { name: 'Remove from canvas' }));
     expect(screen.getByText('Remove Scout from this canvas?')).toBeInTheDocument();
     expect(screen.getByText(/Existing runs, memory, handoffs, versions, and audit history will be retained/i)).toBeInTheDocument();
@@ -190,7 +203,7 @@ describe('user-facing canvas cleanup', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Open agent Scout' }));
     expect(screen.queryByRole('button', { name: 'Remove from canvas' })).not.toBeInTheDocument();
     await userEvent.click(await screen.findByRole('button', { name: 'Open note Current note' }));
-    expect(screen.queryByRole('button', { name: '+ Note' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add note' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Upload document' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Choose a document to add to this canvas')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save note' })).not.toBeInTheDocument();
@@ -262,6 +275,7 @@ describe('user-facing canvas cleanup', () => {
     const file = new File(['name,amount\nAcme,10'], 'pipeline.csv', { type: 'text/csv' });
 
     await userEvent.upload(input, file);
+    await userEvent.click(screen.getByRole('button', { name: 'Home' }));
     const uploadButton = screen.getByRole('button', { name: 'Upload document' });
     expect(uploadButton).toBeDisabled();
     expect(uploadButton).toHaveTextContent('Uploading…');
@@ -271,6 +285,7 @@ describe('user-facing canvas cleanup', () => {
 
     resolveUpload({ file: fileRecord({ id: 'f-new', name: 'pipeline.csv', mime: 'text/csv', size: file.size }) });
     await waitFor(() => expect(screen.getByText('pipeline.csv is ready for agents.')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Home' }));
     expect(screen.getByRole('button', { name: 'Upload document' })).toBeEnabled();
   });
 
@@ -289,9 +304,9 @@ describe('user-facing canvas cleanup', () => {
     canvasList = [];
     renderWorkspace();
 
-    expect(await screen.findByRole('heading', { name: 'Start with a canvas' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Create a canvas' }));
-    expect(screen.getByPlaceholderText('New canvas name…')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Start with a project space' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Create a project space' }));
+    expect(screen.getByPlaceholderText('New project-space name…')).toBeInTheDocument();
   });
 
   it('staffs a new canvas from a small recommended-team dropdown while keeping customization available', async () => {
@@ -309,29 +324,29 @@ describe('user-facing canvas cleanup', () => {
     ];
     renderWorkspace();
 
-    expect(await screen.findByLabelText('Current canvas: Customer work')).toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: 'Switch canvas' })).not.toBeInTheDocument();
-    await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
+    expect(await screen.findByLabelText('Current project space: Customer work')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Switch project space' })).not.toBeInTheDocument();
+    await openCreation();
     const teamPicker = screen.getByRole('group', { name: 'Choose a starting team' });
-    const choices = within(teamPicker).getAllByRole('button');
-    expect(choices).toHaveLength(6);
-    expect(within(teamPicker).getByRole('button', { name: /Leadership & decisions/ })).toHaveAttribute('aria-pressed', 'true');
+    const choices = within(teamPicker).getAllByRole('option');
+    expect(choices).toHaveLength(7); // all six teams plus custom
+    expect(screen.getByLabelText('Starting team')).toHaveValue('leadership');
 
-    const targetContact = within(teamPicker).getByRole('button', { name: /Target contact research/ });
-    await userEvent.click(targetContact);
-    expect(targetContact).toHaveAttribute('aria-pressed', 'true');
+    const targetContact = screen.getByLabelText('Starting team');
+    await userEvent.selectOptions(targetContact, 'target-contact');
+    expect(targetContact).toHaveValue('target-contact');
     for (const name of ['Enrichment', 'Darren']) {
       expect(screen.getByText(name, { selector: '.canvas-team-member' })).toBeInTheDocument();
     }
     expect(screen.queryByText('Fred', { selector: '.canvas-team-member' })).not.toBeInTheDocument();
     expect(screen.queryByText('Radar', { selector: '.canvas-team-member' })).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByText('Customize agents (2)'));
+    await userEvent.click(screen.getByText('Customize team (2)'));
     await userEvent.click(screen.getByRole('checkbox', { name: /Fred strategic/ }));
-    expect(targetContact).toHaveAttribute('aria-pressed', 'false');
+    expect(targetContact).toHaveValue('custom');
     expect(screen.getByText('Custom team selected.')).toBeInTheDocument();
 
-    await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Target account');
+    await userEvent.type(screen.getByPlaceholderText('New project-space name…'), 'Target account');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => {
       const createCall = api.mock.calls.find(([path, options]) => path === '/api/canvases' && options?.method === 'POST');
@@ -352,9 +367,9 @@ describe('user-facing canvas cleanup', () => {
     ];
     renderWorkspace();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
+    await openCreation();
     const teamPicker = screen.getByRole('group', { name: 'Choose a starting team' });
-    await userEvent.click(within(teamPicker).getByRole('button', { name: /Marketing & content/ }));
+    await userEvent.selectOptions(screen.getByLabelText('Starting team'), 'marketing');
     for (const name of ['Scout', 'Quill', 'Sentinel', 'Fred']) {
       expect(screen.getByText(name, { selector: '.canvas-team-member' })).toBeInTheDocument();
     }
@@ -369,13 +384,13 @@ describe('user-facing canvas cleanup', () => {
     ];
     renderWorkspace();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
+    await openCreation();
     const teamPicker = screen.getByRole('group', { name: 'Choose a starting team' });
-    await userEvent.click(within(teamPicker).getByRole('button', { name: /SDR pipeline/ }));
+    await userEvent.selectOptions(screen.getByLabelText('Starting team'), 'sdr-pipeline');
     for (const name of ['SDR', 'Enrichment', 'Darren']) {
       expect(screen.getByText(name, { selector: '.canvas-team-member' })).toBeInTheDocument();
     }
-    await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Outbound Q3');
+    await userEvent.type(screen.getByPlaceholderText('New project-space name…'), 'Outbound Q3');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => {
       const createCall = api.mock.calls.find(([path, options]) => path === '/api/canvases' && options?.method === 'POST');
@@ -396,14 +411,14 @@ describe('user-facing canvas cleanup', () => {
     ];
     renderWorkspace();
 
-    await userEvent.click(await screen.findByRole('button', { name: 'New canvas' }));
+    await openCreation();
     const teamPicker = screen.getByRole('group', { name: 'Choose a starting team' });
-    expect(within(teamPicker).queryByRole('button', { name: /Research, build & review/ })).not.toBeInTheDocument();
+    expect(within(teamPicker).getByRole('option', { name: /Research, build & review/ })).toBeDisabled();
 
-    await userEvent.click(within(teamPicker).getByRole('button', { name: /Target contact research/ }));
+    await userEvent.selectOptions(screen.getByLabelText('Starting team'), 'target-contact');
     expect(screen.getByText('Commercial lead', { selector: '.canvas-team-member' })).toBeInTheDocument();
     expect(screen.getByText('Contact finder', { selector: '.canvas-team-member' })).toBeInTheDocument();
-    await userEvent.type(screen.getByPlaceholderText('New canvas name…'), 'Renamed team');
+    await userEvent.type(screen.getByPlaceholderText('New project-space name…'), 'Renamed team');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => {
       const createCall = api.mock.calls.find(([path, options]) => path === '/api/canvases' && options?.method === 'POST');
@@ -421,16 +436,19 @@ describe('user-facing canvas cleanup', () => {
     expect(await screen.findByRole('button', { name: 'Open note Old canvas note' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Needs you' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Rules' })).toBeInTheDocument();
+    await userEvent.click(screen.getByText('More', { selector: 'summary' }));
+    expect(screen.getByRole('button', { name: 'Scheduled work' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Memory' })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Archive' }));
+    await userEvent.click(screen.getByLabelText('Project-space actions'));
+    await userEvent.click(screen.getByText('Owner actions', { selector: 'summary' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Archive current space' }));
 
-    expect(await screen.findByRole('heading', { name: 'Start with a canvas' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Create a canvas' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Start with a project space' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create a project space' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Canvas contents')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open note Old canvas note' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Home' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument(); // stable default destination remains
     expect(screen.getByRole('button', { name: 'Needs you' })).toBeInTheDocument(); // global queue stays reachable; archived records were cleared
     expect(screen.queryByRole('button', { name: 'Rules' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Memory' })).not.toBeInTheDocument();
@@ -465,7 +483,7 @@ describe('workspace status recovery', () => {
     expect(screen.queryByText('Start with a canvas')).not.toBeInTheDocument();
     offline = false;
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByRole('button', { name: '+ Note' })).toBeInTheDocument();
+    expect(await openDocuments()).toBeInTheDocument();
   });
 
   it('confirms pause from a status read without requiring a live event', async () => {
@@ -477,7 +495,7 @@ describe('workspace status recovery', () => {
       return normal(path, opts);
     });
     renderWorkspace();
-    await screen.findByRole('button', { name: '+ Note' });
+    await openDocuments();
     await userEvent.click(screen.getByRole('button', { name: /Pause/ }));
     expect(await screen.findByText(/WORKSPACE PAUSED/)).toBeInTheDocument();
     expect(api).toHaveBeenCalledWith('/api/control/status');
@@ -488,11 +506,11 @@ describe('workspace status recovery', () => {
     api.mockImplementation((path, opts) => path === '/api/auth/logout'
       ? Promise.reject(new Error('offline')) : normal(path, opts));
     renderWorkspace();
-    await screen.findByRole('button', { name: '+ Note' });
+    await openDocuments();
     await userEvent.click(screen.getByTitle(USER.email));
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     await screen.findByText('Updating your workspace could not be completed. Check your connection and try again.');
-    expect(screen.getByRole('button', { name: '+ Note' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add note' })).toBeInTheDocument();
   });
 });
 
@@ -508,7 +526,7 @@ describe('global Needs You routing', () => {
       return normal(path, opts);
     });
     renderWorkspace({ config: { needsYou: true } });
-    await screen.findByRole('button', { name: '+ Note' });
+    await openDocuments();
     await userEvent.click(screen.getByRole('button', { name: 'Needs you2' }));
     await screen.findByText('Question mine-two');
     expect(screen.getByText('Renewals', { selector: '.chip' })).toBeInTheDocument();

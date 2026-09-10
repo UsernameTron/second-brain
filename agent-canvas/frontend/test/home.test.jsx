@@ -35,6 +35,8 @@ describe('Inquiry Home', () => {
     api.mockResolvedValueOnce({ inquiries: [] });
     renderHome();
     expect(await screen.findByText('Try asking')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /What do we know|Which deals|What did we decide/ })).toHaveLength(3);
+    await userEvent.click(screen.getByRole('button', { name: 'More examples' }));
     expect(screen.getByText(/pre-call brief/i)).toBeInTheDocument();
   });
 
@@ -43,14 +45,15 @@ describe('Inquiry Home', () => {
     renderHome();
     await screen.findByText('Old question?');
 
-    api.mockResolvedValueOnce({ inquiry: inquiry('new', 'New question?'), selection: { auto: true, echo: 'Scout picked' } });
+    api.mockResolvedValueOnce({ inquiry: inquiry('new', 'New question?'), selection: { auto: true, echo: 'Scout picked' } })
+      .mockResolvedValueOnce({ inquiries: [inquiry('new', 'New question?'), inquiry('old', 'Old question?')] });
     await userEvent.type(screen.getByLabelText('Ask a question about the company'), 'New question?');
     await userEvent.click(screen.getByRole('button', { name: 'Ask' }));
 
     await screen.findByText('New question?');
     const questions = screen.getAllByText(/question\?/).map((el) => el.textContent);
     expect(questions[0]).toBe('New question?');
-    expect(api).toHaveBeenLastCalledWith('/api/canvases/c1/inquiries', {
+    expect(api).toHaveBeenCalledWith('/api/canvases/c1/inquiries', {
       method: 'POST', body: { question: 'New question?', mode: 'ask' },
     });
   });

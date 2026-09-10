@@ -14,6 +14,8 @@ import RulesView from './RulesView.jsx';
 import { AgentPanel, NotePanel, SpendPanel } from './Panels.jsx';
 import { useDialog } from './useDialog.js';
 import Home from './Home.jsx';
+import WorkspaceHeader from './WorkspaceHeader.jsx';
+import { DocumentsView, TeamView, HelpView } from './ContextViews.jsx';
 import NeedsYouView from './NeedsYouView.jsx';
 import AdminModal from './AdminModal.jsx';
 import AddAgentModal from './AddAgentModal.jsx';
@@ -56,6 +58,7 @@ export default function Workspace() {
   const [archivedCanvases, setArchivedCanvases] = useState([]);
   const [newCanvasOpen, setNewCanvasOpen] = useState(false);
   const [newCanvasName, setNewCanvasName] = useState('');
+  const [creating, setCreating] = useState(false);
   const [roster, setRoster] = useState([]);
   const [rosterChecked, setRosterChecked] = useState(null); // null until roster loads
   const enabledRoster = useMemo(() => roster.filter((entry) => entry.enabled), [roster]);
@@ -73,6 +76,7 @@ export default function Workspace() {
     [enabledRoster, rosterChecked],
   );
   const [addAgentOpen, setAddAgentOpen] = useState(false);
+  const [addAgentTab, setAddAgentTab] = useState('roster');
   const [addPersonOpen, setAddPersonOpen] = useState(false);
   const [newPersonEmail, setNewPersonEmail] = useState('');
   const fileInputRef = useRef(null);
@@ -312,7 +316,8 @@ export default function Workspace() {
 
   const createCanvas = useCallback(async () => {
     const name = newCanvasName.trim();
-    if (!name) { setNewCanvasOpen(false); setNewCanvasName(''); return; }
+    if (!name || creating || rosterChecked === null) return;
+    setCreating(true); setActionError(null);
     try {
       const rosterIds = [...(rosterChecked || [])].filter((id) => roster.some((r) => r.id === id && r.enabled));
       const d = await api('/api/canvases', { method: 'POST', body: { name, roster_ids: rosterIds } });
@@ -320,8 +325,8 @@ export default function Workspace() {
       setCanvasId(d.canvas.id);
       setNewCanvasOpen(false);
       setNewCanvasName('');
-    } catch (e) { setActionError(e); }
-  }, [newCanvasName, roster, rosterChecked, refreshCanvases, toast]);
+    } catch (e) { setActionError(e); } finally { setCreating(false); }
+  }, [creating, newCanvasName, roster, rosterChecked, refreshCanvases, toast]);
 
   const archiveCanvas = useCallback(async () => {
     if (!canvasId) return;
@@ -395,7 +400,7 @@ export default function Workspace() {
       setAmberAgents(new Set());
       setHoverHandoffId(null);
       setFileUpload({ kind: 'idle', message: '' });
-      setView((current) => (['home', 'needsyou', 'rules'].includes(current) ? 'canvas' : current));
+      // Keep the default Home destination through the initial empty selection.
       return;
     }
     canvasIdRef.current = canvasId;
@@ -755,7 +760,7 @@ export default function Workspace() {
         ...s, notes: [...(s.notes || []).filter((n) => n.id !== d.note.id), d.note],
       } : s));
       if (canvasIdRef.current === cid) {
-        setView('canvas');
+        setView('documents');
         setPanel({ type: 'note', id: d.note.id });
       }
       toast('Note created', 'ok');
@@ -847,7 +852,7 @@ export default function Workspace() {
         ...s, files: [...(s.files || []).filter((f) => f.id !== uploaded.id), uploaded],
       } : s));
       if (canvasIdRef.current === cid) {
-        setView('canvas');
+        setView('documents');
         setPanel({ type: 'file', id: uploaded.id });
         setFileUpload({ kind: 'success', message: `${file.name} is ready for agents.` });
         toast('Document ready for agents', 'ok');
@@ -1077,7 +1082,7 @@ export default function Workspace() {
           initialRunId={panel.runId || null}
           paused={pause.paused}
           canvasId={canvasId}
-          onSelectEntry={() => setPanel({ type: 'memory' })}
+          onSelectEntry={(id) => setPanel({ type: 'memory', entryId: id })}
           onDispatch={async (instruction) => {
             try { await dispatchToAgent(panel.id, instruction); toast(`Sent to ${agentsById[panel.id].name}`, 'ok'); }
             catch (e) { throw e; }
@@ -1160,283 +1165,27 @@ export default function Workspace() {
 
   return (
     <DraftsContext.Provider value={drafts}><div className="workspace">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-glyph" />
-          Agent&nbsp;Canvas
-        </div>
-        {canvases.length > 1 ? (
-          <label className="canvas-switch-wrap">
-            <span>Canvas</span>
-            <select
-              className="canvas-switch"
-              value={canvasId || ''}
-              onChange={(e) => setCanvasId(e.target.value)}
-              aria-label="Switch canvas"
-            >
-              {canvases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
-        ) : canvases.length === 1 ? (
-          <span className="canvas-current" aria-label={`Current canvas: ${canvases[0].name}`}>
-            <span>Canvas</span>
-            <strong>{canvases[0].name}</strong>
-          </span>
-        ) : null}
-        {newCanvasOpen ? (
-          <div className="canvas-new-pop">
-            <input
-              className="canvas-new-input"
-              autoFocus
-              placeholder="New canvas name…"
-              value={newCanvasName}
-              onChange={(e) => setNewCanvasName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') createCanvas();
-                if (e.key === 'Escape') { setNewCanvasOpen(false); setNewCanvasName(''); }
-              }}
-            />
-            {enabledRoster.length ? (
-              <fieldset className="canvas-team-picker">
-                <legend className="canvas-team-label">Choose a starting team</legend>
-                <div className="canvas-team-options">
-                  {availableTeams.map((team) => (
-                    <button
-                      key={team.id}
-                      type="button"
-                      className={`canvas-team-option ${selectedTeamId === team.id ? 'selected' : ''}`}
-                      aria-pressed={selectedTeamId === team.id}
-                      onClick={() => setRosterChecked(new Set(rosterIdsForTeam(team.id, roster)))}
-                    >
-                      <strong>{team.name}</strong>
-                      <span>{team.description}</span>
-                    </button>
-                  ))}
-                </div>
-                {!selectedTeam ? <p className="canvas-team-description">Custom team selected.</p> : null}
-                <div className="canvas-team-members" aria-live="polite">
-                  {selectedRosterMembers.map((entry) => (
-                    <span className="canvas-team-member" key={entry.id}>
-                      <span className="roster-dot" style={{ background: entry.color }} />
-                      {entry.name}
-                    </span>
-                  ))}
-                  {selectedRosterMembers.length === 0 ? <span className="dim">No agents selected</span> : null}
-                </div>
-                <details className="canvas-team-customize">
-                  <summary>Customize agents ({selectedRosterMembers.length})</summary>
-                  <div className="canvas-new-roster">
-                    {enabledRoster.map((r) => (
-                      <label key={r.id} className="roster-check">
-                        <input
-                          type="checkbox"
-                          checked={rosterChecked ? rosterChecked.has(r.id) : false}
-                          onChange={() => setRosterChecked((prev) => {
-                            const next = new Set(prev || []);
-                            if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
-                            return next;
-                          })}
-                        />
-                        <span className="roster-dot" style={{ background: r.color }} />
-                        {r.name} <span className="dim">{r.role === 'enrichment' ? 'lead information' : r.role}</span>
-                      </label>
-                    ))}
-                  </div>
-                </details>
-              </fieldset>
-            ) : null}
-            <div className="canvas-new-actions">
-              <button className="btn ghost small" onClick={() => { setNewCanvasOpen(false); setNewCanvasName(''); }}>Cancel</button>
-              <button className="btn primary small" disabled={!newCanvasName.trim() || rosterChecked === null} onClick={createCanvas}>Create</button>
-            </div>
-          </div>
-        ) : null}
-        <button
-          className="btn ghost small new-canvas-btn"
-          aria-expanded={newCanvasOpen}
-          onClick={() => setNewCanvasOpen(true)}
-        >New canvas</button>
-        {canvasId && state && state.access !== 'view' ? (
-          <button className="icon-btn agent-add-btn" title="Add an agent to this canvas" onClick={() => setAddAgentOpen(true)}>+ Agent</button>
-        ) : null}
-        {canvasId && state && state.access !== 'view' ? (
-          addPersonOpen ? (
-            <div className="canvas-new-pop">
-              <input
-                className="canvas-new-input"
-                autoFocus
-                placeholder="person@cloudtechgurus.com"
-                value={newPersonEmail}
-                onChange={(e) => setNewPersonEmail(e.target.value)}
-                onKeyDown={async (e) => {
-                  if (e.key === 'Enter' && newPersonEmail.trim()) {
-                    if (await addPerson(newPersonEmail.trim())) { setAddPersonOpen(false); setNewPersonEmail(''); }
-                  }
-                  if (e.key === 'Escape') { setAddPersonOpen(false); setNewPersonEmail(''); }
-                }}
-              />
-              <div className="canvas-new-actions">
-                <button className="btn ghost small" onClick={() => { setAddPersonOpen(false); setNewPersonEmail(''); }}>Cancel</button>
-                <button
-                  className="btn primary small"
-                  disabled={!newPersonEmail.trim()}
-                  onClick={async () => { if (await addPerson(newPersonEmail.trim())) { setAddPersonOpen(false); setNewPersonEmail(''); } }}
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button className="icon-btn" title="Add a person card — the email must be on the workspace allowlist" onClick={() => setAddPersonOpen(true)}>+ Person</button>
-          )
-        ) : null}
-        {canvasId && state && state.access !== 'view' ? (
-          <button className="icon-btn" title="Add a note to this canvas" onClick={createNote}>+ Note</button>
-        ) : null}
-        {canvasId && state && state.access !== 'view' ? (
-          <>
-            <input
-              ref={fileInputRef}
-              className="file-input-hidden"
-              type="file"
-              accept={FILE_ACCEPT}
-              aria-label="Choose a document to add to this canvas"
-              disabled={fileUpload.kind === 'busy'}
-              onChange={uploadFile}
-            />
-            <button
-              className="icon-btn"
-              aria-label="Upload document"
-              title="Upload a PDF, Word (.docx), TXT, Markdown, CSV, JSON, or XLSX document for agents to read (5 MB maximum)"
-              disabled={fileUpload.kind === 'busy'}
-              aria-describedby={fileUpload.message ? 'file-upload-status' : undefined}
-              onClick={() => {
-                setFileUpload({ kind: 'idle', message: '' });
-                fileInputRef.current?.click();
-              }}
-            >
-              {fileUpload.kind === 'busy' ? 'Uploading…' : '+ Document'}
-            </button>
-          </>
-        ) : null}
-        {canvasId && fileUpload.message ? (
-          <span
-            id="file-upload-status"
-            className={`file-upload-status is-${fileUpload.kind}`}
-            role={fileUpload.kind === 'error' ? 'alert' : 'status'}
-            aria-live={fileUpload.kind === 'error' ? 'assertive' : 'polite'}
-            aria-atomic="true"
-          >
-            {fileUpload.kind === 'busy' ? <progress aria-label="Document upload in progress" /> : null}
-            <span>{fileUpload.message}</span>
-            {fileUpload.kind === 'error' ? <button className="btn small" onClick={() => {
-              if (fileUpload.error?.unconfirmed) loadState(canvasId).catch(() => {});
-              else if (fileUpload.file) uploadFile({ currentTarget: { files: [fileUpload.file], value: '' } });
-              else fileInputRef.current?.click();
-            }}>{fileUpload.error?.unconfirmed ? 'Check documents' : fileUpload.file ? 'Retry upload' : 'Choose document'}</button> : null}
-          </span>
-        ) : null}
-        {isOwner && canvasId ? (
-          <button
-            className="icon-btn"
-            title="Archive this canvas — reversible, nothing is deleted"
-            onClick={archiveCanvas}
-          >
-            Archive
-          </button>
-        ) : null}
-        <div className="topbar-spacer" />
-        {!wsOk ? <span className="ws-pip" title="Live connection lost — reconnecting"><span className="ws-dot" />reconnecting</span> : null}
-        <button
-          className={`budget-meter ${budgetPct > 0.9 ? 'over' : ''}`}
-          onClick={() => setPanel({ type: 'spend' })}
-          title="Today's spend vs daily budget — click for the spend panel"
-        >
-          <span className="budget-bar"><span className="budget-fill" style={{ width: `${budgetPct * 100}%` }} /></span>
-          <span className="mono budget-label">
-            {budget && !requests.control?.error ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '$ — / —'}
-          </span>
-        </button>
-        {canvasId && state ? (
-          <button className={`btn ghost ${view === 'home' ? 'active' : ''}`} onClick={() => setView(view === 'home' ? 'canvas' : 'home')}>
-            {view === 'home' ? 'Canvas' : 'Home'}
-          </button>
-        ) : null}
-        {needsYouOn ? (
-          <button
-            className={`btn ghost ny-btn ${view === 'needsyou' ? 'active' : ''}`}
-            onClick={() => setView(view === 'needsyou' ? 'canvas' : 'needsyou')}
-            title="Everything waiting on a human — escalations, conflicts, overdue reviews, failed runs, alerts, and briefs"
-          >
-            Needs you{visibleAttentionCount !== 0 ? <span className="tray-badge">{visibleAttentionCount}</span> : null}
-          </button>
-        ) : null}
-        {roomsOn ? (
-          <button className={`btn ghost ${view === 'rooms' ? 'active' : ''}`}
-            onClick={() => setView(view === 'rooms' ? 'canvas' : 'rooms')}
-            title="Evidence Rooms — one room per deal, client, initiative, or decision">
-            Rooms
-          </button>
-        ) : null}
-        {canvasId && state && rulesOn ? (
-          <button className={`btn ghost ${view === 'rules' ? 'active' : ''}`}
-            onClick={() => { setRuleFocusId(null); setView(view === 'rules' ? 'canvas' : 'rules'); }}
-            title="Rules & Briefs — standing instructions that watch, alert, and brief on a cadence">
-            Rules
-          </button>
-        ) : null}
-        {canvasId && state ? (
-          <button className={`btn ghost ${panel?.type === 'memory' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'memory' ? null : { type: 'memory' })}>Memory</button>
-        ) : null}
-        <button
-          className="btn ghost theme-btn"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          title={theme === 'dark' ? 'Switch to the light CTG theme' : 'Switch to the dark bridge console'}
-          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-        >
-          <span className="theme-glyph" aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
-          {theme === 'dark' ? 'Light' : 'Dark'}
-        </button>
-        <button className="btn ghost caps-btn" onClick={() => setCapsOpen(true)} title={wsConnected ? 'Google Workspace connected — see what agents can and cannot do' : 'Google Workspace not connected — click to see what agents can do and connect'}>
-          <span className={`caps-state-dot ${'off'}`} />
-          Capabilities
-        </button>
-        {pause.paused
-          ? (isOwner ? <button className="btn ok" disabled={controlBusy} onClick={() => resumeAll().catch(() => {})}>Resume</button> : <span className="chip paused-chip">paused</span>)
-          : <button className="btn danger" disabled={controlBusy} onClick={() => pauseAll().catch(() => {})} title="Emergency stop — halts every agent">Pause</button>}
-        <div className="presence-stack" title={visiblePresence.filter((p) => p.email !== user.email).map((p) => p.name).join(', ') || 'No one else is here'}>
-          {visiblePresence.filter((p) => p.email !== user.email).slice(0, 6).map((p) => (
-            <span key={p.email} className="avatar" style={{ background: p.color }} title={`${p.name} (${p.email})`}>
-              {initials(p.name)}
-            </span>
-          ))}
-          {visiblePresence.filter((p) => p.email !== user.email).length > 6 ? <span className="avatar more">+{visiblePresence.filter((p) => p.email !== user.email).length - 6}</span> : null}
-        </div>
-        <div className="user-menu-wrap">
-          <button className="avatar me" ref={avatarRef} onClick={() => setMenuOpen((v) => !v)} title={user.email}>
-            {user.picture ? <img src={user.picture} alt="" referrerPolicy="no-referrer" /> : initials(user.name || user.email)}
-          </button>
-          {menuOpen ? (
-            <div className="user-menu" onMouseLeave={() => setMenuOpen(false)}>
-              <div className="user-menu-id">
-                <b>{user.name || user.email}</b>
-                <span className="mono">{user.email}</span>
-                <span className={`chip role-${user.role}`}>{user.role}</span>
-              </div>
-              {isOwner ? (
-                <>
-                  <button onClick={() => { setAdminOpen(true); setMenuOpen(false); }}>Admin — allowlist &amp; audit</button>
-                  <button onClick={() => { setArchivedOpen(true); setMenuOpen(false); }}>
-                    Archived canvases{archivedCanvases.length ? ` (${archivedCanvases.length})` : ''}
-                  </button>
-                  <a href="/api/export" download>Export operational ledger (JSON)</a>
-                </>
-              ) : null}
-              <button disabled={signingOut} onClick={signOut}>{signingOut ? 'Signing out…' : 'Sign out'}</button>
-            </div>
-          ) : null}
-        </div>
-      </header>
+      <WorkspaceHeader user={user} theme={theme} setTheme={setTheme}
+        spaces={{ list: canvases, id: canvasId, select: setCanvasId, archive: archiveCanvas, archived: () => setArchivedOpen(true) }}
+        navigation={{ view, go: (next) => { setPanel(null); setView(next); }, needsYou: needsYouOn, count: visibleAttentionCount,
+          hasSpace: !!state, rooms: roomsOn, rules: rulesOn, memory: () => setPanel({ type: 'memory' }) }}
+        creation={{ open: newCanvasOpen, name: newCanvasName, setName: setNewCanvasName, show: () => setNewCanvasOpen(true),
+          close: () => setNewCanvasOpen(false), create: createCanvas, roster, selected: rosterChecked, setSelected: setRosterChecked, teamId: selectedTeamId, busy: creating, error: actionError, checkStatus: refreshCanvases }}
+        account={{ avatarRef, open: menuOpen, toggle: () => setMenuOpen((open) => !open), signingOut, signOut,
+          admin: () => { setAdminOpen(true); setMenuOpen(false); } }}
+        controls={{ budget: requests.control?.error ? null : budget, paused: pause.paused, busy: controlBusy,
+          pause: () => pauseAll().catch(() => {}), resume: () => resumeAll().catch(() => {}),
+          spending: () => setPanel({ type: 'spend' }), connections: () => setCapsOpen(true) }} />
+      {state?.access !== 'view' && canvasId && state ? <input ref={fileInputRef} className="file-input-hidden" tabIndex={-1} type="file" accept={FILE_ACCEPT}
+        aria-label="Choose a document to add to this canvas" disabled={fileUpload.kind === 'busy'} onChange={uploadFile} /> : null}
+      {canvasId && fileUpload.message ? <div className={`file-upload-status is-${fileUpload.kind}`} role={fileUpload.kind === 'error' ? 'alert' : 'status'}>
+        {fileUpload.kind === 'busy' ? <progress aria-label="Document upload in progress" /> : null}<span>{fileUpload.message}</span>
+        {fileUpload.kind === 'error' ? <button className="btn small" onClick={() => {
+          if (fileUpload.error?.unconfirmed) { setView('documents'); loadState(canvasId).catch(() => {}); }
+          else if (fileUpload.file) uploadFile({ currentTarget: { files: [fileUpload.file], value: '' } });
+          else fileInputRef.current?.click();
+        }}>{fileUpload.error?.unconfirmed ? 'Check documents' : fileUpload.file ? 'Retry upload' : 'Choose document'}</button> : null}
+      </div> : null}
 
       {pause.paused ? (
         <div className="pause-banner">
@@ -1468,6 +1217,8 @@ export default function Workspace() {
               paused={pause.paused}
               runTick={runTick}
               onOpenRun={(agentId, runId) => openRun(runId)}
+              onUpload={() => fileInputRef.current?.click()}
+              uploadBusy={fileUpload.kind === 'busy'}
               toast={toast}
             />
           ) : null}
@@ -1495,6 +1246,20 @@ export default function Workspace() {
               onOpenRule={rulesOn ? (ref) => { setPanel({ type: 'rule-source', canvasId: ref.canvasId, ruleId: ref.ruleId }); } : null}
             />
           ) : null}
+          {view === 'help' ? <HelpView /> : null}
+          {state && view === 'documents' ? <DocumentsView notes={state.notes || []} files={state.files || []} editable={state.access !== 'view'}
+            onNote={createNote} onUpload={() => fileInputRef.current?.click()} uploadBusy={fileUpload.kind === 'busy'} onOpen={openNode} /> : null}
+          {state && view === 'team' ? <TeamView presence={visiblePresence} connected={wsOk} agents={state.agents || []} people={state.people || []} editable={state.access !== 'view'} onOpen={openNode}
+            builderOn={!!config?.agentBuilder}
+            onAddAgent={() => { setAddAgentTab('roster'); setAddAgentOpen(true); }}
+            onBuild={() => { setAddAgentTab('builder'); setAddAgentOpen(true); }}
+            onCustom={() => { setAddAgentTab('custom'); setAddAgentOpen(true); }}
+            personForm={addPersonOpen ? <form onSubmit={async (e) => { e.preventDefault(); if (await addPerson(newPersonEmail.trim())) { setAddPersonOpen(false); setNewPersonEmail(''); } }}>
+              <label htmlFor="person-email">Teammate email</label><input id="person-email" type="email" required value={newPersonEmail} onChange={(e) => setNewPersonEmail(e.target.value)} />
+              <button className="btn small">Add teammate</button><button type="button" className="btn ghost small" onClick={() => setAddPersonOpen(false)}>Cancel</button>
+            </form> : <button className="btn" onClick={() => setAddPersonOpen(true)}>Add teammate</button>} /> : null}
+          {view === 'commands' ? <section className="context-view"><h1>Advanced commands</h1><p>Describe a command, review the interpretation, then confirm it.</p></section> : null}
+          {view === 'activity' ? <section className="context-view"><h1>Activity</h1><p>Detailed work events for the selected project space.</p></section> : null}
           {view === 'rooms' ? (
             <RoomsView
               user={user}
@@ -1507,7 +1272,7 @@ export default function Workspace() {
           {canvasId && state && view === 'rules' ? (
             <RulesView user={user} canvasId={canvasId} agents={state.agents || []} toast={toast} focusRuleId={ruleFocusId} />
           ) : null}
-          {canvasId && state && view !== 'home' && view !== 'needsyou' && view !== 'rooms' && view !== 'rules' ? (
+          {canvasId && state && view === 'canvas' ? (
             <Canvas
               agents={state?.agents || []}
               notes={state.notes || []}
@@ -1534,11 +1299,11 @@ export default function Workspace() {
               onSelect={selectNode}
             />
           ) : null}
-          {!canvasId && canvasesLoaded && !requests.spaces?.error && canvases.length === 0 ? (
+          {!canvasId && !['help', 'needsyou', 'rooms'].includes(view) && canvasesLoaded && !requests.spaces?.error && canvases.length === 0 ? (
             <div className="empty-canvas-cta no-canvases">
-              <h2>Start with a canvas</h2>
+              <h2>Start with a project space</h2>
               <p>Create a focused space for the agents, people, notes, and work that belong together.</p>
-              <button className="btn primary" onClick={() => setNewCanvasOpen(true)}>Create a canvas</button>
+              <button className="btn primary" onClick={() => setNewCanvasOpen(true)}>Create a project space</button>
             </div>
           ) : null}
           {(!canvasesLoaded && !requests.spaces?.error) || (canvasId && !state && !requests.workspace?.error) ? (
@@ -1548,14 +1313,14 @@ export default function Workspace() {
             </div>
           ) : null}
 
-          {canvasId && state && state.access !== 'view' && (state.agents || []).length === 0 ? (
+          {canvasId && state && state.access !== 'view' && view === 'canvas' && (state.agents || []).length === 0 ? (
             <div className="empty-canvas-cta">
               <p>This canvas has no agents yet.</p>
               <button className="btn primary" onClick={() => setAddAgentOpen(true)}>Add your first agent</button>
             </div>
           ) : null}
 
-          {canvasId && state ? (
+          {canvasId && state && !needsYouOn ? (
             <Tray
               escalations={openEscalations}
               agentsById={agentsById}
@@ -1578,12 +1343,12 @@ export default function Workspace() {
             : panel?.type === 'rule-source' ? <div className="source-rule-panel"><button className="btn small" onClick={() => setPanel(null)}>Close scheduled work</button><RulesView user={user} canvasId={panel.canvasId} agents={[]} toast={toast} focusRuleId={panel.ruleId} /></div>
             : sidePanel}
 
-          {canvasId && state ? (
-            <CommandBar paused={pause.paused} onParse={parseIntent} onConfirm={confirmIntent} toast={toast} />
+          {canvasId && state && view === 'commands' ? (
+            <CommandBar key={canvasId} canvasId={canvasId} paused={pause.paused} onCheckStatus={refreshAll} onParse={parseIntent} onConfirm={confirmIntent} toast={toast} />
           ) : null}
         </div>
 
-        <div className="hud" role="status" aria-label="Systems console">
+        {view === 'canvas' || view === 'activity' ? <div className="hud" role="status" aria-label="Systems console">
           <button className="hud-cell hud-btn" onClick={() => setCapsOpen(true)}
             title={healthDown ? 'Status unavailable. Open Connections and check again.' : 'Open the systems board'}>
             <span className={`lamp hexlamp lamp-${healthDown ? 'down' : (health?.aggregate || 'planned')}`} />
@@ -1630,8 +1395,8 @@ export default function Workspace() {
             <span className="hud-gauge"><span className="hud-gauge-fill" style={{ width: `${Math.min(100, budget?.budget_usd ? (100 * (budget.cost_usd || 0)) / budget.budget_usd : 0)}%` }} /></span>
             <span className="hud-val mono">{budget && !requests.control?.error ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '—'}</span>
           </span>
-        </div>
-        {canvasId ? (
+        </div> : null}
+        {canvasId && view === 'activity' ? (
           <ActivityDock
             activity={activity}
             handoffs={handoffs}
@@ -1646,6 +1411,7 @@ export default function Workspace() {
       {addAgentOpen && canvasId ? (
         <AddAgentModal
           canvasId={canvasId}
+          initialTab={addAgentTab}
           builderOn={!!(config && config.agentBuilder)}
           isOwner={isOwner}
           roster={roster.filter((r) => r.enabled)}

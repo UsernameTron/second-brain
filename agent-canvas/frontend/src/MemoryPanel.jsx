@@ -1,3 +1,4 @@
+import { certaintyLabel, workStatusLabel } from './format.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
 import { RequestError } from './RequestState.jsx';
@@ -14,9 +15,9 @@ export function EpiDot({ epistemic }) {
 function Legend() {
   return (
     <div className="epi-legend">
-      <span className="epi-legend-item epi-verified"><EpiDot epistemic="verified" /> verified <i>solid</i></span>
-      <span className="epi-legend-item epi-inference"><EpiDot epistemic="inference" /> inference <i>dashed</i></span>
-      <span className="epi-legend-item epi-assumption"><EpiDot epistemic="assumption" /> assumption <i>dotted</i></span>
+      <span className="epi-legend-item epi-verified"><EpiDot epistemic="verified" /> {certaintyLabel('verified')} <i>solid</i></span>
+      <span className="epi-legend-item epi-inference"><EpiDot epistemic="inference" /> {certaintyLabel('inference')} <i>dashed</i></span>
+      <span className="epi-legend-item epi-assumption"><EpiDot epistemic="assumption" /> {certaintyLabel('assumption')} <i>dotted</i></span>
     </div>
   );
 }
@@ -53,7 +54,7 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
   const superseded = !!entry.supersededBy;
   const cls = [
     'mem-entry',
-    `epi-${entry.epistemic}`,
+    `epi-${certaintyLabel(entry.epistemic)}`,
     superseded ? 'superseded' : '',
     ripple && ripple.flash === entry.id ? 'mem-flash' : '',
     ripple && ripple.ids && ripple.ids.has(entry.id) ? 'mem-ripple' : '',
@@ -62,8 +63,8 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
   return (
     <div className={cls}>
       <div className="mem-top">
-        <EpiDot epistemic={entry.epistemic} />
-        <span className="epi-label">{entry.epistemic}</span>
+        <EpiDot epistemic={certaintyLabel(entry.epistemic)} />
+        <span className="epi-label">{certaintyLabel(entry.epistemic)}</span>
         {typeof depth === 'number' ? <span className="chip depth-chip mono">depth {depth}</span> : null}
         {entry.kind ? <span className="chip kind-chip">{entry.kind}</span> : null}
         {entry.subject ? <span className="chip subject-chip">{entry.subject}</span> : null}
@@ -77,7 +78,7 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
       <Provenance entry={entry} onOpenRun={onOpenRun} />
       {!compact ? (
         <div className="mem-actions">
-          <button className="link-btn" onClick={() => onTrace(entry.id)}>Trace lineage</button>
+          <button className="link-btn" onClick={() => onTrace(entry.id)}>History and sources</button>
           {!superseded && onCorrect ? (
             <button className="link-btn" onClick={() => setCorrecting((v) => !v)}>
               {correcting ? 'Cancel correction' : 'Correct…'}
@@ -96,10 +97,10 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
                 onClick={() => correct({
                   content: entry.content,
                   epistemic: epi,
-                  reason: `reclassified ${entry.epistemic} → ${epi}`,
+                  reason: `reclassified ${certaintyLabel(entry.epistemic)} → ${epi}`,
                 })}
               >
-                → {epi}
+                → {certaintyLabel(epi)}
               </button>
             )) : null}
         </div>
@@ -121,9 +122,9 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
           <textarea aria-label="Corrected memory" disabled={saving} rows="3" value={cContent} onChange={(e) => setCContent(e.target.value)} />
           <div className="correct-row">
             <select aria-label="Certainty" disabled={saving} value={cEpi} onChange={(e) => setCEpi(e.target.value)}>
-              <option value="verified">verified</option>
-              <option value="inference">inference</option>
-              <option value="assumption">assumption</option>
+              <option value="verified">{certaintyLabel('verified')}</option>
+              <option value="inference">{certaintyLabel('inference')}</option>
+              <option value="assumption">{certaintyLabel('assumption')}</option>
             </select>
             <input aria-label="Reason for the correction" disabled={saving} placeholder="reason for the correction" value={cReason} onChange={(e) => setCReason(e.target.value)} />
             <button className="btn primary small" type="submit" disabled={saving || error?.unconfirmed || !cContent.trim()}>Correct</button>

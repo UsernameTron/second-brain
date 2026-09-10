@@ -17,7 +17,9 @@ updates; both production audits are clean. Phase 2 adds bounded requests,
 recoverable boot/session/status failures, explicit stale live updates, refreshed
 pause/spend state and honest connection checks. Phase 3 retains failed drafts,
 opens old work directly and exposes source/history/upload recovery. Phase 4
-adds global scoped review, guarded answers and source-specific navigation. See [SIMPLIFICATION.md](SIMPLIFICATION.md)
+adds global scoped review, guarded answers and source-specific navigation.
+Phase 5 simplifies Home/navigation, keeps all controls reachable and adds
+editable Act on this context. Local browser evidence uses stubbed models. See [SIMPLIFICATION.md](SIMPLIFICATION.md)
 for control destinations and per-phase evidence. The production observations
 below are historical; no new production probe, push or deployment was performed.
 

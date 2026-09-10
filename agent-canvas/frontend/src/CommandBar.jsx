@@ -1,4 +1,8 @@
-import React, { useRef, useState } from 'react';
+import { choiceKeys } from './format.jsx';
+import React, { useEffect, useRef, useState } from 'react';
+
+import { useDraft } from './Drafts.jsx';
+import { RequestError } from './RequestState.jsx';
 
 const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
 
@@ -13,42 +17,44 @@ function MicIcon() {
 const CMD_MODES = [
   { key: 'ask', label: 'Ask', hint: 'read-only — answer with evidence' },
   { key: 'act', label: 'Act', hint: 'normal run — may draft and hand off' },
-  { key: 'rehearse', label: 'Rehearse', hint: 'dry run — narrates, changes nothing' },
+  { key: 'rehearse', label: 'Practice (Rehearse)', hint: 'dry run — narrates, changes nothing' },
 ];
 
-export default function CommandBar({ paused, onParse, onConfirm, toast }) {
-  const [text, setText] = useState('');
-  const [mode, setMode] = useState('act');
+export default function CommandBar({ paused, onParse, onConfirm, toast, canvasId, onCheckStatus }) {
+  const [text, setText] = useDraft(`command:${canvasId}:text`, '');
+  const [mode, setMode] = useDraft(`command:${canvasId}:mode`, 'ask');
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(null); // { intent, text }
   const [listening, setListening] = useState(false);
   const recRef = useRef(null);
+  const mounted = useRef(true);
+  const [error, setError] = useState(null);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; if (recRef.current) { recRef.current.onend = null; recRef.current.onresult = null; recRef.current.onerror = null; recRef.current.abort?.(); } }; }, []);
 
   const submit = async (raw) => {
     const value = String(raw !== undefined ? raw : text).trim();
     if (!value || busy) return;
-    setBusy(true);
+    setBusy(true); setError(null);
     try {
       const intent = await onParse(value, mode);
-      setPending({ intent, text: value });
-      setText('');
+      if (mounted.current) setPending({ intent, text: value });
     } catch (e) {
-      toast(e.message);
+      if (mounted.current) setError(e);
     } finally {
       setBusy(false);
     }
   };
 
   const confirm = async () => {
-    if (!pending || busy) return;
-    setBusy(true);
+    if (!pending || busy || error?.unconfirmed) return;
+    setBusy(true); setError(null);
     try {
       // The CURRENT mode wins, not the snapshot captured at parse time — a
       // user who flips to Ask while the confirm is open means Ask.
       await onConfirm({ ...pending.intent, mode });
-      setPending(null);
+      if (mounted.current) { setPending(null); setText(''); }
     } catch (e) {
-      toast(e.message);
+      if (mounted.current) setError(e);
     } finally {
       setBusy(false);
     }
@@ -76,20 +82,22 @@ export default function CommandBar({ paused, onParse, onConfirm, toast }) {
     };
     rec.onend = () => {
       setListening(false);
-      if (finalText.trim()) submit(finalText);
+      if (mounted.current && finalText.trim()) submit(finalText);
     };
     rec.onerror = (e) => {
       setListening(false);
-      if (e.error && e.error !== 'aborted' && e.error !== 'no-speech') toast(`voice: ${e.error}`);
+      if (e.error && e.error !== 'aborted') setError(new Error('Voice input stopped. Type your command instead.'));
     };
     setListening(true);
-    try { rec.start(); } catch { setListening(false); }
+    try { rec.start(); } catch { setListening(false); setError(new Error('The microphone could not start. Type your command instead.')); }
   };
 
   const unknown = pending && pending.intent.action === 'unknown';
 
   return (
     <div className="cmdbar">
+      <RequestError error={error} subject="Preparing or confirming your command" onRetry={onCheckStatus} retryLabel="Check work status" />
+      {error ? <p>Keep your text, or type instead of using the microphone.</p> : null}
       {pending ? (
         <div className={`intent-echo ${unknown ? 'intent-error' : ''}`}>
           <span className="intent-arrow">→</span>
@@ -105,17 +113,17 @@ export default function CommandBar({ paused, onParse, onConfirm, toast }) {
             ) : null}
           </div>
           {!unknown ? (
-            <button className="btn ok small" disabled={busy} onClick={confirm}>Confirm</button>
+            <button className="btn ok small" disabled={busy || error?.unconfirmed} onClick={confirm}>Confirm</button>
           ) : null}
-          <button className="btn ghost small" onClick={() => setPending(null)}>{unknown ? 'Dismiss' : 'Cancel'}</button>
+          <button className="btn ghost small" disabled={busy} onClick={() => { setText(pending.text); setPending(null); }}>{unknown ? 'Dismiss' : 'Cancel'}</button>
         </div>
       ) : null}
       <form className="cmd-row" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        <div className="mode-switch cmd-modes" role="radiogroup" aria-label="Run mode">
+        <div className="mode-switch cmd-modes" role="radiogroup" aria-label="Command purpose">
           {CMD_MODES.map((m) => (
             <button key={m.key} type="button" role="radio" aria-checked={mode === m.key}
               className={`btn ghost small ${mode === m.key ? 'lens-on' : ''}`} title={m.hint}
-              onClick={() => setMode(m.key)}>{m.label}</button>
+              onKeyDown={(e) => choiceKeys(e, ['ask', 'act', 'rehearse'], mode, setMode)} onClick={() => setMode(m.key)}>{m.label}</button>
           ))}
         </div>
         <button
@@ -130,6 +138,7 @@ export default function CommandBar({ paused, onParse, onConfirm, toast }) {
           <MicIcon />
         </button>
         <input
+          aria-label="Advanced command"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={listening ? 'Listening…' : 'Tell an agent what to do — “have Scout review the uploaded brief”'}

@@ -1,3 +1,4 @@
+import { choiceKeys } from './format.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { RequestError } from './RequestState.jsx';
 import { useDraft } from './Drafts.jsx';
@@ -224,7 +225,7 @@ export default function NeedsYouView({ rows, userEmail, defaultScope = 'all', sc
         <h2>Needs you</h2>
         <div className="ny-filters" role="tablist" aria-label="Attention scope">
           {['mine', 'team', 'all'].map((s) => (
-            <button key={s} role="tab" aria-selected={scope === s} className={`btn small ${scope === s ? 'active' : 'ghost'}`} onClick={() => setScope(s)}>
+            <button key={s} role="tab" aria-selected={scope === s} className={`btn small ${scope === s ? 'active' : 'ghost'}`} onKeyDown={(e) => choiceKeys(e, ['mine', 'team', 'all'], scope, setScope)} onClick={() => setScope(s)}>
               {s === 'mine' ? 'Mine' : s === 'team' ? 'Team' : 'All'}
             </button>
           ))}

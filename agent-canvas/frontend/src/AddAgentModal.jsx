@@ -9,9 +9,9 @@ import AgentBuilder from './AgentBuilder.jsx';
 // hand-build a custom agent. Roster instantiation copies the template
 // server-side and pins its companion note; the copy is editable per-canvas
 // and only changes on an owner resync.
-export default function AddAgentModal({ canvasId, roster, builderOn, isOwner, onClose, onAdded, toast }) {
+export default function AddAgentModal({ canvasId, roster, builderOn, isOwner, initialTab = 'roster', onClose, onAdded, toast }) {
   const dialogRef = useDialog(onClose);
-  const [tab, setTab] = useState('roster');
+  const [tab, setTab] = useState(initialTab);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 

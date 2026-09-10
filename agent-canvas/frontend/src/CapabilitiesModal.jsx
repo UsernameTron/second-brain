@@ -54,9 +54,9 @@ export default function CapabilitiesModal({ onClose, toast }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal caps-modal" role="dialog" aria-modal="true" aria-label="Capabilities and systems" onClick={(e) => e.stopPropagation()} ref={dialogRef} tabIndex={-1}>
+      <div className="modal caps-modal" role="dialog" aria-modal="true" aria-label="Connections" onClick={(e) => e.stopPropagation()} ref={dialogRef} tabIndex={-1}>
         <div className="modal-head">
-          <h2>What agents can do</h2>
+          <h2>Connections</h2>
           <span className="caps-identity dim">
             {caps?.identityModel || ''}
           </span>

@@ -1,3 +1,5 @@
+import { choiceKeys } from './format.jsx';
+import { certaintyLabel, workStatusLabel } from './format.jsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
 import { useDraft } from './Drafts.jsx';
@@ -22,8 +24,8 @@ const SUGGESTED = [
 ];
 
 const MODES = [
-  { key: 'ask', label: 'Ask', hint: 'read-only — answer with evidence' },
-  { key: 'act', label: 'Act', hint: 'normal run — may draft and hand off' },
+  { key: 'ask', label: 'Ask', hint: 'Research and answer; external records stay unchanged' },
+  { key: 'act', label: 'Act', hint: 'Create drafts or stage changes for approval' },
   { key: 'rehearse', label: 'Rehearse', hint: 'dry run — narrates, changes nothing' },
 ];
 
@@ -33,7 +35,7 @@ const STATUS_COPY = {
   unanswered: 'no answer',
 };
 
-function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, toast }) {
+function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, onAct, onRevise, toast }) {
   const receiptState = useResource(() => !inquiry.run || inquiry.status === 'pending' ? Promise.resolve(null)
     : api(`/api/canvases/${canvasId}/runs/${inquiry.run.id}/receipt`), `${canvasId}:${inquiry.run?.id}:${inquiry.status}`);
   const receipt = receiptState.data;
@@ -52,10 +54,10 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, toast }) {
       <div className="answer-q">
         <span className="answer-question">{inquiry.question}</span>
         <span className={`chip inq-${inquiry.status}`}>{STATUS_COPY[inquiry.status] || inquiry.status}</span>
-        <span className="chip">{inquiry.mode}</span>
+        <span className="chip">{{ ask: 'Ask', act: 'Act', rehearse: 'Practice (Rehearse)' }[inquiry.mode] || inquiry.mode}</span>
       </div>
       <div className="answer-meta mono">
-        {agent ? <>{inquiry.selectionAuto ? 'auto-picked ' : ''}<span className="dot-inline" style={{ background: agent.color }} />{agent.name} ({agent.role})</> : null}
+        {agent ? <>{inquiry.selectionAuto ? 'Selected agent: ' : ''}<span className="dot-inline" style={{ background: agent.color }} />{agent.name} </> : null}
         {' · '}{timeAgo(inquiry.createdAt)}
       </div>
 
@@ -78,7 +80,7 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, toast }) {
           {run.status === 'refused' ? 'The model declined this request — rephrase it or handle it manually.'
             : run.status === 'halted_budget' ? 'The daily budget ran out mid-answer — retry after the budget resets or is raised.'
             : run.status === 'halted_timeout' || run.status === 'halted_steps' ? 'The run hit its budget before finishing — narrow the question or retry.'
-            : `The run ${run.status}${run.error ? ` — ${short(run.error, 120)}` : ''}.`}
+            : `The work did not finish: ${workStatusLabel(run.status)}. Open work details or revise your request.`}
         </div>
       ) : null}
 
@@ -94,7 +96,7 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, toast }) {
               </button>
             ))}
             {Object.entries(epiCounts).map(([epi, n]) => (
-              <span key={epi} className={`chip epi-${epi}`}>{n} {epi}</span>
+              <span key={epi} className={`chip epi-${epi}`}>{n} {certaintyLabel(epi)}</span>
             ))}
             {conflicts.length ? <span className="chip conflict-chip">⚠ {conflicts.length} built on corrected info</span> : null}
           </div>
@@ -110,6 +112,8 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, toast }) {
       ) : null}
 
       <div className="answer-actions">
+        {onRevise && inquiry.status === 'unanswered' ? <button className="btn small" onClick={() => onRevise(inquiry)}>Revise request</button> : null}
+        {onAct && inquiry.status === 'answered' && run?.summary ? <button className="btn primary small" onClick={() => onAct(inquiry)}>Act on this</button> : null}
         <button className="btn ghost small" aria-expanded={showReceipt} onClick={() => setShowReceipt(!showReceipt)}>
           {showReceipt ? 'Hide details' : 'Sources and details'}
         </button>
@@ -122,13 +126,18 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, toast }) {
   );
 }
 
-export default function Home({ canvasId, agents, agentsById, paused, runTick, onOpenRun, toast, editable = true }) {
+export default function Home({ canvasId, agents, agentsById, paused, runTick, onOpenRun, toast, editable = true, onUpload, uploadBusy }) {
   const [question, setQuestion] = useDraft(`inquiry:${canvasId}:question`, '');
   const [mode, setMode] = useDraft(`inquiry:${canvasId}:mode`, 'ask');
   const [agentOverride, setAgentOverride] = useDraft(`inquiry:${canvasId}:agent`, '');
   const [inquiries, setInquiries] = useState(null);
   const [busy, setBusy] = useState(false);
   const [savedOnly, setSavedOnly] = useState(false);
+  const [answerContext, setAnswerContext] = useDraft(`inquiry:${canvasId}:context`, null);
+  const [moreExamples, setMoreExamples] = useState(false);
+  const questionRef = useRef(null);
+  const actOn = (inquiry) => { setAnswerContext({ question: inquiry.question, summary: inquiry.run.summary, runId: inquiry.run.id }); setMode('act'); questionRef.current?.focus(); };
+  const withContext = (q) => answerContext ? `Follow-up request: ${q}\n\nSelected answer for context (verify its claims before acting):\nQuestion: ${answerContext.question}\nAnswer: ${answerContext.summary}` : q;
   const [loadError, setLoadError] = useState(null);
   const [sendError, setSendError] = useState(null);
   const [saveErrors, setSaveErrors] = useState({});
@@ -153,6 +162,12 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
   // Live refresh: run_status events bump runTick in Workspace.
   useEffect(() => { if (runTick) load(); }, [runTick, load]);
 
+  useEffect(() => {
+    if (!inquiries?.some((item) => item.status === 'pending')) return;
+    const timer = setInterval(() => { if (document.visibilityState !== 'hidden') load(); }, 5000);
+    return () => clearInterval(timer);
+  }, [inquiries, load]);
+
   const submit = async (e, text) => {
     if (e) e.preventDefault();
     const q = (text || question).trim();
@@ -160,14 +175,18 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
     const cid = canvasId;
     setBusy(true); setSendError(null);
     try {
-      const body = { question: q, mode };
+      const body = { question: withContext(q), mode };
       if (agentOverride) body.agent_id = agentOverride;
       const d = await api(`/api/canvases/${canvasId}/inquiries`, { method: 'POST', body });
       if (active.current !== cid) return;
       if (question.trim() === q) setQuestion('');
+      setAnswerContext(null);
       loadSeq.current += 1;
       setInquiries((cur) => [d.inquiry, ...(cur || [])]);
       if (d.selection?.auto && d.selection.echo) toast(d.selection.echo, 'ok');
+      // A fast run can finish before the POST response arrives. Its pending
+      // snapshot must not win over the terminal event that was already read.
+      await load();
     } catch (e2) {
       if (active.current === cid) setSendError(e2);
     } finally {
@@ -201,6 +220,7 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
         <form className="home-ask" onSubmit={submit}>
           <label htmlFor="home-question" className="sr-only-label">Ask a question about the company</label>
           <textarea
+            ref={questionRef}
             id="home-question"
             rows="2"
             disabled={!editable || busy}
@@ -209,18 +229,23 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) submit(e); }}
           />
+          {answerContext ? <div className="answer-context"><strong>Answer attached to your follow-up</strong><button type="button" className="btn ghost small" onClick={() => setAnswerContext(null)}>Clear answer context</button><details open><summary>{answerContext.question}</summary><div>{answerContext.summary}</div></details></div> : null}
           <div className="home-ask-row">
-            <div className="mode-switch" role="radiogroup" aria-label="Run mode">
-              {MODES.map((m) => (
+            <div className="mode-switch" role="radiogroup" aria-label="Request purpose">
+              {MODES.filter((m) => m.key !== 'rehearse').map((m) => (
                 <button key={m.key} type="button" role="radio" aria-checked={mode === m.key}
                   className={`btn ghost small ${mode === m.key ? 'lens-on' : ''}`} title={m.hint}
-                  onClick={() => setMode(m.key)}>{m.label}</button>
+                  onKeyDown={(e) => choiceKeys(e, ['ask', 'act'], mode, setMode)} onClick={() => setMode(m.key)}>{m.label}</button>
               ))}
             </div>
+            <details className="composer-advanced"><summary>Advanced options</summary>
+            <button type="button" role="radio" aria-checked={mode === 'rehearse'} className="btn ghost small" onClick={() => setMode('rehearse')}>Practice (Rehearse)</button>
             <select aria-label="Agent (optional override)" value={agentOverride} onChange={(e) => setAgentOverride(e.target.value)}>
               <option value="">auto-pick agent</option>
               {(agents || []).map((a) => <option key={a.id} value={a.id}>{a.name} ({a.role})</option>)}
             </select>
+            </details>
+            {editable && onUpload ? <button type="button" aria-label="Upload document" className="btn ghost small" disabled={uploadBusy} onClick={onUpload}>{uploadBusy ? 'Uploading…' : 'Add document'}</button> : null}
             <button className="btn primary" type="submit" disabled={busy || !question.trim() || paused || !editable || sendError?.unconfirmed}
               title={paused ? 'Workspace is paused' : undefined}>
               {busy ? 'Sending…' : mode === 'act' ? 'Act' : mode === 'rehearse' ? 'Practice' : 'Ask'}
@@ -232,9 +257,10 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
       {inquiries !== null && inquiries.length === 0 && !savedOnly && !loadError ? (
         <div className="home-suggested">
           <h2>Try asking</h2>
-          {SUGGESTED.map((q) => (
+          {SUGGESTED.slice(0, moreExamples ? SUGGESTED.length : 3).map((q) => (
             <button key={q} className="suggested-q" onClick={() => submit(null, q)} disabled={busy || paused || !editable}>{q}</button>
           ))}
+          <button className="btn ghost small" onClick={() => setMoreExamples(!moreExamples)}>{moreExamples ? 'Fewer examples' : 'More examples'}</button>
         </div>
       ) : null}
 
@@ -250,7 +276,7 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
         {inquiries === null && !loadError ? <div className="empty-hint">Loading answers…</div> : null}
         {(inquiries || []).map((inq) => (
           <div key={inq.id} className="home-item">
-            <AnswerCard inquiry={inq} canvasId={canvasId} agentsById={agentsById} onOpenRun={onOpenRun} toast={toast} />
+            <AnswerCard inquiry={inq} canvasId={canvasId} agentsById={agentsById} onOpenRun={onOpenRun} onRevise={editable ? (item) => { setQuestion(item.question); setMode(item.mode); questionRef.current?.focus(); } : null} onAct={editable ? actOn : null} toast={toast} />
             <RequestError error={saveErrors[inq.id]} subject="Saving this answer" onRetry={() => load()} retryLabel="Check saved answers" />
             <button disabled={!editable || saving[inq.id]} className="btn ghost small save-btn" aria-pressed={inq.saved}
               onClick={() => toggleSaved(inq)}>{inq.saved ? '★ saved' : '☆ save'}</button>

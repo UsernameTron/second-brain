@@ -1,3 +1,4 @@
+import { certaintyLabel, workStatusLabel } from './format.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { api, fmtUSD, timeAgo, fmtClock, short } from './api.js';
 import { SummaryMarkdown, formatContractTail, plainPreview, formatRunEventPreview } from './format.jsx';
@@ -119,7 +120,7 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
         <>
           <span className="chip role-chip">{agent.role}</span>
           <span className={`chip tier-chip tier-${agent.model_tier}`}>{agent.model_tier}</span>
-          <span className={`agent-status as-${agent.status}`}>{agent.status}</span>
+          <span className={`agent-status as-${workStatusLabel(agent.status)}`}>{workStatusLabel(agent.status)}</span>
         </>
       }
     >
@@ -146,6 +147,7 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
         </button>
       </form> : <p>View only. Ask the owner for edit access to send work.</p>}
 
+      <details><summary>Advanced</summary>
       {canvasId ? <AgentVersions key={agent.id} canvasId={canvasId} agentId={agent.id} isOwner={isOwner} /> : null}
       {onRemove ? (
         <div className="agent-remove">
@@ -166,6 +168,7 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
           ) : null}
         </div>
       ) : null}
+      </details>
       {runSel ? (
         <>
           <button className="btn ghost small" onClick={() => setRunSel(null)}>← all runs</button>
@@ -179,7 +182,7 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
           {runs.length === 0 ? <div className="empty-hint">No runs yet — send an instruction above.</div> : null}
           {runs.slice(0, 20).map((r) => (
             <button key={r.id} className="run-row" onClick={() => setRunSel(r.id)}>
-              <span className={`chip ${RUN_STATUS_CLASS[r.status] || ''}`}>{r.status}</span>
+              <span className={`chip ${RUN_STATUS_CLASS[r.status] || ''}`}>{workStatusLabel(r.status)}</span>
               <span className="mono">{r.steps_used}/{r.step_budget}</span>
               <span className="mono">{fmtUSD(r.cost_usd)}</span>
               <span className="run-row-time">{timeAgo(r.created_at)}</span>
@@ -209,8 +212,8 @@ export function ContextReceipt({ receipt, onFeedback }) {
     finally { setBusy(false); }
   };
   const entryLine = (e, extra) => (
-    <div key={e.id} className={`receipt-entry epi-${e.epistemic}`}>
-      <span className="chip">{e.epistemic}</span>
+    <div key={e.id} className={`receipt-entry epi-${certaintyLabel(e.epistemic)}`}>
+      <span className="chip">{certaintyLabel(e.epistemic)}</span>
       {extra}
       <span className="receipt-content">{short(e.content, 120)}</span>
       {e.tainted ? <span className="tainted-flag">⚠</span> : null}

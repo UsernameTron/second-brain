@@ -1,37 +1,102 @@
 # Agent Canvas — User Guide
 
-*A plain-English guide for the CTG team. No technical background needed.*
+A plain-English guide for the CTG team. The steps below describe the simplified
+local build. Production remains unchanged until an owner deploys it.
 
----
+## 1. Sign in and choose your project space
 
-## What is Agent Canvas?
+1. Sign in with your **@cloudtechgurus.com Google account**. If sign-in cannot
+   load, choose **Try sign-in again**. If the whole workspace cannot open,
+   choose **Try again** beside that message.
+2. Choose your **Project space** in the header. A project space is an existing
+   canvas: it groups a team's questions, documents and memory. If none exists,
+   choose **Create a project space**, enter a name, keep the starting team or
+   choose another, then **Create**. It starts with no fabricated work or answers.
+3. Open **Connections**. Connect Google Workspace if available, then use
+   **Check now** beside the services you need. Account connection grants access;
+   it does not prove every service works. Unconfigured services need the owner.
 
-Agent Canvas is CTG's shared intelligence workspace. It's one place where you
-can ask questions, get research done, find leads, draft proposals, and make
-decisions that the whole system remembers — powered by a team of AI agents
-that use CTG's real data (HubSpot, Google Workspace, our lead scoring, our
-ICP) with your permissions and under your control.
+In the isolated local test build only, enter **fred@cloudtechgurus.com** under
+**Development sign-in**, then choose **Sign in**. This tests the workspace
+journey, not Google sign-in or a live connection.
 
-Think of it as a smart team member who never forgets a decision, always shows
-its work, and never sends anything without a human saying yes.
+## 2. Ask a question
 
----
+1. Open **Home**. Type into **Ask a question about the company**. For a local
+   walkthrough, use: “What should we check before a customer renewal?”
+2. Keep **Ask** selected and choose the **Ask** button. Ask researches and
+   answers without changing external records. You do not need to choose an agent.
+3. Wait for the answer below the box. **Sources and details** shows external
+   references, retrieved information and memory written. These are different;
+   none proves that every claim is supported. If no supporting sources were
+   recorded, the answer says so. Verify it before relying on it.
+4. **View work** opens the full summary and work history, even for older work.
+   **Save** keeps an answer in **Saved only**. Use **Show all** to return.
 
-## Getting started
+**Add document** beside the box accepts PDF, Word (.docx), TXT, Markdown, CSV,
+JSON and XLSX, up to 5 MB. Wait for the ready message before asking about it.
+Use **More → Documents & notes** to read, download, remove or add context.
+Pinning a note includes it in future agent work in this project space.
 
-1. **Sign in** with your @cloudtechgurus.com Google account.
-2. **Connect Google Workspace** — click *Capabilities* (top right), then
-   *Connect*. This lets agents read your Gmail, Drive, Sheets, and Calendar
-   *as you* — they can never do more than you can.
-3. **Check the lights** — the Capabilities panel shows a status board. Green
-   means working. If something's amber or red, tell Pete.
+## 3. Act on an answer
 
----
+1. Beside an answered question, choose **Act on this**. This selects **Act** and
+   shows the selected answer as context. It does not submit anything.
+2. Read the attached answer. Type your follow-up, for example:
+   “Draft a short checklist from this answer.” **Clear answer context** removes
+   the attachment while keeping your follow-up text.
+3. Choose **Act**. Wait for the result below. Act can create drafts or stage
+   changes using available tools. CRM changes still follow preview → Needs You
+   approval → apply. No email is ever sent by an agent.
 
-## The team — who does what
+For an unrelated action, select **Act** yourself. **Advanced options** retains
+agent selection and **Practice (Rehearse)**, which narrates without performing
+external actions. These are not needed for the four journeys.
 
-You don't need to memorize this. Type what you want in the box at the bottom
-and the system routes it to the right agent automatically.
+## 4. Answer a Needs You item
+
+1. Open **Needs you** in the header. **Mine** starts with items assigned to you
+   across every accessible project space. Owners start on **All**. **Team** shows
+   other people's or unassigned items. The badge keeps Mine for members and All
+   for owners even when the filter changes.
+2. Read the card's project name, question, full details and consequence. For the
+   local fixture, the assigned question is “Should we prepare the renewal checklist?”
+3. Choose **Answer**, type “Yes, prepare a draft checklist for review.”, then
+   **Submit answer**. Wait for acceptance; the card clears and the agent can
+   resume with your response. A failed answer remains in the form.
+4. Other card types offer **Review memory**, **Confirm still true**, **Try again**,
+   **View work**, **Mark reviewed**, **View scheduled work** or **View brief**.
+   Source links open the exact record even when it belongs to another space.
+
+**Other actions** keeps assignment, **Ask another agent** and **Dismiss** where
+available. Dismissal preserves history. View-only cards remain readable; ask the
+project owner to respond or grant edit access. Needs You refreshes on entry,
+after actions, when you return, and every 30 seconds while visible. **Refresh
+queue** checks now. Lists show the latest bounded results, not a complete archive.
+
+## Where everything lives
+
+- **Home / Needs you:** questions, actions and human review.
+- **More → Rooms:** focused deal, client or decision views. Owners create Rooms
+  and select members. Owners also preview client-safe exports before download;
+  the preview lists inclusions, exclusions and warnings.
+- **More → Memory:** search, certainty, provenance, correction and history.
+- **More → Scheduled work:** recurring instructions, consent, practice,
+  activation and results. Existing ownership and rehearsal requirements apply.
+- **More → Documents & notes / Team:** context, staffing and teammate cards.
+- **More → Advanced:** the complete visual Canvas, interpreted text/voice
+  Commands, and Activity. Team and agent details retain advanced configuration.
+- **Connections:** account access, service checks and capability limits.
+- **Spending:** today's cost and cap, with additional details and owner settings.
+- **Account:** appearance, sign out, and owner settings. **Space actions** keeps
+  creation, owner archive and restoration. The owner ledger download is an
+  operational export, not a complete restorable backup.
+- **More → Help:** a short version of the four journeys above.
+
+## The team
+
+The system selects an available agent for your request. Capabilities depend on
+staffing, access and current service checks; the list below is not a live probe.
 
 | Agent | What it's for | Example ask |
 |---|---|---|
@@ -47,150 +112,40 @@ and the system routes it to the right agent automatically.
 | **Gauge** | Looking things up in HubSpot | "What do we have on file for GE Healthcare?" |
 | **Fred / Darren / Jess** | Strategic, commercial, and operational judgment — modeled on the real leadership team | "Should we prioritize this deal? Debate it." |
 
----
 
-## How to ask
+## Memory and safety
 
-The bar at the bottom of the screen has three modes:
+- Email is draft-only. You review and send it yourself.
+- CRM changes require a preview and human approval before application.
+- Memory is append-only with authorship and sources. Corrections preserve the
+  earlier entry and link it to the replacement.
+- Certainty stays visible: **Confirmed (verified)**, **Reasoned conclusion
+  (inference)**, or **Unconfirmed (assumption)**. Shapes and provenance also remain.
+- Decisions are recorded in the current project space. Agents can retrieve its
+  memory and shared entries; decisions are not automatically copied everywhere
+  or guaranteed to appear in every future answer. Check scope and sources.
+- Actions have a tamper-evident audit trail. Runtime limits, **Pause**, and the
+  daily spending cap remain enforced. Anyone can Pause; only the owner Resumes.
+- A green service indicator comes from a recorded check, not configuration alone.
+  A failed status refresh makes current status unavailable.
 
-- **Ask** — questions and research. Safe: nothing gets changed anywhere.
-  This is the mode you'll use most.
-- **Act** — the agent is allowed to *do* things (create a doc, stage a CRM
-  change). Big actions still stop and wait for a human yes.
-- **Rehearse** — a practice run. The agent walks through what it *would* do
-  without doing any of it.
+## Recovering from a problem
 
-Just type naturally: *"Find me leads for Thursday's webinar."* The agent
-shows its work as it goes — what it checked, where the answer came from, and
-why.
+Failed reads show **Try again** or **Refresh status**. Loading or unavailable is
+not the same as empty. While live updates reconnect, work may be out of date.
+Read requests wait up to 30 seconds; submissions wait up to two minutes.
 
----
-
-## The promises the system keeps
-
-These are built in — not policies people have to remember:
-
-- **No email ever gets sent.** Agents can only create *drafts* in Gmail.
-  You review and hit send yourself.
-- **No CRM change without a human yes.** Any HubSpot change is shown to you
-  as a preview first, and only happens after you approve it.
-- **Sources stay beside the answer when recorded.** Open **Sources and details**
-  to inspect retrieved information, external references and memory written.
-  These are different kinds of evidence, and they do not prove every claim.
-  If no supporting sources were recorded, the answer says so. Verify it before acting.
-- **Every action is logged.** There's a tamper-proof audit trail of who and
-  what did everything.
-- **Spending is visible.** The cost counter in the top bar shows exactly
-  what today's usage cost, against a daily cap.
-
----
-
-## Making a decision stick
-
-This is the special part. When you make a call — say, *"Higher education is
-tier 3 from now on"* — tell any agent, or answer it when an agent asks. The
-decision is recorded with your name and source in the current project space.
-Agents can retrieve that space’s memory and shared entries. A decision is not
-automatically copied into every other space or guaranteed to appear in every
-answer. Check its scope and sources before relying on it elsewhere.
-
-The **Memory** panel shows what the system knows. Each entry is labeled by
-how sure it is: *verified* (confirmed fact), *inference* (reasoned
-conclusion), or *assumption* (unconfirmed). Agents carry those labels
-honestly — they never dress up a guess as a fact.
-
----
-
-## "Needs you" — when something wants a human
-
-Sometimes an agent hits a genuine decision only a person can make. That
-shows up under **Needs you** with a number badge.
-
-- **Mine** starts with items assigned to you across every project space you
-  can access. The owner starts on **All**. **Team** shows other people’s or
-  unassigned items. The header badge keeps your Mine count (All for owners),
-  even when you change the filter. The server returns bounded lists of latest
-  items; this is not a complete archive of all past work.
-- Each card names its project space and shows the decision and context.
-  Choose **Answer**, type your decision, then **Submit answer**. Wait for
-  acceptance; the card clears and the agent can resume with that response.
-  If it cannot be saved, your answer stays in the form with **Check status**.
-  Do not resubmit an unconfirmed answer before checking the queue.
-- **Other actions** contains **Ask another agent**, assignment and **Dismiss**,
-  where available. Dismissal preserves history. **Review memory**, **View work**
-  and **View scheduled work** open the exact source, even in another space.
-  View-only cards remain readable; ask the owner to respond.
-
-If a card looks technical or confusing, it's Pete's — leave it or tell him.
-
----
-
-## Rooms — one place per deal
-
-A **Room** is a focused workspace for one deal, client, or decision. It
-gathers everything the system knows about that one thing — the people, the
-evidence, the open work, the decisions — with sources and freshness on every
-fact. Create one when a deal gets serious; pick the teammates who should see
-it when you create it.
-
-Rooms can also produce a **client-safe export** — a shareable summary that
-automatically leaves out internal notes, assumptions, and anything private.
-
----
-
-## Tips
-
-- **Be specific.** "Find leads for Thursday's webinar" beats "find leads."
-- **Attach the file** when your ask is about a list or a document.
-- **Zero results is a real answer.** An agent saying "nothing matched, here's
-  what I searched" is doing its job — not failing.
-- **Give it a URL and Scout can read the page directly** — no need to hope
-  a search finds it.
-- **Costs pennies.** A typical research ask costs a few cents. The counter
-  up top keeps everyone honest.
-
-## Questions or something looks wrong?
-
-Tell Pete. The system logs everything, so "it did something weird at 3pm"
-is genuinely enough to go on.
-
-## If the page cannot connect
-
-A failed check stays visible with a **Try again** or **Refresh status** action.
-A connection failure does not mean there are no answers or review items. While
-live updates reconnect, displayed work may be out of date; use **Refresh status**.
-If your session expires, copy any unsaved text before choosing **Sign in again**.
-
-Opening data waits up to 30 seconds. Sending a change waits up to two minutes.
 If a change is **not confirmed**, it may already have reached the server. Choose
-**Check status** and inspect the saved result before submitting again.
-The app never automatically repeats the change.
+**Check status**, inspect the saved result, and only then decide whether to
+submit again. The app never automatically repeats a change.
 
-In **Capabilities**, a connected account means access was granted, not that every
-service is working. Use **Check now** beside a service; failed checks cannot show
-a current green light. Unavailable spending or pause status is shown as unknown.
-Appearance and sign-out failures stay visible; sign-out is only confirmed after
-the server accepts it.
+Failed notes, instructions, corrections and budget edits retain their inputs.
+Use **Retry save** after a confirmed note failure. Note, inquiry, command and
+correction drafts survive view changes while the workspace stays open; they
+are not saved server records. Copy unsaved text before reload or sign-out.
+A failed upload retains the file for **Retry upload**; use **Check documents**
+for an unconfirmed upload before choosing the file again.
 
-## Saved work and drafts
-
-Use **View work** beside an answer to reopen its summary, sources, history and
-feedback, including older work whose agent is no longer active. **Refresh work**
-checks its current state. A sources or events failure offers **Try again** and
-does not mean there were no sources or events.
-
-If a note, instruction, correction or budget change fails, its input stays in
-place. **Retry save** retries a confirmed failure; **Check status** reads saved
-work when acceptance is uncertain. Note, inquiry and correction drafts survive
-closing a panel or changing views while this workspace remains open. They are
-not saved drafts until accepted by the server; reloading or signing out loses
-unsaved text. View-only spaces show readable work without editing controls.
-
-A failed document upload keeps the file available for **Retry upload**. If it is
-not confirmed, use **Check documents** before uploading again. A missing team
-list must be reloaded before creating a new project space.
-
-Needs You refreshes when opened, after actions, when you return to the window,
-and every 30 seconds while the page is visible. **Refresh queue** checks now.
-“Loading” or “could not be completed” does not mean the queue is empty. Older
-items remain reachable through their source history, subject to server list limits.
+Theme and sign-out failures stay visible. Sign-out is confirmed only after server
+acceptance. If a session expires, copy unsaved text and choose **Sign in again**.
+Give Pete the project name, action and approximate time if recovery does not help.

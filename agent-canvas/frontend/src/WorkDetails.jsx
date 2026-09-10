@@ -1,3 +1,4 @@
+import { certaintyLabel, workStatusLabel } from './format.jsx';
 import React, { useEffect, useState } from 'react';
 import { api, fmtUSD, fmtClock } from './api.js';
 import { Panel, ContextReceipt } from './Panels.jsx';
@@ -25,7 +26,7 @@ export default function WorkDetails({ canvasId, runId, runTick, fallbackRun, fet
     {receiptState.loading ? <p role="status">Loading work details…</p> : null}
     {receiptState.error && run ? <p>Last known work is shown below. Its current status is unavailable.</p> : null}
     {run ? <>
-      <div className="run-detail-head"><span className="chip">{String(run.status).replaceAll('_', ' ')}</span><span>{run.steps_used}/{run.step_budget} steps · {fmtUSD(run.cost_usd)}</span></div>
+      <div className="run-detail-head"><span className="chip">{workStatusLabel(run.status)}</span><span>{run.steps_used}/{run.step_budget} steps · {fmtUSD(run.cost_usd)}</span></div>
       <p className="run-detail-instr">{run.instruction}</p>
       {run.summary ? <SummaryMarkdown text={formatContractTail(run.summary, 'humanize')} /> : <p>No summary has been recorded yet.</p>}
       {run.error ? <div role="alert">This work did not finish. Review the details, then narrow the request or try again.<details><summary>Technical details</summary>{run.error}</details></div> : null}

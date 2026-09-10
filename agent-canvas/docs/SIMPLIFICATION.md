@@ -18,7 +18,7 @@ update USER-GUIDE.md and HANDOFF.md in the same commit. No deployment.
 | 2 | App, api, Workspace, CapabilitiesModal, status helpers, styles | Startup/auth/config/timeout/malformed responses, reconnect, probes, pause/budget, theme/logout recovery | Verified locally |
 | 3 | Home, Panels, MemoryPanel, ExplainMap, Workspace, AddAgentModal, work details | Retained drafts, failed evidence/events/history, old runs, context races | Verified locally |
 | 4 | Workspace, NeedsYouView, Tray, MemoryPanel, work details | Six card types, global scopes, permission/conflict failures, pending guards, source navigation, legacy fallback | Verified locally |
-| 5 | Workspace, Home, CommandBar, AddAgentModal, Nodes, format, header/context presentation, styles | Single Ask composer, Act on this, full control reachability, fresh boot, keyboard and responsive layouts | Planned |
+| 5 | Workspace, Home, CommandBar, AddAgentModal, Nodes, format, header/context presentation, styles | Single Ask composer, Act on this, full control reachability, fresh boot, keyboard and responsive layouts | Verified locally |
 | 6A | RoomsView, helpers, styles, tests | List/detail/lens/activity failures, refresh progress, export lifecycle, permissions | Planned |
 | 6B | RulesView, AgentBuilder, helpers, styles, tests | Consent, saves, polling, rehearsal and publication gates, expiry | Planned |
 | 6C | AdminModal, ActivityDock, Spending, styles, tests | Failed tables, retained edits, partial reorder, serialized connector edits, permissions | Planned |
@@ -192,3 +192,18 @@ and Help with the four guide journeys. These add no server capability.
 
   Phase 4 full gate: 433 backend / 142 frontend tests, build and preflight
   passed; both production audits clean. No deployment.
+
+- Phase 5: simplified-workspace tests verify one default composer, Ask default,
+  visible/removable Act on this context without automatic submission, retained
+  commands/practice/cancel, keyboard purpose selection and reachable navigation.
+  Existing cleanup tests follow Documents & notes, the team dropdown and owner
+  space actions while retaining all mutation and safety assertions. Workspace
+  presentation is split into WorkspaceHeader and ContextViews; state ownership
+  and feature flags remain in Workspace.
+
+  Phase 5 full gate: 433 backend / 148 frontend tests, build and preflight
+  passed; both production audits clean. Desktop and mobile evidence:
+  [desktop](screenshots/phase5-desktop.png), [mobile](screenshots/phase5-mobile.png).
+  The 768px layout was also inspected. A fast-completion regression test verifies
+  that the POST snapshot cannot leave an already completed answer working.
+  Live teammate presence remains reachable in Team. No deployment.
