@@ -1,0 +1,94 @@
+import React from 'react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import NeedsYouView from '../src/NeedsYouView.jsx';
+import Tray from '../src/Tray.jsx';
+
+const escalation = { type: 'escalation', decision: 'Approve the draft?', canvasName: 'Renewals', owner: { email: 'me@example.com' }, sourceRef: { canvasId: 'c2', id: 'e2' }, contextData: { before: 'Existing value', after: 'Proposed value' } };
+const base = { rows: [escalation], agentsById: {}, people: [], agents: [], userEmail: 'me@example.com', defaultScope: 'mine' };
+
+it('keeps full decision context visible and blocks duplicate answers while pending', async () => {
+  let finish;
+  const resolve = vi.fn(() => new Promise((done) => { finish = done; }));
+  render(<NeedsYouView {...base} onResolveEscalation={resolve} />);
+  expect(screen.getByText(/Existing value/)).toHaveTextContent('Proposed value');
+  await userEvent.click(screen.getByRole('button', { name: 'Answer' }));
+  await userEvent.type(screen.getByLabelText('Your answer'), 'Approved as shown');
+  await userEvent.dblClick(screen.getByRole('button', { name: 'Submit answer' }));
+  expect(resolve).toHaveBeenCalledTimes(1);
+  expect(resolve).toHaveBeenCalledWith('e2', { action: 'accept', answer: 'Approved as shown' });
+  expect(screen.getByRole('button', { name: 'Submit answer' })).toBeDisabled();
+  await act(async () => finish());
+  expect(screen.queryByLabelText('Your answer')).not.toBeInTheDocument();
+});
+
+it.each([403, 409])('retains the answer after status %i and refreshes authoritative state', async (status) => {
+  const refresh = vi.fn();
+  render(<NeedsYouView {...base} onResolveEscalation={vi.fn().mockRejectedValue(Object.assign(new Error('changed'), { status }))} onRefresh={refresh} />);
+  await userEvent.click(screen.getByRole('button', { name: 'Answer' }));
+  await userEvent.type(screen.getByLabelText('Your answer'), 'Keep my answer');
+  await userEvent.click(screen.getByRole('button', { name: 'Submit answer' }));
+  await screen.findByRole('alert');
+  expect(screen.getByLabelText('Your answer')).toHaveValue('Keep my answer');
+  expect(refresh).toHaveBeenCalled();
+});
+
+it('checks status instead of resending an unconfirmed answer', async () => {
+  const resolve = vi.fn().mockRejectedValue(Object.assign(new Error('timed out'), { unconfirmed: true }));
+  const refresh = vi.fn();
+  render(<NeedsYouView {...base} onResolveEscalation={resolve} onRefresh={refresh} />);
+  await userEvent.click(screen.getByRole('button', { name: 'Answer' }));
+  await userEvent.type(screen.getByLabelText('Your answer'), 'Keep my answer');
+  await userEvent.click(screen.getByRole('button', { name: 'Submit answer' }));
+  await screen.findByRole('alert');
+  await userEvent.click(screen.getByRole('button', { name: 'Check status' }));
+  expect(resolve).toHaveBeenCalledTimes(1);
+  expect(refresh).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('button', { name: 'Submit answer' })).toBeDisabled();
+});
+
+it('loads assignment choices from the card project rather than the selected project', async () => {
+  const load = vi.fn().mockResolvedValue({ agents: [{ id: 'other', name: 'Other project agent' }], people: [{ id: 'p', email: 'reviewer@example.com' }] });
+  const assign = vi.fn();
+  render(<NeedsYouView {...base} agents={[{ id: 'wrong', name: 'Wrong project agent' }]} loadContext={load} onAssign={assign} />);
+  await userEvent.click(screen.getByText('Other actions'));
+  await screen.findByRole('option', { name: 'Other project agent (agent)' });
+  expect(load).toHaveBeenCalledWith('c2');
+  expect(screen.queryByRole('option', { name: 'Wrong project agent (agent)' })).not.toBeInTheDocument();
+  await userEvent.selectOptions(screen.getByLabelText('Assign this item'), 'p:reviewer@example.com');
+  expect(assign).toHaveBeenCalledWith('e2', { owner_email: 'reviewer@example.com' });
+});
+
+it('preserves every projected card action and its original source reference', async () => {
+  const types = ['conflict', 'overdue_review', 'failed_run', 'rule_alert', 'brief_ready'];
+  const rows = types.map((type) => ({ ...escalation, type, decision: type, contextData: null, sourceRef: { id: type, canvasId: 'c2', ruleId: `rule-${type}`, secondId: 'second' }, dismissKey: ['conflict', 'overdue_review', 'failed_run'].includes(type) ? type : null }));
+  const memory = vi.fn(), run = vi.fn(), retry = vi.fn(), extend = vi.fn(), ack = vi.fn(), rule = vi.fn(), dismiss = vi.fn();
+  render(<NeedsYouView {...base} rows={rows} onOpenMemory={memory} onOpenRun={run} onRetryRun={retry} onExtendReview={extend} onAcknowledgeRuleRun={ack} onOpenRule={rule} onDismiss={dismiss} />);
+  await userEvent.click(screen.getAllByRole('button', { name: 'Review memory' })[0]);
+  expect(memory).toHaveBeenCalledWith(rows[0].sourceRef);
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm still true' }));
+  expect(extend).toHaveBeenCalledWith(rows[1].sourceRef);
+  await userEvent.click(screen.getByRole('button', { name: 'View work' }));
+  expect(run).toHaveBeenCalledWith(rows[2].sourceRef);
+  await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+  expect(retry).toHaveBeenCalledWith(rows[2].sourceRef);
+  await userEvent.click(screen.getAllByRole('button', { name: 'Mark reviewed' })[0]);
+  expect(ack).toHaveBeenCalledWith(rows[3].sourceRef);
+  await userEvent.click(screen.getByRole('button', { name: 'View brief' }));
+  expect(rule).toHaveBeenCalledWith(rows[4].sourceRef);
+  await userEvent.click(screen.getAllByText('Other actions')[0]);
+  await userEvent.click(screen.getAllByRole('button', { name: 'Dismiss' })[0]);
+  expect(dismiss).toHaveBeenCalledWith(rows[0]);
+});
+
+it('retains legacy review controls and shows unknown instead of an empty tray', async () => {
+  const view = render(<Tray escalations={[]} agentsById={{}} agents={[]} loadStatus={{ error: new Error('offline') }} onRefresh={vi.fn()} />);
+  expect(screen.queryByText('Nothing needs you')).not.toBeInTheDocument();
+  view.rerender(<Tray escalations={[{ id: 'e1', question: 'Legacy question' }]} agentsById={{}} agents={[]} onResolve={vi.fn().mockRejectedValue(new Error('offline'))} onRefresh={vi.fn()} />);
+  await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
+  await userEvent.type(screen.getByRole('textbox'), 'Legacy answer');
+  await userEvent.click(screen.getByRole('button', { name: 'Send decision' }));
+  await screen.findByRole('alert');
+  expect(screen.getByRole('textbox')).toHaveValue('Legacy answer');
+});

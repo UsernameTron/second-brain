@@ -106,11 +106,20 @@ honestly — they never dress up a guess as a fact.
 Sometimes an agent hits a genuine decision only a person can make. That
 shows up under **Needs you** with a number badge.
 
-- By default you only see items that are *yours*. (The owner sees
-  everything.) Click **All** to see the rest.
-- Each card tells you what's stuck, why it matters, and what your options
-  are. Answer it and the agent picks up right where it left off.
-- **Dismiss** hides a card that doesn't need action — nothing is deleted.
+- **Mine** starts with items assigned to you across every project space you
+  can access. The owner starts on **All**. **Team** shows other people’s or
+  unassigned items. The header badge keeps your Mine count (All for owners),
+  even when you change the filter. The server returns bounded lists of latest
+  items; this is not a complete archive of all past work.
+- Each card names its project space and shows the decision and context.
+  Choose **Answer**, type your decision, then **Submit answer**. Wait for
+  acceptance; the card clears and the agent can resume with that response.
+  If it cannot be saved, your answer stays in the form with **Check status**.
+  Do not resubmit an unconfirmed answer before checking the queue.
+- **Other actions** contains **Ask another agent**, assignment and **Dismiss**,
+  where available. Dismissal preserves history. **Review memory**, **View work**
+  and **View scheduled work** open the exact source, even in another space.
+  View-only cards remain readable; ask the owner to respond.
 
 If a card looks technical or confusing, it's Pete's — leave it or tell him.
 
@@ -180,3 +189,8 @@ unsaved text. View-only spaces show readable work without editing controls.
 A failed document upload keeps the file available for **Retry upload**. If it is
 not confirmed, use **Check documents** before uploading again. A missing team
 list must be reloaded before creating a new project space.
+
+Needs You refreshes when opened, after actions, when you return to the window,
+and every 30 seconds while the page is visible. **Refresh queue** checks now.
+“Loading” or “could not be completed” does not mean the queue is empty. Older
+items remain reachable through their source history, subject to server list limits.

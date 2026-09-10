@@ -4,7 +4,7 @@ import { api, rulesApi, wsUrl, normEsc, normHandoff, fmtUSD, fmtBytes, initials 
 import Canvas from './Canvas.jsx';
 import { DraftsContext } from './Drafts.jsx';
 import WorkDetails from './WorkDetails.jsx';
-import { RequestError } from './RequestState.jsx';
+import { RequestError, useResource } from './RequestState.jsx';
 import Tray from './Tray.jsx';
 import ActivityDock from './ActivityDock.jsx';
 import CommandBar from './CommandBar.jsx';
@@ -83,7 +83,11 @@ export default function Workspace() {
   const [showSuperseded, setShowSuperseded] = useState(false);
   const [activity, setActivity] = useState([]);
   const [escalations, setEscalations] = useState([]);
-  const [attention, setAttention] = useState(null); // P2 NEEDS YOU projection (current canvas)
+  const [attention, setAttention] = useState(null); // Global, server-scoped queue
+  const [attentionScope, setAttentionScope] = useState(isOwner ? 'all' : 'mine');
+  const attentionScopeRef = useRef(attentionScope);
+  attentionScopeRef.current = attentionScope;
+  const [badgeAttention, setBadgeAttention] = useState(null);
   const [spend, setSpend] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [budget, setBudget] = useState(null);
@@ -228,20 +232,35 @@ export default function Workspace() {
     });
   }, [readResource]);
 
-  // P2: the attention projection for the current canvas (badge + NEEDS YOU
-  // view share this one fetch). Failure never blocks the escalation tray.
-  const loadAttention = useCallback(async () => {
-    const cid = canvasIdRef.current;
-    if (!cid) return;
-    try {
-      await readResource('attention', cid, () => api(`/api/attention?canvas_id=${encodeURIComponent(cid)}`), (d) => setAttention(d.attention || []));
-    } catch { /* persistent state is rendered below */ }
-  }, [readResource]);
+  const loadAttention = useCallback(async (scope = attentionScopeRef.current) => {
+    const badgeScope = isOwner ? 'all' : 'mine';
+    const queueRead = api(`/api/attention?scope=${scope}`);
+    const badgeRead = scope === badgeScope ? queueRead : api(`/api/attention?scope=${badgeScope}`);
+    await Promise.allSettled([
+      readResource('attention', null, () => queueRead, (d) => setAttention(d.attention || [])),
+      readResource('attention badge', null, () => badgeRead, (d) => setBadgeAttention(d.attention || [])),
+    ]);
+  }, [isOwner, readResource]);
+  const changeAttentionScope = useCallback((scope) => {
+    attentionScopeRef.current = scope;
+    setAttentionScope(scope); setAttention(null); loadAttention(scope);
+  }, [loadAttention]);
+  const loadAttentionContext = useCallback((cid) => api(`/api/canvases/${cid}`), []);
+  useEffect(() => {
+    loadAttention();
+    const tick = () => { if (document.visibilityState !== 'hidden') loadAttention(); };
+    const timer = setInterval(tick, 30_000);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(timer); window.removeEventListener('focus', tick); document.removeEventListener('visibilitychange', tick); };
+  }, [loadAttention]);
+  useEffect(() => { if (view === 'needsyou') loadAttention(); }, [view, loadAttention]);
 
   const refreshAll = useCallback(() => {
     setRunTick((n) => n + 1);
     loadControl().catch(() => {});
     refreshHealth();
+    loadAttention();
     const cid = canvasIdRef.current;
     if (!cid) return;
     Promise.allSettled([
@@ -363,7 +382,6 @@ export default function Workspace() {
       setShowSuperseded(false);
       setActivity([]);
       setEscalations([]);
-      setAttention(null);
       setSpend(null);
       setAnalytics(null);
       setPresence([]);
@@ -381,11 +399,10 @@ export default function Workspace() {
       return;
     }
     canvasIdRef.current = canvasId;
-    setRequests((r) => ({ control: r.control, spaces: r.spaces }));
+    setRequests((r) => ({ control: r.control, spaces: r.spaces, attention: r.attention, 'attention badge': r['attention badge'] }));
     setState(null); setMemory([]); setActivity([]); setSpend(null); setAnalytics(null);
     setEscalations([]); setPresence([]); setRunTick(0);
     setFileUpload({ kind: 'idle', message: '' });
-    setAttention(null); // stale cards carry old-canvas sourceRefs — never keep them across a switch
     setCursors({}); setSelections({}); setPanel(null); setMySelection(null);
     setRuleFocusId(null); setRipple(null); setAmberAgents(new Set()); setHoverHandoffId(null);
     refreshAll();
@@ -615,10 +632,10 @@ export default function Workspace() {
     try {
       await api(`/api/escalations/${id}/assign`, { method: 'POST', body });
       loadEscalations().catch(() => {});
-      loadAttention();
+      await loadAttention();
       toast('Assigned', 'ok');
     } catch (e) {
-      setActionError(e);
+      throw e;
     }
   }, [loadEscalations, loadAttention, toast]);
 
@@ -649,9 +666,9 @@ export default function Workspace() {
     try {
       await api(`/api/canvases/${sourceRef.canvasId}/runs/${sourceRef.id}/retry`, { method: 'POST', body: {} });
       toast('Retry dispatched', 'ok');
-      loadAttention();
+      await loadAttention();
     } catch (e) {
-      setActionError(e);
+      throw e;
     }
   }, [loadAttention, toast]);
 
@@ -660,9 +677,9 @@ export default function Workspace() {
     try {
       await rulesApi.acknowledge(sourceRef.id);
       toast('Acknowledged', 'ok');
-      loadAttention();
+      await loadAttention();
     } catch (e) {
-      setActionError(e);
+      throw e;
     }
   }, [loadAttention, toast]);
 
@@ -673,9 +690,9 @@ export default function Workspace() {
     try {
       await api(`/api/canvases/${sourceRef.canvasId}/memory/${sourceRef.id}/reaffirm`, { method: 'POST', body: { review_at: reviewAt } });
       toast('Re-affirmed — review pushed 30 days', 'ok');
-      loadAttention();
+      await loadAttention();
     } catch (e) {
-      setActionError(e);
+      throw e;
     }
   }, [loadAttention, toast]);
 
@@ -685,9 +702,9 @@ export default function Workspace() {
     try {
       await api('/api/attention/dismiss', { method: 'POST', body: { canvas_id: row.sourceRef.canvasId, key: row.dismissKey } });
       toast('Dismissed', 'ok');
-      loadAttention();
+      await loadAttention();
     } catch (e) {
-      setActionError(e);
+      throw e;
     }
   }, [loadAttention, toast]);
 
@@ -695,11 +712,12 @@ export default function Workspace() {
     try {
       await api(`/api/escalations/${id}/resolve`, { method: 'POST', body });
       markEscalationLeaving(id);
+      await loadAttention();
       toast(body.action === 'dismiss' ? 'Dismissed' : 'Decision sent back to the agent', 'ok');
     } catch (e) {
-      setActionError(e);
+      throw e;
     }
-  }, [markEscalationLeaving, toast]);
+  }, [markEscalationLeaving, loadAttention, toast]);
 
   const saveNote = useCallback(async (note, draft) => {
     const cid = canvasIdRef.current;
@@ -1039,15 +1057,14 @@ export default function Workspace() {
   // ---------- render ----------
   const visiblePresence = canvasId ? presence : [];
   const visibleAgents = canvasId ? (state?.agents || []) : [];
-  // Members see only what is theirs by default — unowned technical
-  // escalations are the owner's noise, not the team's. Same predicate as the
-  // Mine scope in NeedsYouView and server/attention.js.
-  const badgeRows = isOwner
-    ? (attention || [])
-    : (attention || []).filter((r) => r.owner.email && r.owner.email.toLowerCase() === String(user.email).toLowerCase());
-  const visibleAttentionCount = canvasId
-    ? (needsYouOn ? (attention === null || requests.attention?.error ? '—' : badgeRows.length) : (requests.review?.error ? '—' : openEscalations.length))
-    : 0;
+  const badgeRows = badgeAttention || [];
+  const visibleAttentionCount = needsYouOn
+    ? (badgeAttention === null || requests['attention badge']?.error ? '—' : badgeRows.length)
+    : (requests.review?.error ? '—' : openEscalations.length);
+  const globalRows = attention?.map((row) => {
+    const space = canvases.find((c) => c.id === row.sourceRef.canvasId);
+    return { ...row, canvasName: space?.name || 'Project space', access: space?.access || 'view' };
+  }) ?? null;
   let sidePanel = null;
   if (canvasId && panel && state) {
     if (panel.type === 'agent' && agentsById[panel.id]) {
@@ -1345,13 +1362,13 @@ export default function Workspace() {
             {view === 'home' ? 'Canvas' : 'Home'}
           </button>
         ) : null}
-        {canvasId && state && needsYouOn ? (
+        {needsYouOn ? (
           <button
             className={`btn ghost ny-btn ${view === 'needsyou' ? 'active' : ''}`}
             onClick={() => setView(view === 'needsyou' ? 'canvas' : 'needsyou')}
             title="Everything waiting on a human — escalations, conflicts, overdue reviews, failed runs, alerts, and briefs"
           >
-            Needs you{badgeRows.length ? <span className="tray-badge">{badgeRows.length}</span> : null}
+            Needs you{visibleAttentionCount !== 0 ? <span className="tray-badge">{visibleAttentionCount}</span> : null}
           </button>
         ) : null}
         {roomsOn ? (
@@ -1446,7 +1463,7 @@ export default function Workspace() {
               key={canvasId}
               editable={state.access !== 'view'}
               canvasId={canvasId}
-              agents={state.agents || []}
+              agents={state?.agents || []}
               agentsById={agentsById}
               paused={pause.paused}
               runTick={runTick}
@@ -1454,23 +1471,28 @@ export default function Workspace() {
               toast={toast}
             />
           ) : null}
-          {canvasId && state && view === 'needsyou' ? (
+          {view === 'needsyou' && needsYouOn ? (
             <NeedsYouView
-              rows={attention}
+              rows={globalRows}
+              scope={attentionScope}
+              onScopeChange={changeAttentionScope}
+              loadStatus={requests.attention}
+              onRefresh={() => loadAttention()}
+              loadContext={loadAttentionContext}
               userEmail={user.email}
               defaultScope={isOwner ? 'all' : 'mine'}
               agentsById={agentsById}
-              people={state.people || []}
-              agents={state.agents || []}
-              onResolveEscalation={(id, body) => resolveEscalation(id, body).then(() => loadAttention())}
+              people={state?.people || []}
+              agents={state?.agents || []}
+              onResolveEscalation={resolveEscalation}
               onAssign={assignEscalation}
-              onOpenMemory={() => setPanel({ type: 'memory' })}
-              onOpenRun={(ref) => { setView('canvas'); openRun(ref.id); }}
+              onOpenMemory={(ref) => setPanel({ type: 'memory-source', canvasId: ref.canvasId, entryId: ref.id, secondId: ref.secondId })}
+              onOpenRun={(ref) => openRun(ref.id, ref.canvasId)}
               onRetryRun={retryRun}
               onExtendReview={extendReview}
               onAcknowledgeRuleRun={acknowledgeRuleRun}
               onDismiss={dismissAttention}
-              onOpenRule={rulesOn ? (ref) => { setRuleFocusId(ref.ruleId); setView('rules'); } : null}
+              onOpenRule={rulesOn ? (ref) => { setPanel({ type: 'rule-source', canvasId: ref.canvasId, ruleId: ref.ruleId }); } : null}
             />
           ) : null}
           {view === 'rooms' ? (
@@ -1487,11 +1509,11 @@ export default function Workspace() {
           ) : null}
           {canvasId && state && view !== 'home' && view !== 'needsyou' && view !== 'rooms' && view !== 'rules' ? (
             <Canvas
-              agents={state.agents || []}
+              agents={state?.agents || []}
               notes={state.notes || []}
               tasks={state.tasks || []}
               files={state.files || []}
-              people={state.people || []}
+              people={state?.people || []}
               canvasId={canvasId}
               handoffs={handoffs}
               memoryMap={memoryMap}
@@ -1537,19 +1559,24 @@ export default function Workspace() {
             <Tray
               escalations={openEscalations}
               agentsById={agentsById}
-              agents={state.agents || []}
-              people={state.people || []}
+              agents={state?.agents || []}
+              people={state?.people || []}
               onResolve={resolveEscalation}
               onAssign={assignEscalation}
+              loadStatus={needsYouOn ? requests.attention : requests.review}
+              onRefresh={needsYouOn ? () => loadAttention() : () => loadEscalations().catch(() => {})}
               badgeOnly={needsYouOn}
-              badgeCount={needsYouOn ? (requests.attention?.error || attention === null ? '—' : badgeRows.length) : null}
+              badgeCount={needsYouOn ? visibleAttentionCount : null}
               onOpen={() => setView('needsyou')}
             />
           ) : null}
 
           {panel?.type === 'work' ? <WorkDetails key={`${panel.canvasId}:${panel.runId}`} canvasId={panel.canvasId} runId={panel.runId} runTick={runTick}
             onClose={() => setPanel(null)} onSelectRun={(id) => openRun(id, panel.canvasId)}
-            onSelectEntry={(id) => setPanel({ type: 'memory', entryId: id })} /> : sidePanel}
+            onSelectEntry={(id) => setPanel({ type: 'memory-source', canvasId: panel.canvasId, entryId: id })} />
+            : panel?.type === 'memory-source' ? <MemorySource key={`${panel.canvasId}:${panel.entryId}`} source={panel} onOpenRun={openRun} onClose={() => setPanel(null)} toast={toast} />
+            : panel?.type === 'rule-source' ? <div className="source-rule-panel"><button className="btn small" onClick={() => setPanel(null)}>Close scheduled work</button><RulesView user={user} canvasId={panel.canvasId} agents={[]} toast={toast} focusRuleId={panel.ruleId} /></div>
+            : sidePanel}
 
           {canvasId && state ? (
             <CommandBar paused={pause.paused} onParse={parseIntent} onConfirm={confirmIntent} toast={toast} />
@@ -1719,4 +1746,21 @@ function ArchivedModal({ archivedCanvases, restoreCanvas, onClose }) {
       </div>
     </div>
   );
+}
+
+// Source navigation does not change the active project or borrow its edit rights.
+function MemorySource({ source, onOpenRun, onClose, toast }) {
+  const resource = useResource(async () => {
+    const [space, memory] = await Promise.all([api(`/api/canvases/${source.canvasId}`), api(`/api/canvases/${source.canvasId}/memory?include_superseded=1`)]);
+    return { space, entries: memory.entries };
+  }, source.canvasId);
+  const [showHistory, setShowHistory] = useState(true);
+  return <MemoryPanel entries={(resource.data?.entries || []).filter((e) => showHistory || !e.supersededBy)}
+    agentsById={Object.fromEntries((resource.data?.space.agents || []).map((a) => [a.id, a]))}
+    initialEntryId={source.entryId} secondEntryId={source.secondId} showSuperseded={showHistory} onToggleSuperseded={() => setShowHistory((s) => !s)}
+    loadStatus={resource} onRefresh={resource.refresh} onOpenRun={(id) => onOpenRun(id, source.canvasId)}
+    onCorrect={resource.data?.space.access !== 'view' && resource.data ? async (id, body) => {
+      await api(`/api/canvases/${source.canvasId}/memory/${id}/correct`, { method: 'POST', body });
+      await resource.refresh();
+    } : null} onClose={onClose} toast={toast} />;
 }

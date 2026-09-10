@@ -36,3 +36,9 @@ test('the owner defaulted to all sees everything, including unowned noise', () =
   expect(screen.getByText('Quill could not finish the rewrite.')).toBeInTheDocument();
   expect(screen.getByText('Approve the Q3 pricing change.')).toBeInTheDocument();
 });
+
+test('a failed queue never reports a verified empty queue', () => {
+  render(<NeedsYouView {...baseProps} rows={[]} loadStatus={{ error: new Error('offline') }} onRefresh={noop} />);
+  expect(screen.getByRole('alert')).toHaveTextContent('Loading Needs You could not be completed');
+  expect(screen.queryByText(/Nothing needs/)).not.toBeInTheDocument();
+});

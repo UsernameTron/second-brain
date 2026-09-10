@@ -82,7 +82,7 @@ function installApi() {
     if (path === '/api/canvases/c1/spend') return Promise.resolve({ daily: BUDGET, perAgent: [] });
     if (path === '/api/canvases/c1/analytics') return Promise.resolve({});
     if (path === '/api/escalations') return Promise.resolve({ escalations: [] });
-    if (path === '/api/attention?canvas_id=c1') return Promise.resolve({ attention: [] });
+    if (path.startsWith('/api/attention?scope=')) return Promise.resolve({ attention: [] });
     if (path === '/api/canvases/c1/notes' && opts.method === 'POST') {
       const created = note({ id: 'n-new', title: opts.body.title, content: '', pinned: 0, x: opts.body.x, y: opts.body.y });
       notes.push(created);
@@ -431,7 +431,7 @@ describe('user-facing canvas cleanup', () => {
     expect(screen.queryByLabelText('Canvas contents')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open note Old canvas note' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Home' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Needs you' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Needs you' })).toBeInTheDocument(); // global queue stays reachable; archived records were cleared
     expect(screen.queryByRole('button', { name: 'Rules' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Memory' })).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/Tell an agent what to do/i)).not.toBeInTheDocument();
@@ -493,5 +493,32 @@ describe('workspace status recovery', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     await screen.findByText('Updating your workspace could not be completed. Check your connection and try again.');
     expect(screen.getByRole('button', { name: '+ Note' })).toBeInTheDocument();
+  });
+});
+
+describe('global Needs You routing', () => {
+  it('loads server-side scope across spaces and keeps the personal badge independent', async () => {
+    canvasList = [{ id: 'c1', name: 'Customer work', access: 'edit' }, { id: 'c2', name: 'Renewals', access: 'edit' }];
+    const normal = api.getMockImplementation();
+    const make = (id, cid, email) => ({ type: 'escalation', decision: `Question ${id}`, owner: { email }, sourceRef: { id, canvasId: cid } });
+    api.mockImplementation((path, opts) => {
+      if (path === '/api/attention?scope=mine') return Promise.resolve({ attention: [make('mine-one', 'c1', USER.email), make('mine-two', 'c2', USER.email)] });
+      if (path === '/api/attention?scope=team') return Promise.resolve({ attention: [make('team-one', 'c2', 'other@example.com')] });
+      if (path === '/api/attention?scope=all') return Promise.resolve({ attention: [make('all-one', 'c2', 'other@example.com')] });
+      return normal(path, opts);
+    });
+    renderWorkspace({ config: { needsYou: true } });
+    await screen.findByRole('button', { name: '+ Note' });
+    await userEvent.click(screen.getByRole('button', { name: 'Needs you2' }));
+    await screen.findByText('Question mine-two');
+    expect(screen.getByText('Renewals', { selector: '.chip' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Team' }));
+    await screen.findByText('Question team-one');
+    expect(screen.getByRole('button', { name: 'Needs you2' })).toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith('/api/attention?scope=team');
+    expect(api.mock.calls.some(([path]) => path.startsWith('/api/attention?canvas_id='))).toBe(false);
+    await userEvent.click(screen.getByRole('tab', { name: 'All' }));
+    await screen.findByText('Question all-one');
+    expect(api).toHaveBeenCalledWith('/api/attention?scope=all');
   });
 });

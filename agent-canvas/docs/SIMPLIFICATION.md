@@ -17,7 +17,7 @@ update USER-GUIDE.md and HANDOFF.md in the same commit. No deployment.
 | 1 | Root package manifests; this inventory; documentation index | Compatible XML/request parser fixes; both audits; full gate | Verified locally |
 | 2 | App, api, Workspace, CapabilitiesModal, status helpers, styles | Startup/auth/config/timeout/malformed responses, reconnect, probes, pause/budget, theme/logout recovery | Verified locally |
 | 3 | Home, Panels, MemoryPanel, ExplainMap, Workspace, AddAgentModal, work details | Retained drafts, failed evidence/events/history, old runs, context races | Verified locally |
-| 4 | Workspace, NeedsYouView, Tray, MemoryPanel, work details | Six card types, global scopes, permission/conflict failures, pending guards, source navigation, legacy fallback | Planned |
+| 4 | Workspace, NeedsYouView, Tray, MemoryPanel, work details | Six card types, global scopes, permission/conflict failures, pending guards, source navigation, legacy fallback | Verified locally |
 | 5 | Workspace, Home, CommandBar, AddAgentModal, Nodes, format, header/context presentation, styles | Single Ask composer, Act on this, full control reachability, fresh boot, keyboard and responsive layouts | Planned |
 | 6A | RoomsView, helpers, styles, tests | List/detail/lens/activity failures, refresh progress, export lifecycle, permissions | Planned |
 | 6B | RulesView, AgentBuilder, helpers, styles, tests | Consent, saves, polling, rehearsal and publication gates, expiry | Planned |
@@ -183,3 +183,12 @@ and Help with the four guide journeys. These add no server capability.
 
   Phase 3 full gate: 433 backend / 133 frontend tests, build and preflight
   passed; both production audits clean. No existing tests deleted or skipped.
+
+- Phase 4: review-reliability, needsyou, rules and workspace-cleanup tests
+  cover all six card types, global server scopes and independent badge,
+  source-space assignment, 403/409 reconciliation, duplicate guards,
+  unconfirmed answers, exact source refs and honest legacy tray failures.
+  Existing backend attention tests enforce restricted-space exclusion.
+
+  Phase 4 full gate: 433 backend / 142 frontend tests, build and preflight
+  passed; both production audits clean. No deployment.

@@ -135,7 +135,7 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
 }
 
 export default function MemoryPanel({
-  entries, agentsById, showSuperseded, onToggleSuperseded, ripple, onOpenRun, onCorrect, onClose, toast, initialEntryId, loadStatus, onRefresh,
+  entries, agentsById, showSuperseded, onToggleSuperseded, ripple, onOpenRun, onCorrect, onClose, toast, initialEntryId, secondEntryId, loadStatus, onRefresh,
 }) {
   const [lineage, setLineage] = useState(null); // {entryId, data|null}
   const [timeline, setTimeline] = useState(null); // P2: {entryId, events}|null
@@ -172,6 +172,8 @@ export default function MemoryPanel({
         headerExtra={<button className="btn ghost small" onClick={() => { traceIdRef.current = null; setLineage(null); }}>← memory</button>}
       >
         <Legend />
+        <RequestError error={loadStatus?.error} subject="Loading the source project" onRetry={onRefresh} />
+        {secondEntryId ? <button className="btn small" onClick={() => trace(lineage.entryId === secondEntryId ? initialEntryId : secondEntryId)}>Review the other conflicting entry</button> : null}
         <RequestError error={lineageError} subject="Loading memory sources" onRetry={() => trace(lineage.entryId)} />
         <RequestError error={timelineError} subject="Loading memory history" onRetry={() => trace(lineage.entryId)} />
         {!d && !lineageError ? <div className="empty-hint">Loading memory sources…</div> : d ? (

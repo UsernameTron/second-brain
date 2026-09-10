@@ -808,9 +808,9 @@ describe('NEEDS YOU standing-rule cards', () => {
   it('labels rule_alert and brief_ready cards and acknowledges through the source run', async () => {
     const ack = vi.fn();
     renderNeedsYou({ onAcknowledgeRuleRun: ack });
-    expect(screen.getByText('rule alert')).toBeInTheDocument();
-    expect(screen.getByText('brief ready')).toBeInTheDocument();
-    const buttons = screen.getAllByRole('button', { name: 'Acknowledge' });
+    expect(screen.getByText('Scheduled alert')).toBeInTheDocument();
+    expect(screen.getByText('Brief ready')).toBeInTheDocument();
+    const buttons = screen.getAllByRole('button', { name: 'Mark reviewed' });
     expect(buttons.length).toBe(2);
     await userEvent.click(buttons[0]);
     expect(ack).toHaveBeenCalledWith({ kind: 'standing_rule_run', id: 'rr1', ruleId: 'sr1', canvasId: 'c1' });
@@ -821,16 +821,16 @@ describe('NEEDS YOU standing-rule cards', () => {
   it('offers Open rule / Open brief and deep-links on the rule id', async () => {
     const openRule = vi.fn();
     renderNeedsYou({ onOpenRule: openRule });
-    await userEvent.click(screen.getByRole('button', { name: 'Open rule' }));
+    await userEvent.click(screen.getByRole('button', { name: 'View scheduled work' }));
     expect(openRule).toHaveBeenCalledWith(expect.objectContaining({ ruleId: 'sr1' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Open brief' }));
+    await userEvent.click(screen.getByRole('button', { name: 'View brief' }));
     expect(openRule).toHaveBeenLastCalledWith(expect.objectContaining({ ruleId: 'sr2' }));
   });
 
   it('hides the control when Rules is flagged off, rather than dead-ending', () => {
     renderNeedsYou({ onOpenRule: null });
-    expect(screen.queryByRole('button', { name: 'Open rule' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Open brief' })).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Acknowledge' }).length).toBe(2);
+    expect(screen.queryByRole('button', { name: 'View scheduled work' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'View brief' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Mark reviewed' }).length).toBe(2);
   });
 });
