@@ -207,3 +207,11 @@ export function short(str, n = 100) {
   const s = String(str || '');
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
+
+// Download through the same bounded, same-origin error path as other reads.
+export async function downloadFile(path, filename) {
+  const blob = await api(path, { responseType: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a'); link.href = url; link.download = filename; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

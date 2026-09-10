@@ -1,15 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { fmtClock, short } from './api.js';
+import { RequestError } from './RequestState.jsx';
 import { formatRunEventPreview } from './format.jsx';
 
 const BUCKETS = [
   { key: 'text', label: 'text', icon: '¶' },
-  { key: 'tool_call', label: 'tool call', icon: '⚙' },
+  { key: 'tool_call', label: 'tool request', icon: '⚙' },
   { key: 'tool_result', label: 'tool result', icon: '↩' },
   { key: 'handoff', label: 'handoff', icon: '⇄' },
-  { key: 'escalation', label: 'escalation', icon: '⚑' },
+  { key: 'escalation', label: 'needs an answer', icon: '⚑' },
   { key: 'memory', label: 'memory', icon: '◈' },
-  { key: 'run', label: 'run status', icon: '▶' },
+  { key: 'run', label: 'work status', icon: '▶' },
 ];
 const ICON = Object.fromEntries(BUCKETS.map((b) => [b.key, b.icon]));
 
@@ -30,7 +31,7 @@ function itemFromRunEvent(e) {
   return { id: `e-${e.id}`, ts: e.ts, agent_id: e.agent_id, bucket, text: formatRunEventPreview(e, 'dock') };
 }
 
-export default function ActivityDock({ activity, handoffs, agents, agentsById, onHoverHandoff }) {
+export default function ActivityDock({ activity, handoffs, agents, agentsById, onHoverHandoff, loadStatus, onRefresh }) {
   const [open, setOpen] = useState(false);
   const [agentFilter, setAgentFilter] = useState('all');
   const [buckets, setBuckets] = useState(() => new Set(BUCKETS.map((b) => b.key)));
@@ -71,7 +72,7 @@ export default function ActivityDock({ activity, handoffs, agents, agentsById, o
     <div className={`dock ${open ? 'open' : ''}`}>
       <button className="dock-head" onClick={() => setOpen((v) => !v)}>
         <span className="dock-title">Activity</span>
-        <span className="dock-count mono">{items.length}</span>
+        <span className="dock-count mono">{loadStatus?.error || loadStatus?.loading ? "—" : items.length}</span>
         {!open && items[0] ? (
           <span className="dock-preview">
             <span className="dock-icon">{ICON[items[0].bucket]}</span> {short(items[0].text, 90)}
@@ -79,16 +80,20 @@ export default function ActivityDock({ activity, handoffs, agents, agentsById, o
         ) : null}
         <span className="dock-caret">{open ? '▾' : '▴'}</span>
       </button>
+      <RequestError error={loadStatus?.error} subject="Loading activity" onRetry={onRefresh} />
+      {loadStatus?.loading ? <p role="status">Loading activity…</p> : null}
+      {loadStatus?.error && items.length ? <p>Last known activity is shown.</p> : null}
       {open ? (
         <>
           <div className="dock-filters">
-            <select value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)}>
+            <select aria-label="Activity agent" value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)}>
               <option value="all">all agents</option>
               {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             {BUCKETS.map((b) => (
               <button
                 key={b.key}
+                aria-pressed={buckets.has(b.key)}
                 className={`chip filter-chip ${buckets.has(b.key) ? 'on' : ''}`}
                 onClick={() => toggleBucket(b.key)}
               >
@@ -97,7 +102,7 @@ export default function ActivityDock({ activity, handoffs, agents, agentsById, o
             ))}
           </div>
           <div className="dock-list">
-            {visible.length === 0 ? <div className="empty-hint">Nothing here yet — dispatch an agent and watch it think.</div> : null}
+            {visible.length === 0 && !loadStatus?.error && !loadStatus?.loading ? <div className="empty-hint">{items.length ? "No activity matches these filters. Select more categories or all agents." : "No activity recorded yet. Ask a question on Home to begin."}</div> : null}
             {visible.map((it) => {
               const agent = it.agent_id ? agentsById[it.agent_id] : null;
               return (
@@ -106,6 +111,8 @@ export default function ActivityDock({ activity, handoffs, agents, agentsById, o
                   className={`dock-row ${it.handoffId ? 'hoverable-edge' : ''}`}
                   onMouseEnter={it.handoffId ? () => onHoverHandoff(it.handoffId) : undefined}
                   onMouseLeave={it.handoffId ? () => onHoverHandoff(null) : undefined}
+                  tabIndex={it.handoffId ? 0 : undefined}
+                  onFocus={it.handoffId ? () => onHoverHandoff(it.handoffId) : undefined} onBlur={it.handoffId ? () => onHoverHandoff(null) : undefined}
                   title={it.handoffId ? 'Hover highlights this handoff edge on the canvas' : undefined}
                 >
                   <span className="mono dock-ts">{fmtClock(it.ts)}</span>

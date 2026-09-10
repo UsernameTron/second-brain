@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
 import { useDraft } from './Drafts.jsx';
 import { RequestError, useResource } from './RequestState.jsx';
-import { choiceKeys, certaintyLabel, workStatusLabel, formatRunEventPreview } from './format.jsx';
+import { sourceLabel, choiceKeys, certaintyLabel, workStatusLabel, formatRunEventPreview } from './format.jsx';
 
 // P3 Evidence Rooms. A Room is a lens over its canvas: Brief (six sections +
 // now/history/risk), Map (the canvas itself), Activity (the existing feed).
@@ -45,7 +45,7 @@ function RoomBrief({ built, onOpenRun }) {
           <ul className="room-list">
             {s.evidence.map((e) => (
               <li key={e.id}>
-                <span className="chip">{e.sourceKind}</span>{' '}
+                <span className="chip">{sourceLabel(e.sourceKind)}</span>{' '}
                 {e.redacted ? <span title="source visible to the directing user only">{e.title || '(untitled)'} · redacted</span>
                   : e.uri ? <a href={e.uri} target="_blank" rel="noopener noreferrer">{e.title || e.uri}</a>
                   : <span>{e.title || '(untitled)'}</span>}
@@ -272,7 +272,7 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
             <p><b>Excluded:</b> {exportPreview.excluded.assumptionsAndInferences.length} assumptions/inferences, {exportPreview.excluded.taintedEntries.length} tainted entries, {exportPreview.excluded.privateEvidence.length} private-surface sources, {exportPreview.excluded.openEscalations.length} open escalations, and the audit chain (always).</p>
             <ul className="room-list">
               {exportPreview.excluded.privateEvidence.map((r) => (
-                <li key={r.id}><span className="chip">{r.sourceKind}</span> {r.title || '(untitled)'} <span className="dim">— stays internal</span></li>
+                <li key={r.id}><span className="chip">{sourceLabel(r.sourceKind)}</span> {r.title || '(untitled)'} <span className="dim">— stays internal</span></li>
               ))}
             </ul>
             {(exportPreview.contentWarnings || []).length > 0 ? (

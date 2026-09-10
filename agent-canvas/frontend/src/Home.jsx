@@ -1,5 +1,5 @@
 import { choiceKeys } from './format.jsx';
-import { certaintyLabel, workStatusLabel } from './format.jsx';
+import { sourceLabel, certaintyLabel, workStatusLabel } from './format.jsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
 import { useDraft } from './Drafts.jsx';
@@ -92,7 +92,7 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, onAct, onRevise,
             {evidenceRefs.map((r) => (
               <button key={r.id} className="chip evidence-chip" title={r.redacted ? 'source visible to the directing user only' : r.uri || r.sourceId}
                 onClick={() => { if (r.uri && !r.redacted) window.open(r.uri, '_blank', 'noopener'); else setShowReceipt(true); }}>
-                {r.sourceKind}{r.title ? ` · ${short(r.title, 30)}` : ''}
+                {sourceLabel(r.sourceKind)}{r.title ? ` · ${short(r.title, 30)}` : ''}
               </button>
             ))}
             {Object.entries(epiCounts).map(([epi, n]) => (

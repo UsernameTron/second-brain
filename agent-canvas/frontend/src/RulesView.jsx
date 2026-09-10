@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, rulesApi, timeAgo, short } from './api.js';
 import { useDraft } from './Drafts.jsx';
 import { RequestError, useResource } from './RequestState.jsx';
-import { workStatusLabel, SummaryMarkdown, formatContractTail } from './format.jsx';
+import { sourceLabel, workStatusLabel, SummaryMarkdown, formatContractTail } from './format.jsx';
 
 // P5 Rules & Briefs: a standing rule is a stored instruction + a persisted
 // authorization. Describe it in plain language → review the interpretation
@@ -106,7 +106,7 @@ function InterpretationCard({ rule, agentsById, readsAs }) {
       <h3>What this rule means</h3>
       <ul className="room-list">
         <li><b>Watched</b> — <span>{interp.summary || short(rule.instruction, 120)}</span></li>
-        <li><b>Sources</b> — <span>{(interp.sources || []).join(', ') || '—'}</span>
+        <li><b>Sources</b> — <span>{(interp.sources || []).map(sourceLabel).join(', ') || '—'}</span>
           {(interp.sources || []).includes('enrichment')
             ? <span className="dim"> — reads already-enriched records only; a scheduled rule never spends enrichment credits</span>
             : null}
@@ -231,7 +231,7 @@ function RuleSettings({ rule, agents, busy, onSave }) {
           {SOURCES.map((s) => (
             <label key={s} htmlFor={`rs-src-${s}`}>
               <input id={`rs-src-${s}`} type="checkbox" checked={f.sources.includes(s)} onChange={toggleSource(s)} />
-              {s}
+              {sourceLabel(s)}
             </label>
           ))}
         </fieldset>

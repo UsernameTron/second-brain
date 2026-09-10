@@ -76,7 +76,7 @@ describe('Rules & Briefs view', () => {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(screen.getByText('inbound deals')).toBeInTheDocument();
-    expect(screen.getByText('hubspot')).toBeInTheDocument();
+    expect(screen.getByText('HubSpot')).toBeInTheDocument();
     expect(screen.getByText('deals over $25k')).toBeInTheDocument();
     expect(screen.getAllByText('daily at 08:00 UTC').length).toBeGreaterThan(0);
     // owner_email is the CREATOR (db.js says so verbatim); the identity whose
@@ -191,11 +191,11 @@ describe('Rules & Briefs view', () => {
     expect(api.mock.calls.some(([, o]) => o && o.method === 'PATCH')).toBe(false);
     // Every field re-derived: no HubSpot scope, no daily cadence, left over.
     expect(await screen.findByText('Gmail inbox digest')).toBeInTheDocument();
-    expect(screen.getByText('gmail')).toBeInTheDocument();
+    expect(screen.getByText('Gmail')).toBeInTheDocument();
     expect(screen.getByText('unread mail from the last day')).toBeInTheDocument();
     expect(screen.getAllByText('every hour').length).toBeGreaterThan(0);
     expect(screen.queryByText('deals over $25k')).toBeNull();
-    expect(screen.queryByText('hubspot')).toBeNull();
+    expect(screen.queryByText('HubSpot')).toBeNull();
     expect(screen.getByText('a written brief with sources')).toBeInTheDocument();
   });
 

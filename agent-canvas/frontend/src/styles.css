@@ -1782,3 +1782,10 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .simple-topbar .project-picker select { color: var(--text); background: var(--bg1); }
 .simple-topbar .header-menu-content { color: var(--text); }
 @media (max-width: 520px) { .panel { left: 8px; right: 8px; width: auto; } }
+
+.owner-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.admin-modal .modal-head, .modal-tabs { flex-wrap: wrap; }
+.connection-details .hud { flex-wrap: wrap; height: auto; gap: 8px; padding: 12px; }
+.connection-details { margin: 12px 0; }
+.sys-detail summary { cursor: pointer; }
+.spend-panel details, .panel-body > details { margin: 12px 0; }

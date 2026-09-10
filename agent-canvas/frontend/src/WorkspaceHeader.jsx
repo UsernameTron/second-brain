@@ -53,7 +53,7 @@ export default function WorkspaceHeader({ user, theme, setTheme, spaces, navigat
         {account.open ? <div className="user-menu" onKeyDown={(e) => { if (e.key === 'Escape') { account.toggle(); account.avatarRef.current?.focus(); } }}>
           <div className="user-menu-id"><b>{user.name || user.email}</b><span>{user.email}</span><span>{user.role === 'owner' ? 'Workspace owner' : 'Team member'}</span></div>
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>Appearance: {theme === 'dark' ? 'switch to light' : 'switch to dark'}</button>
-          {user.role === 'owner' ? <><button onClick={account.admin}>Owner settings</button><a href="/api/export" download>Download operational ledger</a></> : null}
+          {user.role === 'owner' ? <><button onClick={account.admin}>Owner settings</button></> : null}
           <button disabled={account.signingOut} onClick={account.signOut}>{account.signingOut ? 'Signing out…' : 'Sign out'}</button>
         </div> : null}
       </div>

@@ -471,3 +471,12 @@ export function choiceKeys(event, values, current, select) {
   select(values[index]);
   event.currentTarget.parentElement.querySelectorAll('[role="radio"], [role="tab"]')[index]?.focus();
 }
+
+export const sourceLabel = (value) => ({ gmail: 'Gmail', drive: 'Google Drive', sheets: 'Google Sheets', calendar: 'Google Calendar', hubspot: 'HubSpot', enrichment: 'Contact information', memory: 'Recorded memory', web: 'Web sources' }[value] || `Source: ${value}`);
+// The existing backend reports configuration as ready for these two surfaces.
+// Configuration does not verify search delivery or database replication.
+export const integrationStatus = (item) => ['db', 'websearch'].includes(item.id) && item.status === 'ready' ? 'planned' : item.status;
+export function systemStatus(health) {
+  const states = (health?.integrations || []).map(integrationStatus);
+  return states.includes('down') ? 'down' : states.includes('attention') ? 'attention' : states.length && states.every((s) => s === 'ready') ? 'ready' : 'planned';
+}

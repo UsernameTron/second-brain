@@ -1,6 +1,7 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { integrationStatus, systemStatus } from './format.jsx';
 import { AppCtx } from './App.jsx';
-import { api, rulesApi, wsUrl, normEsc, normHandoff, fmtUSD, fmtBytes, initials } from './api.js';
+import { api, downloadFile, rulesApi, wsUrl, normEsc, normHandoff, fmtUSD, fmtBytes, initials } from './api.js';
 import Canvas from './Canvas.jsx';
 import { DraftsContext } from './Drafts.jsx';
 import WorkDetails from './WorkDetails.jsx';
@@ -217,14 +218,11 @@ export default function Workspace() {
   }, [readResource]);
 
   const loadSpend = useCallback(async (cid) => {
-    return readResource('spending', cid, () => api(`/api/canvases/${cid}/spend`), (d) => {
-    if (canvasIdRef.current !== cid) return;
-    setSpend(d);
-
-    // Analytics rides the same refresh cadence; failure never blocks spend.
-    api(`/api/canvases/${cid}/analytics`)
-      .then((a) => { if (canvasIdRef.current === cid) setAnalytics(a); })
-      .catch(() => setAnalytics(null));
+    readResource('analytics', cid, () => api(`/api/canvases/${cid}/analytics`), (data) => {
+      if (canvasIdRef.current === cid) setAnalytics(data);
+    }).catch(() => {});
+    return readResource('spending', cid, () => api(`/api/canvases/${cid}/spend`), (data) => {
+      if (canvasIdRef.current === cid) setSpend(data);
     });
   }, [readResource]);
 
@@ -1154,6 +1152,8 @@ export default function Workspace() {
         <SpendPanel
           spend={spend}
           analytics={analytics}
+          statuses={requests}
+          onRefresh={async () => { await loadControl(); await loadSpend(canvasId).catch(() => {}); }}
           budget={requests.control?.error ? null : budget}
           isOwner={isOwner}
           onSetBudget={setBudgetUsd}
@@ -1162,6 +1162,55 @@ export default function Workspace() {
       );
     }
   }
+
+  const diagnostics = (<div className="hud" role="status" aria-label="Systems console">
+          <button className="hud-cell hud-btn" onClick={() => setCapsOpen(true)}
+            title={healthDown ? 'Status unavailable. Open Connections and check again.' : 'Open the systems board'}>
+            <span className={`lamp hexlamp lamp-${healthDown ? 'down' : systemStatus(health)}`} />
+            <span className="hud-label">Systems</span>
+            {healthDown ? <span className="hud-val mono hud-hot">Status unavailable</span> : null}
+          </button>
+          <span className={`hud-cell`} title={health?.integrations?.find((i) => i.id === 'model')?.detail || ''}>
+            <span className={`lamp lamp-${integrationStatus(health?.integrations?.find((i) => i.id === 'model') || {}) || 'planned'}`} />
+            <span className="hud-label">Model</span>
+            <span className="hud-val mono">{(health?.provider || '—').toUpperCase()}</span>
+          </span>
+          <span className="hud-cell" title="Google Workspace connection for your account">
+            <span className={`lamp lamp-${health?.integrations?.find((i) => i.id === 'gmail')?.status || 'planned'}`} />
+            <span className="hud-label">Workspace</span>
+          </span>
+          <span className="hud-cell" title={wsOk ? 'Live link up' : 'Live link down — reconnecting'}>
+            <span className={`lamp ${wsOk ? 'lamp-ready' : 'lamp-down'}`} />
+            <span className="hud-label">Link</span>
+          </span>
+          <span className="hud-sep" />
+          <span className="hud-cell" title="One segment per agent — lit green while running, amber waiting, red on error">
+            <span className="hud-label">Agents</span>
+            <span className="segbar">
+              {visibleAgents.slice(0, 12).map((a) => (
+                <span key={a.id} className={`seg seg-${a.status || 'idle'}`} title={`${a.name} — ${a.status || 'idle'}`} />
+              ))}
+              {visibleAgents.length === 0 ? <span className="seg seg-idle" /> : null}
+            </span>
+          </span>
+          <span className="hud-cell">
+            <span className="hud-label">Runs</span>
+            <span className="hud-val mono">
+              {requests.workspace?.error ? 'Unknown' : visibleAgents.filter((a) => a.status === 'running').length} working · {health?.queue?.queued ?? '—'} waiting
+            </span>
+          </span>
+          <span className="hud-cell">
+            <span className="hud-label">Needs you</span>
+            <span className={`hud-val mono ${visibleAttentionCount > 0 ? 'hud-hot' : ''}`}>
+              {visibleAttentionCount}
+            </span>
+          </span>
+          <span className="hud-cell hud-gauge-cell" title="Daily spend against budget">
+            <span className="hud-label">Spend</span>
+            <span className="hud-gauge"><span className="hud-gauge-fill" style={{ width: `${Math.min(100, budget?.budget_usd ? (100 * (budget.cost_usd || 0)) / budget.budget_usd : 0)}%` }} /></span>
+            <span className="hud-val mono">{budget && !requests.control?.error ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '—'}</span>
+          </span>
+        </div>);
 
   return (
     <DraftsContext.Provider value={drafts}><div className="workspace">
@@ -1348,57 +1397,11 @@ export default function Workspace() {
           ) : null}
         </div>
 
-        {view === 'canvas' || view === 'activity' ? <div className="hud" role="status" aria-label="Systems console">
-          <button className="hud-cell hud-btn" onClick={() => setCapsOpen(true)}
-            title={healthDown ? 'Status unavailable. Open Connections and check again.' : 'Open the systems board'}>
-            <span className={`lamp hexlamp lamp-${healthDown ? 'down' : (health?.aggregate || 'planned')}`} />
-            <span className="hud-label">Systems</span>
-            {healthDown ? <span className="hud-val mono hud-hot">Status unavailable</span> : null}
-          </button>
-          <span className={`hud-cell`} title={health?.integrations?.find((i) => i.id === 'model')?.detail || ''}>
-            <span className={`lamp lamp-${health?.integrations?.find((i) => i.id === 'model')?.status || 'planned'}`} />
-            <span className="hud-label">Model</span>
-            <span className="hud-val mono">{(health?.provider || '—').toUpperCase()}</span>
-          </span>
-          <span className="hud-cell" title="Google Workspace connection for your account">
-            <span className={`lamp lamp-${health?.integrations?.find((i) => i.id === 'gmail')?.status || 'planned'}`} />
-            <span className="hud-label">Workspace</span>
-          </span>
-          <span className="hud-cell" title={wsOk ? 'Live link up' : 'Live link down — reconnecting'}>
-            <span className={`lamp ${wsOk ? 'lamp-ready' : 'lamp-down'}`} />
-            <span className="hud-label">Link</span>
-          </span>
-          <span className="hud-sep" />
-          <span className="hud-cell" title="One segment per agent — lit green while running, amber waiting, red on error">
-            <span className="hud-label">Agents</span>
-            <span className="segbar">
-              {visibleAgents.slice(0, 12).map((a) => (
-                <span key={a.id} className={`seg seg-${a.status || 'idle'}`} title={`${a.name} — ${a.status || 'idle'}`} />
-              ))}
-              {visibleAgents.length === 0 ? <span className="seg seg-idle" /> : null}
-            </span>
-          </span>
-          <span className="hud-cell">
-            <span className="hud-label">Runs</span>
-            <span className="hud-val mono">
-              {visibleAgents.filter((a) => a.status === 'running').length} act · {health?.queue?.queued ?? '—'} q
-            </span>
-          </span>
-          <span className="hud-cell">
-            <span className="hud-label">Needs you</span>
-            <span className={`hud-val mono ${visibleAttentionCount > 0 ? 'hud-hot' : ''}`}>
-              {visibleAttentionCount}
-            </span>
-          </span>
-          <span className="hud-cell hud-gauge-cell" title="Daily spend against budget">
-            <span className="hud-label">Spend</span>
-            <span className="hud-gauge"><span className="hud-gauge-fill" style={{ width: `${Math.min(100, budget?.budget_usd ? (100 * (budget.cost_usd || 0)) / budget.budget_usd : 0)}%` }} /></span>
-            <span className="hud-val mono">{budget && !requests.control?.error ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '—'}</span>
-          </span>
-        </div> : null}
         {canvasId && view === 'activity' ? (
           <ActivityDock
             activity={activity}
+            loadStatus={requests.activity}
+            onRefresh={() => loadActivity(canvasId).catch(() => {})}
             handoffs={handoffs}
             agents={state?.agents || []}
             agentsById={agentsById}
@@ -1423,11 +1426,13 @@ export default function Workspace() {
       {archivedOpen ? (
         <ArchivedModal
           archivedCanvases={archivedCanvases}
+          loadStatus={requests.spaces}
+          onRefresh={refreshCanvases}
           restoreCanvas={restoreCanvas}
           onClose={() => { setArchivedOpen(false); if (avatarRef.current) avatarRef.current.focus(); }}
         />
       ) : null}
-      {capsOpen ? <CapabilitiesModal onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}
+      {capsOpen ? <CapabilitiesModal diagnostics={diagnostics} onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}
     </div></DraftsContext.Provider>
   );
 }
@@ -1435,6 +1440,15 @@ export default function Workspace() {
 function FilePanel({ file, canvasId, editable, onRemove, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [downloadError, setDownloadError] = useState(null);
+  const [downloading, setDownloading] = useState(false);
+  const download = async () => {
+    if (downloading) return;
+    setDownloading(true); setDownloadError(null);
+    try { await downloadFile(`/api/canvases/${canvasId}/files/${file.id}`, file.name); }
+    catch (e) { setDownloadError(e); }
+    finally { setDownloading(false); }
+  };
 
   const confirmRemove = async () => {
     setRemoving(true);
@@ -1459,9 +1473,12 @@ function FilePanel({ file, canvasId, editable, onRemove, onClose }) {
           className="btn primary file-download-btn"
           href={`/api/canvases/${encodeURIComponent(canvasId)}/files/${encodeURIComponent(file.id)}`}
           download={file.name}
+          aria-disabled={downloading}
+          onClick={(e) => { e.preventDefault(); download(); }}
         >
-          Download original
+          {downloading ? 'Preparing download…' : 'Download original'}
         </a>
+        <RequestError error={downloadError} subject="Downloading the original document" onRetry={download} retryLabel="Try download again" />
 
         {editable && !confirming ? (
           <button className="link-btn danger-link file-remove-link" onClick={() => setConfirming(true)}>Remove document</button>
@@ -1486,7 +1503,7 @@ function FilePanel({ file, canvasId, editable, onRemove, onClose }) {
 
 // Archived-canvas list in its own component so the shared dialog behavior
 // (focus trap, Escape, focus restore) mounts with it.
-function ArchivedModal({ archivedCanvases, restoreCanvas, onClose }) {
+function ArchivedModal({ archivedCanvases, restoreCanvas, onClose, loadStatus, onRefresh }) {
   const dialogRef = useDialog(onClose);
   return (
     <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -1496,7 +1513,9 @@ function ArchivedModal({ archivedCanvases, restoreCanvas, onClose }) {
           <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">×</button>
         </header>
         <div className="modal-body">
-          {archivedCanvases.length === 0 ? (
+          <RequestError error={loadStatus?.error} subject="Loading archived spaces" onRetry={onRefresh} />
+          {loadStatus?.loading ? <p role="status">Loading archived spaces…</p> : null}
+          {archivedCanvases.length === 0 && !loadStatus?.error && !loadStatus?.loading ? (
             <p className="dim">Nothing here — archived canvases will show up in this list.</p>
           ) : (
             <ul className="archived-list">

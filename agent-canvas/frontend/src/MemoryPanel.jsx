@@ -86,7 +86,7 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
           ) : null}
           {/* One-click reclassify: same content, new epistemic state, via the
               normal append-only correction path — reversible by correcting again. */}
-          {!superseded && onCorrect ? ['verified', 'inference', 'assumption']
+          {!superseded && onCorrect ? <details><summary>Change certainty</summary><p>This creates a correction and preserves the original entry.</p>{['verified', 'inference', 'assumption']
             .filter((epi) => epi !== entry.epistemic)
             .map((epi) => (
               <button
@@ -102,7 +102,7 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
               >
                 → {certaintyLabel(epi)}
               </button>
-            )) : null}
+            ))}</details> : null}
         </div>
       ) : (
         <div className="mem-actions">

@@ -98,7 +98,7 @@ queue** checks now. Lists show the latest bounded results, not a complete archiv
 - **Spending:** today's cost and cap, with additional details and owner settings.
 - **Account:** appearance, sign out, and owner settings. **Space actions** keeps
   creation, owner archive and restoration. The owner ledger download is an
-  operational export, not a complete restorable backup.
+  operational export under Owner settings, not a complete restorable backup.
 - **More → Help:** a short version of the four journeys above.
 
 ## The team
@@ -166,3 +166,18 @@ and wait for a completed rehearsal before publishing. A pending rehearsal blocks
 another rehearsal. Start over stops checking the abandoned proposal. For an
 unconfirmed request, Check saved status before repeating it; saved proposals can
 be reopened from that check. Publication remains owner-only.
+
+Owner settings groups **People and access**, **Agent templates**, **Connections**
+and **Audit history**. A failed read keeps the last known data marked stale; use
+Try again. Failed edits retain their fields. Changes save one at a time. If agent
+ordering is partly saved, check the saved state and choose Finish ordering. A
+failed audit check clears the verified badge until a new check succeeds.
+
+Spending shows the daily amount and cap first. Owner settings holds cap editing;
+Advanced spending details retains monthly totals, agent totals and statistics.
+Unknown amounts stay unavailable. Connections → Advanced details retains the
+provider, queue, agent indicators and live link. Configuration alone is labelled
+unverified for storage/backups and web research; it does not prove delivery.
+
+Downloads report failures with Try again. Memory → Change certainty explains the
+correction before showing the existing certainty choices.

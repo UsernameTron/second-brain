@@ -55,3 +55,14 @@ it('does not label failed capability loads unconfigured or retain a green health
   await userEvent.click(screen.getAllByRole('button', { name: 'Try again' })[1]);
   await waitFor(() => expect(view.container.querySelector('.lamp-ready')).toBeTruthy());
 });
+
+it('does not turn configuration-only storage and web research into green checks', async () => {
+  api.mockImplementation((path) => Promise.resolve(path === '/api/capabilities' ? { connected: false, surfaces: [] } : { integrations: [
+    { id: 'db', label: 'DATABASE', status: 'ready', detail: 'Configured storage' },
+    { id: 'websearch', label: 'WEB SEARCH', status: 'ready', detail: 'Enabled search' },
+  ] }));
+  const view = render(<CapabilitiesModal onClose={vi.fn()} toast={vi.fn()} />);
+  await screen.findByText('Saved data and backups');
+  expect(view.container.querySelector('.lamp-ready')).toBeNull();
+  expect(screen.getAllByText('Configured; delivery not verified')).toHaveLength(2);
+});

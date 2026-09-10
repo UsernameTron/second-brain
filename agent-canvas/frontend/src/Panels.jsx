@@ -407,15 +407,17 @@ export function NotePanel({ note, task, people = [], agents = [], pinnedNotes = 
   );
 }
 
-export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onClose }) {
+export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onClose, statuses = {}, onRefresh }) {
   const [budgetInput, setBudgetInput] = useDraft('daily-budget', '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const pct = budget && budget.budget_usd > 0 ? Math.min(1, (budget.cost_usd || 0) / budget.budget_usd) : 0;
 
   return (
-    <Panel title="Spend" onClose={onClose}>
-      <RequestError error={error} subject="Saving the daily budget" />
+    <Panel title="Spending" onClose={onClose}>
+      <RequestError error={statuses.control?.error} subject="Checking today’s spending" onRetry={onRefresh} />
+      {!budget ? <p>Today’s spending and cap are unavailable. Check status before relying on them. {onRefresh ? <button className="btn small" onClick={onRefresh}>Check status</button> : null}</p> : null}
+      <RequestError error={error} subject="Saving the daily budget" onRetry={onRefresh ? async () => { await onRefresh(); setError(null); } : undefined} retryLabel="Check saved cap" />
       {error ? <p>Close and reopen Spending to check the saved cap before submitting again.</p> : null}
       <div className="spend-daily">
         <div className="spend-big mono">{budget ? fmtUSD(budget.cost_usd) : '—'}</div>
@@ -423,13 +425,11 @@ export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onC
         <div className={`budget-bar wide ${pct > 0.9 ? 'over' : ''}`}>
           <span className="budget-fill" style={{ width: `${pct * 100}%` }} />
         </div>
-        <div className="mono spend-tokens">
-          {budget ? `in ${budget.input_tokens} tok · out ${budget.output_tokens} tok` : ''}
-        </div>
+
       </div>
 
       {isOwner ? (
-        <form
+        <details><summary>Owner settings</summary><form
           className="budget-set"
           onSubmit={async (e) => {
             e.preventDefault();
@@ -446,9 +446,19 @@ export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onC
               value={budgetInput} onChange={(e) => setBudgetInput(e.target.value)} />
             <button className="btn primary" type="submit" disabled={saving || error?.unconfirmed || budgetInput === ''}>Set</button>
           </div>
-        </form>
+        </form></details>
       ) : null}
 
+      <details><summary>Advanced spending details</summary>
+      <RequestError error={statuses.spending?.error} subject="Loading spending history" onRetry={onRefresh} />
+      <RequestError error={statuses.analytics?.error} subject="Loading agent statistics" onRetry={onRefresh} />
+      {statuses.spending?.loading || statuses.analytics?.loading ? <p role="status">Loading spending details…</p> : null}
+      {statuses.spending?.error || statuses.analytics?.error ? <p>Last known details may be out of date.</p> : null}
+        <div className="mono spend-tokens">
+          {budget ? `in ${budget.input_tokens} tok · out ${budget.output_tokens} tok` : ''}
+        </div>
+      {!spend && !statuses.spending?.loading ? <p>Spending history is unavailable. Use Check status to load it.</p> : null}
+      {!analytics && !statuses.analytics?.loading ? <p>Agent statistics are unavailable.</p> : null}
       <h3>By month (workspace, all canvases)</h3>
       <table className="spend-table">
         <thead><tr><th>month</th><th>days</th><th>tokens</th><th>cost</th></tr></thead>
@@ -461,7 +471,7 @@ export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onC
               <td className="mono">{fmtUSD(m.cost_usd)}</td>
             </tr>
           ))}
-          {(spend?.monthly || []).length === 0 ? (
+          {spend && !statuses.spending?.error && (spend.monthly || []).length === 0 ? (
             <tr><td colSpan="4" className="empty-hint">no spend recorded yet</td></tr>
           ) : null}
         </tbody>
@@ -471,7 +481,7 @@ export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onC
       <div className="mono spend-canvas">
         {spend?.canvasTotal
           ? `${fmtUSD(spend.canvasTotal.cost_usd)} · in ${spend.canvasTotal.input_tokens} / out ${spend.canvasTotal.output_tokens} tok`
-          : 'no spend recorded'}
+          : spend && !statuses.spending?.error ? 'No spending recorded for this space' : 'Spending unavailable'}
       </div>
 
       <h3>Per agent</h3>
@@ -486,7 +496,7 @@ export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onC
               <td className="mono">{fmtUSD(row.cost_usd)}</td>
             </tr>
           ))}
-          {(spend?.perAgent || []).length === 0 ? (
+          {spend && !statuses.spending?.error && (spend.perAgent || []).length === 0 ? (
             <tr><td colSpan="4" className="empty-hint">no agents</td></tr>
           ) : null}
         </tbody>
@@ -494,7 +504,7 @@ export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onC
 
       <h3>Agent analytics</h3>
       <table className="spend-table">
-        <thead><tr><th>agent</th><th>done/fail/halt</th><th>avg run</th><th>esc</th><th>👍/👎</th></tr></thead>
+        <thead><tr><th>agent</th><th>finished/failed/stopped</th><th>average duration</th><th>open/total reviews</th><th>helpful/not helpful</th></tr></thead>
         <tbody>
           {(analytics?.perAgent || []).map((row) => {
             const esc = (analytics.escalations || []).find((e) => e.agent_id === row.agent_id);
@@ -508,11 +518,12 @@ export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onC
               </tr>
             );
           })}
-          {(analytics?.perAgent || []).length === 0 ? (
+          {analytics && !statuses.analytics?.error && (analytics.perAgent || []).length === 0 ? (
             <tr><td colSpan="5" className="empty-hint">no analytics yet</td></tr>
           ) : null}
         </tbody>
       </table>
+      </details>
     </Panel>
   );
 }

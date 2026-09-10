@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { integrationStatus } from './format.jsx';
 import { api } from './api.js';
 import { RequestError, useResource } from './RequestState.jsx';
 import { useDialog } from './useDialog.js';
@@ -9,7 +10,7 @@ import { useDialog } from './useDialog.js';
 
 const ICONS = { mail: '✉', folder: '🗀', grid: '▦', calendar: '🗓', shield: '⛨' };
 
-export default function CapabilitiesModal({ onClose, toast }) {
+export default function CapabilitiesModal({ onClose, toast, diagnostics }) {
   const dialogRef = useDialog(onClose);
   const capsState = useResource(() => api('/api/capabilities'), 'capabilities');
   const healthState = useResource(() => api('/api/health/integrations'), 'health');
@@ -31,7 +32,7 @@ export default function CapabilitiesModal({ onClose, toast }) {
     } catch (e) {
       setProbing((p0) => ({ ...p0, [surface]: 'FAIL' }));
       setError(e);
-    } finally { await healthState.refresh(); }
+    } finally { await load(); }
   };
 
   const connect = async () => {
@@ -57,9 +58,7 @@ export default function CapabilitiesModal({ onClose, toast }) {
       <div className="modal caps-modal" role="dialog" aria-modal="true" aria-label="Connections" onClick={(e) => e.stopPropagation()} ref={dialogRef} tabIndex={-1}>
         <div className="modal-head">
           <h2>Connections</h2>
-          <span className="caps-identity dim">
-            {caps?.identityModel || ''}
-          </span>
+
           <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">✕</button>
         </div>
         <div className="modal-body">
@@ -72,10 +71,11 @@ export default function CapabilitiesModal({ onClose, toast }) {
             <div className="sys-title">Systems status</div>
             {(health?.integrations || []).map((i) => (
               <div className="sys-row" key={i.id} title={i.detail}>
-                <span className="sys-label">{i.label}</span>
+                <span className="sys-label">{({ model: 'Answer service', gmail: 'Gmail', drive: 'Google Drive and Docs', sheets: 'Google Sheets', calendar: 'Google Calendar', audit: 'Audit integrity', db: 'Saved data and backups', websearch: 'Web research', hubspot: 'HubSpot', enrichment: 'Contact information', standing_rules: 'Scheduled work delivery' })[i.id] || i.label}</span>
                 <span className="sys-arrow">▶</span>
-                <span className={`lamp lamp-${healthState.error || healthState.loading || probing[i.id] === 'Checking…' ? 'planned' : i.status}`} />
-                <span className="sys-detail dim">{i.detail}</span>
+                <span className={`lamp lamp-${healthState.error || healthState.loading || probing[i.id] === 'Checking…' ? 'planned' : integrationStatus(i)}`} />
+                <span className="dim">{healthState.error || healthState.loading ? 'Status unavailable' : ['db', 'websearch'].includes(i.id) && i.status === 'ready' ? 'Configured; delivery not verified' : ({ ready: 'Checked', down: 'Unavailable', planned: 'Not confirmed', attention: 'Needs attention' })[i.status] || 'Status unknown'}</span>
+                <details className="sys-detail dim"><summary>Service details</summary>{i.detail}</details>
                 {i.probe ? (
                   <button className="btn small sys-probe" disabled={probing[i.id] === 'Checking…'} onClick={() => probe(i.id)}>
                     {probing[i.id] || 'Check now'}
@@ -84,6 +84,10 @@ export default function CapabilitiesModal({ onClose, toast }) {
               </div>
             ))}
           </div>
+          <details className="connection-details"><summary>Advanced details</summary>
+            <p>Account model: {caps?.identityModel || 'Unavailable'}</p>
+            {!healthState.error && !healthState.loading ? diagnostics : <p>System details are unavailable until the status check succeeds.</p>}
+          </details>
           <div className="caps-connect">
             {!caps || capsState.error || capsState.loading ? <p>Google connection status is not confirmed. Use Check status or try loading again.</p> : caps.connected ? (
               <>

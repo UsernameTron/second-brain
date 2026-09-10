@@ -48,6 +48,7 @@ it('retains failed direct instructions and budget edits', async () => {
   expect(screen.getByLabelText('Send to Scout')).toHaveValue('Do this later');
   view.unmount();
   render(<SpendPanel isOwner budget={{ budget_usd: 25, cost_usd: 0 }} onSetBudget={vi.fn().mockRejectedValue(new Error('offline'))} />);
+  await userEvent.click(screen.getByText('Owner settings', { selector: 'summary' }));
   await userEvent.type(screen.getByLabelText('Set daily budget (USD)'), '30');
   await userEvent.click(screen.getByRole('button', { name: 'Set' }));
   await screen.findByRole('alert');
@@ -78,7 +79,7 @@ it('does not confuse external sources with memory written and recovers unavailab
   expect(screen.queryByText(/unsupported summary/)).not.toBeInTheDocument();
   unavailable = false;
   await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
-  await screen.findByText('web · Source record');
+  await screen.findByText('Web sources · Source record');
   expect(screen.queryByText(/unsupported summary/)).not.toBeInTheDocument();
 });
 
@@ -125,4 +126,13 @@ it('keeps a rejected memory correction open and exposes failed lineage recovery'
   await userEvent.click(screen.getByRole('button', { name: 'Check memory history' }));
   await screen.findByText('Loading memory sources could not be completed. Check your connection and try again.');
   expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(2);
+});
+
+it('keeps certainty changes reachable and submits the existing correction contract', async () => {
+  const correct = vi.fn().mockResolvedValue({});
+  render(<MemoryPanel entries={[{ id: 'm1', content: 'Original claim', epistemic: 'assumption' }]} agentsById={{}} onCorrect={correct} toast={vi.fn()} />);
+  await userEvent.click(screen.getByText('Change certainty'));
+  expect(screen.getByText('This creates a correction and preserves the original entry.')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: '→ Confirmed (verified)' }));
+  expect(correct).toHaveBeenCalledWith('m1', expect.objectContaining({ content: 'Original claim', epistemic: 'verified', reason: expect.any(String) }));
 });

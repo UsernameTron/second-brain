@@ -21,7 +21,7 @@ update USER-GUIDE.md and HANDOFF.md in the same commit. No deployment.
 | 5 | Workspace, Home, CommandBar, AddAgentModal, Nodes, format, header/context presentation, styles | Single Ask composer, Act on this, full control reachability, fresh boot, keyboard and responsive layouts | Verified locally |
 | 6A | RoomsView, helpers, styles, tests | List/detail/lens/activity failures, refresh progress, export lifecycle, permissions | Verified locally |
 | 6B | RulesView, AgentBuilder, helpers, styles, tests | Consent, saves, polling, rehearsal and publication gates, expiry | Verified locally |
-| 6C | AdminModal, ActivityDock, Spending, styles, tests | Failed tables, retained edits, partial reorder, serialized connector edits, permissions | Planned |
+| 6C | AdminModal, ActivityDock, Spending, styles, tests | Failed tables, retained edits, partial reorder, serialized connector edits, permissions | Verified locally |
 | 7 | scripts, package command, guide, handoff, screenshots | Reproducible member sign-in → Ask → Act on this → answer Needs You, inspected desktop/mobile images | Planned |
 
 ## Control map
@@ -222,4 +222,15 @@ and Help with the four guide journeys. These add no server capability.
   diff. Settings retain work limits under Advanced; history retains occurrences
   under labelled details. Source-specific rules load their own team and access.
   Phase 6B full gate: 433 backend / 163 frontend tests, build and preflight
+  passed; both production audits clean. No deployment.
+
+- Phase 6C: owner-reliability tests cover all owner table failures, retained access
+  and template drafts, one-at-a-time connection edits, partial-order recovery,
+  audit badge invalidation, all seven activity filters and unknown spending.
+  Systems details now live in Connections; configuration-only storage/search
+  reports are neutral until actual delivery is verified. Adding backend probes
+  remains outside this UX scope. The final control pass also labels sources,
+  exposes Change certainty and gives original-file/ledger downloads bounded
+  recovery through the existing endpoints.
+  Phase 6C full gate: 433 backend / 174 frontend tests, build and preflight
   passed; both production audits clean. No deployment.

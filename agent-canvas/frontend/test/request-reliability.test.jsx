@@ -67,3 +67,9 @@ it('bounds binary downloads and preserves HTTP errors for disclosure conflicts',
   expect(await api('/api/rooms/r1/export', { method: 'POST', responseType: 'blob', body: { manifest_hash: 'h' } })).toBe(blob);
   await expect(api('/api/rooms/r1/export', { method: 'POST', responseType: 'blob' })).rejects.toMatchObject({ status: 409 });
 });
+
+it('reports a failed original-file download through the shared request path', async () => {
+  const { downloadFile } = await import('../src/api.js');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response('{"error":"file unavailable"}', 404)));
+  await expect(downloadFile('/api/canvases/c1/files/f1', 'original.pdf')).rejects.toMatchObject({ status: 404 });
+});
