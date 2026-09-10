@@ -78,7 +78,10 @@ queue** checks now. Lists show the latest bounded results, not a complete archiv
 
 - **Home / Needs you:** questions, actions and human review.
 - **More → Rooms:** focused deal, client or decision views. Owners create Rooms
-  and select members. Owners also preview client-safe exports before download;
+  and select members. A failed people list blocks creation until it can be checked.
+  Refresh room requests agent work; wait for confirmed completion and review its
+  result. A failed refresh check offers Check status. Loading failures never mean
+  an empty Room; Try again reloads the selected view. Owners also preview client-safe exports before download;
   the preview lists inclusions, exclusions and warnings.
 - **More → Memory:** search, certainty, provenance, correction and history.
 - **More → Scheduled work:** recurring instructions, consent, practice,
@@ -149,3 +152,6 @@ for an unconfirmed upload before choosing the file again.
 Theme and sign-out failures stay visible. Sign-out is confirmed only after server
 acceptance. If a session expires, copy unsaved text and choose **Sign in again**.
 Give Pete the project name, action and approximate time if recovery does not help.
+
+Room exports require a disclosure preview. If the content changed or the download
+failed, choose **Review a fresh export preview**, review it again, then download.

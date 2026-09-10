@@ -19,7 +19,7 @@ update USER-GUIDE.md and HANDOFF.md in the same commit. No deployment.
 | 3 | Home, Panels, MemoryPanel, ExplainMap, Workspace, AddAgentModal, work details | Retained drafts, failed evidence/events/history, old runs, context races | Verified locally |
 | 4 | Workspace, NeedsYouView, Tray, MemoryPanel, work details | Six card types, global scopes, permission/conflict failures, pending guards, source navigation, legacy fallback | Verified locally |
 | 5 | Workspace, Home, CommandBar, AddAgentModal, Nodes, format, header/context presentation, styles | Single Ask composer, Act on this, full control reachability, fresh boot, keyboard and responsive layouts | Verified locally |
-| 6A | RoomsView, helpers, styles, tests | List/detail/lens/activity failures, refresh progress, export lifecycle, permissions | Planned |
+| 6A | RoomsView, helpers, styles, tests | List/detail/lens/activity failures, refresh progress, export lifecycle, permissions | Verified locally |
 | 6B | RulesView, AgentBuilder, helpers, styles, tests | Consent, saves, polling, rehearsal and publication gates, expiry | Planned |
 | 6C | AdminModal, ActivityDock, Spending, styles, tests | Failed tables, retained edits, partial reorder, serialized connector edits, permissions | Planned |
 | 7 | scripts, package command, guide, handoff, screenshots | Reproducible member sign-in → Ask → Act on this → answer Needs You, inspected desktop/mobile images | Planned |
@@ -207,3 +207,10 @@ and Help with the four guide journeys. These add no server capability.
   The 768px layout was also inspected. A fast-completion regression test verifies
   that the POST snapshot cannot leave an already completed answer working.
   Live teammate presence remains reachable in Team. No deployment.
+
+- Phase 6A: rooms-reliability tests cover failed lists/players/details/lenses/activity,
+  pending refresh recovery, obsolete export previews and changed manifests. Binary
+  downloads retain bounded requests and HTTP conflict errors. Existing Room tests
+  retain all six sections and member/view-only permissions.
+  Phase 6A full gate: 433 backend / 155 frontend tests, build and preflight
+  passed; both production audits clean. No deployment.

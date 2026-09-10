@@ -60,3 +60,10 @@ it('invalidates late resource responses and retains last-known data on refresh f
   await waitFor(() => expect(screen.getByText('Stale')).toBeInTheDocument());
   expect(screen.getByText('current data')).toBeInTheDocument();
 });
+
+it('bounds binary downloads and preserves HTTP errors for disclosure conflicts', async () => {
+  const blob = new Blob(['export']);
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: true, status: 200, blob: async () => blob }).mockResolvedValueOnce(response('{"error":"manifest changed"}', 409)));
+  expect(await api('/api/rooms/r1/export', { method: 'POST', responseType: 'blob', body: { manifest_hash: 'h' } })).toBe(blob);
+  await expect(api('/api/rooms/r1/export', { method: 'POST', responseType: 'blob' })).rejects.toMatchObject({ status: 409 });
+});

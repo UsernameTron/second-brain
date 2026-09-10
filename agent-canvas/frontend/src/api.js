@@ -32,7 +32,7 @@ export async function api(path, opts = {}) {
   }
   const url = `/api${candidate.slice(4)}`;
   const mutation = !['GET', 'HEAD'].includes((opts.method || 'GET').toUpperCase());
-  const { body, headers, timeoutMs = mutation ? 120_000 : 30_000, signal, ...rest } = opts;
+  const { body, headers, timeoutMs = mutation ? 120_000 : 30_000, signal, responseType, ...rest } = opts;
   const init = { ...rest, headers: { ...(headers || {}) } };
   const controller = new AbortController();
   init.signal = controller.signal;
@@ -60,6 +60,7 @@ export async function api(path, opts = {}) {
     return await Promise.race([
       (async () => {
         const res = await fetch(url, init);
+        if (res.ok && responseType === 'blob') return res.blob();
         const text = await res.text();
         let data = null;
         try { data = text ? JSON.parse(text) : null; } catch {
