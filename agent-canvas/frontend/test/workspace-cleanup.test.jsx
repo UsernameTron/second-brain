@@ -479,7 +479,7 @@ describe('workspace status recovery', () => {
     api.mockImplementation((path, opts) => path === '/api/canvases' && offline
       ? Promise.reject(new Error('offline')) : normal(path, opts));
     renderWorkspace();
-    await screen.findByText('Loading spaces could not be completed. Check your connection and try again.');
+    await screen.findByText('Loading project spaces could not be completed. Check your connection and try again.');
     expect(screen.queryByText('Start with a canvas')).not.toBeInTheDocument();
     offline = false;
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));

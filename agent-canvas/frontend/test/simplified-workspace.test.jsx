@@ -104,3 +104,30 @@ it('reconciles a terminal answer that finishes before its submission response', 
   await screen.findByText('Review the renewal date.');
   expect(screen.queryByText(/The agent is working/)).not.toBeInTheDocument();
 });
+
+it('keeps the complete submitted context reachable without repeating it as the result title', async () => {
+  const question = 'Follow-up request: Draft a checklist.\n\nSelected answer for context (verify its claims before acting):\nQuestion: Original question\nAnswer: Original answer';
+  api.mockImplementation((path) => Promise.resolve(path.endsWith('/inquiries') ? { inquiries: [{ ...answered, question, mode: 'act' }] } : { provided: [], cited: [], searches: [], evidence: [] }));
+  render(<Home {...props} />);
+  expect(await screen.findByText('Draft a checklist.')).toHaveClass('answer-question');
+  const details = screen.getByText('Request and attached context').closest('details');
+  expect(details).not.toHaveAttribute('open');
+  await userEvent.click(screen.getByText('Request and attached context'));
+  expect(details).toHaveTextContent('Original question');
+  expect(details).toHaveTextContent('Original answer');
+  expect(details.querySelector('div').textContent).toBe(question);
+});
+
+it('leaves user-authored request text intact and labels automatic selection in plain English', async () => {
+  api.mockImplementation((path, opts) => {
+    if (opts?.method === 'POST') return Promise.resolve({ inquiry: answered, selection: { auto: true, echo: 'Asking Scout (strategic) — picked automatically' } });
+    return Promise.resolve(path.endsWith('/inquiries') ? { inquiries: [{ ...answered, question: 'Follow-up request: My own text', mode: 'act' }] } : { provided: [], cited: [], searches: [], evidence: [] });
+  });
+  const toast = vi.fn();
+  render(<Home {...props} toast={toast} />);
+  expect(await screen.findByText('Follow-up request: My own text')).toHaveClass('answer-question');
+  expect(screen.queryByText('Request and attached context')).not.toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText('Ask a question about the company'), 'Next question');
+  await userEvent.click(screen.getByRole('button', { name: 'Ask', exact: true }));
+  await waitFor(() => expect(toast).toHaveBeenCalledWith('Scout received your request.', 'ok'));
+});

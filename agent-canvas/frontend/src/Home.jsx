@@ -41,6 +41,11 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, onAct, onRevise,
   const receipt = receiptState.data;
   const [showReceipt, setShowReceipt] = useState(false);
   const run = inquiry.run;
+  // Keep the exact submitted request available while presenting the follow-up
+  // separately from the context envelope created by this composer.
+  const contextMarker = '\n\nSelected answer for context (verify its claims before acting):\nQuestion: ';
+  const contextAt = inquiry.mode === 'act' && inquiry.question.startsWith('Follow-up request: ') ? inquiry.question.indexOf(contextMarker) : -1;
+  const title = contextAt > 0 ? inquiry.question.slice('Follow-up request: '.length, contextAt) : inquiry.question;
 
   const agent = inquiry.agent;
   const cited = receipt?.cited || [];
@@ -50,9 +55,9 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, onAct, onRevise,
   const epiCounts = cited.reduce((m, e) => { m[e.epistemic] = (m[e.epistemic] || 0) + 1; return m; }, {});
 
   return (
-    <article className={`answer-card status-${inquiry.status}`} aria-label={`Inquiry: ${inquiry.question}`}>
+    <article className={`answer-card status-${inquiry.status}`} aria-label={`Inquiry: ${title}`}>
       <div className="answer-q">
-        <span className="answer-question">{inquiry.question}</span>
+        <span className="answer-question">{title}</span>
         <span className={`chip inq-${inquiry.status}`}>{STATUS_COPY[inquiry.status] || inquiry.status}</span>
         <span className="chip">{{ ask: 'Ask', act: 'Act', rehearse: 'Practice (Rehearse)' }[inquiry.mode] || inquiry.mode}</span>
       </div>
@@ -60,6 +65,8 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, onAct, onRevise,
         {agent ? <>{inquiry.selectionAuto ? 'Selected agent: ' : ''}<span className="dot-inline" style={{ background: agent.color }} />{agent.name} </> : null}
         {' · '}{timeAgo(inquiry.createdAt)}
       </div>
+
+      {contextAt > 0 ? <details className="answer-context"><summary>Request and attached context</summary><div className="submitted-request">{inquiry.question}</div></details> : null}
 
       {inquiry.status === 'pending' ? (
         <div className="answer-pending" role="status" aria-live="polite">The agent is working — the answer lands here.</div>
@@ -183,7 +190,7 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
       setAnswerContext(null);
       loadSeq.current += 1;
       setInquiries((cur) => [d.inquiry, ...(cur || [])]);
-      if (d.selection?.auto && d.selection.echo) toast(d.selection.echo, 'ok');
+      if (d.selection?.auto && d.selection.echo) toast(`${d.inquiry.agent?.name || 'An agent'} received your request.`, 'ok');
       // A fast run can finish before the POST response arrives. Its pending
       // snapshot must not win over the terminal event that was already read.
       await load();
@@ -266,7 +273,7 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
 
       <div className="home-list">
         <div className="home-list-head">
-          <h2>{savedOnly ? 'Saved answers' : 'Recent inquiries'}</h2>
+          <h2>{savedOnly ? 'Saved answers' : 'Recent questions and actions'}</h2>
           <button className="btn ghost small" aria-pressed={savedOnly} onClick={() => setSavedOnly(!savedOnly)}>
             {savedOnly ? 'Show all' : 'Saved only'}
           </button>

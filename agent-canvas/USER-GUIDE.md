@@ -49,6 +49,9 @@ Pinning a note includes it in future agent work in this project space.
    changes using available tools. CRM changes still follow preview → Needs You
    approval → apply. No email is ever sent by an agent.
 
+The result shows your follow-up as its title. **Request and attached context**
+keeps the complete request available without repeating it above the answer.
+
 For an unrelated action, select **Act** yourself. **Advanced options** retains
 agent selection and **Practice (Rehearse)**, which narrates without performing
 external actions. These are not needed for the four journeys.
@@ -181,3 +184,33 @@ unverified for storage/backups and web research; it does not prove delivery.
 
 Downloads report failures with Try again. Memory → Change certainty explains the
 correction before showing the existing certainty choices.
+
+## Reproduce the four journeys locally
+
+From a checkout with dependencies installed, start the disposable preview:
+
+```bash
+cd /Users/cpconnor/projects/second-brain/agent-canvas
+npm run preview:journeys
+```
+
+Open the local URL printed by the command. Follow sections 1–4 above using
+**fred@cloudtechgurus.com**, create **Renewal review** with the starting team,
+and use the exact example question, follow-up and answer. The test model supplies
+the answer and creates the assigned review item after Act. The account is a
+member; none of these steps requires Advanced or owner settings. Press Ctrl-C
+in the terminal to discard the fixture. Each restart begins with no project content.
+
+To replay those steps automatically and regenerate desktop/mobile evidence:
+
+```bash
+cd /Users/cpconnor/projects/second-brain/agent-canvas
+npx playwright install chromium
+npm run test:journeys
+```
+
+The runner also checks queue recovery, keyboard selection, 768px layout and actual
+200% browser zoom. [Screenshots and verification details](docs/SIMPLIFICATION.md#journey-evidence)
+record the results. This is test-only: temporary in-memory databases, development
+sign-in and model stubs; external services are blocked. It does not verify Google
+OAuth, real customer answers or live integrations and cannot authorize deployment.

@@ -1789,3 +1789,13 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .connection-details { margin: 12px 0; }
 .sys-detail summary { cursor: pointer; }
 .spend-panel details, .panel-body > details { margin: 12px 0; }
+
+/* Reserve space for notifications so they never cover controls or answers. */
+#root { display: flex; flex-direction: column; }
+.workspace { flex: 1; min-height: 0; }
+.toasts { position: static; flex: 0 0 auto; max-height: 18vh; overflow: auto; gap: 0; width: 100%; }
+.toasts:empty { display: none; }
+.toast { min-width: 0; max-width: none; border-radius: 0; padding: 6px 14px; box-shadow: none; }
+.ny-card .tray-form { width: 100%; }
+.ny-card .tray-form textarea { width: 100%; min-height: 96px; resize: vertical; }
+.submitted-request { white-space: pre-wrap; overflow-wrap: anywhere; }

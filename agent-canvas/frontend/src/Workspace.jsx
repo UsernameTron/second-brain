@@ -1246,7 +1246,7 @@ export default function Workspace() {
 
       <div className="workspace-notices">
         {!wsOk ? <div className="stale-notice" role="status">Live updates are reconnecting. Displayed work may be out of date. <button className="btn small" onClick={refreshAll}>Refresh status</button></div> : null}
-        {Object.entries(requests).filter(([, r]) => r?.error).map(([key, r]) => <RequestError key={key} error={r.error} subject={`Loading ${key}`} onRetry={() => {
+        {Object.entries(requests).filter(([key, r]) => r?.error && !(key === 'attention badge' && requests.attention?.error) && !(key === 'attention' && view === 'needsyou')).map(([key, r]) => <RequestError key={key} error={r.error} subject={`Loading ${{ attention: 'Needs You', 'attention badge': 'the Needs You count', control: 'pause and spending status', spaces: 'project spaces' }[key] || key}`} onRetry={() => {
           if (key === 'team templates') refreshRoster();
           else if (key === 'spaces') refreshCanvases().then((d) => { if (!canvasId && d.canvases?.length) setCanvasId(d.canvases[0].id); }).catch(() => {});
           else refreshAll();

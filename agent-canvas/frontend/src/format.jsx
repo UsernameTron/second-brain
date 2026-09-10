@@ -136,6 +136,9 @@ function scalarLabel(v) {
   return short(String(v), 80);
 }
 function fieldLabel(key) {
+  if (key === 'detail') return 'Decision context';
+  if (key === 'entry_ids') return 'Related memory references';
+  if (key === 'item_key') return 'Work reference';
   return String(key).replace(/_/g, ' ');
 }
 function boundedDesc(v) {

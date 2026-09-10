@@ -22,88 +22,88 @@ update USER-GUIDE.md and HANDOFF.md in the same commit. No deployment.
 | 6A | RoomsView, helpers, styles, tests | List/detail/lens/activity failures, refresh progress, export lifecycle, permissions | Verified locally |
 | 6B | RulesView, AgentBuilder, helpers, styles, tests | Consent, saves, polling, rehearsal and publication gates, expiry | Verified locally |
 | 6C | AdminModal, ActivityDock, Spending, styles, tests | Failed tables, retained edits, partial reorder, serialized connector edits, permissions | Verified locally |
-| 7 | scripts, package command, guide, handoff, screenshots | Reproducible member sign-in → Ask → Act on this → answer Needs You, inspected desktop/mobile images | Planned |
+| 7 | scripts, package command, guide, handoff, screenshots; browser-found presentation fixes | Reproducible member sign-in → Ask → Act on this → answer Needs You, inspected desktop/mobile images | Verified locally |
 
 ## Control map
 
 Permissions below preserve existing server enforcement: “existing access”
 means the original view/edit permission, not a new grant. Advanced is available
-to members. Destinations are approved targets until their phase is verified.
-Evidence starts as the Phase 0 source/browser audit and is replaced with the
-implementing test or journey when that phase lands. No operation is retired.
+to members. Every destination below exists in the local build. Evidence links
+identify executable tests or explicitly labelled source inspection; source
+inspection does not claim a live service check. No operation is retired.
 
 | Original surface / controls | Disposition | Destination | Permission | Phase | Evidence |
 |---|---|---|---|---|---|
-| App: Google sign-in, dev email/sign-in | Keep-as-is | Sign-in; dev-only controls stay dev-only | Public / dev | 2 | Phase 0 browser |
-| Header: global Pause; banner owner Resume | Keep-as-is | Persistent header and paused banner | Existing pause / owner resume | 2,5 | Phase 0 source |
-| Header: today's spend / cap | Keep-as-is | Header → Spending | Existing access | 2,5 | Phase 0 source |
-| Home: Save/unsave, Saved only/Show all | Keep-as-is | Home answers | Existing edit/read | 3 | Phase 0 source |
-| Sources: links, privacy/redaction | Keep-as-is | Answers, Sources and details, Rooms | Existing access | 3,6A | Phase 0 source |
-| Dialogs: Close, Cancel, Back, Escape/focus return | Keep-as-is | Every existing dialog/panel | Existing access | 2–6C | Existing dialog tests |
-| Account: identity, Sign out | Keep-as-is | Account | Signed in | 2,5 | Phase 0 source |
-| Owner: operational ledger download | Keep-as-is | Account → Owner settings | Owner | 6C | Phase 0 source |
-| Workspace: canvas selector/name | Simplify | Project-space picker | Existing access | 5 | Phase 0 source |
-| Workspace: new canvas, name, Create/Cancel | Simplify | Picker → New project space | Existing create | 5 | Phase 0 source |
-| Creation: six teams, agent preview | Simplify | Team selector, all six teams | Existing create | 5 | Phase 0 source |
-| Creation: customize agents checkboxes | Simplify | Customize team | Existing create | 5 | Phase 0 source |
-| Home: eight suggested questions | Simplify | Three examples + More examples | Existing access | 5 | Phase 0 source |
-| Home: answer status, agent, mode, failure | Simplify | Plain-English answer header | Existing access | 3,5 | Phase 0 browser |
-| Home: Full receipt/Hide receipt | Simplify | Sources and details | Existing access | 3 | Phase 0 source |
-| Home: Open run | Simplify | View work / Work details | Existing access | 3 | Phase 0 source |
-| Needs You: Mine/Team/All | Simplify | Global queue; each card names project space | Accessible spaces only | 4 | Phase 0 source |
-| Needs You: Resolve, decision, Send decision, Back | Simplify | Answer → response → Submit answer | Existing edit | 4 | Phase 0 browser |
-| Needs You: Context/Hide context | Simplify | Visible decision context + Full details | Existing access | 4 | Phase 0 source |
-| Needs You: Redirect, target, instructions | Simplify | Other actions → Ask another agent | Existing edit | 4 | Phase 0 source |
-| Needs You: assign person/agent, clear | Simplify | Other actions → Assign | Existing edit | 4 | Phase 0 source |
-| Needs You: source-specific Dismiss | Simplify | Other actions → Dismiss | Existing access | 4 | Existing attention tests |
-| Failed work: Retry/Open run | Simplify | Try again/View work | Existing edit/read | 4 | Phase 0 source |
-| Review: Still true/extend, Open in Memory | Simplify | Confirm still true/Review memory | Existing edit/read | 4 | Existing memory tests |
-| Scheduled result: Acknowledge, Open rule/brief | Simplify | Mark reviewed/View scheduled work/View brief | Existing access | 4,6B | Phase 0 source |
-| Note: title, content, pin, Save, remove/keep | Simplify | Documents & notes → Note details | Existing edit/read | 3,5 | Phase 0 source |
-| File: chooser/upload/details/download/remove/cancel | Simplify | Add document + Documents & notes → File details | Existing edit/read | 3,5 | Existing file tests |
-| Task: details, person/agent assignment, unassign | Simplify | Task panel from Advanced canvas | Existing edit/read | 3,5 | Phase 0 source |
-| Memory: search, kind, history toggle | Simplify | More → Memory | Existing access | 3,5 | Existing memory tests |
-| Memory: certainty, provenance, review dates, warnings | Simplify | Always beside entry; plain-English label plus stored term | Existing access | 3,5 | Existing memory tests |
-| Memory: Correct/cancel, replacement, certainty, reason, submit | Simplify | Entry → Correct | Existing edit | 3 | Existing correction tests |
-| Memory: certainty reclassification | Simplify | Change certainty (creates correction) | Existing edit | 3 | Existing correction tests |
-| Memory: lineage, lifecycle, upstream/downstream, run | Simplify | History and sources | Existing access | 3 | Existing lineage tests |
-| Rooms: list/open/back, Now/History/Risk, Brief/Activity, Refresh | Simplify | More → Rooms | Existing access | 5,6A | Existing room tests |
-| Rooms: create/name/type/players/staff/external ref | Simplify | Create room; setup details for staff/reference | Owner | 6A | Existing room tests |
-| Rooms: export preview/included/excluded/warnings/download/close | Simplify | Room → Export | Owner | 6A | Existing export tests |
-| Rules: list/open/back, instruction/template/Interpret | Simplify | More → Scheduled work | Existing access | 5,6B | Existing rule tests |
-| Rules: edit instruction, full consent card | Simplify | Scheduled-work details | Existing authority | 6B | Existing consent tests |
-| Rules: schedule/day/hour/sources/scope/agent/output/expiry | Simplify | Settings with UTC labels | Existing authority | 6B | Existing rule tests |
-| Rules: Rehearse/Activate/Pause/Resume/Revoke | Simplify | Scheduled-work details | Existing authority | 6B | Existing rule tests |
-| Rules: history/brief/matched count/source refs | Simplify | Scheduled-work results | Existing access | 6B | Existing rule tests |
-| Header: theme | Simplify | Account → Appearance | Signed in | 2,5 | Phase 0 source |
-| Canvas: agents/notes/tasks/files/people, select/open | Move-to-Advanced | More → Advanced → Canvas | Existing access | 5 | Existing canvas tests |
-| Canvas: drag/pan/zoom/Fit/Tidy/minimap/clusters/handoffs | Move-to-Advanced | Advanced → Canvas | Existing access | 5 | Existing canvas tests |
-| Composer: agent override | Move-to-Advanced | Advanced options | Existing edit | 5 | Phase 0 source |
-| Composer: Rehearse | Move-to-Advanced | Advanced options → Practice (Rehearse) | Existing edit | 5 | Existing mode tests |
-| CommandBar: text/voice/parse/preview/confirm/cancel/dismiss/pause/resume | Move-to-Advanced | Advanced → Commands | Existing access | 5 | Existing command tests |
-| Agent: direct dispatch/recent runs/events | Move-to-Advanced | Canvas → Agent details | Existing edit/read | 3,5 | Existing panel tests |
-| Agent: versions/configuration/rollback | Move-to-Advanced | Agent details → Advanced | Read / owner rollback | 3,5 | Existing version tests |
-| Agent: remove/confirmation | Move-to-Advanced | Team → Agent details → Advanced | Existing edit | 5 | Phase 0 source |
-| Builder: brief/propose/re-propose/start over/instructions/escalations/permissions/budgets/rehearse | Move-to-Advanced | Team → Advanced → Build an agent | Existing access | 5,6B | Existing builder tests |
-| Builder: publish/template/change details | Move-to-Advanced | Same builder | Owner publication | 6B | Existing builder tests |
-| Custom agent: name/role/tier/color/prompt/Add/Cancel | Move-to-Advanced | Team → Advanced → Custom agent | Existing edit | 5 | Phase 0 source |
-| Rules: step/time budgets, technical occurrence details | Move-to-Advanced | Advanced settings/details; limits still on consent | Existing authority | 6B | Existing rule tests |
-| Activity: expand/filter agent/seven categories/handoff highlight | Move-to-Advanced | Advanced → Activity | Existing access | 5,6C | Phase 0 source |
-| Systems: provider/model/queue/segments/live link/board | Move-to-Advanced | Connections → Advanced details | Existing access | 2,5 | Existing lamp tests |
-| Spending: tokens/monthly/per-agent/analytics | Move-to-Advanced | Spending → Advanced details | Existing access | 6C | Phase 0 source |
-| Allowlist: email/name/role/add/remove | Move-to-Advanced | Owner settings → People and access | Owner | 6C | Existing admin tests |
-| Roster: add/edit/name/role/tier/color/prompt/default/enabled/order | Move-to-Advanced | Owner settings → Agent templates | Owner | 6C | Phase 0 source |
-| Connector: add/name/URL/access/headers/roles/enabled/probe/tools/refused details | Move-to-Advanced | Owner settings → Connections | Owner | 6C | Existing connector tests |
-| Audit: action/limit/refresh/chain/entries | Move-to-Advanced | Owner settings → Audit history | Owner | 6C | Existing audit tests |
-| Canvas: archive/list archived/restore | Move-to-Advanced | Project-space menu → Owner actions | Owner | 5 | Existing lifecycle tests |
-| Spending: daily budget edit | Move-to-Advanced | Spending → Owner settings | Owner | 3,6C | Existing budget tests |
-| Home composer + permanent CommandBar | Merge | One Home composer; parser under Advanced | Existing edit | 5 | Phase 0 browser |
-| Ask/Act modes and button labels | Merge | Ask default; explicit Act and matching submit text | Existing edit | 5 | Phase 0 browser |
-| Home/Canvas toggle | Merge | Stable Home + Advanced Canvas | Existing access | 5 | Phase 0 browser |
-| Header Needs You/tray/HUD count | Merge | One badge/queue; legacy tray when flag off | Existing access | 4,5 | Existing fallback tests |
-| Capabilities + Systems | Merge | Connections | Existing access | 2,5 | Existing capability tests |
-| +Note/+Document | Merge | Documents & notes; Add document by composer | Existing edit | 5 | Phase 0 source |
-| +Agent/+Person/team inspection | Merge | More → Team | Existing edit/read | 5 | Phase 0 source |
+| App: Google sign-in, dev email/sign-in | Keep-as-is | Sign-in; dev-only controls stay dev-only | Public / dev | 2 | [Startup] + [Journey] (development sign-in); Google OAuth remains unverified live |
+| Header: global Pause; banner owner Resume | Keep-as-is | Persistent header and paused banner | Existing pause / owner resume | 2,5 | [Workspace] (HTTP-confirmed pause) + [Safety] + [Journey] (visible controls) |
+| Header: today's spend / cap | Keep-as-is | Header → Spending | Existing access | 2,5 | [Owner] (unknown spending) + [Journey] (visible cap) + [Safety] |
+| Home: Save/unsave, Saved only/Show all | Keep-as-is | Home answers | Existing edit/read | 3 | [Home] (saved-answer filters) + [Saved work] |
+| Sources: links, privacy/redaction | Keep-as-is | Answers, Sources and details, Rooms | Existing access | 3,6A | [Saved work] (external evidence/retry) + [Room exports] (disclosure) |
+| Dialogs: Close, Cancel, Back, Escape/focus return | Keep-as-is | Every existing dialog/panel | Existing access | 2–6C | [Dialogs] (Escape/trap/return) + [Journey] (Connections Escape) |
+| Account: identity, Sign out | Keep-as-is | Account | Signed in | 2,5 | [Workspace] (sign-out failure) + [Startup] (expiry); [Header source] inspection |
+| Owner: operational ledger download | Keep-as-is | Account → Owner settings | Owner | 6C | [Requests] (bounded download) + [Admin source] inspection: Download operational ledger |
+| Workspace: canvas selector/name | Simplify | Project-space picker | Existing access | 5 | [Workspace] + [Journey] (active name/create); [Header source] inspection: picker |
+| Workspace: new canvas, name, Create/Cancel | Simplify | Space actions → New project space | Existing create | 5 | [Workspace] (fresh/create/team) + [Journey] (empty boot → creation) |
+| Creation: six teams, agent preview | Simplify | Team selector, all six teams | Existing create | 5 | [Workspace] (stable roster and team choices); [Header source] inspection: all six options |
+| Creation: customize agents checkboxes | Simplify | Customize team | Existing create | 5 | [Workspace] (customization) + [Header source] inspection: Customize team |
+| Home: eight suggested questions | Simplify | Three examples + More examples | Existing access | 5 | [Simplified] + [Home source] inspection: all eight examples retained |
+| Home: answer status, agent, mode, failure | Simplify | Plain-English answer header | Existing access | 3,5 | [Home] + [Saved work] + [Journey] (Ask and Act result) |
+| Home: Full receipt/Hide receipt | Simplify | Sources and details | Existing access | 3 | [Saved work] (receipt failure/recovery) + [Home] |
+| Home: Open run | Simplify | View work / Work details | Existing access | 3 | [Saved work] (old run/events) + [Work source] inspection |
+| Needs You: Mine/Team/All | Simplify | Global queue; each card names project space | Accessible spaces only | 4 | [Workspace] (global server scopes/badge) + [Attention] (restricted exclusion) |
+| Needs You: Resolve, decision, Send decision, Back | Simplify | Answer → response → Submit answer | Existing edit | 4 | [Review] (pending/403/409/unconfirmed) + [Journey] (accepted answer and memory) |
+| Needs You: Context/Hide context | Simplify | Visible decision context + Full details | Existing access | 4 | [Review] (full context and diagnostic labels) + [Journey] (review card) |
+| Needs You: Redirect, target, instructions | Simplify | Other actions → Ask another agent | Existing edit | 4 | [Review] + [Review source] inspection: redirect form/callback |
+| Needs You: assign person/agent, clear | Simplify | Other actions → Assign | Existing edit | 4 | [Review] (source-space choices) + [Assignment] (person/agent/unassign) |
+| Needs You: source-specific Dismiss | Simplify | Other actions → Dismiss | Existing access | 4 | [Review] (projected and escalation actions) + [Attention] (dismissal) |
+| Failed work: Retry/Open run | Simplify | Try again/View work | Existing edit/read | 4 | [Review] (source run reference) + [Saved work] (run details) |
+| Review: Still true/extend, Open in Memory | Simplify | Confirm still true/Review memory | Existing edit/read | 4 | [Review] (reaffirm/ref) + [Memory lifecycle] (append-only review) |
+| Scheduled result: Acknowledge, Open rule/brief | Simplify | Mark reviewed/View scheduled work/View brief | Existing access | 4,6B | [Review] + [Rules] (acknowledge/deep links) |
+| Note: title, content, pin, Save, remove/keep | Simplify | Documents & notes → Note details | Existing edit/read | 3,5 | [Workspace] (pin/remove) + [Saved work] (retained note/retry) |
+| File: chooser/upload/details/download/remove/cancel | Simplify | Add document + Documents & notes → File details | Existing edit/read | 3,5 | [Workspace] (upload/details/remove/view-only) + [Requests] (download) |
+| Task: details, person/agent assignment, unassign | Simplify | Task panel from Advanced canvas | Existing edit/read | 3,5 | [Assignment] + [Panels source] inspection: TaskPanel assignment and retained error |
+| Memory: search, kind, history toggle | Simplify | More → Memory | Existing access | 3,5 | [Saved work] + [Memory source] inspection: search/kind/history |
+| Memory: certainty, provenance, review dates, warnings | Simplify | Always beside entry; plain-English label plus stored term | Existing access | 3,5 | [Format] + [Saved work] + [Memory contract] |
+| Memory: Correct/cancel, replacement, certainty, reason, submit | Simplify | Entry → Correct | Existing edit | 3 | [Saved work] (rejected correction) + [Memory lifecycle] |
+| Memory: certainty reclassification | Simplify | Change certainty (creates correction) | Existing edit | 3 | [Saved work] (Change certainty contract) + [Memory lifecycle] |
+| Memory: lineage, lifecycle, upstream/downstream, run | Simplify | History and sources | Existing access | 3 | [Saved work] (lineage recovery) + [Lineage] + [Memory source] inspection |
+| Rooms: list/open/back, Now/History/Risk, Brief/Activity, Refresh | Simplify | More → Rooms | Existing access | 5,6A | [Rooms] + [Room reliability] (lens/activity/refresh recovery) + [Journey] (destination) |
+| Rooms: create/name/type/players/staff/external ref | Simplify | Create room; setup details for staff/reference | Owner | 6A | [Rooms] (owner/view-only) + [Room reliability] (players failure) |
+| Rooms: export preview/included/excluded/warnings/download/close | Simplify | Room → Export | Owner | 6A | [Room reliability] (preview invalidation/conflict) + [Room exports] |
+| Rules: list/open/back, instruction/template/Interpret | Simplify | More → Scheduled work | Existing access | 5,6B | [Rules] (template/parse) + [Scheduling] (list failure) + [Journey] (destination) |
+| Rules: edit instruction, full consent card | Simplify | Scheduled-work details | Existing authority | 6B | [Rules] (all consent fields, edits and authority) + [Scheduling] |
+| Rules: schedule/day/hour/sources/scope/agent/output/expiry | Simplify | Settings with UTC labels | Existing authority | 6B | [Rules] (structured fields) + [Scheduling] (retained save/UTC) |
+| Rules: Rehearse/Activate/Pause/Resume/Revoke | Simplify | Scheduled-work details | Existing authority | 6B | [Rules] (complete lifecycle) + [Scheduling] (same-account rehearsal) |
+| Rules: history/brief/matched count/source refs | Simplify | Scheduled-work results | Existing access | 6B | [Rules] (brief/zero/source/history) + [Scheduling] (poll recovery) |
+| Header: theme | Simplify | Account → Appearance | Signed in | 2,5 | [Startup] + [Header source] inspection: Appearance |
+| Canvas: agents/notes/tasks/files/people, select/open | Move-to-Advanced | More → Advanced → Canvas | Existing access | 5 | [Nodes] (keyboard opening) + [Journey] (Canvas destination) + [Canvas source] inspection |
+| Canvas: drag/pan/zoom/Fit/Tidy/minimap/clusters/handoffs | Move-to-Advanced | Advanced → Canvas | Existing access | 5 | [Journey] (Fit/Tidy reachable) + [Canvas source] inspection: all spatial handlers preserved |
+| Composer: agent override | Move-to-Advanced | Advanced options | Existing edit | 5 | [Simplified] + [Home source] inspection: agent override |
+| Composer: Rehearse | Move-to-Advanced | Advanced options → Practice (Rehearse) | Existing edit | 5 | [Simplified] (practice) + [Modes] (unchanged semantics) |
+| CommandBar: text/voice/parse/preview/confirm/cancel/dismiss/pause/resume | Move-to-Advanced | Advanced → Commands | Existing access | 5 | [Simplified] (parse/practice/cancel/confirm) + [Commands source] inspection: voice/pause/resume |
+| Agent: direct dispatch/recent runs/events | Move-to-Advanced | Canvas → Agent details | Existing edit/read | 3,5 | [Saved work] (dispatch/events) + [Panels source] inspection: recent runs |
+| Agent: versions/configuration/rollback | Move-to-Advanced | Agent details → Advanced | Read / owner rollback | 3,5 | [Authority] + [Panels source] inspection: versions/configuration and owner rollback |
+| Agent: remove/confirmation | Move-to-Advanced | Team → Agent details → Advanced | Existing edit | 5 | [Workspace] (agent removal) + [Agent removal] (retained history) |
+| Builder: brief/propose/re-propose/start over/instructions/escalations/permissions/budgets/rehearse | Move-to-Advanced | Team → Advanced → Build an agent | Existing access | 5,6B | [Builder] + [Scheduling] (save/rehearse/abandon) + [Context source] inspection: Advanced path |
+| Builder: publish/template/change details | Move-to-Advanced | Same builder | Owner publication | 6B | [Builder] (publish/diff) + [Authority] + [Builder source] inspection: template option |
+| Custom agent: name/role/tier/color/prompt/Add/Cancel | Move-to-Advanced | Team → Advanced → Custom agent | Existing edit | 5 | [Context source] + [Add agent source] inspection: all manual fields and Add/Cancel retained |
+| Rules: step/time budgets, technical occurrence details | Move-to-Advanced | Advanced settings/details; limits still on consent | Existing authority | 6B | [Rules] + [Scheduling] + [Rules source] inspection: limits and occurrences |
+| Activity: expand/filter agent/seven categories/handoff highlight | Move-to-Advanced | Advanced → Activity | Existing access | 5,6C | [Owner] (seven filters/no matches/error) + [Activity source] inspection: handoff selection |
+| Systems: provider/model/queue/segments/live link/board | Move-to-Advanced | Connections → Advanced details | Existing access | 2,5 | [Startup] (honest status) + [Capabilities source] inspection: labelled HUD details |
+| Spending: tokens/monthly/per-agent/analytics | Move-to-Advanced | Spending → Advanced details | Existing access | 6C | [Owner] (unknown history/statistics) + [Panels source] inspection: advanced spending |
+| Allowlist: email/name/role/add/remove | Move-to-Advanced | Owner settings → People and access | Owner | 6C | [Owner] (failed table/invite/draft) + [Admin source] inspection: roles/remove |
+| Roster: add/edit/name/role/tier/color/prompt/default/enabled/order | Move-to-Advanced | Owner settings → Agent templates | Owner | 6C | [Owner] (retained editor/partial ordering) + [Admin source] inspection: all fields/toggles |
+| Connector: add/name/URL/access/headers/roles/enabled/probe/tools/refused details | Move-to-Advanced | Owner settings → Connections | Owner | 6C | [Owner] (serialized edits) + [Connectors] + [Admin source] inspection: probe/tools/refusals |
+| Audit: action/limit/refresh/chain/entries | Move-to-Advanced | Owner settings → Audit history | Owner | 6C | [Owner] (failed chain invalidation) + [Admin source] inspection: action/limit/refresh |
+| Canvas: archive/list archived/restore | Move-to-Advanced | Space actions → Owner actions | Owner | 5 | [Workspace] (archive/empty) + [Archive] + [Header source] inspection: restore path |
+| Spending: daily budget edit | Move-to-Advanced | Spending → Owner settings | Owner | 3,6C | [Saved work] (failed budget/draft) + [Owner] + [Safety] |
+| Home composer + permanent CommandBar | Merge | One Home composer; parser under Advanced | Existing edit | 5 | [Simplified] (one composer) + [Journey] (one textbox) |
+| Ask/Act modes and button labels | Merge | Ask default; explicit Act and matching submit text | Existing edit | 5 | [Simplified] (Ask/Act/context/keyboard) + [Journey] (purpose-matched submissions) |
+| Home/Canvas toggle | Merge | Stable Home + Advanced Canvas | Existing access | 5 | [Simplified] (Home default) + [Journey] (Advanced Canvas reachability) |
+| Header Needs You/tray/HUD count | Merge | One badge/queue; legacy tray when flag off | Existing access | 4,5 | [Workspace] (independent badge) + [Review] (legacy flag path) + [Journey] |
+| Capabilities + Systems | Merge | Connections | Existing access | 2,5 | [Startup] + [Capabilities source] inspection + [Journey] (Connections) |
+| +Note/+Document | Merge | Documents & notes; Add document by composer | Existing edit | 5 | [Workspace] (notes/files) + [Journey] (Documents destination) |
+| +Agent/+Person/team inspection | Merge | More → Team | Existing edit/read | 5 | [Context source] + [Add agent source] inspection + [Journey] (Team destination) |
 
 New controls: Act on this, Clear answer context, persistent Retry/Check status,
 and Help with the four guide journeys. These add no server capability.
@@ -234,3 +234,98 @@ and Help with the four guide journeys. These add no server capability.
   recovery through the existing endpoints.
   Phase 6C full gate: 433 backend / 174 frontend tests, build and preflight
   passed; both production audits clean. No deployment.
+
+- Phase 7: the real-browser runner uses existing development sign-in, inquiry,
+  receipt and resolution routes. It verifies four member journeys without
+  Advanced/owner controls at both 1280px and 390px; accepted review persists as
+  a verified human memory record. Fresh databases contain zero project content.
+  Queue failure/recovery, keyboard selection, 768px and actual Chromium tab zoom
+  at 200% also pass. All 16 final screenshots were inspected for legibility,
+  overflow and covered controls. Browser-found fixes reserve notification space,
+  remove generated agent identifiers from ordinary review text, and separate the
+  follow-up title from its unchanged full context. Added regression assertions
+  preserve exact authored text and technical details.
+  Phase 7 full gate: 433 backend / 177 frontend tests, build and preflight
+  passed; both production audits clean. Original test files and assertions remain;
+  no existing test is deleted or skipped. Backend implementation is unchanged.
+
+## Journey evidence
+
+Run `npm run test:journeys` from the application directory. Install Chromium
+once with `npx playwright install chromium` if it is not present. The runner
+builds the frontend, starts isolated test servers and regenerates the images
+below. `npm run preview:journeys` opens the same disposable setup for manual
+reproduction using [the guide](../USER-GUIDE.md#reproduce-the-four-journeys-locally).
+
+[Machine-readable results](screenshots/manifest.json) include empty-boot counts,
+accepted review state, verified decision memory, blocked-network counts and the
+measured browser zoom (640 CSS pixels at 200% in a 1280px window). The fixture
+does not share the application's database or inherit integration credentials.
+All results are local: Google OAuth and external service success remain unverified.
+
+| Step / checked result | Desktop, 1280px | Mobile, 390px |
+|---|---|---|
+| Development sign-in; Google unconfigured stated | [Sign in](screenshots/journey-desktop-01-sign-in.png) | [Sign in](screenshots/journey-mobile-01-sign-in.png) |
+| Ask answered; unsupported source state explicit | [Ask](screenshots/journey-desktop-02-ask.png) | [Ask](screenshots/journey-mobile-02-ask.png) |
+| Act on this; editable request and removable context | [Act context](screenshots/journey-desktop-03-act-context.png) | [Act context](screenshots/journey-mobile-03-act-context.png) |
+| Act returns the draft checklist | [Act result](screenshots/journey-desktop-03b-act-result.png) | [Act result](screenshots/journey-mobile-03b-act-result.png) |
+| Assigned review; full decision context and answer form | [Needs You](screenshots/journey-desktop-04-needs-you.png) | [Needs You](screenshots/journey-mobile-04-needs-you.png) |
+| Accepted answer; card clears after confirmed response | [Accepted](screenshots/journey-desktop-05-review-saved.png) | [Accepted](screenshots/journey-mobile-05-review-saved.png) |
+| Unavailable queue has a recovery action and no false empty claim | [Recovery](screenshots/journey-desktop-06-queue-recovery.png) | [Recovery](screenshots/journey-mobile-06-queue-recovery.png) |
+
+Additional inspected images: [768px layout](screenshots/journey-tablet-768.png)
+and [actual 200% browser zoom](screenshots/journey-desktop-200-percent.png).
+The runner asserts no horizontal overflow, visible spending/Connections/Pause,
+notifications outside the work area, and no browser runtime errors. It separately
+opens Documents, Team, Rooms, Scheduled work and Advanced Canvas after the four
+journeys, so that secondary navigation is tested without becoming a prerequisite.
+
+Remaining boundaries are deliberate: bounded backend lists, project/shared memory
+scope, unavailable provider/connector configurations, and production activation.
+No pagination, universal memory propagation, backend probes, permission changes,
+push or deployment was added to this work.
+
+[Startup]: ../frontend/test/startup-status.test.jsx
+[Journey]: ../scripts/journey-test.js
+[Workspace]: ../frontend/test/workspace-cleanup.test.jsx
+[Safety]: ../test/orchestrator-safety.test.js
+[Owner]: ../frontend/test/owner-reliability.test.jsx
+[Home]: ../frontend/test/home.test.jsx
+[Saved work]: ../frontend/test/saved-work-reliability.test.jsx
+[Room exports]: ../test/rooms.test.js
+[Dialogs]: ../frontend/test/dialog.test.jsx
+[Header source]: ../frontend/src/WorkspaceHeader.jsx
+[Requests]: ../frontend/test/request-reliability.test.jsx
+[Admin source]: ../frontend/src/AdminModal.jsx
+[Simplified]: ../frontend/test/simplified-workspace.test.jsx
+[Home source]: ../frontend/src/Home.jsx
+[Work source]: ../frontend/src/WorkDetails.jsx
+[Attention]: ../test/attention.test.js
+[Review]: ../frontend/test/review-reliability.test.jsx
+[Review source]: ../frontend/src/NeedsYouView.jsx
+[Assignment]: ../test/people-assignment.test.js
+[Memory lifecycle]: ../test/memory-lifecycle.test.js
+[Rules]: ../frontend/test/rules.test.jsx
+[Panels source]: ../frontend/src/Panels.jsx
+[Memory source]: ../frontend/src/MemoryPanel.jsx
+[Format]: ../frontend/test/format.test.jsx
+[Memory contract]: ../test/memory-contract.test.js
+[Lineage]: ../test/explain-map.test.js
+[Rooms]: ../frontend/test/rooms.test.jsx
+[Room reliability]: ../frontend/test/rooms-reliability.test.jsx
+[Scheduling]: ../frontend/test/scheduling-reliability.test.jsx
+[Nodes]: ../frontend/test/nodes.test.jsx
+[Canvas source]: ../frontend/src/Workspace.jsx
+[Modes]: ../test/run-modes.test.js
+[Commands source]: ../frontend/src/CommandBar.jsx
+[Authority]: ../test/agent-authority.test.js
+[Agent removal]: ../test/agent-removal.test.js
+[Builder]: ../frontend/test/builder.test.jsx
+[Context source]: ../frontend/src/ContextViews.jsx
+[Builder source]: ../frontend/src/AgentBuilder.jsx
+[Add agent source]: ../frontend/src/AddAgentModal.jsx
+[Rules source]: ../frontend/src/RulesView.jsx
+[Activity source]: ../frontend/src/ActivityDock.jsx
+[Capabilities source]: ../frontend/src/CapabilitiesModal.jsx
+[Connectors]: ../test/mcp-connectors.test.js
+[Archive]: ../test/canvas-archive.test.js

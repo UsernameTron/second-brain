@@ -72,7 +72,7 @@ export function AttentionCard({ row, agentsById = {}, people = [], agents = [], 
           delete the only statement of what matched — humanize instead. */}
       {row.context ? (
         <div className="ny-context">
-          {short(plainPreview(formatContractTail(row.context,
+          {row.type === 'escalation' && /^\w+ escalation(?: from agent [^ ]+)?$/.test(row.context) ? `Question from ${agentsById[row.escalatingAgentId]?.name || 'an agent'}.` : short(plainPreview(formatContractTail(row.context,
             row.type === 'rule_alert' ? 'strip' : 'humanize')), 220)}
         </div>
       ) : null}
@@ -81,13 +81,14 @@ export function AttentionCard({ row, agentsById = {}, people = [], agents = [], 
           {showCtx ? 'Hide full details' : 'Full details'}
         </button>
       ) : null}
+      {showCtx && row.type === 'escalation' && /^\w+ escalation(?: from agent [^ ]+)?$/.test(row.context || '') ? <details><summary>Technical context</summary><p>{row.context}</p></details> : null}
       {showCtx && hasCtx ? (
         <pre className="tray-context mono">
           {(() => { try { return humanizeDetail(row.contextData); } catch { return String(row.contextData); } })()}
         </pre>
       ) : null}
       <div className="ny-meta">
-        <span className="ny-consequence">{row.consequence}</span>
+        <span className="ny-consequence">{row.consequence === 'The escalating run stays parked until a human answers.' ? 'The agent needs your answer to continue this work.' : row.consequence}</span>
         {row.recommendation ? <span className="ny-recommendation">{row.recommendation}</span> : null}
       </div>
       <RequestError error={error} subject="Saving your response" onRetry={onRefresh} retryLabel="Check status" />

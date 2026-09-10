@@ -8,6 +8,18 @@ import Tray from '../src/Tray.jsx';
 const escalation = { type: 'escalation', decision: 'Approve the draft?', canvasName: 'Renewals', owner: { email: 'me@example.com' }, sourceRef: { canvasId: 'c2', id: 'e2' }, contextData: { before: 'Existing value', after: 'Proposed value' } };
 const base = { rows: [escalation], agentsById: {}, people: [], agents: [], userEmail: 'me@example.com', defaultScope: 'mine' };
 
+it('labels generated agent references while retaining exact technical and authored context', async () => {
+  const generated = 'question escalation from agent agent-123';
+  const view = render(<NeedsYouView {...base} rows={[{ ...escalation, escalatingAgentId: 'agent-123', context: generated }]} agentsById={{ 'agent-123': { name: 'Fred' } }} />);
+  expect(screen.getByText('Question from Fred.')).toBeVisible();
+  const diagnostic = screen.getByText(generated);
+  expect(diagnostic.closest('details')).not.toHaveAttribute('open');
+  await userEvent.click(screen.getByText('Technical context'));
+  expect(diagnostic).toBeVisible();
+  view.rerender(<NeedsYouView {...base} rows={[{ ...escalation, context: 'Customer asked us to keep this exact context.' }]} />);
+  expect(screen.getByText('Customer asked us to keep this exact context.')).toBeVisible();
+});
+
 it('keeps full decision context visible and blocks duplicate answers while pending', async () => {
   let finish;
   const resolve = vi.fn(() => new Promise((done) => { finish = done; }));

@@ -23,7 +23,10 @@ editable Act on this context. Phase 6A adds recoverable Room reads, confirmed
 refresh progress and guarded export previews/downloads. Phase 6B adds retained
 scheduling/Builder edits, recoverable polling and confirmed rehearsal gates. Phase 6C
 adds honest owner tables, retained edits, partial-order recovery, bounded downloads
-and unverified configuration labels. Local browser evidence uses stubbed models. See [SIMPLIFICATION.md](SIMPLIFICATION.md)
+and unverified configuration labels. Phase 7 verifies all four member journeys at
+1280/390px, queue recovery, 768px and actual 200% zoom; all 16 images inspected.
+Final local gate: 433 backend / 177 frontend tests; both production audits clean.
+Use `npm run test:journeys` or `npm run preview:journeys`. See [SIMPLIFICATION.md](SIMPLIFICATION.md)
 for control destinations and per-phase evidence. The production observations
 below are historical; no new production probe, push or deployment was performed.
 

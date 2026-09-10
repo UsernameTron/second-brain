@@ -76,7 +76,7 @@ function AllowlistTab({ toast, selfEmail }) {
 
   return (
     <div className="modal-body"><OwnerState resource={resource} change={change} subject="people and access" />
-      <fieldset className="owner-controls" disabled={change.blocked}> 
+      <fieldset className="owner-controls" disabled={change.blocked}>
       <form className="allowlist-add" onSubmit={add}>
         <input aria-label="Email address" type="email" required placeholder="email@domain" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input aria-label="Display name" placeholder="display name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
@@ -146,7 +146,7 @@ function RosterTab({ toast }) {
 
   return (
     <div className="modal-body"><OwnerState resource={resource} change={change} subject="agent templates" />
-      <fieldset className="owner-controls" disabled={change.blocked}> 
+      <fieldset className="owner-controls" disabled={change.blocked}>
       <div className="roster-admin-head">
         {pendingOrder ? <p role="alert">Ordering is partly saved. Check saved status, then finish the remaining move. <button className="btn small" onClick={finishOrder}>Finish ordering</button></p> : null}
         <span className="dim">Templates canvases are staffed from. Edits apply to future instantiations; existing agents change only on resync.</span>
@@ -256,7 +256,7 @@ function ConnectorsTab({ toast }) {
 
   return (
     <div className="modal-body"><OwnerState resource={resource} change={change} subject="connections" />
-      <fieldset className="owner-controls" disabled={change.blocked}> 
+      <fieldset className="owner-controls" disabled={change.blocked}>
       <div className="roster-admin-head">
         <span className="dim">External MCP tool servers. A connector is inert until you probe it and enable tools. "owner" access hides it from members' runs entirely; roles limit which agents are offered its tools (blank = all). Header values may be {'${ENV:NAME}'} references.</span>
         <button className="btn ghost small" onClick={() => { setAdding((v) => !v); setDraft({ access: 'members' }); }}>{adding ? 'Cancel' : 'Add connector'}</button>

@@ -1,0 +1,225 @@
+{
+  "fixture": "Disposable in-memory DB; real development auth and application routes; stubbed model; external network blocked. Does not verify Google OAuth or live integrations.",
+  "journeys": [
+    {
+      "size": "desktop",
+      "bootCounts": {
+        "canvases": 0,
+        "agents": 0,
+        "notes": 0,
+        "files": 0,
+        "tasks": 0,
+        "runs": 0,
+        "inquiries": 0,
+        "memory_entries": 0
+      },
+      "externalAttempts": 0,
+      "inquiries": [
+        {
+          "question": "What should we check before a customer renewal?",
+          "mode": "ask",
+          "status": "answered"
+        },
+        {
+          "question": "Follow-up request: Draft a short checklist from this answer.\n\nSelected answer for context (verify its claims before acting):\nQuestion: What should we check before a customer renewal?\nAnswer: Check the renewal date, account owner and open risks. Prepare a short checklist for review. This local test answer has no external sources.",
+          "mode": "act",
+          "status": "answered"
+        }
+      ],
+      "decisions": [
+        {
+          "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
+          "epistemic": "verified",
+          "source": "escalation c1728025-380e-460f-bbf6-44643a1cd0ee resolution"
+        }
+      ],
+      "escalations": [
+        {
+          "question": "Should we prepare the renewal checklist?",
+          "status": "accepted",
+          "owner_email": "fred@cloudtechgurus.com"
+        }
+      ],
+      "result": "passed"
+    },
+    {
+      "size": "mobile",
+      "bootCounts": {
+        "canvases": 0,
+        "agents": 0,
+        "notes": 0,
+        "files": 0,
+        "tasks": 0,
+        "runs": 0,
+        "inquiries": 0,
+        "memory_entries": 0
+      },
+      "externalAttempts": 0,
+      "inquiries": [
+        {
+          "question": "What should we check before a customer renewal?",
+          "mode": "ask",
+          "status": "answered"
+        },
+        {
+          "question": "Follow-up request: Draft a short checklist from this answer.\n\nSelected answer for context (verify its claims before acting):\nQuestion: What should we check before a customer renewal?\nAnswer: Check the renewal date, account owner and open risks. Prepare a short checklist for review. This local test answer has no external sources.",
+          "mode": "act",
+          "status": "answered"
+        }
+      ],
+      "decisions": [
+        {
+          "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
+          "epistemic": "verified",
+          "source": "escalation 2702d00c-cae9-45e2-b443-0118ffa82168 resolution"
+        }
+      ],
+      "escalations": [
+        {
+          "question": "Should we prepare the renewal checklist?",
+          "status": "accepted",
+          "owner_email": "fred@cloudtechgurus.com"
+        }
+      ],
+      "result": "passed"
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "journey-desktop-01-sign-in.png",
+      "description": "Development sign-in; Google OAuth is not configured in this isolated fixture.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-02-ask.png",
+      "description": "Member Ask answered; absent supporting sources are explicit.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-03-act-context.png",
+      "description": "Visible removable answer context and editable follow-up; nothing auto-submits.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-03b-act-result.png",
+      "description": "Act produced the draft checklist through the existing inquiry endpoint.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-04-needs-you.png",
+      "description": "Assigned member review with decision context, retained answer and Submit answer.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-05-review-saved.png",
+      "description": "Accepted response cleared the card; this empty queue follows a successful read.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-06-queue-recovery.png",
+      "description": "Unavailable queue stays distinct from verified empty and offers recovery.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-tablet-768.png",
+      "description": "768px intermediate layout, with keyboard selection exercised.",
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      }
+    },
+    {
+      "file": "journey-desktop-200-percent.png",
+      "description": "Actual Chromium tab zoom at 200%; safety controls remain visible without horizontal scrolling.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-mobile-01-sign-in.png",
+      "description": "Development sign-in; Google OAuth is not configured in this isolated fixture.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-02-ask.png",
+      "description": "Member Ask answered; absent supporting sources are explicit.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-03-act-context.png",
+      "description": "Visible removable answer context and editable follow-up; nothing auto-submits.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-03b-act-result.png",
+      "description": "Act produced the draft checklist through the existing inquiry endpoint.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-04-needs-you.png",
+      "description": "Assigned member review with decision context, retained answer and Submit answer.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-05-review-saved.png",
+      "description": "Accepted response cleared the card; this empty queue follows a successful read.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-06-queue-recovery.png",
+      "description": "Unavailable queue stays distinct from verified empty and offers recovery.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "browserZoom": {
+    "factors": [
+      2
+    ],
+    "cssWidth": 640,
+    "devicePixelRatio": 2
+  }
+}

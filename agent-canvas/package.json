@@ -13,7 +13,9 @@
     "seed": "node server/seed.js",
     "test": "node --test \"test/*.test.js\"",
     "test:frontend": "npm test --prefix frontend",
-    "verify": "npm test && npm run test:frontend && npm run build --prefix frontend && bash -n deploy/deploy.sh && bash deploy/deploy.sh --selftest"
+    "verify": "npm test && npm run test:frontend && npm run build --prefix frontend && bash -n deploy/deploy.sh && bash deploy/deploy.sh --selftest",
+    "test:journeys": "npm run build --prefix frontend && node scripts/journey-test.js",
+    "preview:journeys": "npm run build --prefix frontend && node scripts/journey-fixture.js --local"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.0",
