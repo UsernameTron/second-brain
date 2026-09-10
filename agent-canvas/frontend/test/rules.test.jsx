@@ -48,7 +48,7 @@ function renderRules(props = {}) {
 }
 
 async function parseFlow() {
-  await userEvent.type(screen.getByLabelText('Describe the standing rule'), 'watch inbound deals');
+  await userEvent.type(await screen.findByLabelText('Describe the standing rule'), 'watch inbound deals');
   await userEvent.click(screen.getByRole('button', { name: 'Interpret' }));
   await screen.findByText('What this rule means');
 }
@@ -238,6 +238,7 @@ describe('Rules & Briefs view', () => {
     // and a closed panel renders no controls at all.
     expect(screen.queryByLabelText('Step budget')).toBeNull();
     await userEvent.click(screen.getByText('Settings — cadence, sources, budget, expiry'));
+    await userEvent.click(screen.getByText('Advanced settings: work limits'));
 
     await userEvent.selectOptions(await screen.findByLabelText('Day'), '5');
     await userEvent.clear(screen.getByLabelText('Step budget'));
@@ -452,7 +453,7 @@ describe('Rules & Briefs view', () => {
     expect(screen.queryByText(/NOTHING MATCHED/)).toBeNull();
     expect(screen.getByText('Evidence: Acme renewal note · https://acme.example/renewal')).toBeInTheDocument();
     expect(screen.getByText(/Authorized by/)).toBeInTheDocument();
-    expect(screen.getByText('2026-W33')).toBeInTheDocument();
+    expect(screen.getByText('Scheduled occurrence: 2026-W33')).toBeInTheDocument();
   });
 
   it('a clean-zero rehearsal shows "Nothing matched.", never an empty box', async () => {
@@ -549,7 +550,7 @@ describe('Rules & Briefs view', () => {
 
     // And the same honesty on the consent card.
     await userEvent.click(screen.getByText('overdue rule'));
-    expect(await screen.findByText(/Check STANDING RULES · TICK/)).toBeInTheDocument();
+    expect(await screen.findByText(/Check scheduled work delivery.*STANDING RULES · TICK/)).toBeInTheDocument();
   });
 
   // The server now NULLs next_run_at on pause/revoke/expire, but rows written

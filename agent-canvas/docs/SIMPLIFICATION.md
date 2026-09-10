@@ -20,7 +20,7 @@ update USER-GUIDE.md and HANDOFF.md in the same commit. No deployment.
 | 4 | Workspace, NeedsYouView, Tray, MemoryPanel, work details | Six card types, global scopes, permission/conflict failures, pending guards, source navigation, legacy fallback | Verified locally |
 | 5 | Workspace, Home, CommandBar, AddAgentModal, Nodes, format, header/context presentation, styles | Single Ask composer, Act on this, full control reachability, fresh boot, keyboard and responsive layouts | Verified locally |
 | 6A | RoomsView, helpers, styles, tests | List/detail/lens/activity failures, refresh progress, export lifecycle, permissions | Verified locally |
-| 6B | RulesView, AgentBuilder, helpers, styles, tests | Consent, saves, polling, rehearsal and publication gates, expiry | Planned |
+| 6B | RulesView, AgentBuilder, helpers, styles, tests | Consent, saves, polling, rehearsal and publication gates, expiry | Verified locally |
 | 6C | AdminModal, ActivityDock, Spending, styles, tests | Failed tables, retained edits, partial reorder, serialized connector edits, permissions | Planned |
 | 7 | scripts, package command, guide, handoff, screenshots | Reproducible member sign-in → Ask → Act on this → answer Needs You, inspected desktop/mobile images | Planned |
 
@@ -213,4 +213,13 @@ and Help with the four guide journeys. These add no server capability.
   downloads retain bounded requests and HTTP conflict errors. Existing Room tests
   retain all six sections and member/view-only permissions.
   Phase 6A full gate: 433 backend / 155 frontend tests, build and preflight
+  passed; both production audits clean. No deployment.
+
+- Phase 6B: scheduling-reliability tests exercise failed reads/settings, context
+  races, unconfirmed consent changes, same-account rehearsal, stopped polling,
+  retained Builder edits and abandoned proposals. Existing rule and Builder tests
+  preserve every consent field, lifecycle operation, permission and publication
+  diff. Settings retain work limits under Advanced; history retains occurrences
+  under labelled details. Source-specific rules load their own team and access.
+  Phase 6B full gate: 433 backend / 163 frontend tests, build and preflight
   passed; both production audits clean. No deployment.

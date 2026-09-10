@@ -85,7 +85,12 @@ queue** checks now. Lists show the latest bounded results, not a complete archiv
   the preview lists inclusions, exclusions and warnings.
 - **More → Memory:** search, certainty, provenance, correction and history.
 - **More → Scheduled work:** recurring instructions, consent, practice,
-  activation and results. Existing ownership and rehearsal requirements apply.
+  activation and results. Review every consent field before activation; times are
+  UTC. Settings retains schedule, sources and expiry; its Advanced settings holds
+  work limits, which remain visible in the consent card. Only the creator or owner
+  can edit. The owner must rehearse using the same account that activates. A saved
+  schedule is not proof of delivery: check Connections and work history. Failed
+  reads offer Try again; pending rehearsal checks offer Check status.
 - **More → Documents & notes / Team:** context, staffing and teammate cards.
 - **More → Advanced:** the complete visual Canvas, interpreted text/voice
   Commands, and Activity. Team and agent details retain advanced configuration.
@@ -155,3 +160,9 @@ Give Pete the project name, action and approximate time if recovery does not hel
 
 Room exports require a disclosure preview. If the content changed or the download
 failed, choose **Review a fresh export preview**, review it again, then download.
+
+In Team → Advanced → Build an agent, failed edits stay available. Save changes
+and wait for a completed rehearsal before publishing. A pending rehearsal blocks
+another rehearsal. Start over stops checking the abandoned proposal. For an
+unconfirmed request, Check saved status before repeating it; saved proposals can
+be reopened from that check. Publication remains owner-only.
