@@ -62,14 +62,14 @@ inspection does not claim a live service check. No operation is retired.
 | Note: title, content, pin, Save, remove/keep | Simplify | Documents & notes → Note details | Existing edit/read | 3,5 | [Workspace] (pin/remove) + [Saved work] (retained note/retry) |
 | File: chooser/upload/details/download/remove/cancel | Simplify | Add document + Documents & notes → File details | Existing edit/read | 3,5 | [Workspace] (upload/details/remove/view-only) + [Requests] (download) |
 | Task: details, person/agent assignment, unassign | Simplify | Task panel from Advanced canvas | Existing edit/read | 3,5 | [Assignment] + [Panels source] inspection: TaskPanel assignment and retained error |
-| Memory: search, kind, history toggle | Simplify | More → Memory | Existing access | 3,5 | [Saved work] + [Memory source] inspection: search/kind/history |
-| Memory: certainty, provenance, review dates, warnings | Simplify | Always beside entry; plain-English label plus stored term | Existing access | 3,5 | [Format] + [Saved work] + [Memory contract] |
-| Memory: Correct/cancel, replacement, certainty, reason, submit | Simplify | Entry → Correct | Existing edit | 3 | [Saved work] (rejected correction) + [Memory lifecycle] |
+| Memory: search, kind, history toggle | Simplify | More → Memory | Existing access | 3,5 | [Saved work] + [Memory source] inspection: search/kind/history + [Room and memory evidence] |
+| Memory: certainty, provenance, review dates, warnings | Simplify | Always beside entry; plain-English label plus stored term | Existing access | 3,5 | [Format] + [Saved work] + [Memory contract] + [Room and memory evidence] |
+| Memory: Correct/cancel, replacement, certainty, reason, submit | Simplify | Entry → Correct | Existing edit | 3 | [Saved work] (rejected correction) + [Memory lifecycle] + [Room and memory evidence] |
 | Memory: certainty reclassification | Simplify | Change certainty (creates correction) | Existing edit | 3 | [Saved work] (Change certainty contract) + [Memory lifecycle] |
-| Memory: lineage, lifecycle, upstream/downstream, run | Simplify | History and sources | Existing access | 3 | [Saved work] (lineage recovery) + [Lineage] + [Memory source] inspection |
-| Rooms: list/open/back, Now/History/Risk, Brief/Activity, Refresh | Simplify | More → Rooms | Existing access | 5,6A | [Rooms] + [Room reliability] (lens/activity/refresh recovery) + [Journey] (destination) |
-| Rooms: create/name/type/players/staff/external ref | Simplify | Create room; setup details for staff/reference | Owner | 6A | [Rooms] (owner/view-only) + [Room reliability] (players failure) |
-| Rooms: export preview/included/excluded/warnings/download/close | Simplify | Room → Export | Owner | 6A | [Room reliability] (preview invalidation/conflict) + [Room exports] |
+| Memory: lineage, lifecycle, upstream/downstream, run | Simplify | History and sources | Existing access | 3 | [Saved work] (lineage recovery) + [Lineage] + [Memory source] inspection + [Room and memory evidence] |
+| Rooms: list/open/back, Now/History/Risk, Brief/Activity, Refresh | Simplify | More → Rooms | Existing access | 5,6A | [Rooms] + [Room reliability] (lens/activity/refresh recovery) + [Journey] (destination) + [Room and memory evidence] |
+| Rooms: create/name/type/players/staff/external ref | Simplify | Create room; setup details for staff/reference | Owner | 6A | [Rooms] (owner/view-only) + [Room reliability] (players failure) + [Room and memory evidence] |
+| Rooms: export preview/included/excluded/warnings/download/close | Simplify | Room → Export | Owner | 6A | [Room reliability] (preview invalidation/conflict) + [Room exports] + [Room and memory evidence] |
 | Rules: list/open/back, instruction/template/Interpret | Simplify | More → Scheduled work | Existing access | 5,6B | [Rules] (template/parse) + [Scheduling] (list failure) + [Journey] (destination) |
 | Rules: edit instruction, full consent card | Simplify | Scheduled-work details | Existing authority | 6B | [Rules] (all consent fields, edits and authority) + [Scheduling] |
 | Rules: schedule/day/hour/sources/scope/agent/output/expiry | Simplify | Settings with UTC labels | Existing authority | 6B | [Rules] (structured fields) + [Scheduling] (retained save/UTC) |
@@ -305,12 +305,44 @@ scope, unavailable provider/connector configurations, and production activation.
 No pagination, universal memory propagation, backend probes, permission changes,
 push or deployment was added to this work.
 
-## Review and release handoff
+## Secondary browser acceptance (2026-09-11)
 
-Prepared locally; no branch has been published and no PR, merge or deployment
-has been performed. The GitHub repository is public (`UsernameTron/second-brain`).
-Remote `master` was checked at `1308fec` on 2026-09-10. Keep the changes in the
-following review order, with each PR based on the preceding accepted phase:
+`npm run test:acceptance -- rooms-memory` runs a separate disposable fixture with
+Pete as owner and a fictional member. [Acceptance runner] uses real local saves,
+permissions, memory correction and export routes; only the model boundary and
+deliberately injected failed requests are stubbed. See [Room and memory evidence].
+
+- Room creation preserves rejected drafts, updates the project picker on success,
+  and retains type, selected people, staff and reference. All three lenses, failed
+  activity/retry, refresh polling/recovery and work details were exercised.
+- A real append after an export preview causes a conflict; fresh review/download
+  succeeds and excludes assumptions/inferences. Member and view-only controls,
+  plus restricted-Room exclusion after access revocation, were checked.
+- Memory search/no matches/kind/history, rejected correction with retained input,
+  append-only replacement and failed lineage/retry were exercised. Computed border
+  styles and symbols match all three certainty states, including at 390px.
+- Fixed a label-refactor regression affecting Memory symbols/borders and receipt
+  certainty styles; plain-English labels remain alongside stored meanings.
+- The original 14-worker backend gate twice hit PDF/connector deadlines while
+  those suites passed alone. Backend and frontend runners now cap workers at four;
+  every test and all runtime/test deadlines stay unchanged.
+- Faster PDF completion exposed an existing test typo: the parser warning is
+  `source_limit`, while the test checked `source_limit_message`. The assertion
+  now checks the existing output field and the same required recovery wording;
+  no backend implementation or safety limit changed.
+- Full gate: 433 backend / 185 frontend tests; both production audits clean.
+  Three screenshots inspected. These checks do not prove Google or live integrations.
+
+Control rows for Room creation/lenses/refresh/export and Memory filtering,
+certainty/correction/history now have browser evidence in addition to their
+listed component/backend tests. Other rows retain their explicitly listed evidence.
+
+## Local acceptance and deferred release
+
+Agent Canvas remains a folder within the second-brain repository. Pete directed
+continued local work on 2026-09-11. Publishing branches, PRs, merging, deployment
+and live connector activation are deferred until separately requested. The local
+implementation remains split into these independently verified changes:
 
 | Review | Commit(s) | Scope |
 |---|---|---|
@@ -325,17 +357,17 @@ following review order, with each PR based on the preceding accepted phase:
 | 7 | `291292b`, `c8b17d6` | Journey evidence and Pete preview identity |
 | Follow-up | After `c8b17d6` on the simplification branch | First-boot spending and guided acceptance record |
 
-The first proposed PR is **fix(agent-canvas): clear production dependency audit**,
-containing only Phase 1. Later UI phases remain separate review units. All local
-phase gates are recorded above; refresh them if a phase changes during review.
-Existing repository CI targets PRs to `master` and runs Agent Canvas backend and
-frontend tests, but does not enforce its complete verify/build/preflight and both
-production audits. CI expansion is separate scope; local gates must not be
-represented as remote checks. No cloud or connector activation is part of this
-handoff. Google OAuth and external integration acceptance remain unverified.
+The next local acceptance groups are Rooms/Memory, Scheduled work/Builder and
+owner tools/diagnostics. Exercise real local routes in a disposable browser fixture,
+inject failed requests, fix discovered regressions, and rerun the complete gate
+and both audits after each group. Source inspection and component tests remain
+distinct from browser evidence. Google OAuth and external integration acceptance
+remain unverified; local fixtures do not authorize or prove live access.
 
 [Startup]: ../frontend/test/startup-status.test.jsx
 [Journey]: ../scripts/journey-test.js
+[Acceptance runner]: ../scripts/acceptance-test.js
+[Room and memory evidence]: screenshots/acceptance-rooms-memory.json
 [Workspace]: ../frontend/test/workspace-cleanup.test.jsx
 [Safety]: ../test/orchestrator-safety.test.js
 [Owner]: ../frontend/test/owner-reliability.test.jsx

@@ -212,7 +212,7 @@ export function ContextReceipt({ receipt, onFeedback }) {
     finally { setBusy(false); }
   };
   const entryLine = (e, extra) => (
-    <div key={e.id} className={`receipt-entry epi-${certaintyLabel(e.epistemic)}`}>
+    <div key={e.id} className={`receipt-entry epi-${e.epistemic}`}>
       <span className="chip">{certaintyLabel(e.epistemic)}</span>
       {extra}
       <span className="receipt-content">{short(e.content, 120)}</span>

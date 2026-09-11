@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 vi.mock('../src/api.js', async (original) => ({ ...await original(), api: vi.fn() }));
 import { api } from '../src/api.js';
 import Home from '../src/Home.jsx';
-import { AgentPanel, NotePanel, SpendPanel } from '../src/Panels.jsx';
+import { AgentPanel, NotePanel, SpendPanel, ContextReceipt } from '../src/Panels.jsx';
 import MemoryPanel from '../src/MemoryPanel.jsx';
 import WorkDetails from '../src/WorkDetails.jsx';
 import { DraftsContext } from '../src/Drafts.jsx';
@@ -15,6 +15,24 @@ const inquiry = { id: 'i1', question: 'A question', mode: 'ask', status: 'answer
 const receipt = { run: { id: 'old-run', summary: 'Archived agent answer', status: 'completed' }, provided: [], searches: [], cited: [], evidence: [] };
 const homeProps = { canvasId: 'c1', agents: [agent], agentsById: { a1: agent }, toast: vi.fn(), onOpenRun: vi.fn() };
 beforeEach(() => { api.mockReset(); });
+
+it.each([
+  ['verified', 'filled', 'Confirmed (verified)'],
+  ['inference', 'half', 'Reasoned conclusion (inference)'],
+  ['assumption', 'hollow', 'Unconfirmed (assumption)'],
+])('preserves the %s memory shape and border alongside its plain-English label', (epistemic, shape, label) => {
+  const { container } = render(<MemoryPanel entries={[{ id: 'm1', content: 'A claim', epistemic }]} agentsById={{}} />);
+  const entry = container.querySelector('.mem-entry');
+  expect(entry).toHaveClass(`epi-${epistemic}`);
+  expect(entry.querySelector('.epi-dot')).toHaveClass(shape);
+  expect(entry.querySelector('.epi-label')).toHaveTextContent(label);
+});
+
+it('retains certainty styling in attached, retrieved and written receipt entries', () => {
+  const entries = ['verified', 'inference', 'assumption'].map((epistemic) => ({ id: epistemic, epistemic, content: epistemic }));
+  const { container } = render(<ContextReceipt receipt={{ provided: [entries[0]], searches: [{ query: 'claims', results: [{ entry: entries[1], rank: 1 }] }], cited: [entries[2]] }} />);
+  expect([...container.querySelectorAll('.receipt-entry')].map((node) => node.className)).toEqual(entries.map((entry) => `receipt-entry epi-${entry.epistemic}`));
+});
 
 it('retains a failed note and saves it on an explicit retry', async () => {
   const note = { id: 'n1', title: 'Notes', content: 'Original', version: 1 };

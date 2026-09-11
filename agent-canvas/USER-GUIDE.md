@@ -82,11 +82,15 @@ queue** checks now. Lists show the latest bounded results, not a complete archiv
 - **Home / Needs you:** questions, actions and human review.
 - **More → Rooms:** focused deal, client or decision views. Owners create Rooms
   and select members. A failed people list blocks creation until it can be checked.
+  A successfully created Room becomes the selected project space in the header.
   Refresh room requests agent work; wait for confirmed completion and review its
   result. A failed refresh check offers Check status. Loading failures never mean
   an empty Room; Try again reloads the selected view. Owners also preview client-safe exports before download;
   the preview lists inclusions, exclusions and warnings.
-- **More → Memory:** search, certainty, provenance, correction and history.
+- **More → Memory:** search entries or choose a kind. **Correct…** opens the
+  replacement and reason; a failed save keeps both for another attempt. Turn on
+  **history** to see the original and its replacement. **History and sources**
+  opens their links; **Try again** recovers an unavailable history or source read.
 - **More → Scheduled work:** recurring instructions, consent, practice,
   activation and results. Review every consent field before activation; times are
   UTC. Settings retains schedule, sources and expiry; its Advanced settings holds
@@ -131,7 +135,9 @@ staffing, access and current service checks; the list below is not a live probe.
 - Memory is append-only with authorship and sources. Corrections preserve the
   earlier entry and link it to the replacement.
 - Certainty stays visible: **Confirmed (verified)**, **Reasoned conclusion
-  (inference)**, or **Unconfirmed (assumption)**. Shapes and provenance also remain.
+  (inference)**, or **Unconfirmed (assumption)**. Confirmed entries use a filled
+  symbol and solid border; conclusions use a half-filled symbol and dashed border;
+  unconfirmed entries use a hollow symbol and dotted border. Provenance stays beside them.
 - Decisions are recorded in the current project space. Agents can retrieve its
   memory and shared entries; decisions are not automatically copied everywhere
   or guaranteed to appear in every future answer. Check scope and sources.

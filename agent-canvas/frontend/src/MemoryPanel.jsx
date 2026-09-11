@@ -54,7 +54,7 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
   const superseded = !!entry.supersededBy;
   const cls = [
     'mem-entry',
-    `epi-${certaintyLabel(entry.epistemic)}`,
+    `epi-${entry.epistemic}`,
     superseded ? 'superseded' : '',
     ripple && ripple.flash === entry.id ? 'mem-flash' : '',
     ripple && ripple.ids && ripple.ids.has(entry.id) ? 'mem-ripple' : '',
@@ -63,7 +63,7 @@ function MemoryEntry({ entry, ripple, onOpenRun, onTrace, onCorrect, compact, de
   return (
     <div className={cls}>
       <div className="mem-top">
-        <EpiDot epistemic={certaintyLabel(entry.epistemic)} />
+        <EpiDot epistemic={entry.epistemic} />
         <span className="epi-label">{certaintyLabel(entry.epistemic)}</span>
         {typeof depth === 'number' ? <span className="chip depth-chip mono">depth {depth}</span> : null}
         {entry.kind ? <span className="chip kind-chip">{entry.kind}</span> : null}

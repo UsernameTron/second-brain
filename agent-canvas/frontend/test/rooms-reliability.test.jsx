@@ -24,6 +24,19 @@ beforeEach(() => {
   });
 });
 function start(role = 'owner') { return render(<RoomsView user={{ role, email: 'owner@example.com' }} roster={[]} toast={vi.fn()} onOpenCanvas={vi.fn()} onOpenRun={vi.fn()} />); }
+it('updates the project picker only after room creation is accepted', async () => {
+  const implementation = api.getMockImplementation(); const created = vi.fn(); let reject = true;
+  api.mockImplementation((path, opts) => path === '/api/rooms' && opts?.method === 'POST'
+    ? reject ? Promise.reject(new Error('offline')) : Promise.resolve({ room }) : implementation(path, opts));
+  render(<RoomsView user={{ role: 'owner', email: 'owner@example.com' }} roster={[]} toast={vi.fn()} onCreated={created} />);
+  await userEvent.type(screen.getByLabelText('Room name'), 'Renewal');
+  await userEvent.click(screen.getByRole('button', { name: 'Create room' }));
+  await screen.findByText(/Creating the room could not/);
+  expect(created).not.toHaveBeenCalled();
+  reject = false;
+  await userEvent.click(screen.getByRole('button', { name: 'Create room' }));
+  await waitFor(() => expect(created).toHaveBeenCalledWith(room));
+});
 async function open() { await userEvent.click(await screen.findByText('Renewal')); await screen.findByText('People'); }
 it('distinguishes failed lists and missing players from an empty room list', async () => {
   fail = (path) => ['/api/rooms', '/api/allowlist'].includes(path);

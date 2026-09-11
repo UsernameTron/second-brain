@@ -1317,6 +1317,7 @@ export default function Workspace() {
               user={user}
               roster={roster}
               onOpenCanvas={(id) => { setCanvasId(id); setView('canvas'); }}
+              onCreated={(room) => { setCanvasId(room.canvasId); refreshCanvases().catch(() => {}); }}
               onOpenRun={({ canvasId: cid, runId }) => openRun(runId, cid)}
               toast={toast}
             />

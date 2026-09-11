@@ -11,10 +11,11 @@
     "start": "node server/index.js",
     "dev": "DEV_AUTH=1 node server/index.js",
     "seed": "node server/seed.js",
-    "test": "node --test \"test/*.test.js\"",
+    "test": "node --test --test-concurrency=4 \"test/*.test.js\"",
     "test:frontend": "npm test --prefix frontend",
     "verify": "npm test && npm run test:frontend && npm run build --prefix frontend && bash -n deploy/deploy.sh && bash deploy/deploy.sh --selftest",
     "test:journeys": "npm run build --prefix frontend && node scripts/journey-test.js",
+    "test:acceptance": "npm run build --prefix frontend && node scripts/acceptance-test.js",
     "preview:journeys": "npm run build --prefix frontend && node scripts/journey-fixture.js --local"
   },
   "dependencies": {

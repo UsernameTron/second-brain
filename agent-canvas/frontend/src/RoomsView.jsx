@@ -111,7 +111,7 @@ function RoomBrief({ built, onOpenRun }) {
   );
 }
 
-export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast }) {
+export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, onCreated, toast }) {
   const [roomId, setRoomId] = useState(null);
   const [lens, setLens] = useState('now');
   const [tab, setTab] = useState('brief');
@@ -175,6 +175,7 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, toast
       if (active.current !== null) return;
       setName(''); setExternalRef(''); setStaff(new Set()); setMembers(new Set());
       list.refresh(); open(d.room.id);
+      onCreated?.(d.room);
       toast('Room created', 'ok');
     } catch (e2) { if (active.current === null) setError(e2); }
     finally { if (active.current === null) setBusy(false); }
