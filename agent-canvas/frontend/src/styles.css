@@ -1793,7 +1793,9 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 
 /* Reserve space for notifications so they never cover controls or answers. */
 #root { display: flex; flex-direction: column; }
-.workspace { flex: 1; min-height: 0; }
+.workspace { flex: 1; min-height: 0; position: relative; }
+.workspace .modal-overlay { position: absolute; }
+.workspace .modal-overlay .modal { max-height: calc(100% - 24px); }
 .toasts { position: static; flex: 0 0 auto; max-height: 18vh; overflow: auto; gap: 0; width: 100%; }
 .toasts:empty { display: none; }
 .toast { min-width: 0; max-width: none; border-radius: 0; padding: 6px 14px; box-shadow: none; }

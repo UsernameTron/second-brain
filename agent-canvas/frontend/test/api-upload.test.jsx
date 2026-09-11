@@ -40,11 +40,23 @@ describe('raw upload API bodies', () => {
     });
   });
 
+  it('allows an encoded email path so owners can remove people, including plus-addresses', async () => {
+    const path = `/api/allowlist/${encodeURIComponent('local+review@cloudtechgurus.com')}`;
+    await api(path, { method: 'DELETE' });
+    expect(fetch).toHaveBeenCalledWith(path, expect.objectContaining({ method: 'DELETE' }));
+  });
+
   it.each([
     '/api/canvases/../files',
     '/api/canvases/%2e%2e/files',
     '/api/canvases/%252E%252E/files',
     '/api/canvases/..%2Fsecret/files',
+    '/api/allowlist/%2F%2Fevil.example',
+    '/api/allowlist/%5Cevil.example',
+    '/api/allowlist/%252Fsecret',
+    '/api/allowlist/%00email',
+    '/api/allowlist/%GG',
+    'https://evil.example/api/allowlist',
   ])('still rejects path traversal: %s', async (path) => {
     await expect(api(path)).rejects.toThrow('invalid API path');
     expect(fetch).not.toHaveBeenCalled();

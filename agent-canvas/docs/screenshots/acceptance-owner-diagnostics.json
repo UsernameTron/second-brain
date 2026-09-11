@@ -1,0 +1,48 @@
+{
+  "group": "owner-diagnostics",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations. Connector handshake and discovery are test stubs; probe recording and access changes use real server routes.",
+  "checks": [
+    "Every owner table distinguishes unavailable from empty and retries; access add/remove and template edits use real routes; failed drafts persist; partial two-write ordering finishes only the remaining change.",
+    "Connection form validation, failed probe/recovery, discovered tool checkbox and serialized access changes; connector boundary stubbed, configuration/probe-record/audit routes real.",
+    "Audit verified/unavailable/no-matches states, result limit, ledger download failure/retry, all seven activity filters, mobile owner layout and member ownership gate."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-owner-diagnostics-failed-probe.png",
+      "description": "A failed connector boundary probe exposes failure and recovery without discovered tools or a green status.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-owner-diagnostics-audit.png",
+      "description": "Audit chain is checked by the real local server; a failed refresh cleared its old verification claim.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-owner-diagnostics-mobile-owner.png",
+      "description": "Owner tools remain scrollable and reachable at 390px.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0,
+  "connectorProbeCalls": 2
+}

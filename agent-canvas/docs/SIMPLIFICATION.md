@@ -41,7 +41,7 @@ inspection does not claim a live service check. No operation is retired.
 | Sources: links, privacy/redaction | Keep-as-is | Answers, Sources and details, Rooms | Existing access | 3,6A | [Saved work] (external evidence/retry) + [Room exports] (disclosure) |
 | Dialogs: Close, Cancel, Back, Escape/focus return | Keep-as-is | Every existing dialog/panel | Existing access | 2–6C | [Dialogs] (Escape/trap/return) + [Journey] (Connections Escape) |
 | Account: identity, Sign out | Keep-as-is | Account | Signed in | 2,5 | [Workspace] (sign-out failure) + [Startup] (expiry); [Header source] inspection |
-| Owner: operational ledger download | Keep-as-is | Account → Owner settings | Owner | 6C | [Requests] (bounded download) + [Admin source] inspection: Download operational ledger |
+| Owner: operational ledger download | Keep-as-is | Account → Owner settings | Owner | 6C | [Requests] (bounded download) + [Admin source] inspection: Download operational ledger + [Owner acceptance evidence] |
 | Workspace: canvas selector/name | Simplify | Project-space picker | Existing access | 5 | [Workspace] + [Journey] (active name/create); [Header source] inspection: picker |
 | Workspace: new canvas, name, Create/Cancel | Simplify | Space actions → New project space | Existing create | 5 | [Workspace] (fresh/create/team) + [Journey] (empty boot → creation) |
 | Creation: six teams, agent preview | Simplify | Team selector, all six teams | Existing create | 5 | [Workspace] (stable roster and team choices); [Header source] inspection: all six options |
@@ -88,13 +88,13 @@ inspection does not claim a live service check. No operation is retired.
 | Builder: publish/template/change details | Move-to-Advanced | Same builder | Owner publication | 6B | [Builder] (publish/diff) + [Authority] + [Builder source] inspection: template option + [Scheduled work and Builder evidence] |
 | Custom agent: name/role/tier/color/prompt/Add/Cancel | Move-to-Advanced | Team → Advanced → Custom agent | Existing edit | 5 | [Context source] + [Add agent source] inspection: all manual fields and Add/Cancel retained |
 | Rules: step/time budgets, technical occurrence details | Move-to-Advanced | Advanced settings/details; limits still on consent | Existing authority | 6B | [Rules] + [Scheduling] + [Rules source] inspection: limits and occurrences + [Scheduled work and Builder evidence] |
-| Activity: expand/filter agent/seven categories/handoff highlight | Move-to-Advanced | Advanced → Activity | Existing access | 5,6C | [Owner] (seven filters/no matches/error) + [Activity source] inspection: handoff selection |
+| Activity: expand/filter agent/seven categories/handoff highlight | Move-to-Advanced | Advanced → Activity | Existing access | 5,6C | [Owner] (seven filters/no matches/error) + [Activity source] inspection: handoff selection + [Owner acceptance evidence] |
 | Systems: provider/model/queue/segments/live link/board | Move-to-Advanced | Connections → Advanced details | Existing access | 2,5 | [Startup] (honest status) + [Capabilities source] inspection: labelled HUD details |
 | Spending: tokens/monthly/per-agent/analytics | Move-to-Advanced | Spending → Advanced details | Existing access | 6C | [Owner] (unknown history/statistics) + [Panels source] inspection: advanced spending |
-| Allowlist: email/name/role/add/remove | Move-to-Advanced | Owner settings → People and access | Owner | 6C | [Owner] (failed table/invite/draft) + [Admin source] inspection: roles/remove |
-| Roster: add/edit/name/role/tier/color/prompt/default/enabled/order | Move-to-Advanced | Owner settings → Agent templates | Owner | 6C | [Owner] (retained editor/partial ordering) + [Admin source] inspection: all fields/toggles |
-| Connector: add/name/URL/access/headers/roles/enabled/probe/tools/refused details | Move-to-Advanced | Owner settings → Connections | Owner | 6C | [Owner] (serialized edits) + [Connectors] + [Admin source] inspection: probe/tools/refusals |
-| Audit: action/limit/refresh/chain/entries | Move-to-Advanced | Owner settings → Audit history | Owner | 6C | [Owner] (failed chain invalidation) + [Admin source] inspection: action/limit/refresh |
+| Allowlist: email/name/role/add/remove | Move-to-Advanced | Owner settings → People and access | Owner | 6C | [Owner] (failed table/invite/draft) + [Admin source] inspection: roles/remove + [Owner acceptance evidence] |
+| Roster: add/edit/name/role/tier/color/prompt/default/enabled/order | Move-to-Advanced | Owner settings → Agent templates | Owner | 6C | [Owner] (retained editor/partial ordering) + [Admin source] inspection: all fields/toggles + [Owner acceptance evidence] |
+| Connector: add/name/URL/access/headers/roles/enabled/probe/tools/refused details | Move-to-Advanced | Owner settings → Connections | Owner | 6C | [Owner] (serialized edits) + [Connectors] + [Admin source] inspection: probe/tools/refusals + [Owner acceptance evidence] |
+| Audit: action/limit/refresh/chain/entries | Move-to-Advanced | Owner settings → Audit history | Owner | 6C | [Owner] (failed chain invalidation) + [Admin source] inspection: action/limit/refresh + [Owner acceptance evidence] |
 | Canvas: archive/list archived/restore | Move-to-Advanced | Space actions → Owner actions | Owner | 5 | [Workspace] (archive/empty) + [Archive] + [Header source] inspection: restore path |
 | Spending: daily budget edit | Move-to-Advanced | Spending → Owner settings, including before a space exists | Owner | 3,6C,7 follow-up | [Saved work] + [Workspace] (role and saved-cap validation) + [Owner] + [Safety] |
 | Home composer + permanent CommandBar | Merge | One Home composer; parser under Advanced | Existing edit | 5 | [Simplified] (one composer) + [Journey] (one textbox) |
@@ -349,6 +349,23 @@ original values remain under Full change details. Three screenshots inspected,
 including a member at 390px.
 Full gate: 433 backend / 186 frontend tests; both production audits clean.
 
+Owner tools/diagnostics browser acceptance: `npm run test:acceptance -- owner-diagnostics`.
+[Owner acceptance evidence] records failures/retries for every owner table,
+retained access/template edits, actual access add/remove, a partially saved reorder
+and its remaining write, connector form validation/probe recovery/tool selection,
+serialized access changes, audit verification invalidation/recovery/filtering,
+ledger download recovery, all seven activity filters, and member/owner controls.
+Three screenshots inspected, including 390px owner tools. Connector handshake and
+discovery are stubbed; configuration, authorization, probe recording and audit
+routes remain real and local. No external connection success is claimed.
+Fixed the frontend path allowlist rejecting encoded email addresses, which blocked
+owner access removal. The path guard accepts well-formed percent encoding and
+still rejects traversal, encoded separators, control characters and other origins.
+Screenshot review also found notifications covering the bottom of owner dialogs.
+Dialogs now fit the workspace above notifications; browser checks assert their
+rectangles do not overlap at desktop and mobile sizes.
+Full gate: 433 backend / 193 frontend tests; both production audits clean.
+
 ## Local acceptance and deferred release
 
 Agent Canvas remains a folder within the second-brain repository. Pete directed
@@ -369,10 +386,10 @@ implementation remains split into these independently verified changes:
 | 7 | `291292b`, `c8b17d6` | Journey evidence and Pete preview identity |
 | Follow-up | After `c8b17d6` on the simplification branch | First-boot spending and guided acceptance record |
 
-The next local acceptance groups are Rooms/Memory, Scheduled work/Builder and
-owner tools/diagnostics. Exercise real local routes in a disposable browser fixture,
-inject failed requests, fix discovered regressions, and rerun the complete gate
-and both audits after each group. Source inspection and component tests remain
+Rooms/Memory, Scheduled work/Builder and owner tools/diagnostics have each
+completed local browser acceptance, recovery checks and a separate full gate.
+The remaining human acceptance is an unaided walkthrough from the current guide;
+Pete's earlier walkthrough was guided. Source inspection and component tests remain
 distinct from browser evidence. Google OAuth and external integration acceptance
 remain unverified; local fixtures do not authorize or prove live access.
 
@@ -381,6 +398,7 @@ remain unverified; local fixtures do not authorize or prove live access.
 [Acceptance runner]: ../scripts/acceptance-test.js
 [Room and memory evidence]: screenshots/acceptance-rooms-memory.json
 [Scheduled work and Builder evidence]: screenshots/acceptance-scheduling-builder.json
+[Owner acceptance evidence]: screenshots/acceptance-owner-diagnostics.json
 [Workspace]: ../frontend/test/workspace-cleanup.test.jsx
 [Safety]: ../test/orchestrator-safety.test.js
 [Owner]: ../frontend/test/owner-reliability.test.jsx

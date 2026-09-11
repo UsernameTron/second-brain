@@ -9,6 +9,7 @@ const http = require('node:http');
 const https = require('node:https');
 const local = process.argv.includes('--local');
 const acceptance = process.argv.includes('--acceptance');
+const connectorFixture = process.argv.includes('--connector-fixture');
 const identity = local ? { email: 'pete@cloudtechgurus.com', role: 'owner' }
   : { email: 'teammate@agent-canvas.invalid', role: 'member' };
 if (!local && process.env.AGENT_CANVAS_JOURNEY_FIXTURE !== '1') throw new Error('Start this test fixture through npm run test:journeys or npm run preview:journeys.');
@@ -53,6 +54,19 @@ runner._internal.setCallModel(async ({ messages }) => {
     : 'Check the renewal date, account owner and open risks. Prepare a short checklist for review. This local test answer has no external sources.');
 });
 const { db } = require('../server/db');
+let connectorProbeCalls = 0;
+if (connectorFixture) {
+  // Stub ONLY the connector boundary for owner acceptance. Config, permission
+  // saves, server probe recording and audit routes still execute normally.
+  const mcp = require('../server/mcp/client');
+  mcp.refreshDefs = async () => [];
+  mcp.probeServer = async () => {
+    connectorProbeCalls += 1;
+    if (connectorProbeCalls === 1) throw new Error('Local fixture connection unavailable');
+    return { ok: true, ms: 1 };
+  };
+  mcp.discoverTools = async () => [{ name: 'search', description: 'Search local fixture records', inputSchema: { type: 'object', properties: {} } }];
+}
 const { audit } = require('../server/audit');
 require('../server/bus').on('event', (event) => {
   if (event.type === 'escalation' && event.escalation?.question === 'Should we prepare the renewal checklist?') {
@@ -66,7 +80,7 @@ const bootCounts = Object.fromEntries(contentTables.map((table) => [table, db.pr
 assert.ok(Object.values(bootCounts).every((count) => count === 0), 'Fresh boot must have no fabricated product content');
 function snapshot() {
   return {
-    bootCounts, externalAttempts, identity,
+    bootCounts, externalAttempts, identity, connectorProbeCalls,
     inquiries: db.prepare('SELECT question, mode, status FROM inquiries ORDER BY created_at').all(),
     decisions: db.prepare("SELECT content, epistemic, source FROM memory_entries WHERE source LIKE 'escalation % resolution'").all(),
     escalations: db.prepare('SELECT question, status, owner_email FROM escalations').all(),

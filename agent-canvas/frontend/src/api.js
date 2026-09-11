@@ -4,7 +4,7 @@
 // Only these characters may appear in a caller-supplied API path. Rejects
 // scheme separators, hosts, backslashes, and dot segments outright, so no input
 // can express anything but a relative path on this origin's own API.
-const API_PATH = /^\/api(?:\/[A-Za-z0-9._~-]+)*\/?(?:\?[A-Za-z0-9._~=&%-]*)?$/;
+const API_PATH = /^\/api(?:\/(?:[A-Za-z0-9._~-]|%[0-9A-Fa-f]{2})+)*\/?(?:\?[A-Za-z0-9._~=&%-]*)?$/;
 
 function hasUnsafePathSegment(candidate) {
   const pathname = candidate.split('?', 1)[0];
@@ -15,7 +15,7 @@ function hasUnsafePathSegment(candidate) {
     // deliberately not inspected because they cannot change URL path shape.
     for (let i = 0; i < 2; i += 1) {
       try { decoded = decodeURIComponent(decoded); } catch { return true; }
-      if (decoded === '.' || decoded === '..' || decoded.includes('/') || decoded.includes('\\')) return true;
+      if (decoded === '.' || decoded === '..' || decoded.includes('/') || decoded.includes('\\') || /[\u0000-\u001f\u007f]/.test(decoded)) return true;
       if (!decoded.includes('%')) break;
     }
     return false;

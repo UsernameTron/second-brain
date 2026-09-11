@@ -110,6 +110,10 @@ queue** checks now. Lists show the latest bounded results, not a complete archiv
 - **Account:** appearance, sign out, and owner settings. **Space actions** keeps
   creation, owner archive and restoration. The owner ledger download is an
   operational export under Owner settings, not a complete restorable backup.
+  Under **Owner settings → People and access**, enter the teammate's email,
+  optional name and role, then Add. Remove revokes that person's workspace access.
+  A failed change keeps its error visible; Check saved status confirms the current list.
+  Notices sit below your workspace; dialogs resize so notices do not cover their controls.
 - **More → Help:** a short version of the four journeys above.
 
 ## The team

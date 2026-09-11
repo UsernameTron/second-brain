@@ -9,9 +9,10 @@ const { chromium } = require('playwright');
 const output = path.resolve(__dirname, '../docs/screenshots');
 const group = process.argv[2] || 'rooms-memory';
 const evidence = { group, fixture: 'Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.', checks: [], screenshots: [], browserErrors: [] };
+if (group === 'owner-diagnostics') evidence.fixture += ' Connector handshake and discovery are test stubs; probe recording and access changes use real server routes.';
 
 function launchFixture() {
-  const child = fork(path.join(__dirname, 'journey-fixture.js'), ['--local', '--acceptance'], { env: { PATH: process.env.PATH, HOME: process.env.HOME }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+  const child = fork(path.join(__dirname, 'journey-fixture.js'), ['--local', '--acceptance', ...(group === 'owner-diagnostics' ? ['--connector-fixture'] : [])], { env: { PATH: process.env.PATH, HOME: process.env.HOME }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
   let logs = '';
   child.stdout.on('data', (data) => { logs += data; }); child.stderr.on('data', (data) => { logs += data; });
   const ready = new Promise((resolve, reject) => {
@@ -33,12 +34,17 @@ async function more(page, name) {
   await page.getByRole('button', { name, exact: true }).click();
 }
 async function shot(page, suffix, description) {
+  await layout(page);
   const file = `acceptance-${group}-${suffix}.png`;
   await page.screenshot({ path: path.join(output, file), animations: 'disabled' });
   evidence.screenshots.push({ file, description, viewport: page.viewportSize() });
 }
 async function layout(page) {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal page overflow');
+  assert.ok(await page.evaluate(() => {
+    const notifications = document.querySelector('.toasts')?.getBoundingClientRect();
+    return !notifications?.height || [...document.querySelectorAll('[role="dialog"]')].every((dialog) => dialog.getBoundingClientRect().bottom <= notifications.top + 1);
+  }), 'Notifications must not cover dialogs');
 }
 async function call(context, url, route, method = 'GET', body) {
   const response = await context.request.fetch(`${url}${route}`, { method, ...(body === undefined ? {} : { data: body }) });
@@ -282,6 +288,122 @@ async function schedulingAndBuilder({ page, context, url, fault, newPage }) {
   evidence.checks.push('Fictional member can propose an agent; publication remains owner-only; Builder has no page overflow at 390px.');
 }
 
+async function ownerAndDiagnostics({ page, context, url, fault, newPage }) {
+  await page.getByRole('button', { name: 'Account', exact: true }).click();
+  await page.getByRole('button', { name: 'Owner settings', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Owner settings', exact: true });
+  for (const [tab, path, subject] of [['Agent templates', '/api/roster', 'agent templates'], ['Connections', '/api/mcp/servers', 'connections'], ['Audit history', '/api/audit', 'audit history'], ['People and access', '/api/allowlist', 'people and access']]) {
+    fault.current = (request) => new URL(request.url()).pathname === path ? 503 : 0;
+    await dialog.getByRole('tab', { name: tab, exact: true }).click();
+    await dialog.getByText(`Loading ${subject} could not be completed. Check your connection and try again.`, { exact: true }).waitFor();
+    assert.equal(await dialog.getByText(/allowlist is empty|no connectors configured|no audit entries match|No agent templates/).count(), 0);
+    fault.current = null; await dialog.getByRole('button', { name: 'Try again', exact: true }).click();
+    await dialog.locator('.request-error').waitFor({ state: 'detached' });
+  }
+  const testEmail = 'acceptance-fixture@cloudtechgurus.com';
+  await dialog.getByLabel('Email address').fill(testEmail);
+  await dialog.getByLabel('Display name').fill('Local acceptance person');
+  fault.current = (request) => request.url().endsWith('/api/allowlist') && request.method() === 'POST' ? 503 : 0;
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  await dialog.getByText(/Saving people and access could not be completed/).waitFor();
+  assert.equal(await dialog.getByLabel('Email address').inputValue(), testEmail);
+  fault.current = null; await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  const person = dialog.locator('tr').filter({ hasText: testEmail }); await person.waitFor();
+  await person.getByRole('button', { name: 'remove', exact: true }).click();
+  await person.waitFor({ state: 'detached' });
+  await dialog.getByRole('tab', { name: 'Agent templates', exact: true }).click();
+  const { roster } = await call(context, url, '/api/roster'); const [first, second] = roster;
+  const template = dialog.locator('tr').filter({ has: page.getByText(first.name, { exact: true }) });
+  await template.getByRole('button', { name: 'edit', exact: true }).click();
+  await dialog.getByLabel('Agent name', { exact: true }).fill(`${first.name} local`);
+  fault.current = (request) => request.url().endsWith(`/api/roster/${first.id}`) && request.method() === 'PATCH' ? 503 : 0;
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await dialog.getByText(/Saving agent templates could not be completed/).waitFor();
+  assert.equal(await dialog.getByLabel('Agent name', { exact: true }).inputValue(), `${first.name} local`);
+  fault.current = null; await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await dialog.getByRole('button', { name: `Move ${first.name} local down`, exact: true }).waitFor();
+  fault.current = (request) => request.url().endsWith(`/api/roster/${second.id}`) && request.method() === 'PATCH' ? 503 : 0;
+  await dialog.getByRole('button', { name: `Move ${first.name} local down`, exact: true }).click();
+  await dialog.getByText(/Ordering is partly saved/).waitFor();
+  assert.ok(await dialog.getByRole('button', { name: `Move ${first.name} local down`, exact: true }).isDisabled());
+  fault.current = null; await dialog.getByRole('button', { name: 'Finish ordering', exact: true }).click();
+  await dialog.getByText(/Ordering is partly saved/).waitFor({ state: 'detached' });
+  const afterOrder = await call(context, url, '/api/roster');
+  assert.equal(afterOrder.roster.find((entry) => entry.id === first.id).sort, second.sort);
+  assert.equal(afterOrder.roster.find((entry) => entry.id === second.id).sort, first.sort);
+  evidence.checks.push('Every owner table distinguishes unavailable from empty and retries; access add/remove and template edits use real routes; failed drafts persist; partial two-write ordering finishes only the remaining change.');
+
+  await dialog.getByRole('tab', { name: 'Connections', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Add connector', exact: true }).click();
+  await dialog.getByLabel('Connection name').fill('local_acceptance');
+  await dialog.getByLabel('Connection URL').fill('https://connector.agent-canvas.invalid/mcp');
+  await dialog.getByLabel('Connection access', { exact: true }).selectOption('owner');
+  await dialog.getByLabel('Connection headers (JSON)').fill('invalid');
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  await dialog.getByText('Enter headers as a JSON object, or leave the field empty.', { exact: true }).waitFor();
+  await dialog.getByLabel('Connection headers (JSON)').fill('{}');
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+  const connection = dialog.locator('tr').filter({ has: page.getByText('local_acceptance', { exact: true }) });
+  await connection.getByRole('button', { name: 'Check connection', exact: true }).click();
+  await dialog.getByText('Probe failed: Local fixture connection unavailable', { exact: true }).waitFor();
+  assert.equal(await dialog.locator('.connector-tools input').count(), 0);
+  await shot(page, 'failed-probe', 'A failed connector boundary probe exposes failure and recovery without discovered tools or a green status.');
+  await connection.getByRole('button', { name: 'Check connection', exact: true }).click();
+  await dialog.getByRole('checkbox', { name: 'search Search local fixture records', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('.connector-tools input')?.checked === true);
+  await connection.getByLabel('Access to local_acceptance').selectOption('members');
+  await page.waitForFunction(() => !document.querySelector('[aria-label="Access to local_acceptance"]').disabled);
+  await connection.getByLabel('Access to local_acceptance').selectOption('owner');
+  await page.waitForFunction(() => !document.querySelector('[aria-label="Access to local_acceptance"]').disabled);
+  const { servers } = await call(context, url, '/api/mcp/servers'); const savedConnection = servers.find((server) => server.name === 'local_acceptance');
+  assert.equal(savedConnection.access, 'owner'); assert.deepEqual(savedConnection.enabledTools, ['search']);
+  evidence.checks.push('Connection form validation, failed probe/recovery, discovered tool checkbox and serialized access changes; connector boundary stubbed, configuration/probe-record/audit routes real.');
+
+  await dialog.getByRole('tab', { name: 'Audit history', exact: true }).click();
+  await dialog.getByText('✓ chain verified', { exact: true }).waitFor();
+  fault.current = (request) => new URL(request.url()).pathname === '/api/audit' ? 503 : 0;
+  await dialog.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await dialog.getByText('Audit verification is unavailable until this check succeeds.', { exact: true }).waitFor();
+  assert.equal(await dialog.getByText('✓ chain verified', { exact: true }).count(), 0);
+  fault.current = null; await dialog.getByRole('button', { name: 'Try again', exact: true }).click();
+  await dialog.getByText('✓ chain verified', { exact: true }).waitFor();
+  await dialog.getByLabel('Filter audit action').fill('no.such.action');
+  await dialog.getByText('no audit entries match', { exact: true }).waitFor();
+  await dialog.getByLabel('Filter audit action').fill('');
+  await dialog.getByLabel('Audit result limit').selectOption('50');
+  await dialog.getByText('✓ chain verified', { exact: true }).waitFor();
+  await shot(page, 'audit', 'Audit chain is checked by the real local server; a failed refresh cleared its old verification claim.');
+  fault.current = (request) => request.url().endsWith('/api/export') ? 503 : 0;
+  await dialog.getByRole('button', { name: 'Download operational ledger', exact: true }).click();
+  await dialog.getByText(/Downloading the operational ledger could not be completed/).waitFor();
+  fault.current = null; const downloadEvent = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Try again', exact: true }).click();
+  const ledger = JSON.parse(fs.readFileSync(await (await downloadEvent).path(), 'utf8')); assert.ok(Array.isArray(ledger.memory_entries));
+  await page.setViewportSize({ width: 390, height: 844 }); await layout(page);
+  await shot(page, 'mobile-owner', 'Owner tools remain scrollable and reachable at 390px.');
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.getByRole('button', { name: 'Create a project space', exact: true }).click();
+  await page.getByLabel('Project-space name').fill('Local diagnostics');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.getByRole('heading', { name: 'Ask the company.' }).waitFor();
+  await page.getByLabel('Ask a question about the company').fill('Review the local checklist.');
+  await page.getByRole('button', { name: 'Ask', exact: true }).click();
+  await page.getByText(/This local test answer has no external sources/).waitFor();
+  await page.locator('.primary-nav summary').filter({ hasText: /^More$/ }).click();
+  await page.locator('.primary-nav summary').filter({ hasText: /^Advanced$/ }).click();
+  await page.locator('.primary-nav').getByRole('button', { name: 'Activity', exact: true }).click();
+  await page.locator('.dock-head').click();
+  assert.equal(await page.locator('.dock-filters button[aria-pressed="true"]').count(), 7);
+  for (const button of await page.locator('.dock-filters button').all()) await button.click();
+  await page.getByText('No activity matches these filters. Select more categories or all agents.', { exact: true }).waitFor();
+  const member = await newPage('teammate@agent-canvas.invalid');
+  await member.page.getByRole('button', { name: 'Account', exact: true }).click();
+  assert.equal(await member.page.getByRole('button', { name: 'Owner settings', exact: true }).count(), 0);
+  await member.context.close();
+  evidence.checks.push('Audit verified/unavailable/no-matches states, result limit, ledger download failure/retry, all seven activity filters, mobile owner layout and member ownership gate.');
+}
+
 (async () => {
   const fixture = launchFixture(); let browser;
   try {
@@ -303,13 +425,14 @@ async function schedulingAndBuilder({ page, context, url, fault, newPage }) {
       return { context, page };
     };
     const owner = await newPage('pete@cloudtechgurus.com');
-    const run = { 'rooms-memory': roomsAndMemory, 'scheduling-builder': schedulingAndBuilder }[group];
+    const run = { 'rooms-memory': roomsAndMemory, 'scheduling-builder': schedulingAndBuilder, 'owner-diagnostics': ownerAndDiagnostics }[group];
     assert.ok(run, 'Unknown acceptance group');
     try { await run({ ...owner, url, fault, newPage }); }
-    catch (error) { await owner.page.screenshot({ path: '/tmp/agent-canvas-acceptance-failure.png' }); throw error; }
+    catch (error) { await owner.page.screenshot({ path: '/tmp/agent-canvas-acceptance-failure.png' }); console.error('Visible recovery details:', await owner.page.getByRole('alert').allTextContents()); throw error; }
     const snapshot = await fixture.snapshot();
     assert.equal(snapshot.externalAttempts, 0); assert.deepEqual(evidence.browserErrors, []);
     evidence.bootCounts = bootCounts; evidence.externalAttempts = snapshot.externalAttempts;
+    if (group === 'owner-diagnostics') { assert.equal(snapshot.connectorProbeCalls, 2); evidence.connectorProbeCalls = snapshot.connectorProbeCalls; }
     fs.writeFileSync(path.join(output, `acceptance-${group}.json`), `${JSON.stringify(evidence, null, 2)}\n`);
     console.log(`${group}: ${evidence.checks.length} acceptance groups passed; no browser errors or external calls.`);
   } finally { await browser?.close(); await fixture.stop(); }
