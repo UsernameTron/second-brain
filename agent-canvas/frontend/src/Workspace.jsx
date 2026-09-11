@@ -1424,6 +1424,7 @@ export default function Workspace() {
           roster={roster.filter((r) => r.enabled)}
           onClose={() => setAddAgentOpen(false)}
           onAdded={() => { setAddAgentOpen(false); loadState(canvasId).catch(() => {}); }}
+          onPublished={() => { loadState(canvasId).catch(() => {}); }}
           toast={toast}
         />
       ) : null}

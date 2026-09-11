@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const https = require('node:https');
 const local = process.argv.includes('--local');
+const acceptance = process.argv.includes('--acceptance');
 const identity = local ? { email: 'pete@cloudtechgurus.com', role: 'owner' }
   : { email: 'teammate@agent-canvas.invalid', role: 'member' };
 if (!local && process.env.AGENT_CANVAS_JOURNEY_FIXTURE !== '1') throw new Error('Start this test fixture through npm run test:journeys or npm run preview:journeys.');
@@ -24,10 +25,25 @@ https.request = blockedNetwork; https.get = blockedNetwork;
 http.request = blockedNetwork; http.get = blockedNetwork;
 const textResponse = (text) => ({ content: [{ type: 'text', text }], stop_reason: 'end_turn', usage: { input_tokens: 0, output_tokens: 0 } });
 const anthropic = require('../server/orchestrator/anthropic');
-anthropic.callModel = async () => textResponse('{}'); // deterministic routing fallback
+anthropic.callModel = async ({ system = '' }) => {
+  if (acceptance && system.startsWith('You interpret ONE')) return textResponse(JSON.stringify({
+    summary: 'Review the local renewal checklist weekly.', sources: ['memory'], scope: 'This local project space only', category: 'watch',
+    output_type: 'brief', cadence: 'weekly', cadence_day: 1, cadence_hour: 8,
+    agent_id: system.match(/, id ([^)]+)\)/)?.[1], step_budget: 12, wall_ms_budget: 300000, expires_days: 30,
+    can: ['Read this project memory and prepare a brief'], cannot: ['Send email', 'Change external records'],
+  }));
+  if (acceptance && system.startsWith('You design ONE')) return textResponse(JSON.stringify({
+    name: 'Local review assistant', role: 'research', color: '#2080d0', model_tier: 'strong',
+    business_purpose: 'Prepare local renewal drafts for human review.', inputs: 'Project memory', outputs: 'A draft checklist',
+    operating_instructions: 'Review available project memory. Label uncertainty and prepare a draft.',
+    escalation_conditions: 'Ask a human when evidence is missing.', authority: [], step_budget: 12, wall_ms_budget: 300000,
+  }));
+  return textResponse('{}'); // deterministic routing fallback
+};
 const runner = require('../server/orchestrator/runner');
 runner._internal.setCallModel(async ({ messages }) => {
   const request = String(messages[0]?.content || '');
+  if (acceptance && request.startsWith('REHEARSAL against recent data:')) return textResponse('No local items require attention.\nNOTHING MATCHED');
   if (request.startsWith('Follow-up request:') && messages.length === 1) return {
     content: [{ type: 'tool_use', id: 'fixture-review', name: 'escalate', input: { question: 'Should we prepare the renewal checklist?', context: 'Local test fixture: confirm that the checklist should stay a draft for human review. No external records will be changed.' } }],
     stop_reason: 'tool_use', usage: { input_tokens: 0, output_tokens: 0 },

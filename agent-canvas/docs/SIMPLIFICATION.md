@@ -70,11 +70,11 @@ inspection does not claim a live service check. No operation is retired.
 | Rooms: list/open/back, Now/History/Risk, Brief/Activity, Refresh | Simplify | More → Rooms | Existing access | 5,6A | [Rooms] + [Room reliability] (lens/activity/refresh recovery) + [Journey] (destination) + [Room and memory evidence] |
 | Rooms: create/name/type/players/staff/external ref | Simplify | Create room; setup details for staff/reference | Owner | 6A | [Rooms] (owner/view-only) + [Room reliability] (players failure) + [Room and memory evidence] |
 | Rooms: export preview/included/excluded/warnings/download/close | Simplify | Room → Export | Owner | 6A | [Room reliability] (preview invalidation/conflict) + [Room exports] + [Room and memory evidence] |
-| Rules: list/open/back, instruction/template/Interpret | Simplify | More → Scheduled work | Existing access | 5,6B | [Rules] (template/parse) + [Scheduling] (list failure) + [Journey] (destination) |
-| Rules: edit instruction, full consent card | Simplify | Scheduled-work details | Existing authority | 6B | [Rules] (all consent fields, edits and authority) + [Scheduling] |
-| Rules: schedule/day/hour/sources/scope/agent/output/expiry | Simplify | Settings with UTC labels | Existing authority | 6B | [Rules] (structured fields) + [Scheduling] (retained save/UTC) |
-| Rules: Rehearse/Activate/Pause/Resume/Revoke | Simplify | Scheduled-work details | Existing authority | 6B | [Rules] (complete lifecycle) + [Scheduling] (same-account rehearsal) |
-| Rules: history/brief/matched count/source refs | Simplify | Scheduled-work results | Existing access | 6B | [Rules] (brief/zero/source/history) + [Scheduling] (poll recovery) |
+| Rules: list/open/back, instruction/template/Interpret | Simplify | More → Scheduled work | Existing access | 5,6B | [Rules] (template/parse) + [Scheduling] (list failure) + [Journey] (destination) + [Scheduled work and Builder evidence] |
+| Rules: edit instruction, full consent card | Simplify | Scheduled-work details | Existing authority | 6B | [Rules] (all consent fields, edits and authority) + [Scheduling] + [Scheduled work and Builder evidence] |
+| Rules: schedule/day/hour/sources/scope/agent/output/expiry | Simplify | Settings with UTC labels | Existing authority | 6B | [Rules] (structured fields) + [Scheduling] (retained save/UTC) + [Scheduled work and Builder evidence] |
+| Rules: Rehearse/Activate/Pause/Resume/Revoke | Simplify | Scheduled-work details | Existing authority | 6B | [Rules] (complete lifecycle) + [Scheduling] (same-account rehearsal) + [Scheduled work and Builder evidence] |
+| Rules: history/brief/matched count/source refs | Simplify | Scheduled-work results | Existing access | 6B | [Rules] (brief/zero/source/history) + [Scheduling] (poll recovery) + [Scheduled work and Builder evidence] |
 | Header: theme | Simplify | Account → Appearance | Signed in | 2,5 | [Startup] + [Header source] inspection: Appearance |
 | Canvas: agents/notes/tasks/files/people, select/open | Move-to-Advanced | More → Advanced → Canvas | Existing access | 5 | [Nodes] (keyboard opening) + [Journey] (Canvas destination) + [Canvas source] inspection |
 | Canvas: drag/pan/zoom/Fit/Tidy/minimap/clusters/handoffs | Move-to-Advanced | Advanced → Canvas | Existing access | 5 | [Journey] (Fit/Tidy reachable) + [Canvas source] inspection: all spatial handlers preserved |
@@ -84,10 +84,10 @@ inspection does not claim a live service check. No operation is retired.
 | Agent: direct dispatch/recent runs/events | Move-to-Advanced | Canvas → Agent details | Existing edit/read | 3,5 | [Saved work] (dispatch/events) + [Panels source] inspection: recent runs |
 | Agent: versions/configuration/rollback | Move-to-Advanced | Agent details → Advanced | Read / owner rollback | 3,5 | [Authority] + [Panels source] inspection: versions/configuration and owner rollback |
 | Agent: remove/confirmation | Move-to-Advanced | Team → Agent details → Advanced | Existing edit | 5 | [Workspace] (agent removal) + [Agent removal] (retained history) |
-| Builder: brief/propose/re-propose/start over/instructions/escalations/permissions/budgets/rehearse | Move-to-Advanced | Team → Advanced → Build an agent | Existing access | 5,6B | [Builder] + [Scheduling] (save/rehearse/abandon) + [Context source] inspection: Advanced path |
-| Builder: publish/template/change details | Move-to-Advanced | Same builder | Owner publication | 6B | [Builder] (publish/diff) + [Authority] + [Builder source] inspection: template option |
+| Builder: brief/propose/re-propose/start over/instructions/escalations/permissions/budgets/rehearse | Move-to-Advanced | Team → Advanced → Build an agent | Existing access | 5,6B | [Builder] + [Scheduling] (save/rehearse/abandon) + [Context source] inspection: Advanced path + [Scheduled work and Builder evidence] |
+| Builder: publish/template/change details | Move-to-Advanced | Same builder | Owner publication | 6B | [Builder] (publish/diff) + [Authority] + [Builder source] inspection: template option + [Scheduled work and Builder evidence] |
 | Custom agent: name/role/tier/color/prompt/Add/Cancel | Move-to-Advanced | Team → Advanced → Custom agent | Existing edit | 5 | [Context source] + [Add agent source] inspection: all manual fields and Add/Cancel retained |
-| Rules: step/time budgets, technical occurrence details | Move-to-Advanced | Advanced settings/details; limits still on consent | Existing authority | 6B | [Rules] + [Scheduling] + [Rules source] inspection: limits and occurrences |
+| Rules: step/time budgets, technical occurrence details | Move-to-Advanced | Advanced settings/details; limits still on consent | Existing authority | 6B | [Rules] + [Scheduling] + [Rules source] inspection: limits and occurrences + [Scheduled work and Builder evidence] |
 | Activity: expand/filter agent/seven categories/handoff highlight | Move-to-Advanced | Advanced → Activity | Existing access | 5,6C | [Owner] (seven filters/no matches/error) + [Activity source] inspection: handoff selection |
 | Systems: provider/model/queue/segments/live link/board | Move-to-Advanced | Connections → Advanced details | Existing access | 2,5 | [Startup] (honest status) + [Capabilities source] inspection: labelled HUD details |
 | Spending: tokens/monthly/per-agent/analytics | Move-to-Advanced | Spending → Advanced details | Existing access | 6C | [Owner] (unknown history/statistics) + [Panels source] inspection: advanced spending |
@@ -337,6 +337,18 @@ Control rows for Room creation/lenses/refresh/export and Memory filtering,
 certainty/correction/history now have browser evidence in addition to their
 listed component/backend tests. Other rows retain their explicitly listed evidence.
 
+Scheduled work/Builder browser acceptance: `npm run test:acceptance -- scheduling-builder`.
+[Scheduled work and Builder evidence] records rejected instruction/settings saves,
+all consent fields, failed polling with retry, honest zero results, real local
+activation/pause/resume/revoke, and Builder proposal/save/rehearsal/publication.
+Changing authority re-gates publication; a member cannot publish. The owner saves
+an actual fixture template and can inspect the resulting changes before closing.
+Fixed the parent callback that previously closed Builder before its publication
+details could be read. Changed fields have plain-English labels and complete
+original values remain under Full change details. Three screenshots inspected,
+including a member at 390px.
+Full gate: 433 backend / 186 frontend tests; both production audits clean.
+
 ## Local acceptance and deferred release
 
 Agent Canvas remains a folder within the second-brain repository. Pete directed
@@ -368,6 +380,7 @@ remain unverified; local fixtures do not authorize or prove live access.
 [Journey]: ../scripts/journey-test.js
 [Acceptance runner]: ../scripts/acceptance-test.js
 [Room and memory evidence]: screenshots/acceptance-rooms-memory.json
+[Scheduled work and Builder evidence]: screenshots/acceptance-scheduling-builder.json
 [Workspace]: ../frontend/test/workspace-cleanup.test.jsx
 [Safety]: ../test/orchestrator-safety.test.js
 [Owner]: ../frontend/test/owner-reliability.test.jsx

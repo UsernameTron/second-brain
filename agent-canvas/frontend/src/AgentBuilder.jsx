@@ -10,6 +10,7 @@ import { SummaryMarkdown, formatContractTail } from './format.jsx';
 // gates publish, and publish is owner-only with an exact diff.
 
 const TIER_HINT = { fast: 'routing and light work', strong: 'judgment-heavy work' };
+const PUBLISHED_FIELDS = { name: 'Name', role: 'Job role', model_tier: 'Reasoning level', system_prompt: 'Instructions', tools_json: 'Permissions', step_budget: 'Maximum work steps', wall_ms_budget: 'Time limit (milliseconds)' };
 
 function AuthorityList({ menu, granted, onToggle, disabled }) {
   return (
@@ -143,9 +144,10 @@ export default function AgentBuilder({ canvasId, isOwner, onPublished, toast }) 
         <p><b>{publishResult.agent.name}</b> is now active. What changed:</p>
         <ul className="room-list">
           {Object.entries(publishResult.diff).map(([field, d]) => (
-            <li key={field}><span className="chip">{field}</span> <span className="dim">{String(d.from ?? '(new)').slice(0, 60)} → </span>{String(d.to).slice(0, 80)}</li>
+            <li key={field}><span className="chip">{PUBLISHED_FIELDS[field] || field.replaceAll('_', ' ')}</span> <span className="dim">{String(d.from ?? '(new)').slice(0, 60)} → </span>{String(d.to).slice(0, 80)}</li>
           ))}
         </ul>
+        <details><summary>Full change details</summary><pre className="published-change-details">{JSON.stringify(publishResult.diff, null, 2)}</pre></details>
       </div>
     );
   }

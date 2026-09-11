@@ -13,6 +13,7 @@ vi.mock('../src/api.js', async (importOriginal) => {
 
 import { api } from '../src/api.js';
 import AgentBuilder from '../src/AgentBuilder.jsx';
+import AddAgentModal from '../src/AddAgentModal.jsx';
 
 const MENU = [
   { name: 'hs_search', description: 'Search HubSpot CRM records' },
@@ -28,6 +29,7 @@ const PROPOSAL = {
 const DRAFT = { id: 'd1', canvas_id: 'c1', state: 'draft', proposal: PROPOSAL };
 
 function renderBuilder(props = {}) {
+  if (props.modal) return render(<AddAgentModal canvasId="c1" isOwner builderOn initialTab="builder" roster={[]} onClose={vi.fn()} toast={vi.fn()} {...props} />);
   return render(<AgentBuilder canvasId="c1" isOwner onPublished={vi.fn()} toast={vi.fn()} {...props} />);
 }
 
@@ -69,7 +71,7 @@ describe('agent builder flow', () => {
     expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
   });
 
-  it('completed rehearsal enables publish; publish renders the diff', async () => {
+  it.each(['builder', 'workspace modal'])('completed rehearsal enables publish and keeps the diff visible in the %s', async (surface) => {
     api.mockImplementation((path, opts) => {
       if (path === '/api/agent-drafts/propose') return Promise.resolve({ draft: DRAFT, menu: MENU, dropped: [] });
       if (opts && opts.method === 'PATCH') return Promise.resolve({ draft: DRAFT, dropped: [] });
@@ -84,7 +86,8 @@ describe('agent builder flow', () => {
       return Promise.resolve({});
     });
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    renderBuilder();
+    const onAdded = vi.fn(); const onPublished = vi.fn();
+    renderBuilder({ modal: surface === 'workspace modal', onAdded, onPublished });
     await userEvent.type(screen.getByLabelText('Describe the job'), 'screen deals');
     await userEvent.click(screen.getByRole('button', { name: 'Propose agent' }));
     await screen.findByText('Deal Screener');
@@ -98,6 +101,12 @@ describe('agent builder flow', () => {
     expect(publish).toBeEnabled();
     await userEvent.click(publish);
     await screen.findByText('Published');
-    expect(screen.getByText(/Screens inbound deals/)).toBeInTheDocument();
+    expect(screen.getByText(/Screens inbound deals/, { selector: 'li' })).toBeInTheDocument();
+    expect(screen.getByText('Instructions', { exact: true })).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Full change details', { exact: true }));
+    expect(screen.getByText(/"system_prompt"/)).toHaveTextContent('Screens inbound deals.');
+    expect(onPublished).toHaveBeenCalledTimes(1);
+    expect(onAdded).not.toHaveBeenCalled();
+    if (surface === 'workspace modal') expect(screen.getByRole('dialog', { name: 'Add agent' })).toBeInTheDocument();
   });
 });

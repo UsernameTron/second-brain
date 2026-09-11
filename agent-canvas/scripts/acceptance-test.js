@@ -11,7 +11,7 @@ const group = process.argv[2] || 'rooms-memory';
 const evidence = { group, fixture: 'Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.', checks: [], screenshots: [], browserErrors: [] };
 
 function launchFixture() {
-  const child = fork(path.join(__dirname, 'journey-fixture.js'), ['--local'], { env: { PATH: process.env.PATH, HOME: process.env.HOME }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+  const child = fork(path.join(__dirname, 'journey-fixture.js'), ['--local', '--acceptance'], { env: { PATH: process.env.PATH, HOME: process.env.HOME }, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
   let logs = '';
   child.stdout.on('data', (data) => { logs += data; }); child.stderr.on('data', (data) => { logs += data; });
   const ready = new Promise((resolve, reject) => {
@@ -179,6 +179,109 @@ async function roomsAndMemory({ page, context, url, fault, newPage }) {
   evidence.checks.push('Fictional member can open a shared Room; owner export stays gated; view-only access hides refresh/correction; revoked access excludes restricted Room; 390px memory layout.');
 }
 
+async function schedulingAndBuilder({ page, context, url, fault, newPage }) {
+  await page.getByRole('button', { name: 'Create a project space', exact: true }).click();
+  await page.getByLabel('Project-space name').fill('Local scheduled review');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.getByRole('heading', { name: 'Ask the company.' }).waitFor();
+  const { canvases } = await call(context, url, '/api/canvases'); const canvas = canvases[0];
+  await more(page, 'Scheduled work');
+  await page.getByText(/No standing rules yet/).waitFor();
+  await page.getByLabel('Describe the standing rule').fill('Review our local renewal checklist every Monday.');
+  fault.current = (request) => request.url().endsWith('/standing-rules/parse') ? 503 : 0;
+  await page.getByRole('button', { name: 'Interpret', exact: true }).click();
+  await page.getByText(/Interpreting your instruction could not be completed/).waitFor();
+  assert.equal(await page.getByLabel('Describe the standing rule').inputValue(), 'Review our local renewal checklist every Monday.');
+  fault.current = null; await page.getByRole('button', { name: 'Interpret', exact: true }).click();
+  await page.getByRole('heading', { name: 'What this rule means', exact: true }).waitFor();
+  const consent = page.locator('.room-section').filter({ has: page.getByRole('heading', { name: 'What this rule means', exact: true }) });
+  for (const name of ['Watched', 'Sources', 'Scope', 'Cadence', 'Run by', 'Reads as', 'Output', 'Budget', 'Expires', 'Can', 'Cannot', 'Next run']) await consent.getByText(name, { exact: true }).waitFor();
+  assert.ok(await page.getByRole('button', { name: 'Activate', exact: true }).isDisabled());
+  await page.getByText('Settings — cadence, sources, budget, expiry', { exact: true }).click();
+  await page.getByLabel('Hour (UTC)', { exact: true }).fill('18');
+  fault.current = (request) => /\/standing-rules\/[^/]+$/.test(request.url()) && request.method() === 'PATCH' ? 503 : 0;
+  await page.getByRole('button', { name: 'Save settings', exact: true }).click();
+  await page.getByText(/Saving scheduled work could not be completed/).waitFor();
+  assert.equal(await page.getByLabel('Hour (UTC)', { exact: true }).inputValue(), '18');
+  fault.current = null; await page.getByRole('button', { name: 'Save settings', exact: true }).click();
+  await consent.getByText('weekly on Monday at 18:00 UTC', { exact: true }).waitFor();
+  fault.current = (request) => /\/standing-rules\/[^/]+$/.test(request.url()) && request.method() === 'GET' ? 503 : 0;
+  await page.getByRole('button', { name: 'Rehearse', exact: true }).click();
+  await page.getByText(/Checking the rehearsal could not be completed/).waitFor();
+  assert.ok(await page.getByRole('button', { name: 'Rehearsing…', exact: true }).isDisabled());
+  assert.ok(await page.getByRole('button', { name: 'Activate', exact: true }).isDisabled());
+  fault.current = null; await page.getByRole('button', { name: 'Check status', exact: true }).click();
+  await page.getByText(/Nothing matched\./).waitFor();
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent === 'Activate' && !b.disabled));
+  await shot(page, 'consent', 'Every consent field remains visible; successful rehearsal identifies Pete and preserves the zero-result meaning.');
+  await page.getByRole('button', { name: 'Activate', exact: true }).click();
+  await page.getByText(/Authorized by/).waitFor();
+  await page.locator('.rooms-view').getByRole('button', { name: 'Pause', exact: true }).click();
+  await consent.getByText('paused — nothing runs until it is resumed', { exact: true }).waitFor();
+  await page.locator('.rooms-view').getByRole('button', { name: 'Resume', exact: true }).click();
+  await page.locator('.rooms-view').getByRole('button', { name: 'Pause', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Revoke', exact: true }).click();
+  await consent.getByText('never — the authorization is revoked', { exact: true }).waitFor();
+  const rules = await call(context, url, `/api/canvases/${canvas.id}/standing-rules`);
+  assert.equal(rules.rules[0].state, 'revoked'); assert.equal(rules.rules[0].cadence_hour, 18);
+  evidence.checks.push('Scheduled instruction and settings failures retain drafts; all consent fields; failed rehearsal polling recovers without duplicate dispatch; zero matches; owner activation/pause/resume/revoke through real local routes.');
+
+  await more(page, 'Team');
+  await page.locator('.context-view summary').filter({ hasText: /^Advanced$/ }).click();
+  await page.getByRole('button', { name: 'Build an agent', exact: true }).click();
+  await page.getByLabel('Describe the job').fill('Prepare a local renewal draft and ask me about missing evidence.');
+  fault.current = (request) => request.url().endsWith('/agent-drafts/propose') ? 503 : 0;
+  await page.getByRole('button', { name: 'Propose agent', exact: true }).click();
+  await page.getByText(/Saving this agent could not be completed/).waitFor();
+  assert.ok((await page.getByLabel('Describe the job').inputValue()).includes('renewal draft'));
+  fault.current = null; await page.getByRole('button', { name: 'Propose agent', exact: true }).click();
+  await page.getByLabel('Operating instructions').waitFor();
+  assert.ok(await page.getByRole('button', { name: 'Publish', exact: true }).isDisabled());
+  fault.current = (request) => /\/agent-drafts\/[^/]+$/.test(request.url()) && request.method() === 'PATCH' ? 503 : 0;
+  await page.getByLabel('Operating instructions').fill('Keep every checklist as a draft for human review.');
+  await page.getByLabel('Escalation conditions').click();
+  await page.getByText(/Saving this agent could not be completed/).waitFor();
+  assert.equal(await page.getByLabel('Operating instructions').inputValue(), 'Keep every checklist as a draft for human review.');
+  fault.current = null; await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  fault.current = (request) => /\/agent-drafts\/[^/]+$/.test(request.url()) && request.method() === 'GET' ? 503 : 0;
+  await page.getByRole('button', { name: 'Rehearse', exact: true }).click();
+  await page.getByText(/Checking the rehearsal could not be completed/).waitFor();
+  assert.ok(await page.getByRole('button', { name: 'Rehearsing…', exact: true }).isDisabled());
+  fault.current = null; await page.getByRole('button', { name: 'Check status', exact: true }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Publish' && !b.disabled));
+  await page.locator('.authority-list input').first().check();
+  assert.ok(await page.getByRole('button', { name: 'Publish', exact: true }).isDisabled(), 'A changed permission requires another rehearsal');
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Rehearse' && !b.disabled));
+  await page.getByRole('button', { name: 'Rehearse', exact: true }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Publish' && !b.disabled));
+  await page.getByRole('checkbox', { name: 'save as template', exact: true }).check();
+  await page.getByRole('button', { name: 'Publish', exact: true }).click();
+  await page.getByRole('heading', { name: 'Published', exact: true }).waitFor();
+  await page.getByText('is now active. What changed:', { exact: false }).waitFor();
+  await page.getByText('Full change details', { exact: true }).click();
+  assert.ok((await page.locator('.published-change-details').innerText()).includes('Keep every checklist as a draft for human review.'));
+  await page.getByText('Full change details', { exact: true }).click();
+  await shot(page, 'published', 'Owner can inspect the actual published-change details before closing the Builder.');
+  const { agents } = await call(context, url, `/api/canvases/${canvas.id}`);
+  assert.ok(agents.some((agent) => agent.name === 'Local review assistant'));
+  const { roster } = await call(context, url, '/api/roster');
+  assert.ok(roster.some((entry) => entry.name === 'Local review assistant'));
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  evidence.checks.push('Builder proposal/save failures retain drafts; failed rehearsal polling recovers; changed authority resets publication gate; actual local owner publication and saved template; published diff remains reviewable.');
+
+  const member = await newPage('teammate@agent-canvas.invalid');
+  await more(member.page, 'Team'); await member.page.locator('.context-view summary').filter({ hasText: /^Advanced$/ }).click();
+  await member.page.getByRole('button', { name: 'Build an agent', exact: true }).click();
+  await member.page.getByLabel('Describe the job').fill('Prepare a read-only test checklist.');
+  await member.page.getByRole('button', { name: 'Propose agent', exact: true }).click();
+  await member.page.getByText('Publishing needs the owner.', { exact: true }).waitFor();
+  assert.equal(await member.page.getByRole('button', { name: 'Publish', exact: true }).count(), 0);
+  await member.page.setViewportSize({ width: 390, height: 844 }); await layout(member.page);
+  await shot(member.page, 'member-builder-mobile', 'A member can review a proposal and its permissions on mobile; publishing requires the owner.');
+  await member.context.close();
+  evidence.checks.push('Fictional member can propose an agent; publication remains owner-only; Builder has no page overflow at 390px.');
+}
+
 (async () => {
   const fixture = launchFixture(); let browser;
   try {
@@ -200,8 +303,10 @@ async function roomsAndMemory({ page, context, url, fault, newPage }) {
       return { context, page };
     };
     const owner = await newPage('pete@cloudtechgurus.com');
-    assert.equal(group, 'rooms-memory', 'Unknown acceptance group');
-    await roomsAndMemory({ ...owner, url, fault, newPage });
+    const run = { 'rooms-memory': roomsAndMemory, 'scheduling-builder': schedulingAndBuilder }[group];
+    assert.ok(run, 'Unknown acceptance group');
+    try { await run({ ...owner, url, fault, newPage }); }
+    catch (error) { await owner.page.screenshot({ path: '/tmp/agent-canvas-acceptance-failure.png' }); throw error; }
     const snapshot = await fixture.snapshot();
     assert.equal(snapshot.externalAttempts, 0); assert.deepEqual(evidence.browserErrors, []);
     evidence.bootCounts = bootCounts; evidence.externalAttempts = snapshot.externalAttempts;

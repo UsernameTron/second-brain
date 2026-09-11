@@ -951,6 +951,7 @@ a:hover { text-decoration: underline; }
 .epi-dot.half { background: linear-gradient(90deg, var(--epi, var(--text-dim)) 50%, transparent 50%); }
 .epi-dot.hollow { background: transparent; }
 
+.published-change-details { white-space: pre-wrap; overflow-wrap: anywhere; }
 .epi-verified { --epi: var(--green); }
 .epi-inference { --epi: var(--amber); }
 .epi-assumption { --epi: var(--slate); }

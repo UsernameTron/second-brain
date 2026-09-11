@@ -99,6 +99,10 @@ queue** checks now. Lists show the latest bounded results, not a complete archiv
   schedule is not proof of delivery: check Connections and work history. Failed
   reads offer Try again; pending rehearsal checks offer Check status.
 - **More → Documents & notes / Team:** context, staffing and teammate cards.
+  In **Team → Advanced → Build an agent**, describe the job, review permissions
+  and Rehearse. Editing permissions requires another rehearsal. Only the owner
+  can Publish or save a template. After Publish, inspect **What changed**; expand
+  **Full change details** for the complete values. Close when done; the team already includes the new agent.
 - **More → Advanced:** the complete visual Canvas, interpreted text/voice
   Commands, and Activity. Team and agent details retain advanced configuration.
 - **Connections:** account access, service checks and capability limits.
