@@ -4,7 +4,8 @@
   "checks": [
     "Owner Room creation retains rejected input; Risk/History/Now, activity failure/recovery, refresh polling recovery, work details, real export conflict and verified-only download.",
     "Memory symbols and computed border styles match certainty; search/no matches/kind filter; failed correction retains draft; append-only replacement and history; failed lineage recovers.",
-    "Fictional member can open a shared Room; owner export stays gated; view-only access hides refresh/correction; revoked access excludes restricted Room; 390px memory layout."
+    "Fictional member can open a shared Room; owner export stays gated; view-only access hides refresh/correction; revoked access excludes restricted Room; 390px memory layout.",
+    "Unstaffed Room recovery uses Open team, Add agent and a successful real local refresh without visiting Advanced."
   ],
   "screenshots": [
     {
@@ -29,6 +30,14 @@
       "viewport": {
         "width": 390,
         "height": 844
+      }
+    },
+    {
+      "file": "acceptance-rooms-memory-needs-team.png",
+      "description": "An unstaffed Room explains its missing prerequisite and links directly to its normal Team view.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
       }
     }
   ],

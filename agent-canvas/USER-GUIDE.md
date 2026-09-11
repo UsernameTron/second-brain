@@ -83,6 +83,8 @@ queue** checks now. Lists show the latest bounded results, not a complete archiv
 - **More → Rooms:** focused deal, client or decision views. Owners create Rooms
   and select members. A failed people list blocks creation until it can be checked.
   A successfully created Room becomes the selected project space in the header.
+  If refresh says the Room needs an agent, choose **Open team → Add agent**,
+  select a template, then return through **More → Rooms** and Refresh room.
   Refresh room requests agent work; wait for confirmed completion and review its
   result. A failed refresh check offers Check status. Loading failures never mean
   an empty Room; Try again reloads the selected view. Owners also preview client-safe exports before download;

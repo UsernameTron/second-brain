@@ -183,6 +183,23 @@ async function roomsAndMemory({ page, context, url, fault, newPage }) {
   assert.equal((await restricted.json()).rooms.length, 0);
   await member.context.close();
   evidence.checks.push('Fictional member can open a shared Room; owner export stays gated; view-only access hides refresh/correction; revoked access excludes restricted Room; 390px memory layout.');
+  await more(page, 'Rooms');
+  await page.getByLabel('Room name', { exact: true }).fill('Room needing a team');
+  await page.getByRole('button', { name: 'Create room', exact: true }).click();
+  await page.getByRole('heading', { name: 'Room needing a team', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Refresh room', exact: true }).click();
+  await page.getByText(/This room needs an agent before it can refresh/).waitFor();
+  await shot(page, 'needs-team', 'An unstaffed Room explains its missing prerequisite and links directly to its normal Team view.');
+  await page.getByRole('button', { name: 'Open team', exact: true }).click();
+  await page.getByText('No agents yet. Add one from the team templates.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Add agent', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Add agent', exact: true }).getByText('Scout', { exact: true }).click();
+  await page.getByRole('dialog', { name: 'Add agent', exact: true }).waitFor({ state: 'detached' });
+  await more(page, 'Rooms');
+  await page.getByRole('button', { name: /Room needing a team/ }).click();
+  await page.getByRole('button', { name: 'Refresh room', exact: true }).click();
+  await page.getByText(/Refresh work: Finished/).waitFor();
+  evidence.checks.push('Unstaffed Room recovery uses Open team, Add agent and a successful real local refresh without visiting Advanced.');
 }
 
 async function schedulingAndBuilder({ page, context, url, fault, newPage }) {

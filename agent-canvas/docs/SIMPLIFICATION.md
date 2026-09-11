@@ -366,6 +366,12 @@ Dialogs now fit the workspace above notifications; browser checks assert their
 rectangles do not overlap at desktop and mobile sizes.
 Full gate: 433 backend / 193 frontend tests; both production audits clean.
 
+Room staffing follow-up: a Room with no agents now explains the missing team
+and offers Open team. Browser acceptance adds an agent from a template and then
+successfully refreshes that Room without Advanced. The existing empty-team creation
+capability is preserved. The extra screenshot is in [Room and memory evidence].
+Follow-up gate: 433 backend / 194 frontend tests; both production audits clean.
+
 ## Local acceptance and deferred release
 
 Agent Canvas remains a folder within the second-brain repository. Pete directed

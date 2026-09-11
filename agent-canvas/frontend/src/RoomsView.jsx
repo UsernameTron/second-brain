@@ -111,7 +111,7 @@ function RoomBrief({ built, onOpenRun }) {
   );
 }
 
-export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, onCreated, toast }) {
+export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, onOpenTeam, onCreated, toast }) {
   const [roomId, setRoomId] = useState(null);
   const [lens, setLens] = useState('now');
   const [tab, setTab] = useState('brief');
@@ -142,6 +142,7 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, onCre
   const built = detail.data;
   const activity = tab === 'activity' ? activityState.data?.events : null;
   const running = refreshRun && ['queued', 'running', 'pending'].includes(refreshRun.status);
+  const needsTeam = error?.status === 409 && error.message === 'this room has no agents — staff it first';
   const open = (id) => {
     active.current = id; exportSeq.current += 1;
     setRoomId(id); setLens('now'); setTab('brief'); setExportPreview(null);
@@ -260,7 +261,8 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, onCre
         <RequestError error={detail.error} subject="Loading this room" onRetry={detail.refresh} />
         {detail.loading ? <p role="status">Updating room…</p> : null}
         {detail.error ? <p>Last known room details are shown. Refresh before relying on them.</p> : null}
-        <RequestError error={error} subject="Requesting the room refresh" onRetry={detail.refresh} retryLabel="Check room status" />
+        {needsTeam ? <div className="request-error" role="alert"><p>This room needs an agent before it can refresh. Open the team and add an agent, then return here to refresh.</p><button className="btn small" onClick={() => (onOpenTeam || onOpenCanvas)(room.canvasId)}>Open team</button></div>
+          : <RequestError error={error} subject="Requesting the room refresh" onRetry={detail.refresh} retryLabel="Check room status" />}
         {error?.unconfirmed ? <button className="btn small" onClick={() => setError(null)}>I checked the work; keep editing</button> : null}
         {refreshRun ? <p role="status">{running ? 'Refresh requested. Work is still in progress; the brief is not yet updated.' : `Refresh work: ${workStatusLabel(refreshRun.status)}. Review its result before relying on the brief.`} <button className="btn small" onClick={() => onOpenRun({ canvasId: room.canvasId, runId: refreshRun.id })}>View refresh work</button></p> : null}
         <RequestError error={pollError} subject="Checking refresh progress" onRetry={() => { setPollError(null); setPollTick((n) => n + 1); }} retryLabel="Check status" />

@@ -77,6 +77,17 @@ it('keeps refresh pending after a failed status read and prevents another dispat
   await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh room' })).toBeEnabled());
   expect(api.mock.calls.filter(([path]) => path.endsWith('/refresh'))).toHaveLength(1);
 });
+it('explains an unstaffed room and opens its team instead of reporting a save conflict', async () => {
+  const implementation = api.getMockImplementation(); const team = vi.fn();
+  api.mockImplementation((path, opts) => path.endsWith('/refresh')
+    ? Promise.reject(Object.assign(new Error('this room has no agents — staff it first'), { status: 409 })) : implementation(path, opts));
+  render(<RoomsView user={{ role: 'member', email: 'member@example.com' }} roster={[]} toast={vi.fn()} onOpenTeam={team} />);
+  await open(); await userEvent.click(screen.getByRole('button', { name: 'Refresh room' }));
+  await screen.findByText(/This room needs an agent before it can refresh/);
+  expect(screen.queryByText(/This item changed/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Open team' }));
+  expect(team).toHaveBeenCalledWith('c1');
+});
 it('invalidates an export preview when the room closes while its request is pending', async () => {
   const implementation = api.getMockImplementation(); let finish;
   api.mockImplementation((path, opts) => path.endsWith('/preview') ? new Promise((resolve) => { finish = resolve; }) : implementation(path, opts));
