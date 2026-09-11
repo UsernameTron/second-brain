@@ -36,7 +36,7 @@ inspection does not claim a live service check. No operation is retired.
 |---|---|---|---|---|---|
 | App: Google sign-in, dev email/sign-in | Keep-as-is | Sign-in; dev-only controls stay dev-only | Public / dev | 2 | [Startup] + [Journey] (development sign-in); Google OAuth remains unverified live |
 | Header: global Pause; banner owner Resume | Keep-as-is | Persistent header and paused banner | Existing pause / owner resume | 2,5 | [Workspace] (HTTP-confirmed pause) + [Safety] + [Journey] (visible controls) |
-| Header: today's spend / cap | Keep-as-is | Header → Spending | Existing access | 2,5 | [Owner] (unknown spending) + [Journey] (visible cap) + [Safety] |
+| Header: today's spend / cap | Keep-as-is | Header → Spending, including before a space exists | Existing access | 2,5,7 follow-up | [Owner] + [Workspace] (empty account/recovery) + [Journey] (first-boot spending) + [Safety] |
 | Home: Save/unsave, Saved only/Show all | Keep-as-is | Home answers | Existing edit/read | 3 | [Home] (saved-answer filters) + [Saved work] |
 | Sources: links, privacy/redaction | Keep-as-is | Answers, Sources and details, Rooms | Existing access | 3,6A | [Saved work] (external evidence/retry) + [Room exports] (disclosure) |
 | Dialogs: Close, Cancel, Back, Escape/focus return | Keep-as-is | Every existing dialog/panel | Existing access | 2–6C | [Dialogs] (Escape/trap/return) + [Journey] (Connections Escape) |
@@ -96,7 +96,7 @@ inspection does not claim a live service check. No operation is retired.
 | Connector: add/name/URL/access/headers/roles/enabled/probe/tools/refused details | Move-to-Advanced | Owner settings → Connections | Owner | 6C | [Owner] (serialized edits) + [Connectors] + [Admin source] inspection: probe/tools/refusals |
 | Audit: action/limit/refresh/chain/entries | Move-to-Advanced | Owner settings → Audit history | Owner | 6C | [Owner] (failed chain invalidation) + [Admin source] inspection: action/limit/refresh |
 | Canvas: archive/list archived/restore | Move-to-Advanced | Space actions → Owner actions | Owner | 5 | [Workspace] (archive/empty) + [Archive] + [Header source] inspection: restore path |
-| Spending: daily budget edit | Move-to-Advanced | Spending → Owner settings | Owner | 3,6C | [Saved work] (failed budget/draft) + [Owner] + [Safety] |
+| Spending: daily budget edit | Move-to-Advanced | Spending → Owner settings, including before a space exists | Owner | 3,6C,7 follow-up | [Saved work] + [Workspace] (role and saved-cap validation) + [Owner] + [Safety] |
 | Home composer + permanent CommandBar | Merge | One Home composer; parser under Advanced | Existing edit | 5 | [Simplified] (one composer) + [Journey] (one textbox) |
 | Ask/Act modes and button labels | Merge | Ask default; explicit Act and matching submit text | Existing edit | 5 | [Simplified] (Ask/Act/context/keyboard) + [Journey] (purpose-matched submissions) |
 | Home/Canvas toggle | Merge | Stable Home + Advanced Canvas | Existing access | 5 | [Simplified] (Home default) + [Journey] (Advanced Canvas reachability) |
@@ -251,6 +251,21 @@ and Help with the four guide journeys. These add no server capability.
 
 ## Journey evidence
 
+Pete completed a **guided local walkthrough on 2026-09-10** using his owner
+account. His screenshots showed the answered Ask request with Act on this,
+then the renewal review item assigned to Pete; he reported completion after
+Submit answer. This was assisted acceptance with test model responses, not
+independent guide-only or live-integration verification. The first pasted result
+was from the unchanged production site; the local preview was then opened and
+the walkthrough repeated there.
+
+The follow-up review fixed Spending being inaccessible before a space existed.
+Daily status and owner cap editing now open independently of project loading;
+history explains that a project must be selected. Incomplete status after a cap
+save remains unconfirmed. Three regression tests and the first-boot browser check
+cover these paths. Follow-up gate: 433 backend / 180 frontend tests, build and
+preflight passed; both production audits clean.
+
 Run `npm run test:journeys` from the application directory. Install Chromium
 once with `npx playwright install chromium` if it is not present. The runner
 builds the frontend, starts isolated test servers and regenerates the images
@@ -289,6 +304,35 @@ Remaining boundaries are deliberate: bounded backend lists, project/shared memor
 scope, unavailable provider/connector configurations, and production activation.
 No pagination, universal memory propagation, backend probes, permission changes,
 push or deployment was added to this work.
+
+## Review and release handoff
+
+Prepared locally; no branch has been published and no PR, merge or deployment
+has been performed. The GitHub repository is public (`UsernameTron/second-brain`).
+Remote `master` was checked at `1308fec` on 2026-09-10. Keep the changes in the
+following review order, with each PR based on the preceding accepted phase:
+
+| Review | Commit(s) | Scope |
+|---|---|---|
+| 1 | `397149b` | Compatible dependency fixes and approved inventory |
+| 2 | `546bf78` | Startup and truthful status |
+| 3 | `4f9459f` | Answers, evidence and retained work |
+| 4 | `af0122f` | Global Needs You and guarded actions |
+| 5 | `84f1505` | Default navigation and composer |
+| 6A | `4cce819` | Rooms |
+| 6B | `484fe4a` | Scheduled work and Builder |
+| 6C | `e57c67e` | Owner tools and diagnostics |
+| 7 | `291292b`, `c8b17d6` | Journey evidence and Pete preview identity |
+| Follow-up | After `c8b17d6` on the simplification branch | First-boot spending and guided acceptance record |
+
+The first proposed PR is **fix(agent-canvas): clear production dependency audit**,
+containing only Phase 1. Later UI phases remain separate review units. All local
+phase gates are recorded above; refresh them if a phase changes during review.
+Existing repository CI targets PRs to `master` and runs Agent Canvas backend and
+frontend tests, but does not enforce its complete verify/build/preflight and both
+production audits. CI expansion is separate scope; local gates must not be
+represented as remote checks. No cloud or connector activation is part of this
+handoff. Google OAuth and external integration acceptance remain unverified.
 
 [Startup]: ../frontend/test/startup-status.test.jsx
 [Journey]: ../scripts/journey-test.js

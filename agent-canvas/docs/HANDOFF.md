@@ -1,4 +1,4 @@
-# Agent Canvas — Current Handoff (2026-08-19, close-out sync)
+# Agent Canvas — Current Handoff (2026-09-10, local review)
 
 This file is the concise current-state authority. Historical implementation and
 incident detail lives in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); phase intent
@@ -25,9 +25,9 @@ scheduling/Builder edits, recoverable polling and confirmed rehearsal gates. Pha
 adds honest owner tables, retained edits, partial-order recovery, bounded downloads
 and unverified configuration labels. Phase 7 verifies all four member journeys at
 1280/390px, queue recovery, 768px and actual 200% zoom; all 16 images inspected.
-Final local gate: 433 backend / 177 frontend tests; both production audits clean.
-Preview signs in Pete and assigns reviews to Pete; tests also use a fictional member. See [SIMPLIFICATION.md](SIMPLIFICATION.md)
-for control destinations and per-phase evidence. The production observations
+Final local gate: 433 backend / 180 frontend tests; both production audits clean.
+Pete completed the guided local walkthrough. Follow-up: Spending works before a
+space exists and validates saved caps. See [SIMPLIFICATION.md](SIMPLIFICATION.md). Production observations
 below are historical; no new production probe, push or deployment was performed.
 
 ## Current production state

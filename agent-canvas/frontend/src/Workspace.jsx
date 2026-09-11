@@ -1051,11 +1051,10 @@ export default function Workspace() {
   const setBudgetUsd = useCallback(async (usd) => {
     try {
       await api('/api/control/budget', { method: 'POST', body: { daily_budget_usd: usd } });
-      const d = await api('/api/control/status').catch((e) => { throw Object.assign(e, { unconfirmed: true }); });
-      setBudget(d);
+      await loadControl().catch((e) => { throw Object.assign(e, { unconfirmed: true }); });
       toast('Daily budget updated', 'ok');
     } catch (e) { throw e; }
-  }, [toast]);
+  }, [loadControl, toast]);
 
   // ---------- render ----------
   const visiblePresence = canvasId ? presence : [];
@@ -1147,20 +1146,24 @@ export default function Workspace() {
           toast={toast}
         />
       );
-    } else if (panel.type === 'spend') {
-      sidePanel = (
-        <SpendPanel
-          spend={spend}
-          analytics={analytics}
-          statuses={requests}
-          onRefresh={async () => { await loadControl(); await loadSpend(canvasId).catch(() => {}); }}
-          budget={requests.control?.error ? null : budget}
-          isOwner={isOwner}
-          onSetBudget={setBudgetUsd}
-          onClose={() => setPanel(null)}
-        />
-      );
     }
+  }
+  // The daily limit is workspace-wide and remains useful before a space exists
+  // or when its contents cannot be loaded.
+  if (panel?.type === 'spend') {
+    sidePanel = (
+      <SpendPanel
+        spend={spend}
+        analytics={analytics}
+        hasProject={!!canvasId}
+        statuses={requests}
+        onRefresh={async () => { await loadControl(); if (canvasId) await loadSpend(canvasId).catch(() => {}); }}
+        budget={requests.control?.error ? null : budget}
+        isOwner={isOwner}
+        onSetBudget={setBudgetUsd}
+        onClose={() => setPanel(null)}
+      />
+    );
   }
 
   const diagnostics = (<div className="hud" role="status" aria-label="Systems console">

@@ -93,6 +93,12 @@ async function checkBrowserZoom(url, originalContext) {
         await page.getByLabel('Development sign-in').fill(identity.email);
         await screenshot(page, `journey-${size}-01-sign-in.png`, 'Development sign-in; Google OAuth is not configured in this isolated fixture.');
         await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+        await page.getByRole('button', { name: 'Spending and daily cap' }).click();
+        await page.getByRole('heading', { name: 'Spending', exact: true }).waitFor();
+        await page.getByText('Advanced spending details', { exact: true }).click();
+        await page.getByText('Select or create a project space to view spending history and agent statistics.', { exact: true }).waitFor();
+        assert.equal(await page.getByLabel('Set daily budget (USD)').count(), identity.role === 'owner' ? 1 : 0);
+        await page.getByRole('button', { name: 'Close panel', exact: true }).click();
         await page.getByRole('button', { name: 'Create a project space', exact: true }).click();
         await page.getByLabel('Project-space name').fill('Renewal review');
         await page.getByRole('button', { name: 'Create', exact: true }).click();

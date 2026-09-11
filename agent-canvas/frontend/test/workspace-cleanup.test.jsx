@@ -473,6 +473,74 @@ describe('user-facing canvas cleanup', () => {
 
 // Simplification phase 2: failures are visible even when no socket event arrives.
 describe('workspace status recovery', () => {
+  it('opens spending before any project exists and keeps cap editing owner-only', async () => {
+    canvasList = [];
+    const normal = api.getMockImplementation();
+    let cap = 25;
+    api.mockImplementation((path, opts) => {
+      if (path === '/api/control/status') return Promise.resolve({ ...BUDGET, budget_usd: cap });
+      if (path === '/api/control/budget') { cap = opts.body.daily_budget_usd; return Promise.resolve({ ok: true }); }
+      return normal(path, opts);
+    });
+    const memberView = renderWorkspace();
+    await screen.findByRole('heading', { name: 'Start with a project space' });
+    await userEvent.click(screen.getByRole('button', { name: 'Spending and daily cap' }));
+    expect(screen.getByRole('heading', { name: 'Spending' })).toBeVisible();
+    expect(screen.queryByLabelText('Set daily budget (USD)')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText('Advanced spending details'));
+    expect(screen.getByText('Select or create a project space to view spending history and agent statistics.')).toBeVisible();
+    expect(api.mock.calls.some(([path]) => /canvases\/(?:null|undefined)\//.test(path))).toBe(false);
+    memberView.unmount();
+
+    renderWorkspace({ user: { ...USER, role: 'owner' } });
+    await screen.findByRole('heading', { name: 'Start with a project space' });
+    await userEvent.click(screen.getByRole('button', { name: 'Spending and daily cap' }));
+    await userEvent.click(screen.getByText('Owner settings', { selector: 'summary' }));
+    await userEvent.type(screen.getByLabelText('Set daily budget (USD)'), '30');
+    await userEvent.click(screen.getByRole('button', { name: 'Set', exact: true }));
+    await screen.findByText('today, of a $30.00 daily budget');
+    expect(api).toHaveBeenCalledWith('/api/control/budget', { method: 'POST', body: { daily_budget_usd: 30 } });
+  });
+
+  it('recovers unknown spending without a project and never substitutes a zero', async () => {
+    canvasList = [];
+    const normal = api.getMockImplementation();
+    let unavailable = true;
+    api.mockImplementation((path, opts) => path === '/api/control/status' && unavailable
+      ? Promise.reject(new Error('offline')) : normal(path, opts));
+    renderWorkspace();
+    await screen.findByRole('heading', { name: 'Start with a project space' });
+    await userEvent.click(screen.getByRole('button', { name: 'Spending and daily cap' }));
+    expect(screen.queryByText('today, of a $25.00 daily budget')).not.toBeInTheDocument();
+    const panel = screen.getByRole('complementary');
+    expect(within(panel).getByText(/Today’s spending and cap are unavailable/)).toBeVisible();
+    unavailable = false;
+    await userEvent.click(within(panel).getByRole('button', { name: 'Try again', exact: true }));
+    await screen.findByText('today, of a $25.00 daily budget');
+    expect(api.mock.calls.some(([path]) => /canvases\/(?:null|undefined)\//.test(path))).toBe(false);
+  });
+
+  it('does not confirm a changed cap from an incomplete status response', async () => {
+    canvasList = [];
+    const normal = api.getMockImplementation();
+    let changed = false;
+    api.mockImplementation((path, opts) => {
+      if (path === '/api/control/budget') { changed = true; return Promise.resolve({ ok: true }); }
+      if (path === '/api/control/status' && changed) return Promise.resolve({ paused: false });
+      return normal(path, opts);
+    });
+    renderWorkspace({ user: { ...USER, role: 'owner' } });
+    await screen.findByRole('heading', { name: 'Start with a project space' });
+    await userEvent.click(screen.getByRole('button', { name: 'Spending and daily cap' }));
+    await userEvent.click(screen.getByText('Owner settings', { selector: 'summary' }));
+    await userEvent.type(screen.getByLabelText('Set daily budget (USD)'), '30');
+    await userEvent.click(screen.getByRole('button', { name: 'Set', exact: true }));
+    await screen.findByText('Saving the daily budget is not confirmed. Check status before trying again.');
+    expect(screen.getByLabelText('Set daily budget (USD)')).toHaveValue(30);
+    expect(screen.getByRole('button', { name: 'Set', exact: true })).toBeDisabled();
+    expect(screen.queryByText(/today, of a \$/)).not.toBeInTheDocument();
+  });
+
   it('distinguishes an unavailable space list from an empty account and recovers', async () => {
     const normal = api.getMockImplementation();
     let offline = true;

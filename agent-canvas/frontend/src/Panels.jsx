@@ -407,7 +407,7 @@ export function NotePanel({ note, task, people = [], agents = [], pinnedNotes = 
   );
 }
 
-export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onClose, statuses = {}, onRefresh }) {
+export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onClose, statuses = {}, onRefresh, hasProject = true }) {
   const [budgetInput, setBudgetInput] = useDraft('daily-budget', '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -416,7 +416,7 @@ export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onC
   return (
     <Panel title="Spending" onClose={onClose}>
       <RequestError error={statuses.control?.error} subject="Checking today’s spending" onRetry={onRefresh} />
-      {!budget ? <p>Today’s spending and cap are unavailable. Check status before relying on them. {onRefresh ? <button className="btn small" onClick={onRefresh}>Check status</button> : null}</p> : null}
+      {!budget ? <p>Today’s spending and cap are unavailable. Check status before relying on them. {onRefresh ? <button className="btn small" onClick={() => Promise.resolve().then(onRefresh).catch(() => {})}>Check status</button> : null}</p> : null}
       <RequestError error={error} subject="Saving the daily budget" onRetry={onRefresh ? async () => { await onRefresh(); setError(null); } : undefined} retryLabel="Check saved cap" />
       {error ? <p>Close and reopen Spending to check the saved cap before submitting again.</p> : null}
       <div className="spend-daily">
@@ -450,6 +450,7 @@ export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onC
       ) : null}
 
       <details><summary>Advanced spending details</summary>
+      {!hasProject ? <p>Select or create a project space to view spending history and agent statistics.</p> : <>
       <RequestError error={statuses.spending?.error} subject="Loading spending history" onRetry={onRefresh} />
       <RequestError error={statuses.analytics?.error} subject="Loading agent statistics" onRetry={onRefresh} />
       {statuses.spending?.loading || statuses.analytics?.loading ? <p role="status">Loading spending details…</p> : null}
@@ -523,6 +524,7 @@ export function SpendPanel({ spend, analytics, budget, isOwner, onSetBudget, onC
           ) : null}
         </tbody>
       </table>
+      </>}
       </details>
     </Panel>
   );

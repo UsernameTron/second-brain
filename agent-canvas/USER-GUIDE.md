@@ -178,6 +178,8 @@ failed audit check clears the verified badge until a new check succeeds.
 
 Spending shows the daily amount and cap first. Owner settings holds cap editing;
 Advanced spending details retains monthly totals, agent totals and statistics.
+The daily amount and owner cap controls work before a project space exists.
+Select or create a space to view its spending history and agent statistics.
 Unknown amounts stay unavailable. Connections → Advanced details retains the
 provider, queue, agent indicators and live link. Configuration alone is labelled
 unverified for storage/backups and web research; it does not prove delivery.
