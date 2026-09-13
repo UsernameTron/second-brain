@@ -53,6 +53,16 @@ export default function Workspace() {
   const { user, setUser, toast, theme, setTheme } = useContext(AppCtx);
   const isOwner = user.role === 'owner';
   const drafts = useRef(new Map());
+  // Submission outcomes belong to their project, even while Home is closed.
+  // Like drafts, this state lasts only for this mounted workspace session.
+  const [inquirySubmissions, setInquirySubmissions] = useState({});
+  const updateInquirySubmission = useCallback((cid, update) => {
+    setInquirySubmissions((previous) => {
+      const current = previous[cid] || { busy: false, error: null };
+      const next = update(current);
+      return next === current ? previous : { ...previous, [cid]: next };
+    });
+  }, []);
 
   const [canvases, setCanvases] = useState([]);
   const [canvasesLoaded, setCanvasesLoaded] = useState(false);
@@ -1264,6 +1274,8 @@ export default function Workspace() {
               key={canvasId}
               editable={state.access !== 'view'}
               canvasId={canvasId}
+              submission={inquirySubmissions[canvasId]}
+              onSubmissionChange={updateInquirySubmission}
               agents={state?.agents || []}
               agentsById={agentsById}
               paused={pause.paused}

@@ -1,8 +1,8 @@
 # Local UI verification — 2026-09-13
 
-Local gate: **433 backend and 216 frontend tests passed**, no tests skipped;
+Local gate: **433 backend and 219 frontend tests passed**, no tests skipped;
 frontend build and deployment preflight passed, both production dependency audits
-clean. Primary journeys and all seven secondary browser groups passed.
+clean. Primary journeys and all eight secondary browser groups passed.
 
 These checks exercise the local built app in Chromium using disposable databases,
 real development sign-in and real application routes. External model and connector
@@ -41,6 +41,7 @@ separately with `npm run test:acceptance -- GROUP`; primary journeys use
 | Global Needs You | All six card types across two accessible spaces, restricted-space exclusion, Mine/Team/All with independent badge, person/agent/clear assignment, redirect/dismiss, 503/409/403 retained answers, duplicate prevention, exact memory/work/rule sources, reaffirmation/retry/acknowledgment recovery, mobile completion | [Global review](screenshots/acceptance-needs-you.json) |
 | Startup, interrupted work and voice input | Failed/malformed startup, actual socket drop with missed answer and Pause, lost response after an accepted inquiry, unknown control/connection status, session expiry/re-sign-in, synthetic voice failures/cumulative transcripts/cancellation | [System recovery](screenshots/acceptance-system-recovery.json) |
 | Drafts during pending saves | Real accepted note/agent/command/rule requests with held replies; closing/reopening, newer text, command cancellation and changing answer context preserve the next unsent draft | [Draft safety](screenshots/acceptance-draft-safety.json) |
+| Home request status across navigation | Help/Home navigation, switching projects, delayed success, lost confirmation and background rejection preserve pending/error guards and separate drafts; explicit check/retry only | [Home navigation](screenshots/acceptance-home-navigation.json) |
 
 Unit/component tests additionally exercise bounded requests, malformed responses,
 startup/session/control failures, late responses, polling cancellation, unknown or
@@ -71,6 +72,9 @@ are distinct; no claim is made that every possible failure permutation ran in a 
   command cancellation could restore older text; Home could discard a newly
   selected answer context. Completions now update only the submitted draft,
   and cancellation keeps the latest text. No new persistent storage was added.
+- Leaving Home reset submission guards and hid failures arriving afterward.
+  Request status now stays in transient workspace state, keyed by project, so
+  returning cannot silently permit another submission or hide its failure.
 
 ## Original acceptance criteria
 
@@ -80,7 +84,7 @@ are distinct; no claim is made that every possible failure permutation ran in a 
 | Every capability reachable | [Control map](SIMPLIFICATION.md) records original location, disposition, destination, permission, phase and evidence. Main and secondary browser groups exercise the relocated surfaces. |
 | Four guide journeys without Advanced or owner settings | [Journey runner](../scripts/journey-test.js) uses the guide's question, editable Act on this follow-up and decision as a fictional member at desktop/mobile sizes. Pete's preview signs in as Pete. |
 | Truthful failures, loading, empty and stale states | Recovery checks across all groups, plus [request](../frontend/test/request-reliability.test.jsx), [startup](../frontend/test/startup-status.test.jsx) and per-surface component regressions. |
-| Preserve behavior covered by existing tests | No original test files deleted or skipped; 433 backend and 216 frontend tests pass. Changed labels retain equivalent behavioral assertions. |
+| Preserve behavior covered by existing tests | No original test files deleted or skipped; 433 backend and 219 frontend tests pass. Changed labels retain equivalent behavioral assertions. |
 | Safety, memory, tools, routes, schema and provider handling | Backend implementation and README are unchanged from baseline `1308fec`; existing backend safety/contract tests pass. |
 | Empty first boot | Every browser fixture asserts zero workspace content before test setup. |
 | Screenshots and responsive/keyboard evidence | [Primary images](screenshots/manifest.json), group manifests above; 1280/390px images inspected, with 768px, keyboard and browser zoom checks. |

@@ -133,12 +133,21 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, onAct, onRevise,
   );
 }
 
-export default function Home({ canvasId, agents, agentsById, paused, runTick, onOpenRun, toast, editable = true, onUpload, uploadBusy, onAddAgent }) {
+export default function Home({ canvasId, agents, agentsById, paused, runTick, onOpenRun, toast, editable = true, onUpload, uploadBusy, onAddAgent, submission, onSubmissionChange }) {
   const [question, setQuestion] = useDraft(`inquiry:${canvasId}:question`, '');
   const [mode, setMode] = useDraft(`inquiry:${canvasId}:mode`, 'ask');
   const [agentOverride, setAgentOverride] = useDraft(`inquiry:${canvasId}:agent`, '');
   const [inquiries, setInquiries] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [localSubmission, setLocalSubmission] = useState({ busy: false, error: null });
+  const submissionState = submission || localSubmission;
+  const updateSubmission = onSubmissionChange ? (update) => onSubmissionChange(canvasId, update) : setLocalSubmission;
+  const busy = submissionState.busy;
+  const sendError = submissionState.error;
+  const setBusy = (value) => updateSubmission((current) => current.busy === value ? current : { ...current, busy: value });
+  const setSendError = (value) => updateSubmission((current) => {
+    const error = typeof value === 'function' ? value(current.error) : value;
+    return current.error === error ? current : { ...current, error };
+  });
   const [savedOnly, setSavedOnly] = useState(false);
   const [answerContext, setAnswerContext] = useDraft(`inquiry:${canvasId}:context`, null);
   const [moreExamples, setMoreExamples] = useState(false);
@@ -146,7 +155,6 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
   const actOn = (inquiry) => { setAnswerContext({ question: inquiry.question, summary: inquiry.run.summary, runId: inquiry.run.id }); setMode('act'); questionRef.current?.focus(); };
   const withContext = (q) => answerContext ? `Follow-up request: ${q}\n\nSelected answer for context (verify its claims before acting):\nQuestion: ${answerContext.question}\nAnswer: ${answerContext.summary}` : q;
   const [loadError, setLoadError] = useState(null);
-  const [sendError, setSendError] = useState(null);
   const needsAgent = agents?.length === 0 || (sendError?.status === 409 && sendError.message === 'this canvas has no agents to ask');
   // A confirmed team refresh clears this prerequisite error after staffing.
   useEffect(() => {
@@ -156,7 +164,7 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
   const [saving, setSaving] = useState({});
   const active = useRef(canvasId);
   active.current = canvasId;
-  useEffect(() => { active.current = canvasId; setBusy(false); setSendError(null); setSaving({}); setSaveErrors({}); return () => { active.current = null; loadSeq.current += 1; }; }, [canvasId]);
+  useEffect(() => { active.current = canvasId; if (!onSubmissionChange) setLocalSubmission({ busy: false, error: null }); setSaving({}); setSaveErrors({}); return () => { active.current = null; loadSeq.current += 1; }; }, [canvasId]);
 
   // Overlapping loads (canvas switch, Saved Only toggle, runTick bursts) may
   // resolve out of order — only the latest request may write the list.
@@ -192,9 +200,10 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
       const body = { question: withContext(q), mode };
       if (agentOverride) body.agent_id = agentOverride;
       const d = await api(`/api/canvases/${canvasId}/inquiries`, { method: 'POST', body });
-      if (active.current !== cid) return;
+      if (active.current !== cid && !onSubmissionChange) return;
       setQuestion((current) => current.trim() === q ? '' : current);
       setAnswerContext((current) => current === answerContext ? null : current);
+      if (active.current !== cid) return;
       loadSeq.current += 1;
       setInquiries((cur) => [d.inquiry, ...(cur || [])]);
       if (d.selection?.auto && d.selection.echo) toast(`${d.inquiry.agent?.name || 'An agent'} received your request.`, 'ok');
@@ -202,9 +211,9 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
       // snapshot must not win over the terminal event that was already read.
       await load();
     } catch (e2) {
-      if (active.current === cid) setSendError(e2);
+      if (active.current === cid || onSubmissionChange) setSendError(e2);
     } finally {
-      if (active.current === cid) setBusy(false);
+      if (active.current === cid || onSubmissionChange) setBusy(false);
     }
   };
 

@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-09-13T08:35:54.939Z",
+  "checkedAt": "2026-09-13T08:43:58.052Z",
   "results": [
     {
       "group": "primary-journeys",
@@ -31,6 +31,10 @@
     },
     {
       "group": "draft-safety",
+      "status": "passed"
+    },
+    {
+      "group": "home-navigation",
       "status": "passed"
     }
   ],

@@ -9,7 +9,8 @@ export function useDraft(key, initial) {
   const [local, setLocal] = useState(() => ({ key, value: initialValue() }));
   const latestLocal = useRef(local);
   latestLocal.current = local;
-  const value = local.key === key ? local.value : initialValue();
+  const value = store?.current.has(key) ? store.current.get(key)
+    : local.key === key ? local.value : initialValue();
   const setValue = (next) => {
     // Async completions keep an older setter. Functional updates must still
     // compare against the latest draft, including without a workspace store.

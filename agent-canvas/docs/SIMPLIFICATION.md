@@ -506,6 +506,30 @@ Full local gate: 433 backend / 216 frontend tests, build/preflight passed, both
 production audits clean; primary journeys and all seven secondary groups passed.
 No tests deleted/skipped, no backend changes, no push or deployment.
 
+## Home navigation recovery follow-up (2026-09-13)
+
+Leaving Home reset its pending state and discarded errors received offscreen.
+Home submissions now keep busy/error state in the mounted workspace, keyed by
+their originating project. Returning retains the submission guard and recovery
+message; a late success clears only the submitted draft in that project.
+Other projects remain usable and keep their drafts. This uses transient React
+state only; reload/sign-out boundaries and all backend contracts are unchanged.
+
+Three [Home navigation regressions] failed before the fix and pass afterward.
+[Home navigation evidence] verifies delayed success, lost confirmation and
+background rejection through real browser navigation and existing routes,
+including two inspected desktop/mobile screenshots. No mutation repeats itself.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Home Ask/Act and project picker | Merge / Simplify | Home composer; header → Project space | Existing access/edit | 3,5, navigation recovery | [Home navigation regressions] + [Home navigation evidence] |
+
+Full local gate: 433 backend / 219 frontend tests, build/preflight passed, both
+production audits clean; primary journeys and all eight secondary groups passed.
+No tests deleted/skipped, no backend changes, no push or deployment.
+
+[Home navigation regressions]: ../frontend/test/home-navigation-reliability.test.jsx
+[Home navigation evidence]: screenshots/acceptance-home-navigation.json
 [Draft race regressions]: ../frontend/test/draft-races.test.jsx
 [Draft safety evidence]: screenshots/acceptance-draft-safety.json
 [System recovery evidence]: screenshots/acceptance-system-recovery.json

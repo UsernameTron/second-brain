@@ -179,6 +179,10 @@ Read requests wait up to 30 seconds; submissions wait up to two minutes.
 If a change is **not confirmed**, it may already have reached the server. Choose
 **Check status**, inspect the saved result, and only then decide whether to
 submit again. The app never automatically repeats a change.
+You can leave Home or switch project spaces while a request is sending. When
+you return, its pending status or error is still shown. A confirmed reply clears
+only that project's submitted draft; another project's text stays untouched.
+This protection lasts while the workspace stays open; copy drafts before reload.
 
 Failed notes, instructions, corrections and budget edits retain their inputs.
 Use **Retry save** after a confirmed note failure. Note, inquiry, command and

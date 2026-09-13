@@ -445,7 +445,8 @@ async function ownerAndDiagnostics({ page, context, url, fault, newPage }) {
     const owner = await newPage('pete@cloudtechgurus.com');
     const run = { 'rooms-memory': roomsAndMemory, 'scheduling-builder': schedulingAndBuilder, 'owner-diagnostics': ownerAndDiagnostics,
       'workspace-tools': require('./workspace-ui-checks'), 'needs-you': require('./review-ui-checks'),
-      'system-recovery': require('./system-ui-checks'), 'draft-safety': require('./draft-ui-checks') }[group];
+      'system-recovery': require('./system-ui-checks'), 'draft-safety': require('./draft-ui-checks'),
+      'home-navigation': require('./home-navigation-ui-checks') }[group];
     assert.ok(run, 'Unknown acceptance group');
     try { await run({ ...owner, url, fault, newPage, call, more, shot, layout, evidence, seedReview: fixture.seedReview }); }
     catch (error) {
