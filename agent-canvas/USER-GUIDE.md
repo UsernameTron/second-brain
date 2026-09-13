@@ -18,7 +18,8 @@ local build. Production remains unchanged until an owner deploys it.
 
 In the isolated local preview, enter **pete@cloudtechgurus.com** under
 **Development sign-in**, then choose **Sign in**. This tests the workspace
-journey, not Google sign-in or a live connection.
+journey, not Google sign-in or a live connection. Its answers are predetermined
+examples, not CTG research; it cannot retrieve the company's actual ICP or live records.
 
 ## 2. Ask a question
 
@@ -32,6 +33,12 @@ journey, not Google sign-in or a live connection.
    recorded, the answer says so. Verify it before relying on it.
 4. **View work** opens the full summary and work history, even for older work.
    **Save** keeps an answer in **Saved only**. Use **Show all** to return.
+
+If Home says the project needs an agent, choose **Add agent** beside that message
+and select a template, such as **Scout**. Your typed question stays in the box.
+Once the agent is added, choose **Ask** to send it. Creating an empty custom team
+is still allowed; you must add an agent before asking questions or starting work.
+View-only teammates ask the project owner to add the agent.
 
 **Add document** beside the box accepts PDF, Word (.docx), TXT, Markdown, CSV,
 JSON and XLSX, up to 5 MB. Wait for the ready message before asking about it.

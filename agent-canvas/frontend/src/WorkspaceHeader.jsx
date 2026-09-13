@@ -6,6 +6,8 @@ import { TEAM_TEMPLATES, rosterIdsForTeam } from './teamTemplates.js';
 
 export default function WorkspaceHeader({ user, theme, setTheme, spaces, navigation, creation, account, controls }) {
   const moreRef = useRef(null);
+  const spaceActionsRef = useRef(null);
+  const spaceAction = (action) => { if (spaceActionsRef.current) spaceActionsRef.current.open = false; action(); };
   const go = (view) => { navigation.go(view); if (moreRef.current) moreRef.current.open = false; };
   const current = spaces.list.find((space) => space.id === spaces.id);
   return <>
@@ -15,11 +17,11 @@ export default function WorkspaceHeader({ user, theme, setTheme, spaces, navigat
         {spaces.list.length > 1 ? <label>Project space<select aria-label="Switch project space" value={spaces.id || ''} onChange={(e) => spaces.select(e.target.value)}>
           {spaces.list.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}
         </select></label> : current ? <span aria-label={`Current project space: ${current.name}`}><small>Project space</small><strong>{current.name}</strong></span> : <span>No project space selected</span>}
-        <details className="header-menu"><summary aria-label="Project-space actions">Space actions</summary><div className="header-menu-content">
-          <button onClick={creation.show}>New project space</button>
+        <details className="header-menu" ref={spaceActionsRef}><summary aria-label="Project-space actions">Space actions</summary><div className="header-menu-content">
+          <button onClick={() => spaceAction(creation.show)}>New project space</button>
           {user.role === 'owner' ? <details><summary>Owner actions</summary>
-            {spaces.id ? <button onClick={spaces.archive}>Archive current space</button> : null}
-            <button onClick={spaces.archived}>Archived spaces and restore</button>
+            {spaces.id ? <button onClick={() => spaceAction(spaces.archive)}>Archive current space</button> : null}
+            <button onClick={() => spaceAction(spaces.archived)}>Archived spaces and restore</button>
           </details> : null}
         </div></details>
       </div>
@@ -78,7 +80,7 @@ function CreateSpaceDialog({ name, setName, close, create, roster, selected, set
         </select>
         <p>{TEAM_TEMPLATES.find((team) => team.id === teamId)?.description || 'Custom team selected.'}</p>
         <div className="canvas-team-members">{members.map((entry) => <span className="canvas-team-member" key={entry.id}>{entry.name}</span>)}</div>
-        {selected === null ? <p>Team templates are unavailable. Close this form and retry the team list.</p> : members.length === 0 ? <p>No agents selected. This space will start without agents.</p> : null}
+        {selected === null ? <p>Team templates are unavailable. Close this form and retry the team list.</p> : members.length === 0 ? <p>No agents selected. Add an agent from Home before asking questions or starting work.</p> : null}
         <details><summary>Customize team ({members.length})</summary>{roster.filter((entry) => entry.enabled).map((entry) => <label className="roster-check" key={entry.id}>
           <input type="checkbox" checked={selected?.has(entry.id) || false} onChange={() => setSelected((previous) => { const next = new Set(previous || []); if (next.has(entry.id)) next.delete(entry.id); else next.add(entry.id); return next; })} />{entry.name} <span className="dim">{entry.role}</span>
         </label>)}</details>

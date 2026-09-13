@@ -1270,6 +1270,7 @@ export default function Workspace() {
               runTick={runTick}
               onOpenRun={(agentId, runId) => openRun(runId)}
               onUpload={() => fileInputRef.current?.click()}
+              onAddAgent={() => { setAddAgentTab('roster'); setAddAgentOpen(true); }}
               uploadBusy={fileUpload.kind === 'busy'}
               toast={toast}
             />

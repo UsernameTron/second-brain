@@ -127,6 +127,7 @@ async function openDocuments() {
 async function openCreation() {
   await userEvent.click(screen.getByLabelText('Project-space actions'));
   await userEvent.click(screen.getByRole('button', { name: 'New project space' }));
+  expect(screen.getByLabelText('Project-space actions').parentElement).not.toHaveAttribute('open');
 }
 
 beforeEach(() => {

@@ -374,6 +374,22 @@ Follow-up gate: 433 backend / 194 frontend tests; both production audits clean.
 
 ## Local acceptance and deferred release
 
+Home staffing recovery (2026-09-13): an empty team is a setup prerequisite,
+not an edit conflict. Home explains the missing agent before submission; the
+existing server no-agent response gets the same recovery. Typing stays available,
+examples can fill the draft, and staffing never submits the question automatically.
+The local-preview guide now explicitly identifies its predetermined test answers.
+Mobile browser checks also found Space actions staying open after creation and
+overflowing beside the second-space picker. Actions now close the menu, and
+menus stay inside the screen at 390px. Four additional screenshots inspected.
+Gate: 433 backend / 199 frontend tests; both production audits clean.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Team → Add agent / roster templates | Simplify | Existing Team entry, plus Home → Add agent when unstaffed | Existing project editors; view-only sees owner guidance | Local recovery follow-up | [Home], [Simplified], `journey-*-07-add-agent.png`, `journey-*-08-staffed-answer.png` in [screenshot manifest](screenshots/manifest.json) |
+| New project space → empty Custom team | Keep-as-is | Space actions → New project space → Custom team; explains required Home setup | Existing creation permissions | Local recovery follow-up | [Journey] preserves creation with zero agents and verifies recovery as member and Pete |
+
+
 Agent Canvas remains a folder within the second-brain repository. Pete directed
 continued local work on 2026-09-11. Publishing branches, PRs, merging, deployment
 and live connector activation are deferred until separately requested. The local

@@ -31,6 +31,67 @@ function renderHome(props = {}) {
 beforeEach(() => { api.mockReset(); });
 
 describe('Inquiry Home', () => {
+  it('explains an unstaffed space and keeps typing, examples and setup from submitting work', async () => {
+    api.mockResolvedValue({ inquiries: [] });
+    const onAddAgent = vi.fn();
+    renderHome({ agents: [], onAddAgent });
+    await screen.findByText('Try asking');
+    expect(screen.getByRole('status')).toHaveTextContent('needs an agent');
+    const field = screen.getByLabelText('Ask a question about the company');
+    await userEvent.type(field, 'What is our ICP?{Enter}');
+    expect(screen.getByRole('button', { name: 'Ask', exact: true })).toBeDisabled();
+    await userEvent.click(screen.getByRole('radio', { name: 'Act', exact: true }));
+    expect(screen.getByRole('button', { name: 'Act', exact: true })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: /What did we decide/ }));
+    expect(field).toHaveValue('What did we decide about our ICP scoring, and why?');
+    await userEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+    expect(onAddAgent).toHaveBeenCalledOnce();
+    expect(field).toHaveValue('What did we decide about our ICP scoring, and why?');
+    expect(api.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
+  });
+
+  it('recovers a server-reported missing team after confirmed staffing without losing or resending the question', async () => {
+    api.mockImplementation((path, options) => options?.method === 'POST'
+      ? Promise.reject(Object.assign(new Error('this canvas has no agents to ask'), { status: 409 }))
+      : Promise.resolve({ inquiries: [] }));
+    const onAddAgent = vi.fn();
+    const toast = vi.fn();
+    const { rerender } = renderHome({ onAddAgent, toast });
+    await screen.findByText('Try asking');
+    await userEvent.type(screen.getByLabelText('Ask a question about the company'), 'What is our ICP?');
+    await userEvent.click(screen.getByRole('button', { name: 'Ask', exact: true }));
+    await screen.findByText(/This project space needs an agent/);
+    expect(screen.queryByText(/This item changed/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+    expect(onAddAgent).toHaveBeenCalledOnce();
+    rerender(<Home canvasId="c1" agents={[{ ...AGENT, id: 'new-agent' }]} agentsById={{}} toast={toast} onAddAgent={onAddAgent} />);
+    await waitFor(() => expect(screen.queryByText(/This project space needs an agent/)).not.toBeInTheDocument());
+    expect(screen.getByLabelText('Ask a question about the company')).toHaveValue('What is our ICP?');
+    expect(screen.getByRole('button', { name: 'Ask', exact: true })).toBeEnabled();
+    expect(api.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1);
+  });
+
+  it('keeps real conflicts distinct from missing staffing', async () => {
+    api.mockImplementation((path, options) => options?.method === 'POST'
+      ? Promise.reject(Object.assign(new Error('another conflict'), { status: 409 }))
+      : Promise.resolve({ inquiries: [] }));
+    renderHome();
+    await screen.findByText('Try asking');
+    await userEvent.type(screen.getByLabelText('Ask a question about the company'), 'A question');
+    await userEvent.click(screen.getByRole('button', { name: 'Ask', exact: true }));
+    await screen.findByText(/This item changed/);
+    expect(screen.queryByText(/This project space needs an agent/)).not.toBeInTheDocument();
+  });
+
+  it('gives view-only teammates the staffing explanation without edit controls', async () => {
+    api.mockResolvedValue({ inquiries: [] });
+    renderHome({ agents: [], editable: false, onAddAgent: vi.fn() });
+    await screen.findByText('Ask the project owner to add an agent.');
+    expect(screen.queryByRole('button', { name: 'Add agent' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Ask a question about the company')).toBeDisabled();
+  });
+
   it('shows suggested questions when the canvas has no inquiries', async () => {
     api.mockResolvedValueOnce({ inquiries: [] });
     renderHome();

@@ -133,7 +133,7 @@ function AnswerCard({ inquiry, canvasId, agentsById, onOpenRun, onAct, onRevise,
   );
 }
 
-export default function Home({ canvasId, agents, agentsById, paused, runTick, onOpenRun, toast, editable = true, onUpload, uploadBusy }) {
+export default function Home({ canvasId, agents, agentsById, paused, runTick, onOpenRun, toast, editable = true, onUpload, uploadBusy, onAddAgent }) {
   const [question, setQuestion] = useDraft(`inquiry:${canvasId}:question`, '');
   const [mode, setMode] = useDraft(`inquiry:${canvasId}:mode`, 'ask');
   const [agentOverride, setAgentOverride] = useDraft(`inquiry:${canvasId}:agent`, '');
@@ -147,6 +147,11 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
   const withContext = (q) => answerContext ? `Follow-up request: ${q}\n\nSelected answer for context (verify its claims before acting):\nQuestion: ${answerContext.question}\nAnswer: ${answerContext.summary}` : q;
   const [loadError, setLoadError] = useState(null);
   const [sendError, setSendError] = useState(null);
+  const needsAgent = agents?.length === 0 || (sendError?.status === 409 && sendError.message === 'this canvas has no agents to ask');
+  // A confirmed team refresh clears this prerequisite error after staffing.
+  useEffect(() => {
+    if (agents?.length) setSendError((error) => error?.status === 409 && error.message === 'this canvas has no agents to ask' ? null : error);
+  }, [agents]);
   const [saveErrors, setSaveErrors] = useState({});
   const [saving, setSaving] = useState({});
   const active = useRef(canvasId);
@@ -178,7 +183,7 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
   const submit = async (e, text) => {
     if (e) e.preventDefault();
     const q = (text || question).trim();
-    if (!q || busy || !editable || paused || sendError?.unconfirmed) return;
+    if (!q || busy || !editable || paused || needsAgent || sendError?.unconfirmed) return;
     const cid = canvasId;
     setBusy(true); setSendError(null);
     try {
@@ -220,7 +225,12 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
       <div className="home-hero">
         <h1>Ask the company.</h1>
         <p className="home-sub">See the evidence. Assign the work. Approve the action.</p>
-        <RequestError error={sendError} subject="Sending your request" onRetry={sendError?.unconfirmed ? async () => { await load(); } : () => submit(null)} retryLabel={sendError?.unconfirmed ? 'Check status' : 'Try again'}>
+        {needsAgent ? <div className="request-error" role="status">
+          <p>This project space needs an agent before it can answer questions or carry out work.</p>
+          <p>{editable ? 'Your question stays here while you add an agent. Then choose Ask or Act to send it.' : 'Ask the project owner to add an agent.'}</p>
+          {editable && onAddAgent ? <button type="button" className="btn small" onClick={onAddAgent}>Add agent</button> : editable ? <p>Open More → Team → Add agent.</p> : null}
+        </div> : null}
+        <RequestError error={needsAgent ? null : sendError} subject="Sending your request" onRetry={sendError?.unconfirmed ? async () => { await load(); } : () => submit(null)} retryLabel={sendError?.unconfirmed ? 'Check status' : 'Try again'}>
           {sendError?.unconfirmed ? <button className="btn small" onClick={() => setSendError(null)}>I checked the answers; keep editing</button> : null}
         </RequestError>
         {!editable ? <p>This project space is view only. Ask its owner for edit access to send or save work.</p> : null}
@@ -253,7 +263,7 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
             </select>
             </details>
             {editable && onUpload ? <button type="button" aria-label="Upload document" className="btn ghost small" disabled={uploadBusy} onClick={onUpload}>{uploadBusy ? 'Uploading…' : 'Add document'}</button> : null}
-            <button className="btn primary" type="submit" disabled={busy || !question.trim() || paused || !editable || sendError?.unconfirmed}
+            <button className="btn primary" type="submit" disabled={busy || !question.trim() || paused || !editable || needsAgent || sendError?.unconfirmed}
               title={paused ? 'Workspace is paused' : undefined}>
               {busy ? 'Sending…' : mode === 'act' ? 'Act' : mode === 'rehearse' ? 'Practice' : 'Ask'}
             </button>
@@ -265,7 +275,7 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
         <div className="home-suggested">
           <h2>Try asking</h2>
           {SUGGESTED.slice(0, moreExamples ? SUGGESTED.length : 3).map((q) => (
-            <button key={q} className="suggested-q" onClick={() => submit(null, q)} disabled={busy || paused || !editable}>{q}</button>
+            <button key={q} className="suggested-q" onClick={() => needsAgent ? setQuestion(q) : submit(null, q)} disabled={busy || paused || !editable || sendError?.unconfirmed}>{q}</button>
           ))}
           <button className="btn ghost small" onClick={() => setMoreExamples(!moreExamples)}>{moreExamples ? 'Fewer examples' : 'More examples'}</button>
         </div>

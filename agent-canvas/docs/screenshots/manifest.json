@@ -29,13 +29,18 @@
           "question": "Follow-up request: Draft a short checklist from this answer.\n\nSelected answer for context (verify its claims before acting):\nQuestion: What should we check before a customer renewal?\nAnswer: Check the renewal date, account owner and open risks. Prepare a short checklist for review. This local test answer has no external sources.",
           "mode": "act",
           "status": "answered"
+        },
+        {
+          "question": "What is our ICP?",
+          "mode": "ask",
+          "status": "answered"
         }
       ],
       "decisions": [
         {
           "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
           "epistemic": "verified",
-          "source": "escalation 6c773c92-99f9-443d-a4f1-e5f927a78d76 resolution"
+          "source": "escalation 4d9f2792-8223-4f08-89ca-b44a9faa4f09 resolution"
         }
       ],
       "escalations": [
@@ -75,13 +80,18 @@
           "question": "Follow-up request: Draft a short checklist from this answer.\n\nSelected answer for context (verify its claims before acting):\nQuestion: What should we check before a customer renewal?\nAnswer: Check the renewal date, account owner and open risks. Prepare a short checklist for review. This local test answer has no external sources.",
           "mode": "act",
           "status": "answered"
+        },
+        {
+          "question": "What is our ICP?",
+          "mode": "ask",
+          "status": "answered"
         }
       ],
       "decisions": [
         {
           "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
           "epistemic": "verified",
-          "source": "escalation 77cbf7b4-709d-49c7-8c54-8d77827f6928 resolution"
+          "source": "escalation fd357934-4780-448e-82b8-771a0d0dcf1a resolution"
         }
       ],
       "escalations": [
@@ -121,13 +131,18 @@
           "question": "Follow-up request: Draft a short checklist from this answer.\n\nSelected answer for context (verify its claims before acting):\nQuestion: What should we check before a customer renewal?\nAnswer: Check the renewal date, account owner and open risks. Prepare a short checklist for review. This local test answer has no external sources.",
           "mode": "act",
           "status": "answered"
+        },
+        {
+          "question": "What is our ICP?",
+          "mode": "ask",
+          "status": "answered"
         }
       ],
       "decisions": [
         {
           "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
           "epistemic": "verified",
-          "source": "escalation e898afd8-65f5-4f9a-8a4b-05604b484bb9 resolution"
+          "source": "escalation b76964aa-66cd-4ac5-ae23-45154ca002c9 resolution"
         }
       ],
       "escalations": [
@@ -214,6 +229,22 @@
       }
     },
     {
+      "file": "journey-desktop-07-add-agent.png",
+      "description": "An unstaffed space explains why Ask is unavailable and offers Add agent directly from Home.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-08-staffed-answer.png",
+      "description": "After adding a template, the retained question submits only on Ask and receives a labelled local test answer.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
       "file": "journey-mobile-01-sign-in.png",
       "description": "Development sign-in; Google OAuth is not configured in this isolated fixture.",
       "viewport": {
@@ -264,6 +295,22 @@
     {
       "file": "journey-mobile-06-queue-recovery.png",
       "description": "Unavailable queue stays distinct from verified empty and offers recovery.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-07-add-agent.png",
+      "description": "An unstaffed space explains why Ask is unavailable and offers Add agent directly from Home.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-08-staffed-answer.png",
+      "description": "After adding a template, the retained question submits only on Ask and receives a labelled local test answer.",
       "viewport": {
         "width": 390,
         "height": 844

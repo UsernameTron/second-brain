@@ -168,6 +168,37 @@ async function checkBrowserZoom(url, originalContext) {
           await page.getByRole('button', { name: 'Fit', exact: true }).waitFor();
           await page.getByRole('button', { name: 'Tidy up', exact: true }).waitFor();
         }
+        // Keep the intentional empty-team path usable from Home, including
+        // when a teammate reaches it without reading the setup instructions.
+        await page.getByLabel('Project-space actions').click();
+        await layout(page);
+        await page.getByRole('button', { name: 'New project space', exact: true }).click();
+        assert.equal(await page.getByLabel('Project-space actions').evaluate((el) => el.parentElement.open), false, 'Choosing a space action closes its menu');
+        await page.getByLabel('Project-space name').fill('Unstaffed review');
+        await page.getByLabel('Starting team').selectOption('custom');
+        await page.getByText('No agents selected. Add an agent from Home before asking questions or starting work.', { exact: true }).waitFor();
+        await page.getByRole('button', { name: 'Create', exact: true }).click();
+        await page.getByRole('button', { name: 'Home', exact: true }).click();
+        await page.getByText(/This project space needs an agent/).waitFor();
+        await question.fill('What is our ICP?');
+        assert.equal(await page.getByRole('button', { name: 'Ask', exact: true }).isEnabled(), false);
+        await question.press('Enter');
+        await layout(page);
+        await page.locator('.primary-nav summary').filter({ hasText: /^More$/ }).click();
+        await layout(page);
+        await page.locator('.primary-nav summary').filter({ hasText: /^More$/ }).click();
+        await screenshot(page, `journey-${size}-07-add-agent.png`, 'An unstaffed space explains why Ask is unavailable and offers Add agent directly from Home.');
+        const beforeStaffing = await fixture.snapshot();
+        await page.getByRole('button', { name: 'Add agent', exact: true }).click();
+        await page.getByRole('button', { name: /^Scout/ }).click();
+        await page.getByRole('dialog').waitFor({ state: 'detached' });
+        await page.getByText(/This project space needs an agent/).waitFor({ state: 'detached' });
+        assert.equal(await question.inputValue(), 'What is our ICP?');
+        assert.equal(await page.getByRole('button', { name: 'Ask', exact: true }).isEnabled(), true);
+        assert.deepEqual((await fixture.snapshot()).inquiries, beforeStaffing.inquiries, 'Staffing does not submit the retained question');
+        await page.getByRole('button', { name: 'Ask', exact: true }).click();
+        await page.locator('.answer-card.status-answered').waitFor();
+        await screenshot(page, `journey-${size}-08-staffed-answer.png`, 'After adding a template, the retained question submits only on Ask and receives a labelled local test answer.');
         const saved = await fixture.snapshot();
         assert.equal(saved.externalAttempts, 0, 'No external model or connector calls');
         assert.ok(saved.inquiries.some((item) => item.mode === 'ask' && item.status === 'answered'));
@@ -177,7 +208,7 @@ async function checkBrowserZoom(url, originalContext) {
         assert.ok(saved.escalations.some((item) => item.status === 'accepted' && item.owner_email === identity.email));
         assert.ok(saved.decisions.some((item) => item.epistemic === 'verified' && item.content.includes('Yes, prepare a draft checklist for review.')), 'Human decision captured through the existing memory contract');
         evidence.journeys.push({ size, bootCounts, ...saved, result: 'passed' });
-        process.stdout.write(`${size}: four ${identity.role} journeys and queue recovery passed\n`);
+        process.stdout.write(`${size}: four ${identity.role} journeys, queue recovery and Home staffing recovery passed\n`);
       } finally { await context?.close(); await fixture.stop(); }
     }
     assert.deepEqual(evidence.browserErrors, [], 'No browser runtime errors');

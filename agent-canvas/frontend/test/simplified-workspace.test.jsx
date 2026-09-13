@@ -41,6 +41,28 @@ it('starts on Home with one composer and keeps secondary controls behind More', 
   for (const name of ['Canvas', 'Commands', 'Activity']) expect(screen.getByRole('button', { name })).toBeInTheDocument();
 });
 
+it('adds an agent directly from Home and retains the question without submitting it', async () => {
+  const base = api.getMockImplementation();
+  let staffed = false;
+  api.mockImplementation((path, options) => {
+    if (path === '/api/roster') return Promise.resolve({ roster: [{ ...agent, id: 'template-scout', enabled: 1, model_tier: 'strong' }] });
+    if (path === '/api/canvases/c1/agents' && options?.method === 'POST') { staffed = true; return Promise.resolve({ agent }); }
+    if (path === '/api/canvases/c1') return Promise.resolve({ canvas: { id: 'c1' }, access: 'edit', agents: staffed ? [agent] : [], notes: [], tasks: [], files: [], people: [], runs: [], handoffs: [] });
+    if (path.endsWith('/inquiries')) return Promise.resolve({ inquiries: [] });
+    return base(path, options);
+  });
+  render(<AppCtx.Provider value={{ user: { role: 'member', email: 'me@example.com' }, config: { inquiryHome: true, agentBuilder: true }, toast: vi.fn(), setTheme: vi.fn(), setUser: vi.fn(), theme: 'light' }}><Workspace /></AppCtx.Provider>);
+  await screen.findByText(/This project space needs an agent/);
+  await userEvent.type(screen.getByLabelText('Ask a question about the company'), 'What is our ICP?');
+  await userEvent.click(screen.getByRole('button', { name: 'Add agent', exact: true }));
+  await userEvent.click(await screen.findByRole('button', { name: /Scout/ }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Ask', exact: true })).toBeEnabled());
+  expect(screen.getByLabelText('Ask a question about the company')).toHaveValue('What is our ICP?');
+  expect(api).toHaveBeenCalledWith('/api/canvases/c1/agents', { method: 'POST', body: { roster_id: 'template-scout' } });
+  expect(api.mock.calls.filter(([path, options]) => path.endsWith('/inquiries') && options?.method === 'POST')).toHaveLength(0);
+});
+
 it('Act on this carries visible editable context and does not submit until asked', async () => {
   render(<Home {...props} />);
   await userEvent.click(await screen.findByRole('button', { name: 'Act on this' }));

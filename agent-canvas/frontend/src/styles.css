@@ -1757,11 +1757,13 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
   .header-safety { order: 4; }
   .simple-topbar .user-menu-wrap { margin-left: auto; }
   .project-picker { order: 2; }
-  .header-menu-content { right: auto; left: 0; }
+  .header-menu-content { right: 0; left: auto; }
 }
 @media (max-width: 520px) {
   .simple-topbar .brand { font-size: 14px; flex-basis: 45%; }
-  .project-picker { order: 2; flex-basis: 100%; }
+  .project-picker { order: 2; flex-basis: 100%; position: relative; }
+  .project-picker > .header-menu { position: static; }
+  .project-picker .header-menu-content { left: 0; right: auto; }
   .project-picker strong, .project-picker select { max-width: 215px; }
   .primary-nav { flex-basis: 100%; }
   .header-safety { width: 100%; justify-content: space-between; gap: 4px; }
