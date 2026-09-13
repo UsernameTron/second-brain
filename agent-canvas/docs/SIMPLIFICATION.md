@@ -452,6 +452,34 @@ Pete's earlier walkthrough was guided. Source inspection and component tests rem
 distinct from browser evidence. Google OAuth and external integration acceptance
 remain unverified; local fixtures do not authorize or prove live access.
 
+## Final recovery acceptance (2026-09-13)
+
+The additional `system-recovery` browser group exercises failed configuration
+and account reads, malformed successful responses, a real socket disconnect
+that misses a finished answer and Pause, a lost submission response after the
+server accepts one inquiry, unavailable spending/connections, and session expiry.
+Each recovery is performed through the built UI. No mutation is automatically
+repeated. [System recovery evidence] records six groups and four inspected images.
+
+Synthetic browser speech exposed duplicated final words, hidden interim text,
+an uncaught recognition-construction failure and interpretation after an error.
+Commands now rebuild cumulative results once, visibly explain microphone failures,
+retain partial text for explicit review, and abort/ignore obsolete recognition.
+Six [Voice recovery] regressions verify these states, listening guards and the
+unchanged confirmation gate. The physical microphone and speech service remain
+outside the automated fixture's claims.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Text/voice command, interpretation, Confirm/Cancel/Dismiss | Move-to-Advanced | More → Advanced → Commands; voice failures retain typing and confirmation | Existing edit | 5, final recovery | [Voice recovery] + [System recovery evidence] + [Workspace browser evidence] |
+
+Full local gate: 433 backend / 210 frontend tests, build and preflight passed;
+both production audits clean. The full UI command includes primary journeys and
+all six secondary groups. [Acceptance checklist](UI-TESTING.md) maps the original
+criteria to evidence and records the live/human boundaries without claiming them.
+
+[System recovery evidence]: screenshots/acceptance-system-recovery.json
+[Voice recovery]: ../frontend/test/command-voice-recovery.test.jsx
 [Startup]: ../frontend/test/startup-status.test.jsx
 [Journey]: ../scripts/journey-test.js
 [Acceptance runner]: ../scripts/acceptance-test.js

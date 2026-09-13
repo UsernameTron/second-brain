@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const checks = [
   ['journey-test.js'],
-  ...['rooms-memory', 'scheduling-builder', 'owner-diagnostics', 'workspace-tools', 'needs-you']
+  ...['rooms-memory', 'scheduling-builder', 'owner-diagnostics', 'workspace-tools', 'needs-you', 'system-recovery']
     .map((group) => ['acceptance-test.js', group]),
 ];
 const results = [];

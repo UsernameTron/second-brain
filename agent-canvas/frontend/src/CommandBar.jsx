@@ -29,11 +29,16 @@ export default function CommandBar({ paused, onParse, onConfirm, toast, canvasId
   const recRef = useRef(null);
   const mounted = useRef(true);
   const [error, setError] = useState(null);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; if (recRef.current) { recRef.current.onend = null; recRef.current.onresult = null; recRef.current.onerror = null; recRef.current.abort?.(); } }; }, []);
+  const releaseRecognition = (rec, abort = false) => {
+    rec.onend = null; rec.onresult = null; rec.onerror = null;
+    if (recRef.current === rec) recRef.current = null;
+    if (abort) { try { rec.abort?.(); } catch { /* Already stopped. */ } }
+  };
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; if (recRef.current) releaseRecognition(recRef.current, true); }; }, []);
 
   const submit = async (raw) => {
     const value = String(raw !== undefined ? raw : text).trim();
-    if (!value || busy) return;
+    if (!value || busy || listening) return;
     setBusy(true); setError(null);
     try {
       const intent = await onParse(value, mode);
@@ -61,42 +66,64 @@ export default function CommandBar({ paused, onParse, onConfirm, toast, canvasId
   };
 
   const toggleMic = () => {
-    if (!SR) return;
+    if (!SR || busy || pending) return;
     if (listening) {
-      try { recRef.current?.stop(); } catch { /* noop */ }
+      try { recRef.current?.stop(); } catch {
+        if (recRef.current) releaseRecognition(recRef.current, true);
+        setListening(false);
+        setError(Object.assign(new Error('Voice input stopped. Type your command instead.'), { voiceInput: true }));
+      }
       return;
     }
-    const rec = new SR();
+    let rec;
+    const startFailed = () => {
+      if (rec) releaseRecognition(rec, true);
+      setListening(false);
+      setError(Object.assign(new Error('The microphone could not start. Type your command instead.'), { voiceInput: true }));
+    };
+    try { rec = new SR(); } catch { startFailed(); return; }
     recRef.current = rec;
     rec.lang = 'en-US';
     rec.interimResults = true;
     rec.continuous = false;
     let finalText = '';
     rec.onresult = (e) => {
+      if (!mounted.current || recRef.current !== rec) return;
+      // Results are cumulative: rebuild from this event, never append the
+      // earlier final segments again when a later segment arrives.
+      finalText = '';
       let interim = '';
       for (const r of e.results) {
         if (r.isFinal) finalText += r[0].transcript;
         else interim += r[0].transcript;
       }
-      setText(finalText || interim);
+      setText(finalText + interim);
     };
     rec.onend = () => {
+      if (!mounted.current || recRef.current !== rec) return;
+      releaseRecognition(rec);
       setListening(false);
-      if (mounted.current && finalText.trim()) submit(finalText);
+      if (finalText.trim()) submit(finalText);
     };
     rec.onerror = (e) => {
+      if (!mounted.current || recRef.current !== rec) return;
+      // Browsers may fire end after error. Keep the partial text for review
+      // without automatically interpreting an incomplete command.
+      releaseRecognition(rec, true);
       setListening(false);
-      if (e.error && e.error !== 'aborted') setError(new Error('Voice input stopped. Type your command instead.'));
+      if (e.error !== 'aborted') setError(Object.assign(new Error('Voice input stopped. Type your command instead.'), { voiceInput: true }));
     };
+    setError(null);
     setListening(true);
-    try { rec.start(); } catch { setListening(false); setError(new Error('The microphone could not start. Type your command instead.')); }
+    try { rec.start(); } catch { startFailed(); }
   };
 
   const unknown = pending && pending.intent.action === 'unknown';
 
   return (
     <div className="cmdbar">
-      <RequestError error={error} subject="Preparing or confirming your command" onRetry={onCheckStatus} retryLabel="Check work status" />
+      {error?.voiceInput ? <div className="request-error" role="alert"><p>{error.message}</p></div>
+        : <RequestError error={error} subject="Preparing or confirming your command" onRetry={onCheckStatus} retryLabel="Check work status" />}
       {error ? <p>Keep your text, or type instead of using the microphone.</p> : null}
       {pending ? (
         <div className={`intent-echo ${unknown ? 'intent-error' : ''}`}>
@@ -129,7 +156,7 @@ export default function CommandBar({ paused, onParse, onConfirm, toast, canvasId
         <button
           type="button"
           className={`mic-btn ${listening ? 'listening' : ''}`}
-          disabled={!SR}
+          disabled={!SR || busy || !!pending}
           title={SR ? (listening ? 'Stop listening' : 'Speak a command') : 'Voice input is unavailable in this browser'}
           aria-label={listening ? 'Stop listening' : 'Speak a command'}
           aria-pressed={listening}
@@ -143,7 +170,7 @@ export default function CommandBar({ paused, onParse, onConfirm, toast, canvasId
           onChange={(e) => setText(e.target.value)}
           placeholder={listening ? 'Listening…' : 'Tell an agent what to do — “have Scout review the uploaded brief”'}
         />
-        <button className="btn primary" type="submit" disabled={busy || !text.trim()}>
+        <button className="btn primary" type="submit" disabled={busy || listening || !text.trim()}>
           {busy ? '…' : 'Send'}
         </button>
       </form>

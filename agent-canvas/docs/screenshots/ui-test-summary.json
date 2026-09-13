@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-09-13T08:02:03.133Z",
+  "checkedAt": "2026-09-13T08:19:30.566Z",
   "results": [
     {
       "group": "primary-journeys",
@@ -23,6 +23,10 @@
     },
     {
       "group": "needs-you",
+      "status": "passed"
+    },
+    {
+      "group": "system-recovery",
       "status": "passed"
     }
   ],

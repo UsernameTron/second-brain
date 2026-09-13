@@ -184,6 +184,11 @@ Failed notes, instructions, corrections and budget edits retain their inputs.
 Use **Retry save** after a confirmed note failure. Note, inquiry, command and
 correction drafts survive view changes while the workspace stays open; they
 are not saved server records. Copy unsaved text before reload or sign-out.
+In **More → Advanced → Commands**, voice input prepares a command for your
+review; choose **Confirm** before it acts. If the microphone cannot start or
+voice input stops with an error, your typed or partial text stays available.
+Finish typing, choose **Send**, review the interpretation, then **Confirm**.
+Leaving Commands stops the microphone; an interrupted recording does not submit.
 A failed upload retains the file for **Retry upload**; use **Check documents**
 for an unconfirmed upload before choosing the file again.
 
