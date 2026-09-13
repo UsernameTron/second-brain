@@ -25,10 +25,10 @@ scheduling/Builder edits, recoverable polling and confirmed rehearsal gates. Pha
 adds honest owner tables, retained edits, partial-order recovery, bounded downloads
 and unverified configuration labels. Phase 7 verifies all four member journeys at
 1280/390px, queue recovery, 768px and actual 200% zoom; all 16 images inspected.
-Latest local gate: 433 backend / 210 frontend tests; both production audits clean.
+Latest local gate: 433 backend / 216 frontend tests; both production audits clean.
 Pete completed the guided walkthrough. Local acceptance covers Room exports/recovery,
 permissions, memory correction/history, certainty, scheduling, Builder and owner tools;
-Home/Room staffing, mobile menus, published-change review, owner removal, canvas Fit/Tidy, saved filters, cross-project assignment and voice transcript/error recovery are fixed. Browser checks cover every main surface, all six review types, socket/session/lost-response recovery and synthetic voice input; `npm run test:ui` repeats them. See [UI-TESTING.md](UI-TESTING.md) for evidence and limits, [SIMPLIFICATION.md](SIMPLIFICATION.md) for the control map. Production observations below are historical; no new production probe, push or deployment was performed.
+Home/Room staffing, mobile menus, published-change review, owner removal, canvas Fit/Tidy, saved filters, cross-project assignment, voice recovery and late replies erasing newer drafts are fixed. Browser checks cover every main surface, all six review types, socket/session/lost-response recovery, synthetic voice input and draft preservation during pending saves; `npm run test:ui` repeats them. See [UI-TESTING.md](UI-TESTING.md) for evidence and limits, [SIMPLIFICATION.md](SIMPLIFICATION.md) for the control map. Production observations below are historical; no new production probe, push or deployment was performed.
 
 ## Current production state
 

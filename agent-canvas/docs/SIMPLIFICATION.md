@@ -478,6 +478,36 @@ both production audits clean. The full UI command includes primary journeys and
 all six secondary groups. [Acceptance checklist](UI-TESTING.md) maps the original
 criteria to evidence and records the live/human boundaries without claiming them.
 
+## Draft safety follow-up (2026-09-13)
+
+Delayed responses could overwrite newer note drafts after reopening, clear the
+next direct instruction or command, erase a newer scheduled-work instruction,
+or remove a different answer attached during an earlier Home submission.
+Cancelling a late command interpretation could also restore older text.
+Success handlers now compare against the submitted draft before updating it;
+the existing transient draft hook reads the latest value for functional updates.
+Cancellation keeps the current text. Backend behavior and storage are unchanged.
+
+Six [Draft race regressions] fail before the fix and pass after it. The browser
+group holds actual successful server responses while editing newer drafts,
+then verifies both the UI and the saved server record. [Draft safety evidence]
+records five acceptance groups and two inspected screenshots. Existing successful
+save/confirmation tests continue to verify that the submitted draft clears normally.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Note title/content/pin/save | Simplify | Documents & notes → Note details | Existing edit | 3, draft safety | [Draft race regressions] + [Draft safety evidence] |
+| Agent direct instruction/dispatch | Move-to-Advanced | Team or Advanced Canvas → Agent details | Existing edit | 3, draft safety | [Draft race regressions] + [Draft safety evidence] |
+| Command text/interpret/confirm/cancel/dismiss | Move-to-Advanced | More → Advanced → Commands | Existing access | 5, draft safety | [Draft race regressions] + [Draft safety evidence] |
+| Home Ask/Act and answer context | Merge | Home composer and Act on this | Existing edit | 5, draft safety | [Draft race regressions] + [Draft safety evidence] |
+| Scheduled-work instruction/Interpret | Simplify | More → Scheduled work | Existing edit | 6B, draft safety | [Draft race regressions] + [Draft safety evidence] |
+
+Full local gate: 433 backend / 216 frontend tests, build/preflight passed, both
+production audits clean; primary journeys and all seven secondary groups passed.
+No tests deleted/skipped, no backend changes, no push or deployment.
+
+[Draft race regressions]: ../frontend/test/draft-races.test.jsx
+[Draft safety evidence]: screenshots/acceptance-draft-safety.json
 [System recovery evidence]: screenshots/acceptance-system-recovery.json
 [Voice recovery]: ../frontend/test/command-voice-recovery.test.jsx
 [Startup]: ../frontend/test/startup-status.test.jsx

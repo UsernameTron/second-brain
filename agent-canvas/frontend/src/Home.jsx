@@ -193,8 +193,8 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
       if (agentOverride) body.agent_id = agentOverride;
       const d = await api(`/api/canvases/${canvasId}/inquiries`, { method: 'POST', body });
       if (active.current !== cid) return;
-      if (question.trim() === q) setQuestion('');
-      setAnswerContext(null);
+      setQuestion((current) => current.trim() === q ? '' : current);
+      setAnswerContext((current) => current === answerContext ? null : current);
       loadSeq.current += 1;
       setInquiries((cur) => [d.inquiry, ...(cur || [])]);
       if (d.selection?.auto && d.selection.echo) toast(`${d.inquiry.agent?.name || 'An agent'} received your request.`, 'ok');

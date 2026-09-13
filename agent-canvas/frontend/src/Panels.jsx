@@ -93,7 +93,7 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
     setSending(true); setSendError(null);
     try {
       await onDispatch(instruction.trim());
-      setInstruction('');
+      setInstruction((current) => current === instruction ? '' : current);
     } catch (error) { setSendError(error); } finally {
       setSending(false);
     }
@@ -318,7 +318,10 @@ export function NotePanel({ note, task, people = [], agents = [], pinnedNotes = 
     setSaving(true); setError(null); setSaved(false);
     try {
       const d = await onSave(note, draft);
-      if (d && d.note) { setDraft({ title: d.note.title, content: d.note.content, pinned: !!d.note.pinned }); setSaved(true); }
+      if (d && d.note) {
+        setDraft((current) => current === draft ? { title: d.note.title, content: d.note.content, pinned: !!d.note.pinned } : current);
+        setSaved(true);
+      }
     } catch (e) { setError(e); }
     setSaving(false);
   };

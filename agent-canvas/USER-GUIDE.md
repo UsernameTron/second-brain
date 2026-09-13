@@ -184,6 +184,11 @@ Failed notes, instructions, corrections and budget edits retain their inputs.
 Use **Retry save** after a confirmed note failure. Note, inquiry, command and
 correction drafts survive view changes while the workspace stays open; they
 are not saved server records. Copy unsaved text before reload or sign-out.
+If you start a newer draft while an earlier save is finishing, the reply keeps
+your newer text. A completed request clears only what you submitted. Command
+**Cancel** and **Dismiss** also keep your latest typed text. If you select another
+answer with **Act on this** while sending, that newer context stays attached for
+your next request; the earlier request keeps the answer it was submitted with.
 In **More → Advanced → Commands**, voice input prepares a command for your
 review; choose **Confirm** before it acts. If the microphone cannot start or
 voice input stops with an error, your typed or partial text stays available.

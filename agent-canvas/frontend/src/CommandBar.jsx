@@ -57,7 +57,7 @@ export default function CommandBar({ paused, onParse, onConfirm, toast, canvasId
       // The CURRENT mode wins, not the snapshot captured at parse time — a
       // user who flips to Ask while the confirm is open means Ask.
       await onConfirm({ ...pending.intent, mode });
-      if (mounted.current) { setPending(null); setText(''); }
+      if (mounted.current) { setPending(null); setText((current) => current.trim() === pending.text ? '' : current); }
     } catch (e) {
       if (mounted.current) setError(e);
     } finally {
@@ -142,7 +142,7 @@ export default function CommandBar({ paused, onParse, onConfirm, toast, canvasId
           {!unknown ? (
             <button className="btn ok small" disabled={busy || error?.unconfirmed} onClick={confirm}>Confirm</button>
           ) : null}
-          <button className="btn ghost small" disabled={busy} onClick={() => { setText(pending.text); setPending(null); }}>{unknown ? 'Dismiss' : 'Cancel'}</button>
+          <button className="btn ghost small" disabled={busy} onClick={() => setPending(null)}>{unknown ? 'Dismiss' : 'Cancel'}</button>
         </div>
       ) : null}
       <form className="cmd-row" onSubmit={(e) => { e.preventDefault(); submit(); }}>

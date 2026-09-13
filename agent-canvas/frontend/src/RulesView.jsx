@@ -372,7 +372,7 @@ export default function RulesView({ user, canvasId, agents, toast, focusRuleId =
     try {
       const d = await rulesApi.parse(canvasId, instruction.trim());
       if (request !== seq.current) return;
-      setInstruction(''); loadList(); selected.current = d.rule.id; showDetail({ rule: d.rule });
+      setInstruction((current) => current === instruction ? '' : current); loadList(); selected.current = d.rule.id; showDetail({ rule: d.rule });
     } catch (e2) { if (request === seq.current) setParseError(e2); }
     finally { if (request === seq.current) setBusy(false); }
   };
