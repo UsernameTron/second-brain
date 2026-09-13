@@ -20,13 +20,14 @@ function launchFixture() {
     child.once('exit', (code) => { clearTimeout(timer); reject(new Error(`Fixture exited ${code}: ${logs}`)); });
     child.on('message', (message) => { if (message.type === 'ready') { clearTimeout(timer); resolve(message); } });
   });
-  const snapshot = () => new Promise((resolve, reject) => {
-    const requestId = String(Date.now());
-    const timer = setTimeout(() => reject(new Error('Fixture snapshot timed out')), 5000);
-    const receive = (message) => { if (message.requestId === requestId) { clearTimeout(timer); child.off('message', receive); resolve(message.data); } };
-    child.on('message', receive); child.send({ type: 'snapshot', requestId });
+  let sequence = 0;
+  const request = (type, data) => new Promise((resolve, reject) => {
+    const requestId = String(++sequence);
+    const timer = setTimeout(() => { child.off('message', receive); reject(new Error(`Fixture ${type} timed out`)); }, 5000);
+    const receive = (message) => { if (message.requestId === requestId) { clearTimeout(timer); child.off('message', receive); message.error ? reject(new Error(message.error)) : resolve(message.data); } };
+    child.on('message', receive); child.send({ type, requestId, data });
   });
-  return { ready, snapshot, stop: () => new Promise((resolve) => { if (child.exitCode !== null) return resolve(); child.once('exit', resolve); child.kill('SIGTERM'); }) };
+  return { ready, snapshot: () => request('snapshot'), seedReview: (data) => request('seed-review', data), stop: () => new Promise((resolve) => { if (child.exitCode !== null) return resolve(); child.once('exit', resolve); child.kill('SIGTERM'); }) };
 }
 
 async function more(page, name) {
@@ -443,10 +444,14 @@ async function ownerAndDiagnostics({ page, context, url, fault, newPage }) {
     };
     const owner = await newPage('pete@cloudtechgurus.com');
     const run = { 'rooms-memory': roomsAndMemory, 'scheduling-builder': schedulingAndBuilder, 'owner-diagnostics': ownerAndDiagnostics,
-      'workspace-tools': require('./workspace-ui-checks') }[group];
+      'workspace-tools': require('./workspace-ui-checks'), 'needs-you': require('./review-ui-checks') }[group];
     assert.ok(run, 'Unknown acceptance group');
-    try { await run({ ...owner, url, fault, newPage, call, more, shot, layout, evidence }); }
-    catch (error) { await owner.page.screenshot({ path: '/tmp/agent-canvas-acceptance-failure.png' }); console.error('Visible recovery details:', await owner.page.getByRole('alert').allTextContents()); throw error; }
+    try { await run({ ...owner, url, fault, newPage, call, more, shot, layout, evidence, seedReview: fixture.seedReview }); }
+    catch (error) {
+      const activePage = browser.contexts().flatMap((context) => context.pages()).filter((page) => !page.isClosed()).at(-1) || owner.page;
+      await activePage.screenshot({ path: '/tmp/agent-canvas-acceptance-failure.png' });
+      console.error('Visible recovery details:', await activePage.getByRole('alert').allTextContents()); throw error;
+    }
     const snapshot = await fixture.snapshot();
     assert.equal(snapshot.externalAttempts, 0); assert.deepEqual(evidence.browserErrors, []);
     evidence.bootCounts = bootCounts; evidence.externalAttempts = snapshot.externalAttempts;

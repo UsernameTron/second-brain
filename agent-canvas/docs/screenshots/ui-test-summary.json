@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-09-13T08:02:03.133Z",
+  "results": [
+    {
+      "group": "primary-journeys",
+      "status": "passed"
+    },
+    {
+      "group": "rooms-memory",
+      "status": "passed"
+    },
+    {
+      "group": "scheduling-builder",
+      "status": "passed"
+    },
+    {
+      "group": "owner-diagnostics",
+      "status": "passed"
+    },
+    {
+      "group": "workspace-tools",
+      "status": "passed"
+    },
+    {
+      "group": "needs-you",
+      "status": "passed"
+    }
+  ],
+  "scope": "Local Chromium, disposable databases and test-only external boundaries. Live Google OAuth, integrations and physical microphone are not verified."
+}

@@ -374,6 +374,26 @@ Follow-up gate: 433 backend / 194 frontend tests; both production audits clean.
 
 ## Local acceptance and deferred release
 
+Global review verification (2026-09-13): `npm run test:acceptance -- needs-you`
+exercises all six card types as a fictional member across two accessible spaces,
+with a third restricted space excluded. [Global review browser evidence] verifies
+Mine/Team/All, the independent badge, retained answers after 503/409/403, duplicate
+submission prevention, assignment/redirect/dismiss, exact memory/work/scheduled
+sources, reaffirmation and retry/acknowledgment recovery, and mobile completion.
+The fixture injects historical scheduled results only after its empty-boot check;
+those schedules stay paused. It does not prove scheduler or external delivery.
+Cross-project agent assignment previously looked unassigned and hid clearing;
+the card now retains the assignment and loads its name from its own project.
+Generated review-card prefixes now explain certainty, stopped work and schedules
+in plain English; quoted content and human questions keep their exact wording.
+Four screenshots inspected. Gate: 433 backend / 204 frontend tests; both audits
+clean. [UI testing](UI-TESTING.md) inventories all coverage and limits;
+`npm run test:ui` repeats the primary journeys and all five secondary groups.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Needs You assign person/agent, clear assignment | Simplify | Card → Other actions → Assign | Existing card-project edit access | Local global-review verification | [Review], [Global review browser evidence]; unrelated active project cannot hide assignment |
+
 Workspace controls (2026-09-13): `npm run test:acceptance -- workspace-tools`
 executes seven groups against real local routes. [Workspace browser evidence]
 records note/upload/download failures and recovery; custom-agent creation,
@@ -439,6 +459,7 @@ remain unverified; local fixtures do not authorize or prove live access.
 [Scheduled work and Builder evidence]: screenshots/acceptance-scheduling-builder.json
 [Owner acceptance evidence]: screenshots/acceptance-owner-diagnostics.json
 [Workspace browser evidence]: screenshots/acceptance-workspace-tools.json
+[Global review browser evidence]: screenshots/acceptance-needs-you.json
 [Canvas controls]: ../frontend/test/canvas-controls.test.jsx
 [Workspace]: ../frontend/test/workspace-cleanup.test.jsx
 [Safety]: ../test/orchestrator-safety.test.js

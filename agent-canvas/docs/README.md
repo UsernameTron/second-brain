@@ -27,6 +27,8 @@ journey; tests alone do not establish it.
 
 ## Current operational documents
 
+- [UI-TESTING.md](UI-TESTING.md) — complete local browser test command, coverage,
+  screenshot evidence, fixes and explicit live-testing limits.
 - [SIMPLIFICATION.md](SIMPLIFICATION.md) — approved UX/reliability phases,
   complete control destinations and local verification evidence; not a deploy claim.
 - [HANDOFF.md](HANDOFF.md) — the current-state block, and nothing else. Kept

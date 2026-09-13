@@ -77,10 +77,13 @@ external actions. These are not needed for the four journeys.
    resume with your response. A failed answer remains in the form.
 4. Other card types offer **Review memory**, **Confirm still true**, **Try again**,
    **View work**, **Mark reviewed**, **View scheduled work** or **View brief**.
-   Source links open the exact record even when it belongs to another space.
+   Review labels explain certainty and why work stopped; quoted content stays
+   unchanged. Source links open the exact record even when it belongs to another space.
 
 **Other actions** keeps assignment, **Ask another agent** and **Dismiss** where
-available. Dismissal preserves history. View-only cards remain readable; ask the
+available. Assignment choices come from the card's project. **Assigned agent**
+means its name has not loaded yet; open Other actions to load the team or clear
+the assignment. Dismissal preserves history. View-only cards remain readable; ask the
 project owner to respond or grant edit access. Needs You refreshes on entry,
 after actions, when you return, and every 30 seconds while visible. **Refresh
 queue** checks now. Lists show the latest bounded results, not a complete archive.

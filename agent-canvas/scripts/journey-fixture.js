@@ -92,7 +92,13 @@ function snapshot() {
     escalations: db.prepare('SELECT question, status, owner_email FROM escalations').all(),
   };
 }
-process.on('message', (message) => { if (message?.type === 'snapshot') process.send?.({ type: 'snapshot', requestId: message.requestId, data: snapshot() }); });
+process.on('message', (message) => {
+  if (message?.type === 'snapshot') process.send?.({ type: 'snapshot', requestId: message.requestId, data: snapshot() });
+  if (acceptance && message?.type === 'seed-review') {
+    try { process.send?.({ requestId: message.requestId, data: require('./review-fixture')(message.data) }); }
+    catch (error) { process.send?.({ requestId: message.requestId, error: error.message }); }
+  }
+});
 let closing = false;
 function close() { if (closing) return; closing = true; server.close(); db.close(); fs.rmSync(dataDir, { recursive: true, force: true }); process.exit(0); }
 process.on('SIGTERM', close); process.on('SIGINT', close);

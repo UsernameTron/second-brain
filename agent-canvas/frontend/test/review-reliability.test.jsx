@@ -8,6 +8,18 @@ import Tray from '../src/Tray.jsx';
 const escalation = { type: 'escalation', decision: 'Approve the draft?', canvasName: 'Renewals', owner: { email: 'me@example.com' }, sourceRef: { canvasId: 'c2', id: 'e2' }, contextData: { before: 'Existing value', after: 'Proposed value' } };
 const base = { rows: [escalation], agentsById: {}, people: [], agents: [], userEmail: 'me@example.com', defaultScope: 'mine' };
 
+it('explains generated review labels without rewriting quoted content or human questions', () => {
+  const definitions = [
+    ['overdue_review', 'Review this assumption fact: "Keep the term assumption here."', 'Review this unconfirmed (assumption) fact: "Keep the term assumption here."'],
+    ['conflict', 'Two verified memory entries disagree about "verified customer".', 'Two confirmed (verified) memory entries disagree about "verified customer".'],
+    ['failed_run', 'Run halted_steps: "The run mode is my source text."', 'Stopped at step limit: "The run mode is my source text."'],
+    ['rule_alert', 'Standing rule matched 2 item(s): "Standing rule is the quoted title"', 'Scheduled work matched 2 item(s): "Standing rule is the quoted title"'],
+    ['escalation', 'Run halted_steps: keep my original question.', 'Run halted_steps: keep my original question.'],
+  ];
+  render(<NeedsYouView {...base} rows={definitions.map(([type, decision]) => ({ ...escalation, type, decision, sourceRef: { id: type, canvasId: 'c2' } }))} />);
+  for (const [, , label] of definitions) expect(screen.getByText(label)).toBeVisible();
+});
+
 it('labels generated agent references while retaining exact technical and authored context', async () => {
   const generated = 'question escalation from agent agent-123';
   const view = render(<NeedsYouView {...base} rows={[{ ...escalation, escalatingAgentId: 'agent-123', context: generated }]} agentsById={{ 'agent-123': { name: 'Fred' } }} />);
@@ -70,6 +82,19 @@ it('loads assignment choices from the card project rather than the selected proj
   expect(screen.queryByRole('option', { name: 'Wrong project agent (agent)' })).not.toBeInTheDocument();
   await userEvent.selectOptions(screen.getByLabelText('Assign this item'), 'p:reviewer@example.com');
   expect(assign).toHaveBeenCalledWith('e2', { owner_email: 'reviewer@example.com' });
+});
+
+it('keeps a cross-project agent assignment visible and clearable before its name is known', async () => {
+  const assign = vi.fn();
+  const load = vi.fn().mockResolvedValue({ agents: [{ id: 'other-agent', name: 'Other project agent' }], people: [] });
+  render(<NeedsYouView {...base} defaultScope="all" rows={[{ ...escalation, owner: { agentId: 'other-agent' } }]}
+    agentsById={{ 'current-agent': { name: 'Current project agent' } }} loadContext={load} onAssign={assign} />);
+  expect(screen.getByText('→ Assigned agent')).toBeVisible();
+  expect(screen.queryByText('Unassigned')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByText('Other actions'));
+  expect(await screen.findByText('→ Other project agent')).toBeVisible();
+  await userEvent.selectOptions(screen.getByLabelText('Assign this item'), 'clear');
+  expect(assign).toHaveBeenCalledWith('e2', { owner_email: null, owner_agent_id: null });
 });
 
 it('preserves every projected card action and its original source reference', async () => {

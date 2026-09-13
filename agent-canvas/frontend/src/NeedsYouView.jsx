@@ -1,4 +1,4 @@
-import { choiceKeys } from './format.jsx';
+import { choiceKeys, certaintyLabel, workStatusLabel } from './format.jsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { RequestError } from './RequestState.jsx';
 import { useDraft } from './Drafts.jsx';
@@ -18,6 +18,18 @@ const TYPE_LABELS = {
   rule_alert: 'Scheduled alert',
   brief_ready: 'Brief ready',
 };
+
+// Translate generated prefixes only; quoted source text and human questions
+// retain their exact wording, including any technical terms they contain.
+function decisionLabel(row) {
+  const text = row.decision;
+  if (row.type === 'overdue_review') return text.replace(/^Review this (verified|inference|assumption)(?= )/,
+    (_, certainty) => `Review this ${certaintyLabel(certainty).toLowerCase()}`);
+  if (row.type === 'conflict') return text.replace(/^Two verified memory entries/, 'Two confirmed (verified) memory entries');
+  if (row.type === 'failed_run') return text.replace(/^Run ([a-z_]+):/, (_, status) => `${workStatusLabel(status)}:`);
+  if (row.type === 'rule_alert') return text.replace(/^Standing rule/, 'Scheduled work');
+  return text;
+}
 
 export function AttentionCard({ row, agentsById = {}, people = [], agents = [], loadContext, onRefresh, editable = true, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onDismiss, onOpenRule }) {
   const [answer, setAnswer] = useDraft(`attention:${row.sourceRef.canvasId}:${row.type}:${row.sourceRef.id}`, '');
@@ -50,8 +62,10 @@ export function AttentionCard({ row, agentsById = {}, people = [], agents = [], 
   const disabled = pending || done || error?.unconfirmed || !editable;
   const availableAgents = context?.agents || (loadContext ? [] : agents);
   const availablePeople = context?.people || (loadContext ? [] : people);
-  const ownerAgent = row.owner.agentId ? agentsById[row.owner.agentId] : null;
-  const ownerLabel = row.owner.email || (ownerAgent ? ownerAgent.name : null);
+  const ownerAgent = row.owner.agentId ? agentsById[row.owner.agentId] || context?.agents?.find((agent) => agent.id === row.owner.agentId) : null;
+  // A global card can belong to a different project. Unknown names do not
+  // mean no assignment; load that project's team when Other actions opens.
+  const ownerLabel = row.owner.email || (row.owner.agentId ? ownerAgent?.name || 'Assigned agent' : null);
   // The escalating agent's attached context — decision-critical, and the
   // inline tray that used to show it is hidden behind the needs_you flag.
   const hasCtx = row.contextData && Object.keys(row.contextData).length > 0;
@@ -65,7 +79,7 @@ export function AttentionCard({ row, agentsById = {}, people = [], agents = [], 
         {row.due ? <span className="mono dim" title="due">due {String(row.due).slice(0, 10)}</span> : null}
         <span className="mono dim">{timeAgo(row.created_at)}</span>
       </div>
-      <div className="ny-decision">{row.decision}</div>
+      <div className="ny-decision">{decisionLabel(row)}</div>
       {/* Strip ONLY where the count is already on the card: a rule_alert's
           decision reads "Standing rule matched N item(s)" (server/attention.js).
           A brief_ready decision carries no count, so stripping there would
