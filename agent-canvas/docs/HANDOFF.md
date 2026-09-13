@@ -25,10 +25,10 @@ scheduling/Builder edits, recoverable polling and confirmed rehearsal gates. Pha
 adds honest owner tables, retained edits, partial-order recovery, bounded downloads
 and unverified configuration labels. Phase 7 verifies all four member journeys at
 1280/390px, queue recovery, 768px and actual 200% zoom; all 16 images inspected.
-Latest local gate: 433 backend / 241 frontend tests; both production audits clean.
+Latest local gate: 433 backend / 250 frontend tests; both production audits clean.
 Pete completed the guided walkthrough. Local acceptance covers Room exports/recovery,
 permissions, memory correction/history, certainty, scheduling, Builder and owner tools;
-Home/Room staffing, mobile menus, published-change review, owner removal, canvas Fit/Tidy, saved filters, cross-project assignment, voice recovery, late replies erasing newer drafts and navigation losing Home/Needs You submission status are fixed. Browser checks cover every main surface, all six review types, connection/session/voice recovery, draft preservation and pending requests across views/projects and review filters. Review cards now show readable decision context and proposed values, with one Full details control for diagnostics; `npm run test:ui` repeats the checks. See [UI-TESTING.md](UI-TESTING.md) for evidence and limits, [SIMPLIFICATION.md](SIMPLIFICATION.md) for the control map. Next local UI gap: stacked confirmations can cover mobile review controls. Production observations below are historical; no new production probe, push or deployment was performed.
+Home/Room staffing, mobile menus, published-change review, owner removal, canvas Fit/Tidy, saved filters, cross-project assignment, voice recovery, late replies erasing newer drafts and navigation losing Home/Needs You submission status are fixed. Browser checks cover every main surface, all six review types, connection/session/voice recovery, draft preservation and pending requests across views/projects and review filters. Review cards now show readable decision context and proposed values, with one Full details control for diagnostics; `npm run test:ui` repeats the checks. See [UI-TESTING.md](UI-TESTING.md) for evidence and limits, [SIMPLIFICATION.md](SIMPLIFICATION.md) for the control map. Feedback is compact with readable details, retained recovery and themed upload messages. Next local UI gap: mobile Connections clips checks and dims status text. Production observations below are historical; no new production probe, push or deployment was performed.
 
 ## Current production state
 

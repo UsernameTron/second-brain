@@ -180,6 +180,15 @@ staffing, access and current service checks; the list below is not a live probe.
 
 ## Recovering from a problem
 
+Brief updates appear in one strip below your work. Choose **Details** to read
+every recent message; it stays open while you read. **× (Dismiss updates)**
+closes these notifications without clearing your drafts or the recovery message
+beside a failed action. When you are not reading the strip, it disappears after
+a few seconds without new updates. These short updates are not a saved history
+and clear when you sign out.
+Upload messages wrap in both appearances; a failed upload keeps **Retry upload**
+beside the message until you recover it.
+
 Failed reads show **Try again** or **Refresh status**. Loading or unavailable is
 not the same as empty. While live updates reconnect, work may be out of date.
 Read requests wait up to 30 seconds; submissions wait up to two minutes.

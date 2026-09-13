@@ -591,6 +591,41 @@ Full local gate: 433 backend / 241 frontend tests, build/preflight passed, both
 production audits clean; primary journeys and all ten secondary groups passed.
 No tests deleted/skipped, no backend changes, no push or deployment.
 
+## Compact feedback follow-up (2026-09-13)
+
+Several brief confirmations could consume the bottom of a mobile queue, and
+clipped messages could not be scrolled because their container ignored pointers.
+One compact strip now summarizes the current updates. Details exposes every
+complete message, with no default stack; an active problem/notice takes priority
+over a later success. Reading, hovering or focusing pauses expiry. Dismiss updates
+restores focus and clears only the short messages, leaving drafts, confirmed
+records and persistent recovery unchanged. This remains transient React state.
+
+Upload feedback now wraps and uses the current theme's readable foreground and
+background. A rejected upload explicitly keeps its Retry upload action; an
+unconfirmed upload still requires checking Documents & notes. No request,
+authorization, memory or backend behavior changed.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| App transient confirmations, warnings and errors | Merge / Simplify | Compact strip below work; Details opens every recent message; Dismiss updates closes only feedback | Same recipient | Compact feedback | [Feedback regressions] + [Feedback evidence] |
+| Upload progress, ready/failed message and Retry upload | Simplify | Readable, wrapping status beside the same recovery action | Existing file access | Compact feedback | [Feedback evidence] + [Workspace browser evidence] |
+
+Seven new component checks cover bursts, priority, full messages, expiry,
+keyboard/focus and cleanup. Two new startup checks cover retained
+sign-in recovery and clean session changes. Six browser checks cover real local assignments, upload and
+answer rejection/recovery, keyboard use, light/dark text contrast, and mobile
+work/dialog geometry. Six new screenshots and all regenerated images were inspected.
+
+Full local gate: 433 backend / 250 frontend tests; build/preflight and both
+production audits passed. Primary journeys and all eleven secondary groups
+passed. No tests deleted/skipped, backend changes, push or deployment.
+The mobile Connections screenshot exposes clipped checks and dim status text;
+that remains a separate next UI phase, not a notification-gate claim.
+
+[Feedback regressions]: ../frontend/test/notifications.test.jsx
+[Feedback evidence]: screenshots/acceptance-notifications.json
+
 [Review clarity regressions]: ../frontend/test/review-clarity.test.jsx
 [Review clarity evidence]: screenshots/acceptance-review-clarity.json
 [Review navigation regressions]: ../frontend/test/review-navigation-reliability.test.jsx

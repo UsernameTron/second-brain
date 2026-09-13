@@ -310,13 +310,17 @@ a:hover { text-decoration: underline; }
 .file-upload-status {
   display: inline-flex; align-items: center; gap: 6px;
   max-width: 250px;
-  color: #dbe9f8;
-  font-size: 11px;
-  line-height: 1.2;
+  color: var(--text);
+  background: var(--bg1);
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid var(--teal);
+  font-size: 13px;
+  line-height: 1.4;
 }
-.file-upload-status span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file-upload-status.is-success { color: #bfead8; }
-.file-upload-status.is-error { color: #ffd0c8; }
+.file-upload-status span { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.file-upload-status .btn { flex: none; min-height: 44px; }
+.file-upload-status.is-success { border-left-color: var(--green); }
+.file-upload-status.is-error { border-left-color: var(--red); }
 .file-upload-status progress { width: 34px; height: 5px; flex: none; accent-color: var(--teal); }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
 .brand-glyph {
@@ -1296,27 +1300,30 @@ a:hover { text-decoration: underline; }
 
 /* ---------- toasts ---------- */
 .toasts {
-  position: fixed;
-  top: 62px; right: 16px;
-  display: flex; flex-direction: column; gap: 8px;
-  z-index: 200;
-  pointer-events: none;
+  flex: 0 0 auto;
+  min-height: 0;
+  width: 100%;
+  background: var(--surface-solid);
 }
+.toasts:empty { display: none; }
+.notification-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.notification-summary { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-top: 1px solid var(--line); border-left: 3px solid var(--red); }
+.notification-message { min-width: 0; flex: 1; font-size: 13px; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.notification-summary button { flex: none; min-height: 44px; }
+.notification-dismiss { width: 44px; font-size: 22px; }
+.notification-list { max-height: 24vh; overflow: auto; overscroll-behavior: contain; list-style: none; margin: 0; padding: 0; }
 .toast {
-  min-width: 240px; max-width: 380px;
   background: var(--surface-solid);
   border: 1px solid var(--line);
   border-left: 3px solid var(--red);
-  border-radius: 10px;
-  padding: 10px 14px;
+  padding: 8px 14px;
   font-size: 13px;
-  box-shadow: 0 14px 40px var(--shadow-2);
-  animation: toastIn 0.22s ease-out;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .toast-ok { border-left-color: var(--green); }
 .toast-warn { border-left-color: var(--amber); }
 .toast-error { border-left-color: var(--red); }
-@keyframes toastIn { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ---------- scrollbars ---------- */
 ::-webkit-scrollbar { width: 9px; height: 9px; }
@@ -1798,9 +1805,6 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .workspace { flex: 1; min-height: 0; position: relative; }
 .workspace .modal-overlay { position: absolute; }
 .workspace .modal-overlay .modal { max-height: calc(100% - 24px); }
-.toasts { position: static; flex: 0 0 auto; max-height: 18vh; overflow: auto; gap: 0; width: 100%; }
-.toasts:empty { display: none; }
-.toast { min-width: 0; max-width: none; border-radius: 0; padding: 6px 14px; box-shadow: none; }
 .ny-card .tray-form { width: 100%; }
 .ny-card .tray-form textarea { width: 100%; min-height: 96px; resize: vertical; }
 .submitted-request { white-space: pre-wrap; overflow-wrap: anywhere; }

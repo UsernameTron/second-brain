@@ -46,6 +46,11 @@ async function layout(page) {
     const notifications = document.querySelector('.toasts')?.getBoundingClientRect();
     return !notifications?.height || [...document.querySelectorAll('[role="dialog"]')].every((dialog) => dialog.getBoundingClientRect().bottom <= notifications.top + 1);
   }), 'Notifications must not cover dialogs');
+  assert.ok(await page.evaluate(() => {
+    const notices = document.querySelector('.toasts')?.getBoundingClientRect();
+    const stage = document.querySelector('.stage')?.getBoundingClientRect();
+    return !notices?.height || !stage || stage.bottom <= notices.top + 1;
+  }), 'Notifications must not cover the work area');
 }
 async function call(context, url, route, method = 'GET', body) {
   const response = await context.request.fetch(`${url}${route}`, { method, ...(body === undefined ? {} : { data: body }) });
@@ -448,7 +453,8 @@ async function ownerAndDiagnostics({ page, context, url, fault, newPage }) {
       'system-recovery': require('./system-ui-checks'), 'draft-safety': require('./draft-ui-checks'),
       'home-navigation': require('./home-navigation-ui-checks'),
       'review-navigation': require('./review-navigation-ui-checks'),
-      'review-clarity': require('./review-clarity-ui-checks') }[group];
+      'review-clarity': require('./review-clarity-ui-checks'),
+      'notifications': require('./notification-ui-checks') }[group];
     assert.ok(run, 'Unknown acceptance group');
     try { await run({ ...owner, url, fault, newPage, call, more, shot, layout, evidence, seedReview: fixture.seedReview }); }
     catch (error) {

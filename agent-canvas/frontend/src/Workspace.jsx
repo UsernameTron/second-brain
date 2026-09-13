@@ -875,7 +875,7 @@ export default function Workspace() {
         method: 'POST', body: { kind: 'file', id: uploaded.id, x, y },
       }).catch(() => toast('Document added, but its canvas position could not be saved.', 'warn'));
     } catch (e) {
-      if (canvasIdRef.current === cid) setFileUpload({ kind: 'error', message: e.unconfirmed ? 'Upload is not confirmed. Check Documents & notes before choosing the file again.' : 'Upload failed. Choose the file again to retry.', file, error: e });
+      if (canvasIdRef.current === cid) setFileUpload({ kind: 'error', message: e.unconfirmed ? 'Upload is not confirmed. Check Documents & notes before choosing the file again.' : 'Upload failed. Your file is ready for Retry upload.', file, error: e });
       toast(e.message || 'Document upload failed');
     } finally {
       input.value = '';

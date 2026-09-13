@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { api } from './api.js';
 import Workspace from './Workspace.jsx';
 import { RequestError, WorkspaceBoundary } from './RequestState.jsx';
+import Notifications from './Notifications.jsx';
 
 export const AppCtx = createContext(null);
 
@@ -9,7 +10,7 @@ let toastSeq = 0;
 
 export default function App() {
   const [config, setConfig] = useState(null);
-  const [user, setUser] = useState(undefined); // undefined = booting, null = signed out
+  const [user, setUserState] = useState(undefined); // undefined = booting, null = signed out
   // Theme is applied to <html data-theme> so CSS drives everything. Read the
   // last-known value synchronously at module scope (see bootTheme in main.jsx)
   // so there is no flash, then reconcile with the account preference on load.
@@ -31,11 +32,16 @@ export default function App() {
     });
   }, []);
   const [toasts, setToasts] = useState([]);
+  const clearToasts = useCallback(() => setToasts([]), []);
+  const setUser = useCallback((next) => {
+    // Expanded updates belong to the session that received them.
+    setToasts([]);
+    setUserState(next);
+  }, []);
 
   const toast = useCallback((msg, kind = 'error') => {
     const id = ++toastSeq;
     setToasts((t) => [...t, { id, msg: String(msg), kind }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4500);
   }, []);
 
   useEffect(() => {
@@ -75,11 +81,7 @@ export default function App() {
       ) : (
         <SignIn />
       )}
-      <div className="toasts" role="status" aria-live="polite">
-        {toasts.map((t) => (
-          <div key={t.id} className={`toast toast-${t.kind}`}>{t.msg}</div>
-        ))}
-      </div>
+      <Notifications items={toasts} onClear={clearToasts} />
     </AppCtx.Provider>
   );
 }

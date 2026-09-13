@@ -10,6 +10,40 @@ import CapabilitiesModal from '../src/CapabilitiesModal.jsx';
 
 beforeEach(() => { api.mockReset(); });
 
+it('keeps sign-in recovery visible after dismissing its short notification', async () => {
+  api.mockImplementation((path) => {
+    if (path === '/api/config') return Promise.resolve({ devAuth: true });
+    if (path === '/api/me') return Promise.resolve({ user: null });
+    return Promise.reject(new Error('Temporary sign-in failure'));
+  });
+  render(<App />);
+  await userEvent.type(await screen.findByLabelText('Development sign-in'), 'pete@cloudtechgurus.com');
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in', exact: true }));
+  await screen.findByRole('region', { name: 'Recent updates' });
+  await userEvent.click(screen.getByRole('button', { name: 'Dismiss updates' }));
+  expect(screen.getByRole('alert')).toHaveTextContent('Sign-in could not be completed');
+  expect(screen.getByRole('button', { name: 'Try sign-in again' })).toBeEnabled();
+  expect(screen.getByLabelText('Development sign-in')).toHaveValue('pete@cloudtechgurus.com');
+});
+
+it('clears expanded short updates when a successful sign-in starts a session', async () => {
+  let accepted = false;
+  api.mockImplementation((path) => {
+    if (path === '/api/config') return Promise.resolve({ devAuth: true });
+    if (path === '/api/me') return Promise.resolve({ user: null });
+    return accepted ? Promise.resolve({ user: { email: 'pete@cloudtechgurus.com' } }) : Promise.reject(new Error('Temporary sign-in failure'));
+  });
+  render(<App />);
+  await userEvent.type(await screen.findByLabelText('Development sign-in'), 'pete@cloudtechgurus.com');
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in', exact: true }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Details', exact: true }));
+  expect(screen.getByRole('list', { name: 'Update details' })).toBeInTheDocument();
+  accepted = true;
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in', exact: true }));
+  await screen.findByText('Signed-in workspace');
+  expect(screen.queryByRole('region', { name: 'Recent updates' })).not.toBeInTheDocument();
+});
+
 it('shows a recoverable startup failure rather than a sign-in or empty workspace', async () => {
   api.mockImplementation((path) => path === '/api/config' ? Promise.resolve({ devAuth: true }) : Promise.reject(new Error('offline')));
   render(<App />);

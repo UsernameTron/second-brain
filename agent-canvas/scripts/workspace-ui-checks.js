@@ -139,6 +139,9 @@ module.exports = async function workspaceTools({ page, context, url, fault, call
   await page.waitForFunction(() => document.querySelector('.task-assign select')?.value.startsWith('p:'));
   await page.getByLabel('Assignee').selectOption('');
   await close();
+  // Fit depends on the available work area. Enter clustered view explicitly
+  // instead of relying on stacked notifications to make the canvas shorter.
+  await page.mouse.move(600, 250); await page.mouse.wheel(0, 600);
   await page.locator('.cluster-chip').filter({ hasText: 'research' }).click();
   const node = page.getByRole('button', { name: 'Local helper, research agent' });
   await node.hover(); // Wait for the cluster zoom to finish before measuring.
