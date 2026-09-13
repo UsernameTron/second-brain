@@ -374,6 +374,23 @@ Follow-up gate: 433 backend / 194 frontend tests; both production audits clean.
 
 ## Local acceptance and deferred release
 
+Workspace controls (2026-09-13): `npm run test:acceptance -- workspace-tools`
+executes seven groups against real local routes. [Workspace browser evidence]
+records note/upload/download failures and recovery; custom-agent creation,
+dispatch, version rollback and retirement; retained answers and saved filtering;
+command interpretation/cancellation/confirmation; task assignment, dragging,
+pan/zoom/clusters/minimap, Tidy/Fit; note/file removal and archive/restore;
+spending, pause/resume, Help, appearance and sign-out recovery. Four screenshots
+were inspected. Browser testing found canvas background pointer capture stealing
+Fit/Tidy clicks and an unsaved answer remaining in Saved only. Both are fixed;
+regressions cover pointer ownership and filter changes during a pending save.
+Gate: 433 backend / 202 frontend tests; both production audits clean.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Canvas Fit / Tidy up / pan / zoom / drag / minimap / clusters | Keep-as-is | More → Advanced → Canvas | Existing access | Local UI verification | [Canvas controls], [Workspace browser evidence] verifies actual position writes and view changes |
+| Home Save / unsave / Saved only / Show all | Keep-as-is | Home answer list | Existing edit/read | Local UI verification | [Home], [Workspace browser evidence] verifies retained history and confirmed filtering |
+
 Home staffing recovery (2026-09-13): an empty team is a setup prerequisite,
 not an edit conflict. Home explains the missing agent before submission; the
 existing server no-agent response gets the same recovery. Typing stays available,
@@ -421,6 +438,8 @@ remain unverified; local fixtures do not authorize or prove live access.
 [Room and memory evidence]: screenshots/acceptance-rooms-memory.json
 [Scheduled work and Builder evidence]: screenshots/acceptance-scheduling-builder.json
 [Owner acceptance evidence]: screenshots/acceptance-owner-diagnostics.json
+[Workspace browser evidence]: screenshots/acceptance-workspace-tools.json
+[Canvas controls]: ../frontend/test/canvas-controls.test.jsx
 [Workspace]: ../frontend/test/workspace-cleanup.test.jsx
 [Safety]: ../test/orchestrator-safety.test.js
 [Owner]: ../frontend/test/owner-reliability.test.jsx

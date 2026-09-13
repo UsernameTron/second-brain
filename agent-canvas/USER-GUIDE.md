@@ -32,7 +32,8 @@ examples, not CTG research; it cannot retrieve the company's actual ICP or live 
    none proves that every claim is supported. If no supporting sources were
    recorded, the answer says so. Verify it before relying on it.
 4. **View work** opens the full summary and work history, even for older work.
-   **Save** keeps an answer in **Saved only**. Use **Show all** to return.
+   **Save** keeps an answer in **Saved only**. Select **★ saved** to unsave it;
+   after confirmation it leaves that filtered list and remains in **Show all**.
 
 If Home says the project needs an agent, choose **Add agent** beside that message
 and select a template, such as **Scout**. Your typed question stays in the box.
@@ -114,6 +115,9 @@ queue** checks now. Lists show the latest bounded results, not a complete archiv
   **Full change details** for the complete values. Close when done; the team already includes the new agent.
 - **More → Advanced:** the complete visual Canvas, interpreted text/voice
   Commands, and Activity. Team and agent details retain advanced configuration.
+  On Canvas, drag the background to pan and scroll to zoom. **Tidy up** arranges
+  and saves positions; **Fit** brings all content into view. Click a grouped
+  agent label to zoom in. These actions leave work and memory unchanged.
 - **Connections:** account access, service checks and capability limits.
 - **Spending:** today's cost and cap, with additional details and owner settings.
 - **Account:** appearance, sign out, and owner settings. **Space actions** keeps

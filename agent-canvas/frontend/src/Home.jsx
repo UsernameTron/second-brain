@@ -169,6 +169,8 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
       .then((d) => { if (seq === loadSeq.current) setInquiries(d.inquiries || []); })
       .catch((e) => { if (seq === loadSeq.current) setLoadError(e); });
   }, [canvasId, savedOnly, toast]);
+  const latestLoad = useRef(load);
+  latestLoad.current = load;
 
   useEffect(() => { setInquiries(null); load(); }, [load]);
   // Live refresh: run_status events bump runTick in Workspace.
@@ -216,10 +218,13 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
       if (active.current !== cid) return;
       loadSeq.current += 1;
       setInquiries((cur) => (cur || []).map((i) => (i.id === inq.id ? d.inquiry : i)));
+      // Reconcile using the CURRENT filter, including a toggle during this save.
+      await latestLoad.current();
     } catch (e) { if (active.current === cid) setSaveErrors((s) => ({ ...s, [inq.id]: e })); }
     finally { if (active.current === cid) setSaving((s) => ({ ...s, [inq.id]: false })); }
   };
 
+  const visibleInquiries = savedOnly && inquiries ? inquiries.filter((item) => item.saved) : inquiries;
   return (
     <div className="home-view">
       <div className="home-hero">
@@ -291,7 +296,7 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
         <RequestError error={loadError} subject="Loading answers" onRetry={load} />
         {loadError && inquiries ? <p>Last known answers are shown. Refresh before acting on their status.</p> : null}
         {inquiries === null && !loadError ? <div className="empty-hint">Loading answers…</div> : null}
-        {(inquiries || []).map((inq) => (
+        {(visibleInquiries || []).map((inq) => (
           <div key={inq.id} className="home-item">
             <AnswerCard inquiry={inq} canvasId={canvasId} agentsById={agentsById} onOpenRun={onOpenRun} onRevise={editable ? (item) => { setQuestion(item.question); setMode(item.mode); questionRef.current?.focus(); } : null} onAct={editable ? actOn : null} toast={toast} />
             <RequestError error={saveErrors[inq.id]} subject="Saving this answer" onRetry={() => load()} retryLabel="Check saved answers" />
@@ -299,7 +304,7 @@ export default function Home({ canvasId, agents, agentsById, paused, runTick, on
               onClick={() => toggleSaved(inq)}>{inq.saved ? '★ saved' : '☆ save'}</button>
           </div>
         ))}
-        {inquiries !== null && inquiries.length === 0 && savedOnly && !loadError ? (
+        {visibleInquiries !== null && visibleInquiries.length === 0 && savedOnly && !loadError ? (
           <div className="empty-hint">nothing saved yet — star an answer to keep it here</div>
         ) : null}
       </div>

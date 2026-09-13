@@ -31,6 +31,52 @@ function renderHome(props = {}) {
 beforeEach(() => { api.mockReset(); });
 
 describe('Inquiry Home', () => {
+  it('updates Saved only after a confirmed unsave and keeps the answer in Show all', async () => {
+    let item = { ...inquiry('saved-answer', 'Keep this history'), status: 'answered', saved: true };
+    let failSave = true;
+    api.mockImplementation((path, options) => {
+      if (options?.method === 'PATCH') {
+        if (failSave) return Promise.reject(Object.assign(new Error('offline'), { status: 503 }));
+        item = { ...item, saved: options.body.saved };
+        return Promise.resolve({ inquiry: item });
+      }
+      return Promise.resolve({ inquiries: path.endsWith('?saved=1') && !item.saved ? [] : [item] });
+    });
+    renderHome();
+    await screen.findByText('Keep this history');
+    await userEvent.click(screen.getByRole('button', { name: 'Saved only' }));
+    await userEvent.click(await screen.findByRole('button', { name: '★ saved' }));
+    await screen.findByRole('alert');
+    expect(screen.getByText('Keep this history')).toBeVisible();
+    failSave = false;
+    await userEvent.click(screen.getByRole('button', { name: '★ saved' }));
+    await screen.findByText('nothing saved yet — star an answer to keep it here');
+    expect(screen.queryByText('Keep this history')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show all' }));
+    expect(await screen.findByText('Keep this history')).toBeVisible();
+    expect(screen.getByRole('button', { name: '☆ save' })).toBeVisible();
+  });
+
+  it('uses the current answer filter when an in-flight save completes', async () => {
+    let finish;
+    let item = { ...inquiry('saved-answer', 'Saved history'), saved: true, status: 'answered' };
+    const other = { ...inquiry('other', 'Other history'), status: 'answered' };
+    api.mockImplementation((path, options) => {
+      if (options?.method === 'PATCH') return new Promise((resolve) => { finish = () => { item = { ...item, saved: false }; resolve({ inquiry: item }); }; });
+      return Promise.resolve({ inquiries: path.endsWith('?saved=1') ? (item.saved ? [item] : []) : [item, other] });
+    });
+    renderHome();
+    await screen.findByText('Saved history');
+    await userEvent.click(screen.getByRole('button', { name: 'Saved only' }));
+    await userEvent.click(await screen.findByRole('button', { name: '★ saved' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Show all' }));
+    finish();
+    await screen.findByText('Other history');
+    expect(screen.getByText('Saved history')).toBeVisible();
+    await waitFor(() => expect(screen.getAllByRole('button', { name: '☆ save' })).toHaveLength(2));
+    expect(api.mock.calls.at(-1)[0]).toBe('/api/canvases/c1/inquiries');
+  });
+
   it('explains an unstaffed space and keeps typing, examples and setup from submitting work', async () => {
     api.mockResolvedValue({ inquiries: [] });
     const onAddAgent = vi.fn();

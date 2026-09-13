@@ -26,7 +26,13 @@ https.request = blockedNetwork; https.get = blockedNetwork;
 http.request = blockedNetwork; http.get = blockedNetwork;
 const textResponse = (text) => ({ content: [{ type: 'text', text }], stop_reason: 'end_turn', usage: { input_tokens: 0, output_tokens: 0 } });
 const anthropic = require('../server/orchestrator/anthropic');
-anthropic.callModel = async ({ system = '' }) => {
+anthropic.callModel = async ({ system = '', messages = [] }) => {
+  if (acceptance && system.startsWith('You parse spoken/typed commands')) {
+    const target = system.match(/- Scout \(([^,]+), id ([^)]+)\)/);
+    return textResponse(JSON.stringify(target && messages[0]?.content !== '???' ? {
+      action: 'dispatch', agent_id: target[2], agent_name: 'Scout', instruction: 'Review the local note.', echo: 'Ask Scout to review the local note.',
+    } : { action: 'unknown', echo: 'Choose an agent and describe what you need.' }));
+  }
   if (acceptance && system.startsWith('You interpret ONE')) return textResponse(JSON.stringify({
     summary: 'Review the local renewal checklist weekly.', sources: ['memory'], scope: 'This local project space only', category: 'watch',
     output_type: 'brief', cadence: 'weekly', cadence_day: 1, cadence_hour: 8,

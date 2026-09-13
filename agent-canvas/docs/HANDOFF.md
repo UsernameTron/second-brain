@@ -25,10 +25,10 @@ scheduling/Builder edits, recoverable polling and confirmed rehearsal gates. Pha
 adds honest owner tables, retained edits, partial-order recovery, bounded downloads
 and unverified configuration labels. Phase 7 verifies all four member journeys at
 1280/390px, queue recovery, 768px and actual 200% zoom; all 16 images inspected.
-Latest local gate: 433 backend / 199 frontend tests; both production audits clean.
+Latest local gate: 433 backend / 202 frontend tests; both production audits clean.
 Pete completed the guided walkthrough. Local acceptance covers Room exports/recovery,
 permissions, memory correction/history, certainty, scheduling, Builder and owner tools;
-Home/Room staffing recovery, mobile menus, published-change review and owner access removal are fixed; the Home draft survives adding an agent. See [SIMPLIFICATION.md](SIMPLIFICATION.md). Production observations below are historical; no new production probe, push or deployment was performed.
+Home/Room staffing, mobile menus, published-change review, owner removal, canvas Fit/Tidy clicks and saved-answer filtering are fixed. Browser checks also cover documents, custom agents/rollback/retirement, commands, canvas movement, archive/restore, spending and sign-out. See [SIMPLIFICATION.md](SIMPLIFICATION.md). Production observations below are historical; no new production probe, push or deployment was performed.
 
 ## Current production state
 

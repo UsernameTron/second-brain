@@ -442,9 +442,10 @@ async function ownerAndDiagnostics({ page, context, url, fault, newPage }) {
       return { context, page };
     };
     const owner = await newPage('pete@cloudtechgurus.com');
-    const run = { 'rooms-memory': roomsAndMemory, 'scheduling-builder': schedulingAndBuilder, 'owner-diagnostics': ownerAndDiagnostics }[group];
+    const run = { 'rooms-memory': roomsAndMemory, 'scheduling-builder': schedulingAndBuilder, 'owner-diagnostics': ownerAndDiagnostics,
+      'workspace-tools': require('./workspace-ui-checks') }[group];
     assert.ok(run, 'Unknown acceptance group');
-    try { await run({ ...owner, url, fault, newPage }); }
+    try { await run({ ...owner, url, fault, newPage, call, more, shot, layout, evidence }); }
     catch (error) { await owner.page.screenshot({ path: '/tmp/agent-canvas-acceptance-failure.png' }); console.error('Visible recovery details:', await owner.page.getByRole('alert').allTextContents()); throw error; }
     const snapshot = await fixture.snapshot();
     assert.equal(snapshot.externalAttempts, 0); assert.deepEqual(evidence.browserErrors, []);
