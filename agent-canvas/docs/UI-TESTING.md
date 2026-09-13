@@ -1,8 +1,8 @@
 # Local UI verification — 2026-09-13
 
-Local gate: **433 backend and 233 frontend tests passed**, no tests skipped;
+Local gate: **433 backend and 241 frontend tests passed**, no tests skipped;
 frontend build and deployment preflight passed, both production dependency audits
-clean. Primary journeys and all nine secondary browser groups passed.
+clean. Primary journeys and all ten secondary browser groups passed.
 
 These checks exercise the local built app in Chromium using disposable databases,
 real development sign-in and real application routes. External model and connector
@@ -41,6 +41,7 @@ separately with `npm run test:acceptance -- GROUP`; primary journeys use
 | Global Needs You | All six card types across two accessible spaces, restricted-space exclusion, Mine/Team/All with independent badge, person/agent/clear assignment, redirect/dismiss, 503/409/403 retained answers, duplicate prevention, exact memory/work/rule sources, reaffirmation/retry/acknowledgment recovery, mobile completion | [Global review](screenshots/acceptance-needs-you.json) |
 | Startup, interrupted work and voice input | Failed/malformed startup, actual socket drop with missed answer and Pause, lost response after an accepted inquiry, unknown control/connection status, session expiry/re-sign-in, synthetic voice failures/cumulative transcripts/cancellation | [System recovery](screenshots/acceptance-system-recovery.json) |
 | Drafts during pending saves | Real accepted note/agent/command/rule requests with held replies; closing/reopening, newer text, command cancellation and changing answer context preserve the next unsent draft | [Draft safety](screenshots/acceptance-draft-safety.json) |
+| Review card clarity | Decision context and nested before/after values stay visible; empty/zero/false values remain distinct, exact supporting memory opens across projects, one keyboard-operable details control retains diagnostics; 390/768/1280px | [Review clarity](screenshots/acceptance-review-clarity.json) |
 | Review submissions across navigation | Delayed answers, offscreen rejection/lost replies, assignment and redirect navigation retain per-card guards, drafts and recovery; mobile check-before-retry | [Review navigation](screenshots/acceptance-review-navigation.json) |
 | Home request status across navigation | Help/Home navigation, switching projects, delayed success, lost confirmation and background rejection preserve pending/error guards and separate drafts; explicit check/retry only | [Home navigation](screenshots/acceptance-home-navigation.json) |
 
@@ -86,6 +87,14 @@ already handled” error during draft checks. Held-response helpers now wait for
 active page handlers before removing their interception; no routing error is
 suppressed. The isolated draft checks and complete suite were repeated afterward.
 
+Review cards now show decision context as ordinary text, with current/proposed
+values together and supporting memory links. Work/model IDs and the original
+received context remain under one Full details disclosure. Known repeated answer
+instructions are merged into one sentence; stopped-work copy no longer claims
+that no partial work happened. Unknown fields and authored wording stay visible; existing long-detail truncation
+markers are retained. A workspace test now locates the visible work-summary
+paragraph directly instead of racing a hidden event-detail match.
+
 ## Original acceptance criteria
 
 | Requirement | Local evidence / boundary |
@@ -94,12 +103,19 @@ suppressed. The isolated draft checks and complete suite were repeated afterward
 | Every capability reachable | [Control map](SIMPLIFICATION.md) records original location, disposition, destination, permission, phase and evidence. Main and secondary browser groups exercise the relocated surfaces. |
 | Four guide journeys without Advanced or owner settings | [Journey runner](../scripts/journey-test.js) uses the guide's question, editable Act on this follow-up and decision as a fictional member at desktop/mobile sizes. Pete's preview signs in as Pete. |
 | Truthful failures, loading, empty and stale states | Recovery checks across all groups, plus [request](../frontend/test/request-reliability.test.jsx), [startup](../frontend/test/startup-status.test.jsx) and per-surface component regressions. |
-| Preserve behavior covered by existing tests | No original test files deleted or skipped; 433 backend and 233 frontend tests pass. Changed labels retain equivalent behavioral assertions. |
+| Preserve behavior covered by existing tests | No original test files deleted or skipped; 433 backend and 241 frontend tests pass. Changed labels retain equivalent behavioral assertions. |
 | Safety, memory, tools, routes, schema and provider handling | Backend implementation and README are unchanged from baseline `1308fec`; existing backend safety/contract tests pass. |
 | Empty first boot | Every browser fixture asserts zero workspace content before test setup. |
 | Screenshots and responsive/keyboard evidence | [Primary images](screenshots/manifest.json), group manifests above; 1280/390px images inspected, with 768px, keyboard and browser zoom checks. |
 | Current guide and handoff | [User guide](../USER-GUIDE.md) and [handoff](HANDOFF.md) describe local behavior and distinguish historical production observations. |
 | Clean dependencies and no deployment | Both production audits are clean; build/preflight only. No push or deployment performed. |
+
+## Next local UI phase
+
+Rapid actions can stack transient confirmations over the lower part of the
+mobile queue. The next phase will keep action controls clear while retaining
+feedback and durable recovery messages. This was visible in the regenerated
+mobile queue evidence; passing flow tests alone do not close this layout gap.
 
 ## Limits
 

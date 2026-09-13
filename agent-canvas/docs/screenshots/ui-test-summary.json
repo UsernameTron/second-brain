@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-09-13T09:04:22.652Z",
+  "checkedAt": "2026-09-13T09:28:57.624Z",
   "results": [
     {
       "group": "primary-journeys",
@@ -39,6 +39,10 @@
     },
     {
       "group": "review-navigation",
+      "status": "passed"
+    },
+    {
+      "group": "review-clarity",
       "status": "passed"
     }
   ],

@@ -2,6 +2,7 @@ import { choiceKeys, certaintyLabel, workStatusLabel } from './format.jsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RequestError } from './RequestState.jsx';
 import { useDraft } from './Drafts.jsx';
+import ReviewContext from './ReviewContext.jsx';
 import { timeAgo, short } from './api.js';
 import { formatContractTail, plainPreview, humanizeDetail } from './format.jsx';
 
@@ -50,7 +51,6 @@ export function AttentionCard({ row, submission, onSubmissionChange, agentsById 
   const [answer, setAnswer] = useDraft(`attention:${row.sourceRef.canvasId}:${row.type}:${row.sourceRef.id}`, '');
   const [mode, setMode] = useDraft(`attention-mode:${attentionKey(row)}`, null); // escalation: null | 'accept' | 'redirect'
   const [target, setTarget] = useDraft(`attention-target:${attentionKey(row)}`, '');
-  const [showCtx, setShowCtx] = useState(true);
   const [otherActions, setOtherActions] = useState(false);
   const [localSubmission, setLocalSubmission] = useState(emptySubmission);
   const { pending, done, error } = submission || localSubmission;
@@ -99,7 +99,12 @@ export function AttentionCard({ row, submission, onSubmissionChange, agentsById 
   const ownerLabel = row.owner.email || (row.owner.agentId ? ownerAgent?.name || 'Assigned agent' : null);
   // The escalating agent's attached context — decision-critical, and the
   // inline tray that used to show it is hidden behind the needs_you flag.
-  const hasCtx = row.contextData && Object.keys(row.contextData).length > 0;
+  const hasCtx = row.contextData != null && (typeof row.contextData !== 'object' || Object.keys(row.contextData).length > 0);
+  const generatedContext = row.type === 'escalation' && /^\w+ escalation(?: from agent [^ ]+)?$/.test(row.context || '');
+  const failedWork = row.type === 'failed_run';
+  const standardAnswer = row.type === 'escalation' && row.consequence === 'The escalating run stays parked until a human answers.'
+    && row.recommendation === 'Answer it — the agent resumes with your decision.';
+  const fullDetails = hasCtx || generatedContext || failedWork || row.context?.length > 220;
 
   return (
     <div className={`ny-card ny-${row.type}`}>
@@ -115,27 +120,26 @@ export function AttentionCard({ row, submission, onSubmissionChange, agentsById 
           decision reads "Standing rule matched N item(s)" (server/attention.js).
           A brief_ready decision carries no count, so stripping there would
           delete the only statement of what matched — humanize instead. */}
-      {row.context ? (
+      {row.context && !failedWork ? (
         <div className="ny-context">
-          {row.type === 'escalation' && /^\w+ escalation(?: from agent [^ ]+)?$/.test(row.context) ? `Question from ${agentsById[row.escalatingAgentId]?.name || 'an agent'}.` : short(plainPreview(formatContractTail(row.context,
+          {generatedContext ? `Question from ${agentsById[row.escalatingAgentId]?.name || 'an agent'}.` : short(plainPreview(formatContractTail(row.context,
             row.type === 'rule_alert' ? 'strip' : 'humanize')), 220)}
         </div>
       ) : null}
-      {hasCtx ? (
-        <button className="link-btn" onClick={() => setShowCtx((v) => !v)}>
-          {showCtx ? 'Hide full details' : 'Full details'}
-        </button>
-      ) : null}
-      {showCtx && row.type === 'escalation' && /^\w+ escalation(?: from agent [^ ]+)?$/.test(row.context || '') ? <details><summary>Technical context</summary><p>{row.context}</p></details> : null}
-      {showCtx && hasCtx ? (
-        <pre className="tray-context mono">
-          {(() => { try { return humanizeDetail(row.contextData); } catch { return String(row.contextData); } })()}
-        </pre>
-      ) : null}
+      {hasCtx ? <ReviewContext data={row.contextData} canvasId={row.sourceRef.canvasId} agentsById={agentsById} onOpenMemory={onOpenMemory} /> : null}
       <div className="ny-meta">
-        <span className="ny-consequence">{row.consequence === 'The escalating run stays parked until a human answers.' ? 'The agent needs your answer to continue this work.' : row.consequence}</span>
-        {row.recommendation ? <span className="ny-recommendation">{row.recommendation}</span> : null}
+        {standardAnswer ? <span className="ny-consequence">Your answer goes back to the agent so it can continue.</span> : <>
+          <span className="ny-consequence">{failedWork ? 'This work did not finish. Check its details before trying again.'
+            : row.consequence === 'The escalating run stays parked until a human answers.' ? 'The agent needs your answer to continue this work.' : row.consequence}</span>
+          {row.recommendation && !failedWork ? <span className="ny-recommendation">{row.recommendation}</span> : null}
+        </>}
       </div>
+      {fullDetails ? <details className="review-details">
+        <summary>Full details</summary>
+        {row.context && (generatedContext || failedWork || row.context.length > 220) ? <p className="review-value">{generatedContext || failedWork ? 'Technical context: ' : ''}{row.context}</p> : null}
+        {hasCtx ? <pre className="tray-context mono">{humanizeDetail(row.contextData)}</pre> : null}
+        {failedWork && row.recommendation ? <p>{row.recommendation}</p> : null}
+      </details> : null}
       <RequestError error={error} subject="Saving your response" onRetry={onRefresh} retryLabel="Check status" />
       {error?.unconfirmed ? <button className="btn small" onClick={() => setError(null)}>I checked the queue; keep editing</button> : null}
       {pending ? <p role="status">Submitting…</p> : null}

@@ -204,7 +204,7 @@ module.exports = async function workspaceTools({ page, context, url, fault, call
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await page.getByRole('button', { name: 'View work', exact: true }).click();
   await page.getByRole('button', { name: 'Refresh work', exact: true }).waitFor();
-  await page.getByText(/This local test answer has no external sources/).last().waitFor();
+  await page.locator('.run-detail').getByRole('paragraph').filter({ hasText: /This local test answer has no external sources/ }).waitFor();
   await close();
   evidence.checks.push('Home agent override, receipt failure/retry, save failure/status check, saved/unsaved filtering; owner version read recovery and rollback; confirmed retirement retains accessible answer work.');
 

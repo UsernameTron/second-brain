@@ -52,7 +52,7 @@ inspection does not claim a live service check. No operation is retired.
 | Home: Open run | Simplify | View work / Work details | Existing access | 3 | [Saved work] (old run/events) + [Work source] inspection |
 | Needs You: Mine/Team/All | Simplify | Global queue; each card names project space | Accessible spaces only | 4 | [Workspace] (global server scopes/badge) + [Attention] (restricted exclusion) |
 | Needs You: Resolve, decision, Send decision, Back | Simplify | Answer → response → Submit answer | Existing edit | 4 | [Review] (pending/403/409/unconfirmed) + [Journey] (accepted answer and memory) |
-| Needs You: Context/Hide context | Simplify | Visible decision context + Full details | Existing access | 4 | [Review] (full context and diagnostic labels) + [Journey] (review card) |
+| Needs You: Context/Hide context, Technical context | Merge / Simplify | Readable decision context; one Full details disclosure retains received context and diagnostics | Existing access | 4, review clarity | [Review] + [Review clarity regressions] + [Review clarity evidence] |
 | Needs You: Redirect, target, instructions | Simplify | Other actions → Ask another agent | Existing edit | 4 | [Review] + [Review source] inspection: redirect form/callback |
 | Needs You: assign person/agent, clear | Simplify | Other actions → Assign | Existing edit | 4 | [Review] (source-space choices) + [Assignment] (person/agent/unassign) |
 | Needs You: source-specific Dismiss | Simplify | Other actions → Dismiss | Existing access | 4 | [Review] (projected and escalation actions) + [Attention] (dismissal) |
@@ -557,6 +557,42 @@ Full local gate: 433 backend / 233 frontend tests, build/preflight passed, both
 production audits clean; primary journeys and all nine secondary groups passed.
 No tests deleted/skipped, no backend changes, no push or deployment.
 
+## Review clarity follow-up (2026-09-13)
+
+The default review card repeated answer instructions and exposed a monospaced
+context record beside two competing detail controls. Decision context now uses
+ordinary text and labeled fields. Existing detail-display limits remain explicit. Current/proposed values appear together on
+desktop and stack on mobile; zero, false, null and cleared text stay distinct.
+Nested proposals, unknown fields and related questions remain visible. Known
+routing/model metadata and the received context stay under one native
+Full details disclosure; supporting memory IDs also gain readable source links.
+Opening a source reads its existing record; expanding details submits no decision. The normal editable
+Answer/Submit path and all existing source actions remain unchanged.
+
+Failed-work cards now say work did not finish, rather than asserting no work
+happened. Their technical error and original recovery recommendation remain in
+Full details, with View work and Try again still available. This changes display
+copy only; no backend route, agent behavior or approval contract changed.
+
+Eight [Review clarity regressions] cover context/diagnostic reachability, exact
+nested proposals, embedded previews, memory navigation, unknown/authored text,
+coalesced questions, incomplete work and long received context. [Review clarity
+evidence] verifies a fictional member's real source navigation and submission,
+keyboard details, larger mobile action targets and 390/768/1280px layouts. Three
+new images and all regenerated images were inspected.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Review Context/Hide context and Technical context | Merge / Simplify | Decision context stays visible; one Full details disclosure | Existing read access | 4, review clarity | [Review clarity regressions] + [Review clarity evidence] |
+| Context memory reference IDs | Simplify | Memory item links; exact IDs retained in Full details | Existing source read access | 4, review clarity | [Review clarity regressions] + [Review clarity evidence] |
+| Failed-run error, Retry/Open run | Simplify | Plain-language unfinished-work notice; Full details; Try again/View work | Existing edit/read access | 4, review clarity | [Review clarity regressions] + [Global review browser evidence] |
+
+Full local gate: 433 backend / 241 frontend tests, build/preflight passed, both
+production audits clean; primary journeys and all ten secondary groups passed.
+No tests deleted/skipped, no backend changes, no push or deployment.
+
+[Review clarity regressions]: ../frontend/test/review-clarity.test.jsx
+[Review clarity evidence]: screenshots/acceptance-review-clarity.json
 [Review navigation regressions]: ../frontend/test/review-navigation-reliability.test.jsx
 [Review navigation evidence]: screenshots/acceptance-review-navigation.json
 [Home navigation regressions]: ../frontend/test/home-navigation-reliability.test.jsx

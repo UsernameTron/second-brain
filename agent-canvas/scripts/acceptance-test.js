@@ -447,7 +447,8 @@ async function ownerAndDiagnostics({ page, context, url, fault, newPage }) {
       'workspace-tools': require('./workspace-ui-checks'), 'needs-you': require('./review-ui-checks'),
       'system-recovery': require('./system-ui-checks'), 'draft-safety': require('./draft-ui-checks'),
       'home-navigation': require('./home-navigation-ui-checks'),
-      'review-navigation': require('./review-navigation-ui-checks') }[group];
+      'review-navigation': require('./review-navigation-ui-checks'),
+      'review-clarity': require('./review-clarity-ui-checks') }[group];
     assert.ok(run, 'Unknown acceptance group');
     try { await run({ ...owner, url, fault, newPage, call, more, shot, layout, evidence, seedReview: fixture.seedReview }); }
     catch (error) {

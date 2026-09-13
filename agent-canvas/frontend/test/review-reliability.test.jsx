@@ -24,9 +24,9 @@ it('labels generated agent references while retaining exact technical and author
   const generated = 'question escalation from agent agent-123';
   const view = render(<NeedsYouView {...base} rows={[{ ...escalation, escalatingAgentId: 'agent-123', context: generated }]} agentsById={{ 'agent-123': { name: 'Fred' } }} />);
   expect(screen.getByText('Question from Fred.')).toBeVisible();
-  const diagnostic = screen.getByText(generated);
+  const diagnostic = screen.getByText(`Technical context: ${generated}`);
   expect(diagnostic.closest('details')).not.toHaveAttribute('open');
-  await userEvent.click(screen.getByText('Technical context'));
+  await userEvent.click(screen.getByText('Full details'));
   expect(diagnostic).toBeVisible();
   view.rerender(<NeedsYouView {...base} rows={[{ ...escalation, context: 'Customer asked us to keep this exact context.' }]} />);
   expect(screen.getByText('Customer asked us to keep this exact context.')).toBeVisible();
@@ -36,7 +36,8 @@ it('keeps full decision context visible and blocks duplicate answers while pendi
   let finish;
   const resolve = vi.fn(() => new Promise((done) => { finish = done; }));
   render(<NeedsYouView {...base} onResolveEscalation={resolve} />);
-  expect(screen.getByText(/Existing value/)).toHaveTextContent('Proposed value');
+  expect(screen.getByRole('region', { name: 'Decision context' })).toHaveTextContent('Existing value');
+  expect(screen.getByRole('region', { name: 'Decision context' })).toHaveTextContent('Proposed value');
   await userEvent.click(screen.getByRole('button', { name: 'Answer' }));
   await userEvent.type(screen.getByLabelText('Your answer'), 'Approved as shown');
   await userEvent.dblClick(screen.getByRole('button', { name: 'Submit answer' }));

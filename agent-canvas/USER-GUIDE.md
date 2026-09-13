@@ -70,8 +70,14 @@ external actions. These are not needed for the four journeys.
    across every accessible project space. Owners start on **All**. **Team** shows
    other people's or unassigned items. The badge keeps Mine for members and All
    for owners even when the filter changes.
-2. Read the card's project name, question, full details and consequence. For the
-   local fixture, the assigned question is “Should we prepare the renewal checklist?”
+2. Read the card's project name, question and **What you need to know**.
+   When changes are proposed, compare **Current value** and **Proposed value**.
+   **(empty text)** means blank text; **(not set)** means no value
+   was provided. **Memory item** links open supporting information. **Full details**
+   keeps the received context and technical references available. Very long details
+   may show a cut-off marker; if information needed to decide is missing, use
+   your answer to ask the agent for clarification.
+   For the local fixture, the question is “Should we prepare the renewal checklist?”
 3. Choose **Answer**, type “Yes, prepare a draft checklist for review.”, then
    **Submit answer**. Wait for acceptance; the card clears and the agent can
    resume with your response. A failed answer remains in the form, even if you
@@ -79,7 +85,8 @@ external actions. These are not needed for the four journeys.
 4. Other card types offer **Review memory**, **Confirm still true**, **Try again**,
    **View work**, **Mark reviewed**, **View scheduled work** or **View brief**.
    Review labels explain certainty and why work stopped; quoted content stays
-   unchanged. Source links open the exact record even when it belongs to another space.
+   unchanged. Stopped work may have completed some steps: choose **View work**
+   before retrying, and open **Full details** for the technical error. Source links open the exact record even when it belongs to another space.
 
 **Other actions** keeps assignment, **Ask another agent** and **Dismiss** where
 available. Assignment choices come from the card's project. **Assigned agent**

@@ -7,7 +7,7 @@ const { db, nowIso } = require('../server/db');
 const memory = require('../server/memory');
 const { createEscalation } = require('../server/orchestrator/tools');
 
-module.exports = function seedReview({ spaces, rules }) {
+module.exports = function seedReview({ spaces, rules, decisionContext = false }) {
   assert.equal(spaces.length, 3); assert.equal(rules.length, 2);
   const member = 'teammate@agent-canvas.invalid';
   const owner = 'pete@cloudtechgurus.com';
@@ -52,6 +52,19 @@ module.exports = function seedReview({ spaces, rules }) {
       .run(occurrence, id, rule.version, `local-ui-${occurrence}`, index ? 'Local fixture brief: keep both checklist items as drafts.\nMATCHED: 2' : 'Local fixture alert: two checklist items need review.\nMATCHED: 2', nowIso(), nowIso());
     return occurrence;
   });
+  if (decisionContext) {
+    // A local review specimen, not a CRM request. All nested changes and
+    // memory references must be readable before the browser answers it.
+    const context = {
+      detail: 'Review these local renewal terms. Keep the result as a draft.',
+      before: { annual_price: 0, approved: false, notes: 'Keep this note', sponsor: null },
+      after: { annual_price: 0, approved: true, notes: '', sponsor: 'Jess', terms: { legal: { reviewer: 'Pete', discount_pct: 12 } } },
+      customerPolicy: { approval_limit: 1500, legal_review: 'Jess' },
+      entry_ids: ids.conflicts, item_key: 'local-review-reference', model: 'local-model-stub', stepsUsed: 7,
+      updates: [{ at: nowIso(), agentId: second.agents[0].id, kind: 'question', question: 'Keep the original renewal date unchanged?' }],
+    };
+    db.prepare('UPDATE escalations SET context = ? WHERE id = ?').run(JSON.stringify(context), ids.answer);
+  }
   require('../server/audit').audit('system', 'ui-acceptance-fixture', 'test_fixture.seed_review', { spaces, ids });
   return ids;
 };

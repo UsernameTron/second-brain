@@ -66,6 +66,8 @@ module.exports = async function reviewNavigation({ context: ownerContext, url, n
   const other = card('Review test second-space answer?');
   await other.getByRole('button', { name: 'Answer', exact: true }).click();
   await other.getByLabel('Your answer').fill('This other project keeps its own answer.');
+  await page.getByRole('button', { name: /^Needs you/ }).focus();
+  await first.evaluate((element) => { const region = element.closest('.needs-you'); region.scrollTop += element.getBoundingClientRect().top - region.getBoundingClientRect().top; });
   await shot(page, 'pending', 'A pending answer remains disabled after filter and Home navigation; another project’s answer can still be edited.');
   await pending.finish(); await first.waitFor({ state: 'detached' });
   assert.equal(pending.count(), 1);

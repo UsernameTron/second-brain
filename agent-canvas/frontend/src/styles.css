@@ -1804,3 +1804,25 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .ny-card .tray-form { width: 100%; }
 .ny-card .tray-form textarea { width: 100%; min-height: 96px; resize: vertical; }
 .submitted-request { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Decision context reads as normal content; technical records stay expandable. */
+.review-context { margin: 12px 0; }
+.review-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.review-field { grid-column: 1 / -1; min-width: 0; }
+.review-field.review-change { grid-column: auto; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.review-field dt { font-size: 12px; font-weight: 600; color: var(--text-dim); margin-bottom: 4px; }
+.review-field dd { margin: 0; font-size: 14px; line-height: 1.5; }
+.review-field ul { padding-left: 20px; margin: 0; }
+.review-field li + li { margin-top: 8px; }
+.review-field small { color: var(--text-dim); }
+.review-value { white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-references { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; font-size: 13px; }
+.review-details { margin: 8px 0 12px; color: var(--text-dim); font-size: 13px; }
+.review-details summary { cursor: pointer; width: fit-content; padding: 6px 0; }
+.review-details p { overflow-wrap: anywhere; }
+@media (max-width: 540px) { .review-fields { grid-template-columns: minmax(0, 1fr); } }
+.ny-actions > .btn { min-height: 34px; }
+@media (max-width: 540px) {
+  .ny-actions .btn, .review-references .btn { min-height: 44px; }
+  .ny-actions summary, .review-details summary { min-height: 44px; padding-top: 12px; padding-bottom: 12px; box-sizing: border-box; }
+}
