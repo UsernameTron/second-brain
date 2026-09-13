@@ -1,5 +1,5 @@
 import { choiceKeys, certaintyLabel, workStatusLabel } from './format.jsx';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RequestError } from './RequestState.jsx';
 import { useDraft } from './Drafts.jsx';
 import { timeAgo, short } from './api.js';
@@ -7,8 +7,8 @@ import { formatContractTail, plainPreview, humanizeDetail } from './format.jsx';
 
 // P2 unified NEEDS YOU: a full-stage view over the attention projection.
 // Workspace owns the fetch (one source of truth for the badge and this view);
-// every card resolves through its SOURCE record's endpoint — this view holds
-// no state of its own beyond UI mode.
+// Every card resolves through its SOURCE record's endpoint. Submission state
+// belongs to the workspace session so hiding a card cannot permit a repeat.
 
 const TYPE_LABELS = {
   escalation: 'Answer needed',
@@ -31,36 +31,67 @@ function decisionLabel(row) {
   return text;
 }
 
-export function AttentionCard({ row, agentsById = {}, people = [], agents = [], loadContext, onRefresh, editable = true, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onDismiss, onOpenRule }) {
+const attentionKey = (row) => [row.sourceRef.canvasId, row.type, row.sourceRef.id, row.sourceRef.secondId || ''].join(':');
+const emptySubmission = { pending: false, done: false, error: null };
+
+export function useAttentionSubmissions() {
+  const [submissions, setSubmissions] = useState({});
+  const updateSubmission = useCallback((key, update) => {
+    setSubmissions((previous) => {
+      const current = previous[key] || emptySubmission;
+      const next = update(current);
+      return next === current ? previous : { ...previous, [key]: next };
+    });
+  }, []);
+  return [submissions, updateSubmission];
+}
+
+export function AttentionCard({ row, submission, onSubmissionChange, agentsById = {}, people = [], agents = [], loadContext, onRefresh, editable = true, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onDismiss, onOpenRule }) {
   const [answer, setAnswer] = useDraft(`attention:${row.sourceRef.canvasId}:${row.type}:${row.sourceRef.id}`, '');
-  const [mode, setMode] = useState(null); // escalation: null | 'accept' | 'redirect'
-  const [target, setTarget] = useState('');
+  const [mode, setMode] = useDraft(`attention-mode:${attentionKey(row)}`, null); // escalation: null | 'accept' | 'redirect'
+  const [target, setTarget] = useDraft(`attention-target:${attentionKey(row)}`, '');
   const [showCtx, setShowCtx] = useState(true);
   const [otherActions, setOtherActions] = useState(false);
-  const [pending, setPending] = useState(false);
-  const [done, setDone] = useState(false);
-  const [error, setError] = useState(null);
+  const [localSubmission, setLocalSubmission] = useState(emptySubmission);
+  const { pending, done, error } = submission || localSubmission;
+  const updateSubmission = onSubmissionChange
+    ? (update) => onSubmissionChange(attentionKey(row), update) : setLocalSubmission;
+  const setError = (error) => updateSubmission((current) => ({ ...current, error }));
   const inFlight = useRef(false);
   const [context, setContext] = useState(null);
   const [contextError, setContextError] = useState(null);
   const [contextTick, setContextTick] = useState(0);
   useEffect(() => {
-    if (!otherActions || !loadContext) return;
+    if ((!otherActions && mode !== 'redirect') || !loadContext) return;
     let current = true;
-    setContextError(null);
+    setContext(null); setContextError(null);
     loadContext(row.sourceRef.canvasId).then((data) => { if (current) setContext(data); })
       .catch((e) => { if (current) setContextError(e); });
     return () => { current = false; };
-  }, [otherActions, loadContext, row.sourceRef.canvasId, contextTick]);
+  }, [otherActions, mode, loadContext, row.sourceRef.canvasId, contextTick]);
   const action = async (fn, finishes = true) => {
-    if (inFlight.current || done || error?.unconfirmed || !editable) return;
-    inFlight.current = true; setPending(true); setError(null);
-    try { await fn(); if (finishes) { setDone(true); setMode(null); setAnswer(''); } }
-    catch (e) { setError(e); if (e.status === 403 || e.status === 409) await onRefresh?.(); }
-    finally { inFlight.current = false; setPending(false); }
+    if (inFlight.current || pending || done || error?.unconfirmed || !editable) return;
+    inFlight.current = true;
+    updateSubmission((current) => ({ ...current, pending: true, error: null }));
+    try {
+      await fn();
+      if (finishes) {
+        setMode(null);
+        setAnswer((current) => current === answer ? '' : current);
+        updateSubmission((current) => ({ ...current, done: true }));
+      }
+    } catch (e) {
+      setError(e);
+      if (e.status === 403 || e.status === 409) await onRefresh?.();
+    } finally {
+      inFlight.current = false;
+      updateSubmission((current) => ({ ...current, pending: false }));
+    }
   };
   const disabled = pending || done || error?.unconfirmed || !editable;
+  const redirectUnavailable = !!loadContext && (!context || !!contextError);
   const availableAgents = context?.agents || (loadContext ? [] : agents);
+  const targetUnavailable = !!context && !!target && !availableAgents.some((agent) => agent.id === target && agent.id !== row.escalatingAgentId);
   const availablePeople = context?.people || (loadContext ? [] : people);
   const ownerAgent = row.owner.agentId ? agentsById[row.owner.agentId] || context?.agents?.find((agent) => agent.id === row.owner.agentId) : null;
   // A global card can belong to a different project. Unknown names do not
@@ -118,16 +149,21 @@ export function AttentionCard({ row, agentsById = {}, people = [], agents = [], 
               onSubmit={(e) => {
                 e.preventDefault();
                 if (mode === 'accept') action(() => onResolveEscalation(row.sourceRef.id, { action: 'accept', answer }));
-                else action(() => onResolveEscalation(row.sourceRef.id, { action: 'redirect', target_agent_id: target, answer }));
+                else if (target && !redirectUnavailable && !targetUnavailable) action(() => onResolveEscalation(row.sourceRef.id, { action: 'redirect', target_agent_id: target, answer }));
               }}
             >
               {mode === 'redirect' ? (
-                <select aria-label="Agent to ask" disabled={disabled} value={target} onChange={(e) => setTarget(e.target.value)} required>
-                  <option value="" disabled>redirect to…</option>
-                  {availableAgents.filter((a) => a.id !== row.escalatingAgentId).map((a) => (
-                    <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
-                  ))}
-                </select>
+                <>
+                  <RequestError error={contextError} subject="Loading the project team" onRetry={() => setContextTick((n) => n + 1)} />
+                  {loadContext && !context && !contextError ? <p>Loading team…</p> : null}
+                  {targetUnavailable ? <p role="alert">The selected agent is no longer available. Choose another agent.</p> : null}
+                  <select aria-label="Agent to ask" disabled={disabled || redirectUnavailable} value={target} onChange={(e) => setTarget(e.target.value)} required>
+                    <option value="" disabled>redirect to…</option>
+                    {availableAgents.filter((a) => a.id !== row.escalatingAgentId).map((a) => (
+                      <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
+                    ))}
+                  </select>
+                </>
               ) : null}
               <textarea
                 aria-label="Your answer"
@@ -139,7 +175,7 @@ export function AttentionCard({ row, agentsById = {}, people = [], agents = [], 
                 onChange={(e) => setAnswer(e.target.value)}
               />
               <div className="tray-actions">
-                <button className="btn ok small" type="submit" disabled={disabled || !answer.trim() || (mode === 'redirect' && !target)}>
+                <button className="btn ok small" type="submit" disabled={disabled || !answer.trim() || (mode === 'redirect' && (!target || redirectUnavailable || targetUnavailable))}>
                   {mode === 'accept' ? 'Submit answer' : 'Ask another agent'}
                 </button>
                 <button className="btn ghost small" type="button" disabled={pending} onClick={() => setMode(null)}>Back</button>
@@ -216,9 +252,10 @@ export function AttentionCard({ row, agentsById = {}, people = [], agents = [], 
   );
 }
 
-export default function NeedsYouView({ rows, userEmail, defaultScope = 'all', scope: requestedScope, onScopeChange, loadStatus, onRefresh, loadContext, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onDismiss, onOpenRule }) {
+export default function NeedsYouView({ rows, submissions, onSubmissionChange, userEmail, defaultScope = 'all', scope: requestedScope, onScopeChange, loadStatus, onRefresh, loadContext, agentsById, people, agents, onResolveEscalation, onAssign, onOpenMemory, onOpenRun, onRetryRun, onExtendReview, onAcknowledgeRuleRun, onDismiss, onOpenRule }) {
   // Members land on Mine — unowned technical noise is the owner's to triage.
   // The All tab stays one click away; nothing is hidden, only defaulted.
+  const [localSubmissions, updateLocalSubmission] = useAttentionSubmissions();
   const [localScope, setLocalScope] = useState(defaultScope);
   const scope = requestedScope || localScope;
   const setScope = onScopeChange || setLocalScope;
@@ -259,8 +296,10 @@ export default function NeedsYouView({ rows, userEmail, defaultScope = 'all', sc
       <div className="ny-list">
         {(visible || []).map((row) => (
           <AttentionCard
-            key={`${row.sourceRef.canvasId}:${row.type}:${row.sourceRef.id}`}
+            key={attentionKey(row)}
             row={row}
+            submission={(submissions || localSubmissions)[attentionKey(row)]}
+            onSubmissionChange={onSubmissionChange || updateLocalSubmission}
             editable={row.access !== 'view' && !loadStatus?.error && !loadStatus?.loading}
             loadContext={loadContext}
             onRefresh={onRefresh}

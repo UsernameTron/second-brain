@@ -17,7 +17,9 @@ module.exports = async function draftSafety({ page, context, url, call, more, sh
     await page.route(pattern, handler);
     return { accepted, finish: async () => {
       const received = page.waitForResponse((response) => response.request().method() === method && response.url().includes(pattern.replaceAll('*', '')));
-      release(); await received; await page.unroute(pattern, handler);
+      // Each helper owns the only page-level route. Drain active handlers
+      // before removing it; a response event can arrive before fulfill ends.
+      release(); await received; await page.unrouteAll({ behavior: 'wait' });
     } };
   };
   const close = () => page.getByRole('button', { name: 'Close panel', exact: true }).click();

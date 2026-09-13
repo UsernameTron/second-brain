@@ -17,7 +17,7 @@ import { useDialog } from './useDialog.js';
 import Home from './Home.jsx';
 import WorkspaceHeader from './WorkspaceHeader.jsx';
 import { DocumentsView, TeamView, HelpView } from './ContextViews.jsx';
-import NeedsYouView from './NeedsYouView.jsx';
+import NeedsYouView, { useAttentionSubmissions } from './NeedsYouView.jsx';
 import AdminModal from './AdminModal.jsx';
 import AddAgentModal from './AddAgentModal.jsx';
 import CapabilitiesModal from './CapabilitiesModal.jsx';
@@ -53,6 +53,7 @@ export default function Workspace() {
   const { user, setUser, toast, theme, setTheme } = useContext(AppCtx);
   const isOwner = user.role === 'owner';
   const drafts = useRef(new Map());
+  const [attentionSubmissions, updateAttentionSubmission] = useAttentionSubmissions();
   // Submission outcomes belong to their project, even while Home is closed.
   // Like drafts, this state lasts only for this mounted workspace session.
   const [inquirySubmissions, setInquirySubmissions] = useState({});
@@ -1290,6 +1291,8 @@ export default function Workspace() {
           {view === 'needsyou' && needsYouOn ? (
             <NeedsYouView
               rows={globalRows}
+              submissions={attentionSubmissions}
+              onSubmissionChange={updateAttentionSubmission}
               scope={attentionScope}
               onScopeChange={changeAttentionScope}
               loadStatus={requests.attention}

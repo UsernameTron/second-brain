@@ -528,6 +528,37 @@ Full local gate: 433 backend / 219 frontend tests, build/preflight passed, both
 production audits clean; primary journeys and all eight secondary groups passed.
 No tests deleted/skipped, no backend changes, no push or deployment.
 
+## Needs You navigation recovery follow-up (2026-09-13)
+
+Hiding a review card reset its pending guard and discarded save errors received
+offscreen. Submission state now stays in the mounted workspace, keyed by project,
+source, card type and conflict counterpart. Filter/view changes preserve pending,
+saved and unconfirmed states without disabling unrelated cards. Answers and
+redirect targets/instructions remain available on return; confirmed assignment
+reopens editing without claiming the question was answered. This is transient
+React state; reload/sign-out boundaries and backend semantics remain unchanged.
+
+Fourteen [Review navigation regressions] cover all six card types, saved state,
+503/403/409 replies, unconfirmed outcomes, assignment, redirect retention and failed team-load recovery and a selected agent that is no longer available.
+[Review navigation evidence] exercises real browser navigation with delayed,
+rejected and lost replies, explicit check/retry and source-specific completion.
+Its desktop/mobile screenshots were inspected. The browser test's lost request
+is stopped before reaching the server; the UI cannot know that and correctly
+keeps it unconfirmed. Earlier Home recovery evidence also covers accepted work
+whose response was lost. Held-response browser helpers also drain active routing
+handlers before cleanup after an intermittent routing error in the full run;
+errors still fail acceptance rather than being ignored.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Needs You filters, Answer/Submit/Back, redirect, assignment, dismiss, retry, confirm still true and mark reviewed | Simplify | Needs You → card; secondary controls → Other actions | Existing source edit access | 4, review navigation recovery | [Review navigation regressions] + [Review navigation evidence] |
+
+Full local gate: 433 backend / 233 frontend tests, build/preflight passed, both
+production audits clean; primary journeys and all nine secondary groups passed.
+No tests deleted/skipped, no backend changes, no push or deployment.
+
+[Review navigation regressions]: ../frontend/test/review-navigation-reliability.test.jsx
+[Review navigation evidence]: screenshots/acceptance-review-navigation.json
 [Home navigation regressions]: ../frontend/test/home-navigation-reliability.test.jsx
 [Home navigation evidence]: screenshots/acceptance-home-navigation.json
 [Draft race regressions]: ../frontend/test/draft-races.test.jsx

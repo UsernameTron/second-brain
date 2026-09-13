@@ -19,7 +19,9 @@ module.exports = async function homeNavigation({ page, context, url, call, more,
     const matches = (request) => request.method() === 'POST' && request.url().endsWith('/inquiries');
     return { started, finish: async () => {
       const finished = outcome === 'lost' ? page.waitForEvent('requestfailed', { predicate: matches }) : page.waitForResponse((response) => matches(response.request()));
-      release(); await finished; await page.unroute('**/inquiries', handler);
+      // Each helper owns the only page-level route. Drain active handlers
+      // before removing it; a response event can arrive before fulfill ends.
+      release(); await finished; await page.unrouteAll({ behavior: 'wait' });
     } };
   };
   const home = () => page.getByRole('button', { name: 'Home', exact: true }).click();

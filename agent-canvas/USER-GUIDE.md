@@ -74,7 +74,8 @@ external actions. These are not needed for the four journeys.
    local fixture, the assigned question is “Should we prepare the renewal checklist?”
 3. Choose **Answer**, type “Yes, prepare a draft checklist for review.”, then
    **Submit answer**. Wait for acceptance; the card clears and the agent can
-   resume with your response. A failed answer remains in the form.
+   resume with your response. A failed answer remains in the form, even if you
+   change filters or leave Needs You before the reply arrives.
 4. Other card types offer **Review memory**, **Confirm still true**, **Try again**,
    **View work**, **Mark reviewed**, **View scheduled work** or **View brief**.
    Review labels explain certainty and why work stopped; quoted content stays
@@ -182,6 +183,13 @@ submit again. The app never automatically repeats a change.
 You can leave Home or switch project spaces while a request is sending. When
 you return, its pending status or error is still shown. A confirmed reply clears
 only that project's submitted draft; another project's text stays untouched.
+Needs You also keeps pending submissions and recovery messages when you change
+filters or leave the queue. Returning keeps your answer, or your selected agent
+and redirect instructions. If the team cannot load, choose **Try again**; if
+your selected agent is no longer available, choose another agent. Your
+instructions stay in the form. Other cards remain usable. If a response is not
+confirmed, choose **Check status**. Only choose **I checked the queue; keep
+editing** if you have checked that the item still needs your response.
 This protection lasts while the workspace stays open; copy drafts before reload.
 
 Failed notes, instructions, corrections and budget edits retain their inputs.
