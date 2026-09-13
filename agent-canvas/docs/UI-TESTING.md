@@ -1,8 +1,8 @@
 # Local UI verification — 2026-09-13
 
-Local gate: **433 backend and 250 frontend tests passed**, no tests skipped;
+Local gate: **433 backend and 264 frontend tests passed**, no tests skipped;
 frontend build and deployment preflight passed, both production dependency audits
-clean. Primary journeys and all eleven secondary browser groups passed.
+clean. Primary journeys and all twelve secondary browser groups passed.
 
 These checks exercise the local built app in Chromium using disposable databases,
 real development sign-in and real application routes. External model and connector
@@ -42,6 +42,7 @@ separately with `npm run test:acceptance -- GROUP`; primary journeys use
 | Startup, interrupted work and voice input | Failed/malformed startup, actual socket drop with missed answer and Pause, lost response after an accepted inquiry, unknown control/connection status, session expiry/re-sign-in, synthetic voice failures/cumulative transcripts/cancellation | [System recovery](screenshots/acceptance-system-recovery.json) |
 | Drafts during pending saves | Real accepted note/agent/command/rule requests with held replies; closing/reopening, newer text, command cancellation and changing answer context preserve the next unsent draft | [Draft safety](screenshots/acceptance-draft-safety.json) |
 | Review card clarity | Decision context and nested before/after values stay visible; empty/zero/false values remain distinct, exact supporting memory opens across projects, one keyboard-operable details control retains diagnostics; 390/768/1280px | [Review clarity](screenshots/acceptance-review-clarity.json) |
+| Connections | Account/answer defaults, every function/service retained, real local probe recording with a stubbed model, failed/stale/malformed/empty recovery, duplicate checks, member access, keyboard trap, 390/768/1280px and light/dark contrast | [Connections](screenshots/acceptance-connections.json) |
 | Compact feedback | Four-message bursts, complete long messages, priority, paused expiry, keyboard Details/Dismiss, retained drafts/recovery, mobile dialogs and light/dark upload contrast | [Feedback](screenshots/acceptance-notifications.json) |
 | Review submissions across navigation | Delayed answers, offscreen rejection/lost replies, assignment and redirect navigation retain per-card guards, drafts and recovery; mobile check-before-retry | [Review navigation](screenshots/acceptance-review-navigation.json) |
 | Home request status across navigation | Help/Home navigation, switching projects, delayed success, lost confirmation and background rejection preserve pending/error guards and separate drafts; explicit check/retry only | [Home navigation](screenshots/acceptance-home-navigation.json) |
@@ -115,20 +116,39 @@ stacked notifications to make Fit enter that mode.
 | Every capability reachable | [Control map](SIMPLIFICATION.md) records original location, disposition, destination, permission, phase and evidence. Main and secondary browser groups exercise the relocated surfaces. |
 | Four guide journeys without Advanced or owner settings | [Journey runner](../scripts/journey-test.js) uses the guide's question, editable Act on this follow-up and decision as a fictional member at desktop/mobile sizes. Pete's preview signs in as Pete. |
 | Truthful failures, loading, empty and stale states | Recovery checks across all groups, plus [request](../frontend/test/request-reliability.test.jsx), [startup](../frontend/test/startup-status.test.jsx) and per-surface component regressions. |
-| Preserve behavior covered by existing tests | No original test files deleted or skipped; 433 backend and 250 frontend tests pass. Changed labels retain equivalent behavioral assertions. |
+| Preserve behavior covered by existing tests | No original test files deleted or skipped; 433 backend and 264 frontend tests pass. Changed labels retain equivalent behavioral assertions. |
 | Safety, memory, tools, routes, schema and provider handling | Backend implementation and README are unchanged from baseline `1308fec`; existing backend safety/contract tests pass. |
 | Empty first boot | Every browser fixture asserts zero workspace content before test setup. |
 | Screenshots and responsive/keyboard evidence | [Primary images](screenshots/manifest.json), group manifests above; 1280/390px images inspected, with 768px, keyboard and browser zoom checks. |
 | Current guide and handoff | [User guide](../USER-GUIDE.md) and [handoff](HANDOFF.md) describe local behavior and distinguish historical production observations. |
 | Clean dependencies and no deployment | Both production audits are clean; build/preflight only. No push or deployment performed. |
 
-## Next local UI phase
+## Connections follow-up
 
-The mobile Connections dialog clips some status-check buttons and uses dim text
-against its navy status board. This is visible in the new dialog screenshot.
-The next phase will simplify that default status view and make every check
-readable and reachable, keeping technical detail available. The notification
-layout checks pass; they do not claim to close this separate Connections gap.
+The previous mobile status board clipped check buttons and used dim text on navy.
+Connections now puts account access and the answer check first. Other service
+checks and function lists are named disclosures; Advanced details retains every
+service, full source text, tool limits and the technical console. Check buttons
+and recovery targets are at least 44px, text wraps and measured service-status
+contrast exceeds 4.5:1 in both themes.
+
+A failed probe masks older successful evidence until a fresh check succeeds.
+Read failures preserve explicitly stale details, malformed responses fail visibly,
+and verified empty responses get their own recovery. Concurrent services retain
+separate pending/error state; a failed or pending check cannot leave a stale
+technical console visible. Its recovered view uses the freshly loaded health.
+Google-link validation and interrupted account changes retain status recovery.
+The dialog focus trap now visits visible disclosure summaries and skips their
+closed contents; native Enter/Tab/Escape behavior is verified in Chromium.
+
+Twelve new connection component checks and two dialog regressions complement
+11 browser checks and six inspected Connections screenshots. The full suite
+retains every earlier group and regenerates its evidence. An initial full rerun
+measured mobile geometry before responsive styles had painted. The harness now
+waits two animation frames before applying the same overflow and overlap gates;
+its failure capture also records the actual page being measured. The isolated
+notification check and all 13 groups passed afterward. Google OAuth and live
+service success remain outside these fixtures.
 
 ## Limits
 

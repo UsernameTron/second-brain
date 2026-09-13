@@ -1233,29 +1233,41 @@ a:hover { text-decoration: underline; }
 
 /* ---------- systems board (in Capabilities) ---------- */
 .sys-board {
-  background: var(--chrome);
-  border: 1px solid var(--chrome-line);
+  background: var(--bg2);
+  color: var(--text);
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 14px 16px 10px;
   margin-bottom: 12px;
 }
-.sys-title {
-  font-family: var(--font-wide); font-size: 13px; font-weight: 700;
-  letter-spacing: 0.2em; text-transform: uppercase; color: var(--chrome-label);
-  text-shadow: 0 0 12px rgba(90, 180, 255, 0.5);
-  margin-bottom: 10px;
-}
-.sys-row { display: flex; align-items: center; gap: 10px; padding: 5px 2px; }
-.sys-row .lamp { width: 16px; height: 16px; }
-.sys-label {
-  width: 130px; flex: none;
-  font-family: var(--font-wide); font-size: 9px; font-weight: 700;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--chrome-label); text-align: right;
-}
-.sys-arrow { color: #3d5f96; font-size: 9px; }
-.sys-detail { flex: 1; font-size: 11.5px; color: #8fa9cf; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sys-probe { flex: none; background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.2); color: #dce9fa; box-shadow: none; }
-.sys-probe:hover:not(:disabled) { border-color: var(--ctg-blue-bright); box-shadow: none; }
+.caps-modal h3 { font-family: inherit; color: var(--text); font-size: 15px; text-transform: none; letter-spacing: normal; margin: 0 0 8px; }
+.caps-modal .modal-body { min-width: 0; overflow-wrap: anywhere; }
+.caps-modal .icon-btn, .caps-modal .request-error .btn { min-width: 44px; min-height: 44px; }
+.connections-intro { margin-bottom: 10px; }
+.connections-refresh { margin: 4px 0 12px; min-height: 44px; }
+.connection-overview { display: grid; gap: 12px; }
+.service-check { min-width: 0; padding: 12px; background: var(--bg1); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; margin: 10px 0; }
+.connection-overview > .service-check { margin: 0; }
+.service-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.service-heading h3 { margin: 0; }
+.service-status { display: flex; align-items: center; gap: 8px; }
+.service-status .lamp { flex: none; width: 12px; height: 12px; }
+.service-heading > .btn { grid-column: 1 / -1; justify-self: start; min-height: 44px; }
+.service-check > p, .service-details p { margin-top: 8px; white-space: pre-wrap; }
+.service-details { margin-top: 6px; }
+.caps-modal summary { cursor: pointer; min-height: 44px; padding: 12px 0; font-size: 13px; }
+.caps-modal .caps-connect { flex-direction: column; align-items: flex-start; gap: 8px; margin: 0; color: var(--text); }
+.caps-modal .caps-connect .btn { margin-left: 0; min-height: 44px; }
+.connection-safeguards { border-left: 3px solid var(--blue); padding-left: 10px; margin: 16px 0; }
+.caps-surface { border-bottom: 1px solid var(--line); }
+.caps-surface > summary { font-weight: 600; }
+.caps-surface h4 { margin: 8px 0; }
+.caps-functions { list-style: none; padding: 0; }
+.caps-functions li { margin-bottom: 12px; padding-left: 10px; border-left: 2px solid var(--line); }
+.caps-functions p { font-size: 13px; margin-top: 4px; }
+.caps-modal .connection-details > summary { font-weight: 600; }
+@media (min-width: 700px) { .service-heading { grid-template-columns: minmax(0, 1fr) auto auto; } .service-heading > .btn { grid-column: auto; } }
+@media (max-width: 520px) { .service-heading { grid-template-columns: minmax(0, 1fr); } .service-heading > .btn { grid-column: 1; } }
 
 .theme-btn { display: inline-flex; align-items: center; gap: 7px; }
 .theme-glyph { font-size: 13px; line-height: 1; color: var(--amber); text-shadow: 0 0 8px color-mix(in srgb, var(--amber) 60%, transparent); }

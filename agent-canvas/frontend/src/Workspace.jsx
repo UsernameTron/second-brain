@@ -1177,7 +1177,7 @@ export default function Workspace() {
     );
   }
 
-  const diagnostics = (<div className="hud" role="status" aria-label="Systems console">
+  const diagnostics = ({ health, healthDown = false }) => (<div className="hud" role="status" aria-label="Systems console">
           <button className="hud-cell hud-btn" onClick={() => setCapsOpen(true)}
             title={healthDown ? 'Status unavailable. Open Connections and check again.' : 'Open the systems board'}>
             <span className={`lamp hexlamp lamp-${healthDown ? 'down' : systemStatus(health)}`} />

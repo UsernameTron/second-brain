@@ -12,9 +12,11 @@ local build. Production remains unchanged until an owner deploys it.
    canvas: it groups a team's questions, documents and memory. If none exists,
    choose **Create a project space**, enter a name, keep the starting team or
    choose another, then **Create**. It starts with no fabricated work or answers.
-3. Open **Connections**. Connect Google Workspace if available, then use
-   **Check now** beside the services you need. Account connection grants access;
-   it does not prove every service works. Unconfigured services need the owner.
+3. Open **Connections**. Use **Check now** beside **Answer service**. Connect
+   Google Workspace if offered; **More service checks** contains its individual
+   services and other sources. **Checked** means a check succeeded. Account
+   connection grants access; it does not prove every service works. If Google
+   Workspace is not set up here, ask the owner or use other available sources.
 
 In the isolated local preview, enter **pete@cloudtechgurus.com** under
 **Development sign-in**, then choose **Sign in**. This tests the workspace
@@ -129,7 +131,9 @@ queue** checks now. Lists show the latest bounded results, not a complete archiv
   On Canvas, drag the background to pan and scroll to zoom. **Tidy up** arranges
   and saves positions; **Fit** brings all content into view. Click a grouped
   agent label to zoom in. These actions leave work and memory unchanged.
-- **Connections:** account access, service checks and capability limits.
+- **Connections:** account access and the answer-service check first. **More
+  service checks** opens other sources; **Functions and limits** expands what
+  each supports. **Advanced details** retains every service and technical result.
 - **Spending:** today's cost and cap, with additional details and owner settings.
 - **Account:** appearance, sign out, and owner settings. **Space actions** keeps
   creation, owner archive and restoration. The owner ledger download is an
@@ -248,9 +252,22 @@ Spending shows the daily amount and cap first. Owner settings holds cap editing;
 Advanced spending details retains monthly totals, agent totals and statistics.
 The daily amount and owner cap controls work before a project space exists.
 Select or create a space to view its spending history and agent statistics.
-Unknown amounts stay unavailable. Connections → Advanced details retains the
-provider, queue, agent indicators and live link. Configuration alone is labelled
-unverified for storage/backups and web research; it does not prove delivery.
+Unknown amounts stay unavailable.
+
+Connections → **Refresh status** reloads account access and the latest service
+results. A failed check keeps **Check again** beside its message. An interrupted
+check is **not confirmed**: use **Check status** first; a new check starts only
+when you choose it. **Service details** keeps the full result and any timing.
+Old details remain labelled as last known when current status is unavailable.
+If a Google connection change cannot be confirmed, use **Check status** before
+relying on it or repeating the change.
+
+Connections → **Advanced details** retains all service checks, provider, queue,
+agent indicators and live link. Storage/backups and web research can be labelled
+**Configured; delivery not verified**; configuration does not prove delivery.
+Function lists describe supported operations, not a successful connection check.
+On a keyboard, Tab moves between visible controls, Enter opens a detail section,
+and Escape closes the dialog and returns to Connections.
 
 Downloads report failures with Try again. Memory → Change certainty explains the
 correction before showing the existing certainty choices.

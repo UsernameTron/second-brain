@@ -108,7 +108,7 @@ async function checkBrowserZoom(url, originalContext) {
         assert.equal(session.user.role, identity.role, 'Existing account role preserved');
         assert.equal(await page.getByRole('textbox').count(), 1, 'One default composer');
         await page.getByRole('button', { name: 'Connections', exact: true }).click();
-        await page.getByText('○ Not configured', { exact: true }).waitFor();
+        await page.getByText('Google Workspace is not set up here', { exact: true }).waitFor();
         await page.keyboard.press('Escape');
         await page.getByRole('button', { name: 'Home', exact: true }).click();
         const question = page.getByLabel('Ask a question about the company');

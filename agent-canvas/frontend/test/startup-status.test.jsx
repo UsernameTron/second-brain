@@ -70,10 +70,10 @@ it('keeps session expiry explicit without pretending an existing page saved its 
   expect(screen.getByText('Signed-in workspace')).toBeInTheDocument();
 });
 it('does not label failed capability loads unconfigured or retain a green health claim', async () => {
-  let offline = false;
+  let offline = false, probeRecovers = false;
   api.mockImplementation((path) => {
     if (path === '/api/capabilities') return Promise.reject(new Error('offline'));
-    if (path === '/api/health/probe') { offline = true; return Promise.reject(new Error('failed probe')); }
+    if (path === '/api/health/probe') { if (probeRecovers) return Promise.resolve({ ok: true, ms: 3 }); offline = true; return Promise.reject(new Error('failed probe')); }
     if (offline) return Promise.reject(new Error('health unavailable'));
     return Promise.resolve({ integrations: [{ id: 'model', label: 'Answer service', status: 'ready', detail: 'Previously checked', probe: true }] });
   });
@@ -81,22 +81,27 @@ it('does not label failed capability loads unconfigured or retain a green health
   await screen.findByText('Loading your connections could not be completed. Check your connection and try again.');
   expect(screen.queryByText('○ Not configured')).not.toBeInTheDocument();
   expect(view.container.querySelector('.lamp-ready')).toBeTruthy();
-  await userEvent.click(screen.getByRole('button', { name: 'Check now' }));
+  await userEvent.click(view.container.querySelector('.connection-overview .service-check button'));
   await screen.findByText('Last known details below. Current status is unavailable.');
   expect(view.container.querySelector('.lamp-ready')).toBeNull();
   expect(api).toHaveBeenCalledWith('/api/health/probe', { method: 'POST', body: { surface: 'model' } });
   offline = false;
   await userEvent.click(screen.getAllByRole('button', { name: 'Try again' })[1]);
+  await waitFor(() => expect(screen.queryByText('Last known details below. Current status is unavailable.')).not.toBeInTheDocument());
+  expect(view.container.querySelector('.lamp-ready')).toBeNull();
+  probeRecovers = true;
+  await userEvent.click(view.container.querySelector('.connection-overview .service-check button'));
   await waitFor(() => expect(view.container.querySelector('.lamp-ready')).toBeTruthy());
 });
 
 it('does not turn configuration-only storage and web research into green checks', async () => {
-  api.mockImplementation((path) => Promise.resolve(path === '/api/capabilities' ? { connected: false, surfaces: [] } : { integrations: [
+  api.mockImplementation((path) => Promise.resolve(path === '/api/capabilities' ? { connected: false, oauthReady: false, surfaces: [] } : { integrations: [
     { id: 'db', label: 'DATABASE', status: 'ready', detail: 'Configured storage' },
     { id: 'websearch', label: 'WEB SEARCH', status: 'ready', detail: 'Enabled search' },
   ] }));
   const view = render(<CapabilitiesModal onClose={vi.fn()} toast={vi.fn()} />);
   await screen.findByText('Saved data and backups');
   expect(view.container.querySelector('.lamp-ready')).toBeNull();
-  expect(screen.getAllByText('Configured; delivery not verified')).toHaveLength(2);
+  await userEvent.click(screen.getByText('Advanced details', { exact: true }));
+  expect(view.container.querySelector('.sys-board').textContent.match(/Configured; delivery not verified/g)).toHaveLength(2);
 });

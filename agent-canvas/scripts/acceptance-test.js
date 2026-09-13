@@ -35,13 +35,21 @@ async function more(page, name) {
   await page.getByRole('button', { name, exact: true }).click();
 }
 async function shot(page, suffix, description) {
-  await layout(page);
+  try { await layout(page); }
+  catch (error) { await page.screenshot({ path: '/tmp/agent-canvas-layout-failure.png' }); throw error; }
   const file = `acceptance-${group}-${suffix}.png`;
   await page.screenshot({ path: path.join(output, file), animations: 'disabled' });
   evidence.screenshots.push({ file, description, viewport: page.viewportSize() });
 }
 async function layout(page) {
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal page overflow');
+  // Viewport emulation can resolve before the browser applies responsive media
+  // styles. Measure after layout has painted, retaining the same overflow gate.
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const overflow = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth,
+    elements: document.documentElement.scrollWidth <= innerWidth + 1 ? [] : [...document.querySelectorAll('body *')].filter((element) => {
+      const box = element.getBoundingClientRect(); return box.width && (box.right > innerWidth + 1 || box.left < -1);
+    }).slice(0, 12).map((element) => ({ tag: element.tagName, className: element.className, width: element.getBoundingClientRect().width })) }));
+  assert.ok(overflow.width <= overflow.viewport + 1, `No horizontal page overflow: ${JSON.stringify(overflow)}`);
   assert.ok(await page.evaluate(() => {
     const notifications = document.querySelector('.toasts')?.getBoundingClientRect();
     return !notifications?.height || [...document.querySelectorAll('[role="dialog"]')].every((dialog) => dialog.getBoundingClientRect().bottom <= notifications.top + 1);
@@ -454,7 +462,8 @@ async function ownerAndDiagnostics({ page, context, url, fault, newPage }) {
       'home-navigation': require('./home-navigation-ui-checks'),
       'review-navigation': require('./review-navigation-ui-checks'),
       'review-clarity': require('./review-clarity-ui-checks'),
-      'notifications': require('./notification-ui-checks') }[group];
+      'notifications': require('./notification-ui-checks'),
+      'connections': require('./connection-ui-checks') }[group];
     assert.ok(run, 'Unknown acceptance group');
     try { await run({ ...owner, url, fault, newPage, call, more, shot, layout, evidence, seedReview: fixture.seedReview }); }
     catch (error) {

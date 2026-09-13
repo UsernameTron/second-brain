@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-09-13T09:57:01.603Z",
+  "checkedAt": "2026-09-13T10:30:31.978Z",
   "results": [
     {
       "group": "primary-journeys",
@@ -47,6 +47,10 @@
     },
     {
       "group": "notifications",
+      "status": "passed"
+    },
+    {
+      "group": "connections",
       "status": "passed"
     }
   ],

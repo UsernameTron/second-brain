@@ -89,7 +89,7 @@ inspection does not claim a live service check. No operation is retired.
 | Custom agent: name/role/tier/color/prompt/Add/Cancel | Move-to-Advanced | Team → Advanced → Custom agent | Existing edit | 5 | [Context source] + [Add agent source] inspection: all manual fields and Add/Cancel retained |
 | Rules: step/time budgets, technical occurrence details | Move-to-Advanced | Advanced settings/details; limits still on consent | Existing authority | 6B | [Rules] + [Scheduling] + [Rules source] inspection: limits and occurrences + [Scheduled work and Builder evidence] |
 | Activity: expand/filter agent/seven categories/handoff highlight | Move-to-Advanced | Advanced → Activity | Existing access | 5,6C | [Owner] (seven filters/no matches/error) + [Activity source] inspection: handoff selection + [Owner acceptance evidence] |
-| Systems: provider/model/queue/segments/live link/board | Move-to-Advanced | Connections → Advanced details | Existing access | 2,5 | [Startup] (honest status) + [Capabilities source] inspection: labelled HUD details |
+| Systems: provider/model/queue/segments/live link/board | Move-to-Advanced | Connections → Advanced details → All service checks and technical console | Existing access | 2,5; Connections follow-up | [Startup] + [Connection regressions] + [Connection evidence] |
 | Spending: tokens/monthly/per-agent/analytics | Move-to-Advanced | Spending → Advanced details | Existing access | 6C | [Owner] (unknown history/statistics) + [Panels source] inspection: advanced spending |
 | Allowlist: email/name/role/add/remove | Move-to-Advanced | Owner settings → People and access | Owner | 6C | [Owner] (failed table/invite/draft) + [Admin source] inspection: roles/remove + [Owner acceptance evidence] |
 | Roster: add/edit/name/role/tier/color/prompt/default/enabled/order | Move-to-Advanced | Owner settings → Agent templates | Owner | 6C | [Owner] (retained editor/partial ordering) + [Admin source] inspection: all fields/toggles + [Owner acceptance evidence] |
@@ -101,7 +101,7 @@ inspection does not claim a live service check. No operation is retired.
 | Ask/Act modes and button labels | Merge | Ask default; explicit Act and matching submit text | Existing edit | 5 | [Simplified] (Ask/Act/context/keyboard) + [Journey] (purpose-matched submissions) |
 | Home/Canvas toggle | Merge | Stable Home + Advanced Canvas | Existing access | 5 | [Simplified] (Home default) + [Journey] (Advanced Canvas reachability) |
 | Header Needs You/tray/HUD count | Merge | One badge/queue; legacy tray when flag off | Existing access | 4,5 | [Workspace] (independent badge) + [Review] (legacy flag path) + [Journey] |
-| Capabilities + Systems | Merge | Connections | Existing access | 2,5 | [Startup] + [Capabilities source] inspection + [Journey] (Connections) |
+| Capabilities + Systems | Merge | Connections → account/answer overview; More service checks; Functions and limits; Advanced details | Existing access | 2,5; Connections follow-up | [Connection regressions] + [Connection evidence] + [Journey] |
 | +Note/+Document | Merge | Documents & notes; Add document by composer | Existing edit | 5 | [Workspace] (notes/files) + [Journey] (Documents destination) |
 | +Agent/+Person/team inspection | Merge | More → Team | Existing edit/read | 5 | [Context source] + [Add agent source] inspection + [Journey] (Team destination) |
 
@@ -620,8 +620,47 @@ work/dialog geometry. Six new screenshots and all regenerated images were inspec
 Full local gate: 433 backend / 250 frontend tests; build/preflight and both
 production audits passed. Primary journeys and all eleven secondary groups
 passed. No tests deleted/skipped, backend changes, push or deployment.
-The mobile Connections screenshot exposes clipped checks and dim status text;
-that remains a separate next UI phase, not a notification-gate claim.
+The mobile Connections screenshot exposed clipped checks and dim status text;
+the separate Connections follow-up below closes that gap.
+
+## Connections follow-up (2026-09-13)
+
+The default Connections dialog no longer begins with a dense technical board.
+Account access and the answer-service check come first, with named disclosures
+for other services and supported functions. Advanced details retains every service,
+original diagnostic detail, enabled-tool limit, provider, queue and live indicator.
+All existing operations and permission gates are preserved.
+
+Failed checks have one clear retry action and cannot retain an older green claim.
+Pending guards apply across both presentations of a service. Read errors, malformed
+responses, valid empty lists and unconfirmed checks remain distinct; no mutation
+repeats automatically. The technical console uses fresh health after recovery and
+is unavailable while a check is pending or unresolved. Invalid Google sign-in links
+stay on the dialog with recovery; interrupted account changes show unknown status.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Google connection identity, connect and disconnect | Simplify | Connections → Google Workspace account; Check status beside a failed change | Existing directing account | Connections follow-up | [Connection regressions] + [Connection evidence] |
+| Full subsystem board and every Check now control/result | Simplify / Move-to-Advanced | Answer service first; More service checks for everyday sources; Advanced details → All service checks for every original record | Existing access, including members | Connections follow-up | [Connection regressions] + [Connection evidence] |
+| Capability surface, allowed/unavailable function labels and detail | Simplify | Connections → Functions and limits → named service; additional connector tools under Advanced details | Existing access | Connections follow-up | [Connection regressions] + [Connection evidence] |
+| Model/provider, queue, agent segments, link and system console | Move-to-Advanced | Connections → Advanced details, refreshed after successful checks | Existing access | Connections follow-up | [Connection regressions] + [Connection evidence] |
+| Dialog focus, Tab, Escape and return to opener | Keep-as-is / Simplify | Same dialog; summaries join the focus order and closed/hidden contents stay out of it | Existing access | Connections follow-up | [Dialogs] + [Connection evidence] |
+
+Twelve new component checks and two dialog regressions cover response validation,
+per-service pending/error state, lost responses, stale diagnostics, account recovery
+and preserved functions. Eleven browser checks retain all service/capability records,
+exercise real local probe recording with a stubbed model, and measure readable text
+and complete controls at 390/768/1280px. Six new screenshots were inspected.
+The browser harness now waits for responsive layout to paint before applying
+its unchanged overflow/overlap assertions and captures the actual failing page.
+
+Full local gate: 433 backend / 264 frontend tests; build/preflight and both production
+audits passed. Primary journeys and all twelve secondary groups passed, with no
+browser errors or external calls. No existing test was deleted or skipped. Backend,
+memory and safety contracts remain unchanged. No push or deployment performed.
+
+[Connection regressions]: ../frontend/test/connections-reliability.test.jsx
+[Connection evidence]: screenshots/acceptance-connections.json
 
 [Feedback regressions]: ../frontend/test/notifications.test.jsx
 [Feedback evidence]: screenshots/acceptance-notifications.json

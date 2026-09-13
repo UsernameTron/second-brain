@@ -108,7 +108,7 @@ module.exports = async function systemRecovery({ page, context, url, fault, call
   await connections.getByRole('button', { name: 'Try again', exact: true }).first().click();
   await connections.getByText(/Loading your connections could not/).waitFor({ state: 'detached' });
   await connections.getByRole('button', { name: 'Try again', exact: true }).click();
-  await connections.getByText('Answer service', { exact: true }).waitFor();
+  await connections.getByRole('heading', { name: 'Answer service', exact: true }).waitFor();
   await connections.getByRole('button', { name: 'Close', exact: true }).click();
   evidence.checks.push('Failed control and connection reads show unknown spending and unavailable status, with no substitute zero, false configuration state or green lamp; retry recovers.');
 
