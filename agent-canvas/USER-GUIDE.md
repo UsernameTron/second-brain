@@ -86,7 +86,8 @@ external actions. These are not needed for the four journeys.
    change filters or leave Needs You before the reply arrives.
 4. Other card types offer **Review memory**, **Confirm still true**, **Try again**,
    **View work**, **Mark reviewed**, **View scheduled work** or **View brief**.
-   Review labels explain certainty and why work stopped; quoted content stays
+   Memory review guidance explains that corrections keep the original and
+   **Confirm still true** sets a new review date. Review labels explain certainty and why work stopped; quoted content stays
    unchanged. Stopped work may have completed some steps: choose **View work**
    before retrying, and open **Full details** for the technical error. Source links open the exact record even when it belongs to another space.
 
@@ -110,10 +111,15 @@ queue** checks now. Lists show the latest bounded results, not a complete archiv
   result. A failed refresh check offers Check status. Loading failures never mean
   an empty Room; Try again reloads the selected view. Owners also preview client-safe exports before download;
   the preview lists inclusions, exclusions and warnings.
-- **More → Memory:** search entries or choose a kind. **Correct…** opens the
-  replacement and reason; a failed save keeps both for another attempt. Turn on
-  **history** to see the original and its replacement. **History and sources**
-  opens their links; **Try again** recovers an unavailable history or source read.
+- **More → Memory:** use **Search memory** or **Memory type**. **Correct…** opens
+  the replacement and reason; a failed save keeps both for another attempt. Turn
+  on **Include earlier versions** to see originals beside their replacements.
+  Originals stay readable, labelled **Earlier version** and struck through.
+  **History and sources** opens **Changes over time**, the sources used and entries
+  that use this information. **View this version** opens a recorded earlier or
+  later version; **View work** opens its linked agent work when one exists.
+  **Refresh details** reloads sources and history. Each unavailable section has
+  its own **Try again**; a complete empty history has **Refresh history**.
 - **More → Scheduled work:** recurring instructions, consent, practice,
   activation and results. Review every consent field before activation; times are
   UTC. Settings retains schedule, sources and expiry; its Advanced settings holds
@@ -173,7 +179,9 @@ staffing, access and current service checks; the list below is not a live probe.
 - Certainty stays visible: **Confirmed (verified)**, **Reasoned conclusion
   (inference)**, or **Unconfirmed (assumption)**. Confirmed entries use a filled
   symbol and solid border; conclusions use a half-filled symbol and dashed border;
-  unconfirmed entries use a hollow symbol and dotted border. Provenance stays beside them.
+  unconfirmed entries use a hollow symbol and dotted border. Authorship and sources
+  stay beside each entry. **What certainty means** opens the full symbol key;
+  collapsing it keeps every entry’s own certainty visible.
 - Decisions are recorded in the current project space. Agents can retrieve its
   memory and shared entries; decisions are not automatically copied everywhere
   or guaranteed to appear in every future answer. Check scope and sources.
@@ -269,8 +277,19 @@ Function lists describe supported operations, not a successful connection check.
 On a keyboard, Tab moves between visible controls, Enter opens a detail section,
 and Escape closes the dialog and returns to Connections.
 
-Downloads report failures with Try again. Memory → Change certainty explains the
-correction before showing the existing certainty choices.
+Downloads report failures with Try again. Memory → **Change certainty** explains
+the correction before showing the existing certainty choices.
+
+Memory history distinguishes **Added**, **Corrected**, **Certainty or type
+changed**, and **Confirmed again**. **Earlier changes not shown** means the
+available history is limited. **Earlier version** marks an entry retained after
+a correction. A warning identifies information based on a corrected source.
+**Link distance** counts the memory links to the entry being reviewed.
+
+History and source sections load and recover separately. Last-known details stay
+labelled after a failed refresh; refresh them before relying on their current
+state. No linked work record means only that a record is missing, not proof of
+who wrote the entry. Restricted source placeholders remain private.
 
 ## Reproduce the four journeys locally
 

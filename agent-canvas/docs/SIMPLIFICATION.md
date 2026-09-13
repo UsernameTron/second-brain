@@ -62,11 +62,11 @@ inspection does not claim a live service check. No operation is retired.
 | Note: title, content, pin, Save, remove/keep | Simplify | Documents & notes → Note details | Existing edit/read | 3,5 | [Workspace] (pin/remove) + [Saved work] (retained note/retry) |
 | File: chooser/upload/details/download/remove/cancel | Simplify | Add document + Documents & notes → File details | Existing edit/read | 3,5 | [Workspace] (upload/details/remove/view-only) + [Requests] (download) |
 | Task: details, person/agent assignment, unassign | Simplify | Task panel from Advanced canvas | Existing edit/read | 3,5 | [Assignment] + [Panels source] inspection: TaskPanel assignment and retained error |
-| Memory: search, kind, history toggle | Simplify | More → Memory | Existing access | 3,5 | [Saved work] + [Memory source] inspection: search/kind/history + [Room and memory evidence] |
+| Memory: search, kind, history toggle | Simplify | More → Memory → Search memory, Memory type, Include earlier versions | Existing access | 3,5; Memory browsing | [Saved work] + [Memory browsing regressions] + [Memory browsing evidence] |
 | Memory: certainty, provenance, review dates, warnings | Simplify | Always beside entry; plain-English label plus stored term | Existing access | 3,5 | [Format] + [Saved work] + [Memory contract] + [Room and memory evidence] |
 | Memory: Correct/cancel, replacement, certainty, reason, submit | Simplify | Entry → Correct | Existing edit | 3 | [Saved work] (rejected correction) + [Memory lifecycle] + [Room and memory evidence] |
 | Memory: certainty reclassification | Simplify | Change certainty (creates correction) | Existing edit | 3 | [Saved work] (Change certainty contract) + [Memory lifecycle] |
-| Memory: lineage, lifecycle, upstream/downstream, run | Simplify | History and sources | Existing access | 3 | [Saved work] (lineage recovery) + [Lineage] + [Memory source] inspection + [Room and memory evidence] |
+| Memory: lineage, lifecycle, upstream/downstream, run | Simplify | History and sources → Changes over time, Sources this entry uses, Entries that use this information, Work that created this entry | Existing access | 3; Memory browsing | [Memory browsing regressions] + [Memory browsing evidence] + [Lineage] |
 | Rooms: list/open/back, Now/History/Risk, Brief/Activity, Refresh | Simplify | More → Rooms | Existing access | 5,6A | [Rooms] + [Room reliability] (lens/activity/refresh recovery) + [Journey] (destination) + [Room and memory evidence] |
 | Rooms: create/name/type/players/staff/external ref | Simplify | Create room; setup details for staff/reference | Owner | 6A | [Rooms] (owner/view-only) + [Room reliability] (players failure) + [Room and memory evidence] |
 | Rooms: export preview/included/excluded/warnings/download/close | Simplify | Room → Export | Owner | 6A | [Room reliability] (preview invalidation/conflict) + [Room exports] + [Room and memory evidence] |
@@ -658,6 +658,52 @@ Full local gate: 433 backend / 264 frontend tests; build/preflight and both prod
 audits passed. Primary journeys and all twelve secondary groups passed, with no
 browser errors or external calls. No existing test was deleted or skipped. Backend,
 memory and safety contracts remain unchanged. No push or deployment performed.
+
+## Memory browsing follow-up (2026-09-13)
+
+Memory now explains source relationships and recorded changes in plain English.
+The certainty key is optional, while each entry still shows its own certainty,
+shape, border, author, source, review date and correction warnings. Earlier
+versions retain their original content and status, with readable text and
+authorship in both themes, an Earlier version label and struck-through content.
+Generated memory review recommendations explain corrections and review dates;
+custom advice remains unchanged. No linked work record is
+presented as absence of a record, not evidence of human authorship.
+
+The existing resource-state hook now handles source and history reads separately.
+Each section distinguishes loading, failed, stale and confirmed-empty data.
+Malformed responses cannot silently become empty history or crash the panel.
+Requests stay tied to their originating entry and attempt, including A→B→A
+navigation and repeated refreshes. Existing correction, lineage, privacy and
+append-only memory endpoints are unchanged.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Memory history checkbox and kind filter | Simplify | More → Memory → Include earlier versions and Memory type; all six stored types remain available | Existing access | Memory browsing | [Memory browsing regressions] + [Memory browsing evidence] |
+| Three-state certainty legend | Simplify | What certainty means disclosure; each entry always retains its own label, shape and border | Existing access | Memory browsing | [Saved work] + [Memory browsing evidence] |
+| Trace / History and sources, Lineage view and back control | Merge / Simplify | History and sources from every full/linked entry; Back to memory; Refresh details for the selected entry | Existing source access | Memory browsing | [Memory browsing regressions] + [Memory browsing evidence] |
+| Lifecycle event labels, reason and view link | Simplify | Changes over time → View this version; original event reference remains labelled in its detail | Existing access | Memory browsing | [Memory browsing regressions] + [Memory browsing evidence] |
+| Upstream/downstream lists and depth | Simplify | Sources this entry uses / Entries that use this information; Link distance retains the same number | Existing privacy filtering | Memory browsing | [Memory browsing regressions] + [Memory browsing evidence] |
+| Producing run, run-read entries and open-run links | Simplify | Work that created this entry / Memory read during that work / View work; Technical details retains work/agent/status references | Existing work access | Memory browsing | [Memory browsing regressions] + [Room and memory evidence] |
+| Earlier-version content, label and provenance | Simplify | Include earlier versions retains the label and struck-through content with readable text and authorship in both themes | Existing access | Memory browsing | [Memory browsing evidence] |
+| Generated memory conflict/review recommendations | Simplify | Needs You memory cards explain preserved originals and a new review date; custom advice keeps its exact wording | Existing access | Memory browsing | [Review clarity regressions] |
+| Help journey numbering | Keep-as-is | More → Help; ordered markers fit within the mobile content area | Existing access | Memory browsing | [Workspace browser evidence] |
+
+Twelve new Memory component tests cover labels, original status/provenance, independent
+read states, malformed responses, obsolete replies, filters, work/version links
+and privacy placeholders. One new review-copy test preserves custom advice.
+Seven browser checks exercise the same source routes,
+real private-source redaction, a held A→B→A reply, retained earlier versions and
+390/768/1280px layouts, with at least 4.5:1 contrast for original text and authorship
+in both themes after the panel's opening animation. Six new screenshots were inspected.
+
+Full local gate: 433 backend / 277 frontend tests; build/preflight and both production
+audits passed. Primary journeys and all thirteen secondary browser groups passed.
+No original tests deleted/skipped; no backend, memory implementation, safety or
+provider changes; no push or deployment.
+
+[Memory browsing regressions]: ../frontend/test/memory-browsing.test.jsx
+[Memory browsing evidence]: screenshots/acceptance-memory-browsing.json
 
 [Connection regressions]: ../frontend/test/connections-reliability.test.jsx
 [Connection evidence]: screenshots/acceptance-connections.json

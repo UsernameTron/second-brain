@@ -105,6 +105,10 @@ export function AttentionCard({ row, submission, onSubmissionChange, agentsById 
   const standardAnswer = row.type === 'escalation' && row.consequence === 'The escalating run stays parked until a human answers.'
     && row.recommendation === 'Answer it — the agent resumes with your decision.';
   const fullDetails = hasCtx || generatedContext || failedWork || row.context?.length > 220;
+  const recommendation = row.type === 'conflict' && row.recommendation === 'Correct the entry that is wrong; supersession keeps the loser on record.'
+    ? 'Correct the inaccurate entry. The original stays in memory as an earlier version.'
+    : row.type === 'overdue_review' && row.recommendation === 'Re-affirm with a new review date, or correct it.'
+      ? 'Confirm this is still true to set a new review date, or correct it.' : row.recommendation;
 
   return (
     <div className={`ny-card ny-${row.type}`}>
@@ -131,7 +135,7 @@ export function AttentionCard({ row, submission, onSubmissionChange, agentsById 
         {standardAnswer ? <span className="ny-consequence">Your answer goes back to the agent so it can continue.</span> : <>
           <span className="ny-consequence">{failedWork ? 'This work did not finish. Check its details before trying again.'
             : row.consequence === 'The escalating run stays parked until a human answers.' ? 'The agent needs your answer to continue this work.' : row.consequence}</span>
-          {row.recommendation && !failedWork ? <span className="ny-recommendation">{row.recommendation}</span> : null}
+          {recommendation && !failedWork ? <span className="ny-recommendation">{recommendation}</span> : null}
         </>}
       </div>
       {fullDetails ? <details className="review-details">

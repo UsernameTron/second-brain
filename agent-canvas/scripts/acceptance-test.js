@@ -144,9 +144,9 @@ async function roomsAndMemory({ page, context, url, fault, newPage }) {
   await page.getByLabel('Search memory').fill('no such claim');
   await page.getByText('Nothing matches that filter.', { exact: true }).waitFor();
   await page.getByLabel('Search memory').fill('');
-  await page.getByLabel('Memory kind').selectOption('decision');
+  await page.getByLabel('Memory type').selectOption('decision');
   assert.equal(await page.locator('.mem-entry').count(), 1);
-  await page.getByLabel('Memory kind').selectOption('');
+  await page.getByLabel('Memory type').selectOption('');
   const original = page.locator('.mem-entry').filter({ hasText: entries[2].content });
   await original.getByRole('button', { name: 'Correct…', exact: true }).click();
   await page.getByLabel('Corrected memory').fill('The existing sponsor confirmed ownership.');
@@ -158,14 +158,14 @@ async function roomsAndMemory({ page, context, url, fault, newPage }) {
   fault.current = null; await page.getByRole('button', { name: 'Correct', exact: true }).click();
   const corrected = page.locator('.mem-entry').filter({ hasText: 'The existing sponsor confirmed ownership.' });
   await corrected.waitFor();
-  await page.getByLabel('history', { exact: true }).check();
+  await page.getByLabel('Include earlier versions', { exact: true }).check();
   await page.locator('.mem-entry.superseded').filter({ hasText: entries[2].content }).waitFor();
   await shot(page, 'memory-correction', 'Correction preserves the original entry, its certainty, author, source, reason and replacement.');
   fault.current = (request) => request.url().endsWith('/lineage') ? 503 : 0;
   await corrected.getByRole('button', { name: 'History and sources', exact: true }).click();
   await page.getByText(/Loading memory sources could not be completed/).waitFor();
   fault.current = null; await page.getByRole('button', { name: 'Try again', exact: true }).click();
-  await page.getByRole('heading', { name: 'Lifecycle', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Changes over time', exact: true }).waitFor();
   const { entries: history } = await call(context, url, `${memoryRoute}?include_superseded=1`);
   const old = history.find((entry) => entry.id === entries[2].id);
   const replacement = history.find((entry) => entry.id === old.supersededBy);
@@ -463,7 +463,8 @@ async function ownerAndDiagnostics({ page, context, url, fault, newPage }) {
       'review-navigation': require('./review-navigation-ui-checks'),
       'review-clarity': require('./review-clarity-ui-checks'),
       'notifications': require('./notification-ui-checks'),
-      'connections': require('./connection-ui-checks') }[group];
+      'connections': require('./connection-ui-checks'),
+      'memory-browsing': require('./memory-browsing-ui-checks') }[group];
     assert.ok(run, 'Unknown acceptance group');
     try { await run({ ...owner, url, fault, newPage, call, more, shot, layout, evidence, seedReview: fixture.seedReview }); }
     catch (error) {

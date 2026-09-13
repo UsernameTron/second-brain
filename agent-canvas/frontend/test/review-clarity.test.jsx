@@ -104,3 +104,16 @@ it('keeps complete long received context reachable instead of losing the preview
   await userEvent.click(screen.getByText('Full details'));
   expect(screen.getByText(context)).toBeVisible();
 });
+
+it('explains generated memory review recommendations without rewriting custom advice', () => {
+  const cases = [
+    [{ type: 'conflict', recommendation: 'Correct the entry that is wrong; supersession keeps the loser on record.' }, 'Correct the inaccurate entry. The original stays in memory as an earlier version.'],
+    [{ type: 'overdue_review', recommendation: 'Re-affirm with a new review date, or correct it.' }, 'Confirm this is still true to set a new review date, or correct it.'],
+    [{ type: 'conflict', recommendation: 'Discuss supersession with the author before deciding.' }, 'Discuss supersession with the author before deciding.'],
+  ];
+  for (const [value, expected] of cases) {
+    const view = renderCard(value);
+    expect(screen.getByText(expected, { exact: true })).toBeVisible();
+    view.unmount();
+  }
+});
