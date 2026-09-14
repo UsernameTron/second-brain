@@ -10,6 +10,7 @@ import AddAgentModal from '../src/AddAgentModal.jsx';
 import { AgentPanel } from '../src/Panels.jsx';
 import ExplainMap from '../src/ExplainMap.jsx';
 import RoomsView from '../src/RoomsView.jsx';
+import { DraftsContext } from '../src/Drafts.jsx';
 
 const template = { id: 'template-scout', name: 'Scout', role: 'research', enabled: 1, default_on: 1, model_tier: 'strong', color: '#2080d0' };
 const spaces = [{ id: 'c1', name: 'First project' }, { id: 'c2', name: 'Second project' }];
@@ -181,4 +182,29 @@ it('changes map lenses by keyboard while retaining the map and steps controls', 
   await userEvent.keyboard('{ArrowRight}');
   expect(screen.getByRole('tab', { name: 'Evidence' })).toHaveAttribute('aria-selected', 'true');
   expect(screen.getByRole('button', { name: 'Read as steps' })).toBeInTheDocument();
+});
+
+it.each(['accepted', 'rejected', 'cancelled'])('resets custom-agent drafts only after confirmed acceptance: %s', async (outcome) => {
+  const drafts = { current: new Map() };
+  const onAdded = vi.fn();
+  const props = { canvasId: 'c1', roster: [], initialTab: 'custom', onClose: vi.fn(), onAdded, toast: vi.fn() };
+  const modal = () => <DraftsContext.Provider value={drafts}><AddAgentModal {...props} /></DraftsContext.Provider>;
+  let view = render(modal());
+  await userEvent.type(screen.getByLabelText('Agent name'), 'Renewal helper');
+  await userEvent.clear(screen.getByLabelText('Agent role'));
+  await userEvent.type(screen.getByLabelText('Agent role'), 'commercial');
+  await userEvent.selectOptions(screen.getByLabelText('Reasoning level'), 'fast');
+  await userEvent.type(screen.getByLabelText('Operating instructions'), 'Prepare draft checklists');
+  if (outcome === 'cancelled') await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  else {
+    api.mockImplementation(() => outcome === 'accepted' ? Promise.resolve({ agent: { id: 'new-agent' } }) : Promise.reject(new Error('offline')));
+    await userEvent.click(screen.getByRole('button', { name: 'Add agent', exact: true }));
+    if (outcome === 'accepted') await waitFor(() => expect(onAdded).toHaveBeenCalledOnce());
+    else await screen.findByRole('alert');
+  }
+  view.unmount(); render(modal());
+  expect(screen.getByLabelText('Agent name')).toHaveValue(outcome === 'accepted' ? '' : 'Renewal helper');
+  expect(screen.getByLabelText('Agent role')).toHaveValue(outcome === 'accepted' ? 'research' : 'commercial');
+  expect(screen.getByLabelText('Reasoning level')).toHaveValue(outcome === 'accepted' ? 'strong' : 'fast');
+  expect(screen.getByLabelText('Operating instructions')).toHaveValue(outcome === 'accepted' ? '' : 'Prepare draft checklists');
 });

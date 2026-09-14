@@ -355,3 +355,6 @@ additional spending checks use a separate empty preview. It also checks queue re
 record the results. This is test-only: temporary in-memory databases, development
 sign-in and model stubs; external services are blocked. It does not verify Google
 OAuth, real customer answers or live integrations and cannot authorize deployment.
+
+When adding a custom agent, an unsuccessful save or Cancel keeps your draft while
+the workspace stays open. After a confirmed add, the next custom-agent form starts fresh.

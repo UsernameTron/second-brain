@@ -85,7 +85,7 @@ export function AgentNode({ agent, spend, amber, paused, ...shell }) {
       label={`${agent.name}, ${roleLabel} agent`}
       x={agent.x}
       y={agent.y}
-      className={`agent-node st-${workStatusLabel(agent.status)} ${amber ? 'amber-glow' : ''} ${paused ? 'frozen' : ''}`}
+      className={`agent-node st-${agent.status} ${amber ? 'amber-glow' : ''} ${paused ? 'frozen' : ''}`}
       style={{ '--c': agent.color }}
       {...shell}
     >
@@ -96,7 +96,7 @@ export function AgentNode({ agent, spend, amber, paused, ...shell }) {
       </div>
       <div className="agent-sub">
         <span className={`chip tier-chip tier-${agent.model_tier}`}>{agentTierLabel(agent.model_tier)}</span>
-        <span className={`agent-status as-${workStatusLabel(agent.status)}`}>{workStatusLabel(agent.status)}</span>
+        <span className={`agent-status as-${agent.status}`}>{workStatusLabel(agent.status)}</span>
       </div>
       <div className="agent-spend mono">
         {spend

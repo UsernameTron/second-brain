@@ -13,7 +13,7 @@ milestone/state files. No parent-vault milestone was resumed or rewritten.
 
 ## Fresh verification
 
-- Full verification: 433 backend and 292 frontend tests passed, frontend build
+- Full verification: 433 backend and 299 frontend tests passed, frontend build
   and deployment preflight passed; no skipped tests.
 - Both installed production dependency audits: zero vulnerabilities.
 - All 15 local Chromium groups passed again, with disposable databases and
@@ -38,3 +38,7 @@ The prepared image is being restored from its verified local archive.
 At this commit, PR checks, merge and deployment have not yet completed.
 Record their actual outcomes in HANDOFF and this report after verification.
 Google OAuth and unaided teammate acceptance remain separate from fixture tests.
+
+## PR review follow-up
+
+Codex review found two UI issues before merge: humanized labels had replaced CSS status keys, and accepted custom-agent drafts were retained. Both are fixed with seven regressions. The revised source needs a fresh image; the earlier 69cf8d9 candidate will not be deployed.

@@ -45,6 +45,7 @@ export default function AddAgentModal({ canvasId, roster, templateStatus, onRefr
         body: { name: name.trim(), role, model_tier: tier, color, system_prompt: prompt },
       });
       toast(`${name.trim()} added to the canvas`, 'ok');
+      setName(''); setRole('research'); setTier('strong'); setColor('#2080D0'); setPrompt('');
       onAdded();
     } catch (e2) { setError(e2); } finally { setBusy(false); }
   };
