@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-09-13T10:58:31.187Z",
+  "checkedAt": "2026-09-14T17:11:59.302Z",
   "results": [
     {
       "group": "primary-journeys",
@@ -55,6 +55,10 @@
     },
     {
       "group": "memory-browsing",
+      "status": "passed"
+    },
+    {
+      "group": "completion",
       "status": "passed"
     }
   ],

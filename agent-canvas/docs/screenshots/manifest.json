@@ -40,7 +40,7 @@
         {
           "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
           "epistemic": "verified",
-          "source": "escalation fd28f432-e461-4efe-8b0e-14ffbcbd8b5a resolution"
+          "source": "escalation 4079c865-12d6-4a4f-a1d9-45540a4d9854 resolution"
         }
       ],
       "escalations": [
@@ -50,6 +50,37 @@
           "owner_email": "teammate@agent-canvas.invalid"
         }
       ],
+      "guideControls": [
+        "Sign in",
+        "Create a project space",
+        "Create",
+        "Connections",
+        "Home",
+        "Ask",
+        "Act on this",
+        "Act",
+        "Needs you",
+        "Answer",
+        "Submit answer"
+      ],
+      "advancedOrOwnerControls": [],
+      "emptyAccountSpending": {
+        "bootCounts": {
+          "canvases": 0,
+          "agents": 0,
+          "notes": 0,
+          "files": 0,
+          "tasks": 0,
+          "runs": 0,
+          "inquiries": 0,
+          "memory_entries": 0
+        },
+        "identity": {
+          "email": "teammate@agent-canvas.invalid",
+          "role": "member"
+        },
+        "result": "passed"
+      },
       "result": "passed"
     },
     {
@@ -91,7 +122,7 @@
         {
           "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
           "epistemic": "verified",
-          "source": "escalation 86c68795-64f3-40d6-bd57-5f7b94e8dc0d resolution"
+          "source": "escalation e403a414-0151-4e13-8598-0a976c768cb1 resolution"
         }
       ],
       "escalations": [
@@ -101,6 +132,37 @@
           "owner_email": "teammate@agent-canvas.invalid"
         }
       ],
+      "guideControls": [
+        "Sign in",
+        "Create a project space",
+        "Create",
+        "Connections",
+        "Home",
+        "Ask",
+        "Act on this",
+        "Act",
+        "Needs you",
+        "Answer",
+        "Submit answer"
+      ],
+      "advancedOrOwnerControls": [],
+      "emptyAccountSpending": {
+        "bootCounts": {
+          "canvases": 0,
+          "agents": 0,
+          "notes": 0,
+          "files": 0,
+          "tasks": 0,
+          "runs": 0,
+          "inquiries": 0,
+          "memory_entries": 0
+        },
+        "identity": {
+          "email": "teammate@agent-canvas.invalid",
+          "role": "member"
+        },
+        "result": "passed"
+      },
       "result": "passed"
     },
     {
@@ -142,7 +204,7 @@
         {
           "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
           "epistemic": "verified",
-          "source": "escalation 0b157009-bd4c-430d-aa46-93ddead9414e resolution"
+          "source": "escalation af349709-adec-497f-8c4d-6e92a40b0165 resolution"
         }
       ],
       "escalations": [
@@ -152,6 +214,38 @@
           "owner_email": "pete@cloudtechgurus.com"
         }
       ],
+      "guideControls": [
+        "Sign in",
+        "Create a project space",
+        "Create",
+        "Connections",
+        "Home",
+        "Ask",
+        "Act on this",
+        "Act",
+        "Needs you",
+        "Mine",
+        "Answer",
+        "Submit answer"
+      ],
+      "advancedOrOwnerControls": [],
+      "emptyAccountSpending": {
+        "bootCounts": {
+          "canvases": 0,
+          "agents": 0,
+          "notes": 0,
+          "files": 0,
+          "tasks": 0,
+          "runs": 0,
+          "inquiries": 0,
+          "memory_entries": 0
+        },
+        "identity": {
+          "email": "pete@cloudtechgurus.com",
+          "role": "owner"
+        },
+        "result": "passed"
+      },
       "result": "passed"
     }
   ],

@@ -137,6 +137,7 @@ export default function Workspace() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [capsOpen, setCapsOpen] = useState(false);
+  const [connectionNotice, setConnectionNotice] = useState(null);
   const [wsConnected, setWsConnected] = useState(null); // null = unknown yet
   const [health, setHealth] = useState(null);
   const [healthDown, setHealthDown] = useState(false);
@@ -160,7 +161,9 @@ export default function Workspace() {
     window.history.replaceState({}, '', window.location.pathname);
     if (ws === 'connected') { toast('Google Workspace connected — agents you direct can now use it', 'ok'); refreshCaps(); setCapsOpen(true); }
     else if (ws === 'blocked') {
-      toast('Google blocked the connection: this account is not on the app\'s test-user list. Owner: Google Auth Platform → Audience → add the account as a test user (as the project-owner Google identity), wait ~2 minutes, retry. Or deploy with GOOGLE_WORKSPACE_SCOPES=standard to skip the tester gate (no Gmail).');
+      const message = 'Google did not allow this account to connect. Ask the workspace owner to enable access, then try connecting again.';
+      setConnectionNotice({ message, details: 'Owner setup: Google Auth Platform → Audience → add the account as a test user using the project-owner Google identity, wait about two minutes, then retry. The existing GOOGLE_WORKSPACE_SCOPES=standard configuration skips the test-user requirement but does not include Gmail. Configuration changes require a separate deployment decision.' });
+      toast(message, 'warn');
       setCapsOpen(true);
     }
     else if (ws === 'denied') { toast('Workspace connection was cancelled before granting access'); }
@@ -325,7 +328,7 @@ export default function Workspace() {
 
   const createCanvas = useCallback(async () => {
     const name = newCanvasName.trim();
-    if (!name || creating || rosterChecked === null) return;
+    if (!name || creating || rosterChecked === null || requests['team templates']?.loading || requests['team templates']?.error) return;
     setCreating(true); setActionError(null);
     try {
       const rosterIds = [...(rosterChecked || [])].filter((id) => roster.some((r) => r.id === id && r.enabled));
@@ -335,7 +338,7 @@ export default function Workspace() {
       setNewCanvasOpen(false);
       setNewCanvasName('');
     } catch (e) { setActionError(e); } finally { setCreating(false); }
-  }, [creating, newCanvasName, roster, rosterChecked, refreshCanvases, toast]);
+  }, [creating, newCanvasName, roster, rosterChecked, requests, refreshCanvases, toast]);
 
   const archiveCanvas = useCallback(async () => {
     if (!canvasId) return;
@@ -363,10 +366,11 @@ export default function Workspace() {
   // ---------- roster (workspace template library) ----------
   const refreshRoster = useCallback(async () => {
     try {
-      const d = await readResource('team templates', null, () => api('/api/roster'), () => {});
-      const entries = d.roster || [];
-      setRoster(entries);
-      setRosterChecked((prev) => prev ?? new Set(entries.filter((r) => r.default_on).map((r) => r.id)));
+      return await readResource('team templates', null, () => api('/api/roster'), (data) => {
+        if (!Array.isArray(data?.roster)) throw new Error('The team template response was incomplete.');
+        setRoster(data.roster);
+        setRosterChecked((prev) => prev ?? new Set(data.roster.filter((r) => r.default_on).map((r) => r.id)));
+      });
     } catch { /* persistent retry below */ }
   }, [readResource]);
   useEffect(() => { refreshRoster(); }, [refreshRoster]);
@@ -413,7 +417,7 @@ export default function Workspace() {
       return;
     }
     canvasIdRef.current = canvasId;
-    setRequests((r) => ({ control: r.control, spaces: r.spaces, attention: r.attention, 'attention badge': r['attention badge'] }));
+    setRequests((r) => ({ control: r.control, spaces: r.spaces, attention: r.attention, 'attention badge': r['attention badge'], 'team templates': r['team templates'] }));
     setState(null); setMemory([]); setActivity([]); setSpend(null); setAnalytics(null);
     setEscalations([]); setPresence([]); setRunTick(0);
     setFileUpload({ kind: 'idle', message: '' });
@@ -1233,7 +1237,8 @@ export default function Workspace() {
         navigation={{ view, go: (next) => { setPanel(null); setView(next); }, needsYou: needsYouOn, count: visibleAttentionCount,
           hasSpace: !!state, rooms: roomsOn, rules: rulesOn, memory: () => setPanel({ type: 'memory' }) }}
         creation={{ open: newCanvasOpen, name: newCanvasName, setName: setNewCanvasName, show: () => setNewCanvasOpen(true),
-          close: () => setNewCanvasOpen(false), create: createCanvas, roster, selected: rosterChecked, setSelected: setRosterChecked, teamId: selectedTeamId, busy: creating, error: actionError, checkStatus: refreshCanvases }}
+          close: () => setNewCanvasOpen(false), create: createCanvas, roster, selected: rosterChecked, setSelected: setRosterChecked, teamId: selectedTeamId, busy: creating, error: actionError, checkStatus: refreshCanvases,
+          templateStatus: requests['team templates'] || { loading: rosterChecked === null }, onRefreshTemplates: refreshRoster }}
         account={{ avatarRef, open: menuOpen, toggle: () => setMenuOpen((open) => !open), signingOut, signOut,
           admin: () => { setAdminOpen(true); setMenuOpen(false); } }}
         controls={{ budget: requests.control?.error ? null : budget, paused: pause.paused, busy: controlBusy,
@@ -1260,7 +1265,7 @@ export default function Workspace() {
 
       <div className="workspace-notices">
         {!wsOk ? <div className="stale-notice" role="status">Live updates are reconnecting. Displayed work may be out of date. <button className="btn small" onClick={refreshAll}>Refresh status</button></div> : null}
-        {Object.entries(requests).filter(([key, r]) => r?.error && !(key === 'attention badge' && requests.attention?.error) && !(key === 'attention' && view === 'needsyou')).map(([key, r]) => <RequestError key={key} error={r.error} subject={`Loading ${{ attention: 'Needs You', 'attention badge': 'the Needs You count', control: 'pause and spending status', spaces: 'project spaces' }[key] || key}`} onRetry={() => {
+        {Object.entries(requests).filter(([key, r]) => r?.error && !(key === 'attention badge' && requests.attention?.error) && !(key === 'attention' && view === 'needsyou') && !(key === 'team templates' && (addAgentOpen || newCanvasOpen || (view === 'rooms' && isOwner)))).map(([key, r]) => <RequestError key={key} error={r.error} retryLabel={key === 'team templates' ? 'Retry team list' : undefined} subject={`Loading ${{ attention: 'Needs You', 'attention badge': 'the Needs You count', control: 'pause and spending status', spaces: 'project spaces' }[key] || key}`} onRetry={() => {
           if (key === 'team templates') refreshRoster();
           else if (key === 'spaces') refreshCanvases().then((d) => { if (!canvasId && d.canvases?.length) setCanvasId(d.canvases[0].id); }).catch(() => {});
           else refreshAll();
@@ -1332,6 +1337,8 @@ export default function Workspace() {
             <RoomsView
               user={user}
               roster={roster}
+              templateStatus={requests['team templates'] || { loading: rosterChecked === null }}
+              onRefreshTemplates={refreshRoster}
               onOpenCanvas={(id) => { setCanvasId(id); setView('canvas'); }}
               onCreated={(room) => { setCanvasId(room.canvasId); refreshCanvases().catch(() => {}); }}
               onOpenTeam={(id) => { setCanvasId(id); setView('team'); }}
@@ -1439,6 +1446,8 @@ export default function Workspace() {
           builderOn={!!(config && config.agentBuilder)}
           isOwner={isOwner}
           roster={roster.filter((r) => r.enabled)}
+          templateStatus={requests['team templates'] || { loading: rosterChecked === null }}
+          onRefreshTemplates={refreshRoster}
           onClose={() => setAddAgentOpen(false)}
           onAdded={() => { setAddAgentOpen(false); loadState(canvasId).catch(() => {}); }}
           onPublished={() => { loadState(canvasId).catch(() => {}); }}
@@ -1454,7 +1463,7 @@ export default function Workspace() {
           onClose={() => { setArchivedOpen(false); if (avatarRef.current) avatarRef.current.focus(); }}
         />
       ) : null}
-      {capsOpen ? <CapabilitiesModal diagnostics={diagnostics} onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}
+      {capsOpen ? <CapabilitiesModal diagnostics={diagnostics} connectionNotice={connectionNotice} onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}
     </div></DraftsContext.Provider>
   );
 }

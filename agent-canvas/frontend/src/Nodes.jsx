@@ -1,4 +1,4 @@
-import { certaintyLabel, workStatusLabel } from './format.jsx';
+import { certaintyLabel, workStatusLabel, agentTierLabel } from './format.jsx';
 import React, { useRef } from 'react';
 import { fmtUSD, fmtBytes, short, initials } from './api.js';
 
@@ -95,7 +95,7 @@ export function AgentNode({ agent, spend, amber, paused, ...shell }) {
         <span className="chip role-chip">{roleLabel}</span>
       </div>
       <div className="agent-sub">
-        <span className={`chip tier-chip tier-${agent.model_tier}`}>{agent.model_tier}</span>
+        <span className={`chip tier-chip tier-${agent.model_tier}`}>{agentTierLabel(agent.model_tier)}</span>
         <span className={`agent-status as-${workStatusLabel(agent.status)}`}>{workStatusLabel(agent.status)}</span>
       </div>
       <div className="agent-spend mono">

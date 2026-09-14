@@ -34,7 +34,7 @@ function CapabilitySurface({ surface }) {
   </details>;
 }
 
-export default function CapabilitiesModal({ onClose, diagnostics }) {
+export default function CapabilitiesModal({ onClose, diagnostics, connectionNotice }) {
   const dialogRef = useDialog(onClose);
   const capsState = useResource(capabilities, 'capabilities');
   const healthState = useResource(services, 'health');
@@ -95,6 +95,9 @@ export default function CapabilitiesModal({ onClose, diagnostics }) {
       <div className="modal-head"><h2>Connections</h2><button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">✕</button></div>
       <div className="modal-body">
         <p className="connections-intro">Check what is available before asking an agent to use it.</p>
+        {connectionNotice ? <div className="request-error" role="alert"><p>{connectionNotice.message}</p>
+          <details><summary>Technical setup details</summary><p>{connectionNotice.details}</p></details>
+        </div> : null}
         <RequestError error={capsState.error} subject="Loading your connections" onRetry={capsState.refresh} />
         <RequestError error={healthState.error} subject="Checking system status" onRetry={healthState.refresh} />
         <RequestError error={error} subject="Updating the connection" onRetry={async () => { const results = await load(); if (results.every(Boolean)) setError(null); }} retryLabel="Check status" />

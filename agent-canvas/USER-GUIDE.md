@@ -43,6 +43,13 @@ Once the agent is added, choose **Ask** to send it. Creating an empty custom tea
 is still allowed; you must add an agent before asking questions or starting work.
 View-only teammates ask the project owner to add the agent.
 
+**Team templates** labels reasoning levels as **Quick work (fast)** or
+**Complex work (strong)**. If the team list cannot load, choose **Retry team list**
+inside Add agent or New project space. Your project name and question stay put;
+changing projects does not dismiss the problem. Wait for the list to load before
+choosing a template or creating a space or Room. A confirmed empty list says the
+owner can add templates under **Owner settings → Agent templates**.
+
 **Add document** beside the box accepts PDF, Word (.docx), TXT, Markdown, CSV,
 JSON and XLSX, up to 5 MB. Wait for the ready message before asking about it.
 Use **More → Documents & notes** to read, download, remove or add context.
@@ -182,6 +189,9 @@ staffing, access and current service checks; the list below is not a live probe.
   unconfirmed entries use a hollow symbol and dotted border. Authorship and sources
   stay beside each entry. **What certainty means** opens the full symbol key;
   collapsing it keeps every entry’s own certainty visible.
+  **View work → Why? → Map** also shows each memory node's certainty in words
+  and by symbol/border. **Read as steps** keeps the recorded steps readable;
+  use Flow, Evidence or Impact (including arrow keys) to change the map view.
 - Decisions are recorded in the current project space. Agents can retrieve its
   memory and shared entries; decisions are not automatically copied everywhere
   or guaranteed to appear in every future answer. Check scope and sources.
@@ -269,6 +279,10 @@ when you choose it. **Service details** keeps the full result and any timing.
 Old details remain labelled as last known when current status is unavailable.
 If a Google connection change cannot be confirmed, use **Check status** before
 relying on it or repeating the change.
+If Google does not allow your account to connect, Connections explains that the
+workspace owner must enable access before you retry. **Technical setup details**
+keeps the owner's configuration guidance available without putting it in the
+ordinary connection message.
 
 Connections → **Advanced details** retains all service checks, provider, queue,
 agent indicators and live link. Storage/backups and web research can be labelled
@@ -318,7 +332,8 @@ npm run test:journeys
 
 The runner checks Pete's owner preview and separately tests member access using
 the fictional **teammate@agent-canvas.invalid** account. No teammate's Google
-credentials are used. It also checks queue recovery, keyboard selection, 768px layout and actual
+credentials are used. The four journeys stay outside Advanced and owner settings;
+additional spending checks use a separate empty preview. It also checks queue recovery, keyboard selection, 768px layout and actual
 200% browser zoom. [Screenshots and verification details](docs/SIMPLIFICATION.md#journey-evidence)
 record the results. This is test-only: temporary in-memory databases, development
 sign-in and model stubs; external services are blocked. It does not verify Google

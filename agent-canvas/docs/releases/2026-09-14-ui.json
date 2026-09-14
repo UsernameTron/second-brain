@@ -1,0 +1,405 @@
+{
+  "status": "prepared locally; all planned UI improvements implemented; not approved for publishing or deployment",
+  "completionAudit": "2026-09-14-simplification-audit.md",
+  "createdAt": "2026-09-14T16:10:36.043910+00:00",
+  "candidate": {
+    "localTag": "agent-canvas:ui-20260914-69cf8d9",
+    "registryTag": "us-central1-docker.pkg.dev/agent-canvas-ctg-0811/app/agent-canvas:ui-20260914-69cf8d9",
+    "imageIndexDigest": "sha256:8098492a51436b2806103d5e283292d758334121b7ad5bf41fa3acf41193b390",
+    "linuxAmd64ManifestDigest": "sha256:9f3e319e97882570a7b249df7bdb9d2b54dcf97b63f87b13278d041cc9c9ad80",
+    "baseCommit": "1dc6cab5fcdb1a084ab9a054d22ca9de7ab78792",
+    "sourceIncludesVerifiedCompletionFollowup": true,
+    "sourceSnapshotSha256": "27de0c54d19e84098c649434ff9758bd25b8035908c2028e00693d2ec589bc75",
+    "buildInputsSha256": "69cf8d9cc9d8a36b8d1f370cc9ca98a7df8d4305067c8bcf67a0bc34fc98dc02",
+    "buildFileCount": 86,
+    "sourceFileCount": 314,
+    "artifacts": [
+      {
+        "file": "agent-canvas-ui-20260914-69cf8d9.source.tar.gz",
+        "bytes": 9799357,
+        "sha256": "34f8407b6e1c39fca5e8dad470a5fa010f81303d91c3293b9b844c35e8a53074"
+      },
+      {
+        "file": "agent-canvas-ui-20260914-69cf8d9.build-context.tar.gz",
+        "bytes": 971797,
+        "sha256": "aa7a1bda03a878073d4f16a456811838b8d462fed0671acbe0efec66c6f44a46"
+      },
+      {
+        "file": "agent-canvas-ui-20260914-69cf8d9.image.tar.gz",
+        "bytes": 208903921,
+        "sha256": "ae398720a942266ff459d40f45d4f1824f767e2d0ada869b83c542438a9b3df1"
+      }
+    ],
+    "localArtifactDirectory": "/Users/cpconnor/projects/second-brain/agent-canvas/.release/2026-09-14-ui-completion-69cf8d9",
+    "archiveVerification": {
+      "source": {
+        "files": 314,
+        "manifestMatches": true,
+        "databaseOrCredentialPayload": false
+      },
+      "build-context": {
+        "files": 86,
+        "manifestMatches": true,
+        "databaseOrCredentialPayload": false
+      },
+      "image": {
+        "verifiedBlobs": 21,
+        "expectedIndexPresent": true
+      }
+    },
+    "sourceExclusions": [
+      "Untracked user material",
+      "Credentials and databases",
+      "Private recovery copy",
+      "Release review pair retained separately to avoid self-referencing archive hashes"
+    ]
+  },
+  "liveBaseline": {
+    "observedAt": "2026-09-14T15:56:31.009572+00:00",
+    "project": "agent-canvas-ctg-0811",
+    "region": "us-central1",
+    "service": "agent-canvas",
+    "generation": 71,
+    "serviceSpecSha256": "8993deefe39b2cba8fe3060bbd094fb7decd3041ddc3f6e2e78ab05a01132966",
+    "url": "https://agent-canvas-mqqftm2ora-uc.a.run.app",
+    "latestReadyRevision": "agent-canvas-00071-p26",
+    "latestCreatedRevision": "agent-canvas-00071-p26",
+    "traffic": [
+      {
+        "latestRevision": true,
+        "percent": 100,
+        "revisionName": "agent-canvas-00071-p26"
+      }
+    ],
+    "readyConditions": [
+      {
+        "type": "Ready",
+        "status": "True"
+      },
+      {
+        "type": "ConfigurationsReady",
+        "status": "True"
+      },
+      {
+        "type": "RoutesReady",
+        "status": "True"
+      }
+    ],
+    "image": "us-central1-docker.pkg.dev/agent-canvas-ctg-0811/app/agent-canvas:latest",
+    "runtime": {
+      "containerConcurrency": 80,
+      "serviceAccountName": "agent-canvas-run@agent-canvas-ctg-0811.iam.gserviceaccount.com",
+      "timeoutSeconds": 300
+    },
+    "container": {
+      "ports": [
+        {
+          "containerPort": 8080,
+          "name": "http1"
+        }
+      ],
+      "resources": {
+        "limits": {
+          "cpu": "1",
+          "memory": "1Gi"
+        }
+      },
+      "startupProbe": {
+        "failureThreshold": 1,
+        "periodSeconds": 240,
+        "tcpSocket": {
+          "port": 8080
+        },
+        "timeoutSeconds": 240
+      }
+    },
+    "scalingAnnotations": {
+      "autoscaling.knative.dev/maxScale": "1",
+      "run.googleapis.com/startup-cpu-boost": "true"
+    },
+    "environment": [
+      {
+        "name": "NODE_ENV",
+        "value": "production"
+      },
+      {
+        "name": "OWNER_EMAIL",
+        "value": "preserved; not displayed"
+      },
+      {
+        "name": "LITESTREAM_REPLICA_URL",
+        "value": "gcs://agent-canvas-ctg-0811-db/agent-canvas"
+      },
+      {
+        "name": "MODEL_PROVIDER",
+        "value": "gemini"
+      },
+      {
+        "name": "GOOGLE_CLIENT_ID",
+        "value": "preserved; not displayed"
+      },
+      {
+        "name": "HS_OPS_RUNNER_URL",
+        "value": "preserved; not displayed"
+      },
+      {
+        "name": "ED_DISPATCH_URL",
+        "value": "preserved; not displayed"
+      },
+      {
+        "name": "ANTHROPIC_API_KEY",
+        "source": {
+          "secretKeyRef": {
+            "key": "latest",
+            "name": "anthropic-api-key"
+          }
+        }
+      },
+      {
+        "name": "JWT_SECRET",
+        "source": {
+          "secretKeyRef": {
+            "key": "latest",
+            "name": "jwt-secret"
+          }
+        }
+      },
+      {
+        "name": "GOOGLE_CLIENT_SECRET",
+        "source": {
+          "secretKeyRef": {
+            "key": "latest",
+            "name": "google-oauth-secret"
+          }
+        }
+      },
+      {
+        "name": "RAPIDAPI_KEY",
+        "source": {
+          "secretKeyRef": {
+            "key": "latest",
+            "name": "rapidapi-key"
+          }
+        }
+      },
+      {
+        "name": "TICK_AUDIENCE",
+        "value": "preserved; not displayed"
+      },
+      {
+        "name": "TICK_INVOKER_SA",
+        "value": "preserved; not displayed"
+      },
+      {
+        "name": "VERTEX_PROJECT_ID",
+        "value": "preserved; not displayed"
+      },
+      {
+        "name": "VERTEX_REGION",
+        "value": "preserved; not displayed"
+      },
+      {
+        "name": "SEO_MONITOR_URL",
+        "value": "preserved; not displayed"
+      },
+      {
+        "name": "OPS_AUTOMATION_URL",
+        "value": "preserved; not displayed"
+      },
+      {
+        "name": "STATUS_INVOKER_SA",
+        "value": "preserved; not displayed"
+      }
+    ],
+    "readyRevision": {
+      "name": "agent-canvas-00071-p26",
+      "createdAt": "2026-08-24T15:01:24.899593Z",
+      "imageDigest": "us-central1-docker.pkg.dev/agent-canvas-ctg-0811/app/agent-canvas@sha256:724c1ea64436f738eb7cc775c1b6826f11eeef0145ae856c3e932bc3d724d63f",
+      "labels": {
+        "client.knative.dev/nonce": "owhzpbdtek",
+        "cloud.googleapis.com/location": "us-central1",
+        "run.googleapis.com/startupProbeType": "Default",
+        "serving.knative.dev/configuration": "agent-canvas",
+        "serving.knative.dev/configurationGeneration": "71",
+        "serving.knative.dev/route": "agent-canvas",
+        "serving.knative.dev/service": "agent-canvas",
+        "serving.knative.dev/serviceUid": "5e9414b5-82bf-4a73-8976-d9c7cf1c0978"
+      }
+    },
+    "scheduler": {
+      "name": "projects/agent-canvas-ctg-0811/locations/us-central1/jobs/agent-canvas-standing-rules",
+      "state": "ENABLED",
+      "schedule": "*/10 * * * *",
+      "timeZone": "Etc/UTC",
+      "lastAttemptTime": "2026-09-14T15:50:04.861053Z",
+      "status": {}
+    },
+    "/api/healthz": {
+      "httpStatus": 200,
+      "values": {
+        "ok": true,
+        "paused": false
+      },
+      "availableFields": [
+        "ok",
+        "paused"
+      ]
+    },
+    "/api/config": {
+      "httpStatus": 200,
+      "values": {
+        "devAuth": false,
+        "models": {
+          "fast": "gemini-2.5-flash",
+          "strong": "gemini-2.5-pro"
+        }
+      },
+      "availableFields": [
+        "agentBuilder",
+        "devAuth",
+        "domain",
+        "googleClientId",
+        "inquiryHome",
+        "models",
+        "needsYou",
+        "rooms",
+        "standingRules"
+      ]
+    }
+  },
+  "backendComparison": {
+    "liveImage": "us-central1-docker.pkg.dev/agent-canvas-ctg-0811/app/agent-canvas@sha256:724c1ea64436f738eb7cc775c1b6826f11eeef0145ae856c3e932bc3d724d63f",
+    "liveNodeVersion": "v22.23.2",
+    "backendFiles": 41,
+    "candidateBackendFiles": 40,
+    "differences": [
+      ".DS_Store"
+    ],
+    "startupScriptMatches": true
+  },
+  "containerChecks": {
+    "status": "passed",
+    "nodeVersion": "v22.23.2",
+    "environment": "production",
+    "healthStatus": 200,
+    "privateRouteStatus": 401,
+    "devAuth": false,
+    "developmentLoginStatus": 403,
+    "sessionIssued": false,
+    "forcedDevelopmentFlagRefused": true,
+    "bootCounts": {
+      "canvases": 0,
+      "agents": 0,
+      "notes": 0,
+      "files": 0,
+      "tasks": 0,
+      "runs": 0,
+      "inquiries": 0,
+      "memory_entries": 0
+    },
+    "dependencies": {
+      "@xmldom/xmldom": "0.8.15",
+      "body-parser": "1.20.8",
+      "qs": "6.16.0"
+    },
+    "testFixturesAbsent": true,
+    "externalNetwork": "disabled",
+    "frontendMatchesTestedBuild": true,
+    "backendMatchesCandidateSource": true,
+    "backendMatchesObservedLiveImage": true,
+    "backendSourceFiles": 40,
+    "startupScriptMatches": true
+  },
+  "verification": {
+    "backendTests": 433,
+    "frontendTests": 292,
+    "browserGroups": 15,
+    "originalTestFilesRetained": 63,
+    "completionGapsClosed": [
+      "S1",
+      "S2",
+      "S3"
+    ],
+    "logs": [
+      {
+        "name": "verify",
+        "log": "/Users/cpconnor/projects/second-brain/agent-canvas/.release/2026-09-14-ui-completion-69cf8d9/completion-verify.log",
+        "sha256": "f4f2d6fa060c50b7f576f560755f1c4c0ccf43b476b51ee57f2a068db1745f5f",
+        "status": "passed"
+      },
+      {
+        "name": "ui",
+        "log": "/Users/cpconnor/projects/second-brain/agent-canvas/.release/2026-09-14-ui-completion-69cf8d9/completion-ui-suite.log",
+        "sha256": "717dd6b647c556a090f3b9429a0ac94e4074e942790d415a2ceadfebd0cd187d",
+        "status": "passed"
+      },
+      {
+        "name": "audit-root",
+        "log": "/Users/cpconnor/projects/second-brain/agent-canvas/.release/2026-09-14-ui-completion-69cf8d9/completion-audit-root.json",
+        "sha256": "5bf4dd0b1b3bf4204d81f7e5a821491e28ac523dda9f6b3c35afad6d75e8c840",
+        "status": "passed"
+      },
+      {
+        "name": "audit-frontend",
+        "log": "/Users/cpconnor/projects/second-brain/agent-canvas/.release/2026-09-14-ui-completion-69cf8d9/completion-audit-frontend.json",
+        "sha256": "0a0b328a6e0ed0c891952bff3a29ff13f9906e2ab3d7a3049111431829bbce71",
+        "status": "passed"
+      }
+    ],
+    "browserSummary": "../screenshots/ui-test-summary.json",
+    "completionSummary": "../screenshots/simplification-completion-summary.json",
+    "recordedAt": "2026-09-14T17:20:03.781696+00:00",
+    "currentBuildInputsStillMatch": true
+  },
+  "recovery": {
+    "replicaObjects": 68,
+    "replicaBytes": 1442966,
+    "latestObjectAt": "2026-09-14T16:00:08Z",
+    "generation": "a439d8eb147614d1",
+    "restoreStatus": "passed",
+    "privateRestoreDestination": "/Users/cpconnor/projects/second-brain/agent-canvas/.release/2026-09-14-ui/private-recovery-check",
+    "approvalReview": "Initial payload copy required explicit permission; Pete approved the private restore test and it passed.",
+    "explicitUserApproval": true,
+    "verification": {
+      "restoreStatus": "passed",
+      "integrityCheck": "ok",
+      "requiredTablesPresent": true,
+      "applicationStarted": false,
+      "externalNetwork": "disabled",
+      "productionDatabaseChanged": false,
+      "checkedAt": "2026-09-14T16:14:00.390591+00:00",
+      "privateDestination": "/Users/cpconnor/projects/second-brain/agent-canvas/.release/2026-09-14-ui/private-recovery-check",
+      "databaseBytes": 5144576
+    }
+  },
+  "deploymentPerformed": false,
+  "imagePublished": false,
+  "backendSchemaOrProviderHandlingChanged": false,
+  "limitations": [
+    "Local fixtures do not verify Google OAuth or live integrations.",
+    "Read-only live health/configuration observations do not prove signed-in journey acceptance.",
+    "Unaided teammate acceptance remains a human check.",
+    "Physical microphone acceptance remains separate."
+  ],
+  "liveRecheck": {
+    "checkedAt": "2026-09-14T16:16:46.803203+00:00",
+    "liveBaselineUnchanged": true,
+    "generation": 71,
+    "servingRevision": "agent-canvas-00071-p26",
+    "serviceSpecSha256": "8993deefe39b2cba8fe3060bbd094fb7decd3041ddc3f6e2e78ab05a01132966",
+    "preservedRuntimeSpecSha256": "1b5d9f183c4a4ba020ae34678f920751475c4ce42a803aefe94bbae4f5e3a0ae"
+  },
+  "updatedAt": "2026-09-14T17:20:03.781696+00:00",
+  "previousCandidate": {
+    "localTag": "agent-canvas:ui-20260914-a2d4b21",
+    "imageIndexDigest": "sha256:3ba5c312c043219816e9db52bd8553fcdba4c9b0c19e3d9e63894fde04f8d5cf",
+    "linuxAmd64ManifestDigest": "sha256:6da520ee5631b09c9d1ec73eedafa1b0880c20055203e39152934513c66411b3",
+    "localArtifactDirectory": "/Users/cpconnor/projects/second-brain/agent-canvas/.release/2026-09-14-ui"
+  },
+  "gitLockRecovery": {
+    "explicitUserApproval": true,
+    "originalLockEmpty": true,
+    "activeGitWriters": 0,
+    "backup": "/Users/cpconnor/projects/second-brain/.git/index.lock.agent-canvas-backup-20260914T171210874870Z"
+  }
+}

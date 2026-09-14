@@ -1,0 +1,56 @@
+{
+  "checkedAt": "2026-09-14T16:32:35.322Z",
+  "scope": "New disposable local fixture; real development sign-in and routes; injected failed reads and an explicit map fixture; no live data.",
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "templateRecovery": {
+    "errorVisibleBeforeSpaceSelection": true,
+    "errorVisibleAfterSpaceSelection": false,
+    "emptyClaim": "No roster entries are enabled. The owner manages the roster in Admin.",
+    "retryButtons": 0
+  },
+  "teamLabels": [
+    "strong",
+    "strong",
+    "strong",
+    "fast",
+    "strong",
+    "fast",
+    "strong",
+    "fast",
+    "fast",
+    "fast",
+    "strong",
+    "strong",
+    "strong",
+    "fast",
+    "strong",
+    "strong"
+  ],
+  "mapCertainty": [
+    {
+      "text": "ENTRY\nAudit memory 1",
+      "accessibleLabel": "entry: Audit memory 1",
+      "className": "explain-node en-entry epi-verified"
+    },
+    {
+      "text": "ENTRY\nAudit memory 2",
+      "accessibleLabel": "entry: Audit memory 2",
+      "className": "explain-node en-entry epi-inference"
+    },
+    {
+      "text": "ENTRY\nAudit memory 3",
+      "accessibleLabel": "entry: Audit memory 3",
+      "className": "explain-node en-entry epi-assumption"
+    }
+  ],
+  "browserErrors": []
+}

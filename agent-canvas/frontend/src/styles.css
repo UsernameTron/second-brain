@@ -1531,7 +1531,7 @@ a:hover { text-decoration: underline; }
   cursor: not-allowed;
   opacity: 1;
 }
-.add-agent-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.add-agent-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .add-agent-row input, .add-agent-row select { flex: 1; min-width: 0; }
 .add-agent-row input[type="color"] { flex: 0 0 44px; padding: 2px; }
 .add-agent-form textarea, .roster-edit textarea { width: 100%; box-sizing: border-box; margin-bottom: 8px; font-family: inherit; }
@@ -1592,7 +1592,14 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, label:focu
 .explain-canvas { border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surface-inset); overflow-x: auto; }
 .explain-node { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-solid); color: var(--text); cursor: pointer; font: inherit; }
 .explain-node .en-type { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; }
-.explain-node .en-label { font-size: 12px; line-height: 1.25; }
+.explain-node .en-label { font-size: 12px; line-height: 1.25; overflow-wrap: anywhere; }
+.explain-node .en-certainty { display: flex; align-items: flex-start; gap: 5px; font-size: 11px; line-height: 1.35; margin-top: 4px; overflow-wrap: anywhere; }
+.explain-node .en-certainty .epi-dot { flex: none; margin-top: 2px; }
+.add-agent-form .add-agent-row > label { display: flex; flex: 1 1 150px; flex-direction: column; gap: 4px; min-width: 0; }
+.add-agent-form .add-agent-row > label:nth-child(3) { flex-basis: 220px; }
+.add-agent-form .add-agent-row > label:last-child { flex: 0 0 100px; }
+.add-agent-form > label { display: flex; flex-direction: column; gap: 4px; }
+.roster-pick .chip { white-space: normal; overflow-wrap: anywhere; }
 .en-question { border-color: var(--blue); border-width: 2px; }
 .en-agent { border-color: var(--teal); }
 .en-action { border-style: dashed; }

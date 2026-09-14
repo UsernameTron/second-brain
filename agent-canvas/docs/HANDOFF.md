@@ -1,4 +1,4 @@
-# Agent Canvas — Current Handoff (2026-09-13, local UI acceptance)
+# Agent Canvas — Current Handoff (2026-09-14, local implementation verified)
 
 This file is the concise current-state authority. Historical implementation and
 incident detail lives in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); phase intent
@@ -25,22 +25,21 @@ scheduling/Builder edits, recoverable polling and confirmed rehearsal gates. Pha
 adds honest owner tables, retained edits, partial-order recovery, bounded downloads
 and unverified configuration labels. Phase 7 verifies all four member journeys at
 1280/390px, queue recovery, 768px and actual 200% zoom; all 16 images inspected.
-Latest local gate: 433 backend / 277 frontend tests; both production audits clean.
+Latest local gate (2026-09-14): 433 backend / 292 frontend tests; both production audits clean. Guide-path clicks now prove no Advanced/owner settings; first-boot spending uses independent fixtures.
+**Test-proven locally:** all three [completion audit](releases/2026-09-14-simplification-audit.md) gaps are closed: retained team-list recovery, plain-English agent settings and written map certainty. Fifteen new component regressions and a dedicated browser group cover the fixes; unaided human/live acceptance remains separate.
 Pete completed the guided walkthrough. Local acceptance covers Room exports/recovery,
 permissions, memory correction/history, certainty, scheduling, Builder and owner tools;
-Home/Room staffing, mobile menus, published-change review, owner removal, canvas Fit/Tidy, saved filters, cross-project assignment, voice recovery, late replies erasing newer drafts and navigation losing Home/Needs You submission status are fixed. Browser checks cover every main surface, all six review types, connection/session/voice recovery, draft preservation and pending requests across views/projects and review filters. Review cards now show readable decision context and proposed values, with one Full details control for diagnostics; `npm run test:ui` repeats the checks. See [UI-TESTING.md](UI-TESTING.md) for evidence and limits, [SIMPLIFICATION.md](SIMPLIFICATION.md) for the control map. Feedback is compact with readable details, retained recovery and themed upload messages. Connections now puts account access and the answer check first, keeps every service under named disclosures, retains failed-check recovery and passes mobile/keyboard/contrast checks. Memory history now uses plain-English sections, retains certainty and originals, separates failed/empty history and ignores obsolete replies. All 14 local browser groups pass. Production observations below are historical; no new production probe, push or deployment was performed.
+Home/Room staffing, mobile menus, published-change review, owner removal, canvas Fit/Tidy, saved filters, cross-project assignment, voice recovery, late replies erasing newer drafts and navigation losing Home/Needs You submission status are fixed. Browser checks cover every main surface, all six review types, connection/session/voice recovery, draft preservation and pending requests across views/projects and review filters. Review cards now show readable decision context and proposed values, with one Full details control for diagnostics; `npm run test:ui` repeats the checks. See [UI-TESTING.md](UI-TESTING.md) for evidence and limits, [SIMPLIFICATION.md](SIMPLIFICATION.md) for the control map. Feedback is compact with readable details, retained recovery and themed upload messages. Connections now puts account access and the answer check first, keeps every service under named disclosures, retains failed-check recovery and passes mobile/keyboard/contrast checks. Memory history now uses plain-English sections, retains certainty and originals, separates failed/empty history and ignores obsolete replies. All 15 local browser groups pass. The refreshed release container matches the tested frontend and observed live backend; offline production startup/authentication checks pass. The shared Git lock was preserved in a timestamped backup under Pete's explicit approval. [Release review](releases/2026-09-14-ui.md) records the read-only live preflight, exact image and rollback. Pete approved the private restore test; integrity and required-table checks passed offline at 16:14 UTC. No image was published and no deployment occurred.
 
 ## Current production state
 
-**Live-proven at 2026-08-20 (~15:40Z):** Cloud Run revision
-`agent-canvas-00068-lzs` serves 100% of traffic (superseding `00064-nq9`
-after the 2026-08-20 schema/grant fixes and the reverted vertex experiment); `/api/healthz` 200
-`{"ok":true,"paused":false}`; zero ERROR logs post-deploy. Provider is
-`MODEL_PROVIDER=gemini` (Gemini on Vertex, keyless ADC) — `/api/config`
-reports `gemini-2.5-flash` (fast) / `gemini-2.5-pro` (strong). The systems
-board read fully green in a signed-in session: MODEL probe OK, all four
-Workspace surfaces probe OK, HubSpot ops-runner and enrichment-dispatch
-wired, all six MCP connector rows enabled with owner-ticked tools.
+**Live-proven at 2026-09-14 15:56 UTC (read-only):** revision
+`agent-canvas-00071-p26` serves 100% of traffic; `/api/healthz` returns 200,
+`{"ok":true,"paused":false}`. `MODEL_PROVIDER=gemini`; `/api/config` reports
+Gemini 2.5 Flash/Pro and development sign-in disabled. Scheduler is ENABLED,
+with last attempt at 15:50 UTC. No provider override or service setting changed.
+These checks do not verify Google OAuth, connector success or signed-in journeys.
+The prior signed-in connector/model acceptance was on 2026-08-20; see history.
 
 **Live-proven:** Cloud Scheduler job `agent-canvas-standing-rules` was
 RESUMED by operator approval on 2026-08-19; its first tick after resume

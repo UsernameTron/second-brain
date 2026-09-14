@@ -3,6 +3,7 @@ import { fmtUSD, initials } from './api.js';
 import { RequestError } from './RequestState.jsx';
 import { useDialog } from './useDialog.js';
 import { TEAM_TEMPLATES, rosterIdsForTeam } from './teamTemplates.js';
+import TeamTemplatesStatus from './TeamTemplatesStatus.jsx';
 
 export default function WorkspaceHeader({ user, theme, setTheme, spaces, navigation, creation, account, controls }) {
   const moreRef = useRef(null);
@@ -64,15 +65,17 @@ export default function WorkspaceHeader({ user, theme, setTheme, spaces, navigat
   </>;
 }
 
-function CreateSpaceDialog({ name, setName, close, create, roster, selected, setSelected, teamId, busy, error, checkStatus }) {
+function CreateSpaceDialog({ name, setName, close, create, roster, selected, setSelected, teamId, busy, error, checkStatus, templateStatus, onRefreshTemplates }) {
   const ref = useDialog(close);
   const members = roster.filter((entry) => entry.enabled && selected?.has(entry.id));
+  const templatesUnavailable = selected === null || templateStatus?.loading || !!templateStatus?.error;
   return <div className="modal-overlay"><div className="modal" role="dialog" aria-modal="true" aria-label="New project space" ref={ref} tabIndex={-1}>
     <div className="modal-head"><h2>New project space</h2><button className="icon-btn" onClick={close} aria-label="Close">×</button></div>
     <form className="modal-body" onSubmit={(e) => { e.preventDefault(); create(); }}>
       <RequestError error={error} subject="Creating this project space" onRetry={checkStatus} retryLabel="Check project spaces" />
+      <TeamTemplatesStatus status={templateStatus || { loading: selected === null }} entries={roster.filter((entry) => entry.enabled)} onRefresh={onRefreshTemplates} />
       <label htmlFor="project-name">Project-space name</label><input id="project-name" autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="New project-space name…" disabled={busy} />
-      <fieldset className="canvas-team-picker" disabled={busy || selected === null}>
+      <fieldset className="canvas-team-picker" disabled={busy || templatesUnavailable}>
         <legend>Choose a starting team</legend>
         <select aria-label="Starting team" value={teamId} onChange={(e) => setSelected(new Set(rosterIdsForTeam(e.target.value, roster)))}>
           {TEAM_TEMPLATES.map((team) => <option key={team.id} value={team.id} disabled={rosterIdsForTeam(team.id, roster).length === 0}>{team.name}</option>)}
@@ -80,12 +83,12 @@ function CreateSpaceDialog({ name, setName, close, create, roster, selected, set
         </select>
         <p>{TEAM_TEMPLATES.find((team) => team.id === teamId)?.description || 'Custom team selected.'}</p>
         <div className="canvas-team-members">{members.map((entry) => <span className="canvas-team-member" key={entry.id}>{entry.name}</span>)}</div>
-        {selected === null ? <p>Team templates are unavailable. Close this form and retry the team list.</p> : members.length === 0 ? <p>No agents selected. Add an agent from Home before asking questions or starting work.</p> : null}
+        {!templatesUnavailable && members.length === 0 ? <p>No agents selected. Add an agent from Home before asking questions or starting work.</p> : null}
         <details><summary>Customize team ({members.length})</summary>{roster.filter((entry) => entry.enabled).map((entry) => <label className="roster-check" key={entry.id}>
           <input type="checkbox" checked={selected?.has(entry.id) || false} onChange={() => setSelected((previous) => { const next = new Set(previous || []); if (next.has(entry.id)) next.delete(entry.id); else next.add(entry.id); return next; })} />{entry.name} <span className="dim">{entry.role}</span>
         </label>)}</details>
       </fieldset>
-      <div className="canvas-new-actions"><button type="button" className="btn ghost" onClick={close}>Cancel</button><button className="btn primary" disabled={busy || error?.unconfirmed || !name.trim() || selected === null}>{busy ? 'Creating…' : 'Create'}</button></div>
+      <div className="canvas-new-actions"><button type="button" className="btn ghost" onClick={close}>Cancel</button><button className="btn primary" disabled={busy || error?.unconfirmed || !name.trim() || templatesUnavailable}>{busy ? 'Creating…' : 'Create'}</button></div>
     </form>
   </div></div>;
 }

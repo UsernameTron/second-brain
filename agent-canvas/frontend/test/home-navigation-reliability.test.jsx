@@ -12,6 +12,7 @@ beforeEach(() => {
   const pending = new Promise((done, fail) => { resolve = done; reject = fail; });
   api.mockReset();
   api.mockImplementation((path, options) => {
+    if (path === '/api/roster') return Promise.resolve({ roster: [] });
     if (path === '/api/canvases') return Promise.resolve({ canvases: [{ id: 'c1', name: 'First', access: 'edit' }, { id: 'c2', name: 'Second', access: 'edit' }] });
     if (/^\/api\/canvases\/c[12]$/.test(path)) return Promise.resolve({ canvas: { id: path.split('/').at(-1) }, access: 'edit', agents: [{ id: 'a1', name: 'Scout' }], notes: [], files: [], people: [], runs: [], tasks: [], handoffs: [] });
     if (path.endsWith('/inquiries')) return options?.method === 'POST' ? pending : Promise.resolve({ inquiries: [] });

@@ -1,4 +1,4 @@
-import { certaintyLabel, workStatusLabel } from './format.jsx';
+import { certaintyLabel, workStatusLabel, agentTierLabel } from './format.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { api, fmtUSD, timeAgo, fmtClock, short } from './api.js';
 import { SummaryMarkdown, formatContractTail, plainPreview, formatRunEventPreview } from './format.jsx';
@@ -58,7 +58,7 @@ function AgentVersions({ canvasId, agentId, isOwner }) {
             {(versions || []).map((v) => (
               <li key={v.id}>
                 <span className="chip">{v.source}</span>
-                <span className={`chip tier-${v.model_tier}`}>{v.model_tier}</span>
+                <span className={`chip tier-${v.model_tier}`}>{agentTierLabel(v.model_tier)}</span>
                 <span className="dim mono">{timeAgo(v.created_at)} · {v.actor}</span>
                 <span>{short(v.system_prompt, 60)}</span>
                 {isOwner ? <button disabled={busy} className="btn ghost small" onClick={() => rollback(v.id)}>Rollback</button> : null}
@@ -119,7 +119,7 @@ export function AgentPanel({ agent, runs, spendRow, initialRunId, paused, canvas
       headerExtra={
         <>
           <span className="chip role-chip">{agent.role}</span>
-          <span className={`chip tier-chip tier-${agent.model_tier}`}>{agent.model_tier}</span>
+          <span className={`chip tier-chip tier-${agent.model_tier}`}>{agentTierLabel(agent.model_tier)}</span>
           <span className={`agent-status as-${workStatusLabel(agent.status)}`}>{workStatusLabel(agent.status)}</span>
         </>
       }

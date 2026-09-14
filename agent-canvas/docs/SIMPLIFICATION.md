@@ -5,6 +5,12 @@ ledger, not evidence of deployment. Reliability precedes navigation changes.
 Backend routes, tools, schema, memory/provenance, safety and provider handling
 stay unchanged. Compatible production dependency fixes are explicitly in scope.
 
+**Local implementation, 2026-09-14:** all planned UI improvements are implemented.
+The completion audit's three gaps are now closed: team-template recovery survives
+project changes, agent settings have plain-English labels, and work maps show
+written certainty. [Audit and closure evidence](releases/2026-09-14-simplification-audit.md)
+separate this local implementation sign-off from live and human acceptance.
+
 ## Phase gates
 
 Every phase is a separate commit and passes `npm run verify`,
@@ -702,6 +708,57 @@ audits passed. Primary journeys and all thirteen secondary browser groups passed
 No original tests deleted/skipped; no backend, memory implementation, safety or
 provider changes; no push or deployment.
 
+## Guide-only acceptance follow-up (2026-09-14)
+
+The four-journey browser path now records its actual control visits and fails
+if it enters Advanced or owner settings before the review response is accepted.
+The original first-boot Advanced spending check runs in a separate disposable
+database, preserving all assertions without preparing state for the guide path.
+Desktop/mobile members and Pete's owner preview each pass both independent paths.
+No product controls or backend behavior changed. The current guide and handoff
+distinguish this automated evidence from the remaining unaided human acceptance.
+The current local gate passes 433 backend / 277 frontend tests, both production
+audits and all 14 browser groups. The restored in-app preview completed the four
+guide journeys as Pete. Original tests and backend contracts remain intact.
+
+| Original control / check | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Four primary guide journeys | Keep-as-is | Sign-in → Home Ask → Act on this → Needs You; no Advanced or owner-settings visits | Member / Pete owner | Final local acceptance | [Journey] + [screenshot manifest](screenshots/manifest.json), `guideControls` and `advancedOrOwnerControls` |
+| First-boot spending diagnostics | Keep-as-is | Spending → Advanced details; tested in a separate empty fixture | Member read / owner budget control | Final local acceptance | [Journey], `emptyAccountSpending` in the screenshot manifest |
+
+## Completion audit fixes (2026-09-14)
+
+The independent completion audit reproduced three cases missed by the earlier
+suite. They are fixed in the frontend, with 15 added component regressions and
+a dedicated browser group. The first 12 regressions failed against the prior
+source; the other three cover map response validation, readable steps and keyboard
+navigation. No original assertions were deleted or skipped. One existing test
+fixture now returns a valid empty template list instead of an incomplete object.
+
+| Original control / state | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Team-template loading, failure and empty list | Simplify | Retry team list inside Add agent, New project space and owner Room creation; global failure remains across project changes | Existing access / owner Room creation | Completion S1 | [Completion regressions] + [Completion browser evidence]: both response orders, project switch, malformed response, retained names, explicit retry and confirmed empty |
+| Template choices and agent reasoning tier | Simplify | Team → Add agent → Team templates; Quick work (fast) and Complex work (strong) also appear in agent details, versions, canvas and Builder | Existing access | Completion S2 | [Completion regressions] + [Completion browser evidence]: template creation, accessible labels, unchanged tier values and 390/768/1280px layout |
+| Custom name, role, tier, color and instructions | Keep-as-is / Simplify | Team → Advanced → Custom agent; all fields have visible accessible labels | Existing edit | Completion S2 | [Completion regressions] + [Completion browser evidence]: every input and both stored tier values retained |
+| Google blocked-account callback and setup instructions | Simplify | Connections shows the recovery message; Technical setup details retains complete owner guidance | Existing access; setup still requires owner authority | Completion S2 | [Completion regressions] + [Completion browser evidence]: plain feedback, closed disclosure and keyboard access |
+| Work-map certainty, source links, lenses and steps | Simplify | View work → Why? → Map; certainty words, stored value, symbol and border remain together; Read as steps preserves source text | Existing access | Completion S3 | [Completion regressions] + [Completion browser evidence]: three certainty states/lenses, exact memory navigation, narrow/dark views, long text and correction flags, keyboard operation, failed/empty recovery |
+
+Browser verification also caught a select accessible-name mismatch, narrow custom
+fields, unbroken map text overflow and focus-relative lens navigation. Those fixes
+are included. Recovery never creates a project/Room or repeats a mutation by itself.
+The map fixture links to real disposable memory records while deliberately supplying
+all certainty/legacy flags; it does not claim those records came from a live model.
+
+The full post-fix gate passes 433 backend and 292 frontend tests, both production
+audits and all 15 browser groups. [UI-TESTING.md](UI-TESTING.md) and the
+[machine-readable summary](screenshots/simplification-completion-summary.json)
+record the gate and inspected screenshots. Published Builder summaries retain
+plain-English reasoning labels and complete raw change details. The automated guide journeys require no Advanced
+or owner controls. An unaided teammate walkthrough, live Google/integration checks
+and physical microphone acceptance remain separate. Nothing is deployed.
+
+[Completion regressions]: ../frontend/test/simplification-completion.test.jsx
+[Completion browser evidence]: screenshots/acceptance-completion.json
 [Memory browsing regressions]: ../frontend/test/memory-browsing.test.jsx
 [Memory browsing evidence]: screenshots/acceptance-memory-browsing.json
 

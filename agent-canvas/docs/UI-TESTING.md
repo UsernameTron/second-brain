@@ -1,8 +1,13 @@
-# Local UI verification — 2026-09-13
+# Local UI verification — 2026-09-14
 
-Local gate: **433 backend and 277 frontend tests passed**, no tests skipped;
+Local gate: **433 backend and 292 frontend tests passed**, no tests skipped;
 frontend build and deployment preflight passed, both production dependency audits
-clean. Primary journeys and all thirteen secondary browser groups passed.
+clean. Primary journeys and all fourteen secondary browser groups passed.
+
+The [completion audit](releases/2026-09-14-simplification-audit.md) found three
+missed implementation cases. All three are now fixed, with 15 new component
+regressions and a dedicated browser group. This confirms local implementation;
+live integrations and unaided human acceptance remain separate.
 
 These checks exercise the local built app in Chromium using disposable databases,
 real development sign-in and real application routes. External model and connector
@@ -42,6 +47,7 @@ separately with `npm run test:acceptance -- GROUP`; primary journeys use
 | Startup, interrupted work and voice input | Failed/malformed startup, actual socket drop with missed answer and Pause, lost response after an accepted inquiry, unknown control/connection status, session expiry/re-sign-in, synthetic voice failures/cumulative transcripts/cancellation | [System recovery](screenshots/acceptance-system-recovery.json) |
 | Drafts during pending saves | Real accepted note/agent/command/rule requests with held replies; closing/reopening, newer text, command cancellation and changing answer context preserve the next unsent draft | [Draft safety](screenshots/acceptance-draft-safety.json) |
 | Review card clarity | Decision context and nested before/after values stay visible; empty/zero/false values remain distinct, exact supporting memory opens across projects, one keyboard-operable details control retains diagnostics; 390/768/1280px | [Review clarity](screenshots/acceptance-review-clarity.json) |
+| Completion audit fixes | Team failures before/after project selection, template/project/Room recovery, malformed and empty lists, unchanged reasoning values and accessible inputs, map certainty/symbols/source links/steps/keyboard/long text, blocked-account recovery | [Completion checks](screenshots/acceptance-completion.json) |
 | Memory browsing | Readable earlier versions in both themes, optional legend with visible certainty, source/version links, independent failed/empty history, A→B→A delayed response, mobile controls and real private-source redaction | [Memory browsing](screenshots/acceptance-memory-browsing.json) |
 | Connections | Account/answer defaults, every function/service retained, real local probe recording with a stubbed model, failed/stale/malformed/empty recovery, duplicate checks, member access, keyboard trap, 390/768/1280px and light/dark contrast | [Connections](screenshots/acceptance-connections.json) |
 | Compact feedback | Four-message bursts, complete long messages, priority, paused expiry, keyboard Details/Dismiss, retained drafts/recovery, mobile dialogs and light/dark upload contrast | [Feedback](screenshots/acceptance-notifications.json) |
@@ -117,7 +123,7 @@ stacked notifications to make Fit enter that mode.
 | Every capability reachable | [Control map](SIMPLIFICATION.md) records original location, disposition, destination, permission, phase and evidence. Main and secondary browser groups exercise the relocated surfaces. |
 | Four guide journeys without Advanced or owner settings | [Journey runner](../scripts/journey-test.js) uses the guide's question, editable Act on this follow-up and decision as a fictional member at desktop/mobile sizes. Pete's preview signs in as Pete. |
 | Truthful failures, loading, empty and stale states | Recovery checks across all groups, plus [request](../frontend/test/request-reliability.test.jsx), [startup](../frontend/test/startup-status.test.jsx) and per-surface component regressions. |
-| Preserve behavior covered by existing tests | No original test files deleted or skipped; 433 backend and 277 frontend tests pass. Changed labels retain equivalent behavioral assertions. |
+| Preserve behavior covered by existing tests | No original test files deleted or skipped; 433 backend and 292 frontend tests pass. Changed labels retain equivalent behavioral assertions. |
 | Safety, memory, tools, routes, schema and provider handling | Backend implementation and README are unchanged from baseline `1308fec`; existing backend safety/contract tests pass. |
 | Empty first boot | Every browser fixture asserts zero workspace content before test setup. |
 | Screenshots and responsive/keyboard evidence | [Primary images](screenshots/manifest.json), group manifests above; 1280/390px images inspected, with 768px, keyboard and browser zoom checks. |
@@ -176,6 +182,28 @@ Memory screenshots and regenerated earlier evidence were inspected. The complete
 local gate and all 14 browser groups passed; no backend or memory implementation
 changed and no original tests were deleted or skipped.
 
+## Guide-only acceptance (2026-09-14)
+
+The primary runner previously visited Advanced spending before the guide steps.
+That check did not change settings, but mixed diagnostic coverage with evidence
+that the four journeys need no Advanced or owner controls. It now runs against
+its own fresh database for each role and viewport, preserving the original
+first-boot spending assertions and permission checks.
+
+Each guide journey starts from an independent empty database and records the
+controls actually clicked through accepted review. The runner rejects any
+Advanced, owner-settings, Canvas, Commands, Activity or Practice destination in
+that path. The manifest records these control visits, an empty list of restricted
+controls and separate successful first-boot spending evidence. This strengthens
+automated flow evidence; it does not substitute for an unaided human walkthrough.
+
+Before the completion audit, the 2026-09-14 gate passed 433 backend and 277
+frontend tests, both production audits and all 14 browser groups. All original 63 test files remain;
+no skip/only markers were added. Backend implementation and README still match
+baseline `1308fec`. The restored in-app preview was also exercised as Pete through
+Ask, editable Act on this and an accepted assigned answer, then returned to Home.
+The preview remains a disposable test environment; no live service was changed.
+
 ## Limits
 
 No deployment, push, live Google OAuth, live connector write, real model quality
@@ -186,3 +214,43 @@ contracts have automated backend coverage, not newly claimed live service succes
 Pete's earlier walkthrough was assisted; an unaided teammate walkthrough remains a
 separate human acceptance step. Local preview answers are predetermined test text,
 not a source for CTG's actual ICP or other business facts.
+
+## Release container verification (2026-09-14)
+
+The refreshed Linux/amd64 release image includes the completion fixes and uses Node 22.23.2,
+the same Node version as the current live image. Its frontend matches the tested
+local build byte for byte. All 40 backend source files and the startup script
+match the serving image; the only extra live-image file is Finder metadata.
+An offline container check confirms healthy startup, no fabricated workspace
+content, protected routes refusing unauthenticated access, and development
+sign-in returning 403 even when its flag is forced on in production. The three
+approved patched dependencies are installed; test fixtures are absent.
+
+The [release review](releases/2026-09-14-ui.md) records the immutable package,
+read-only Cloud Run/replica observations and rollback steps. Pete explicitly
+approved copying the existing replica into the private local recovery folder.
+The offline restore passed integrity and required-table checks at 16:14 UTC;
+the application was never started against that copy. Database contents are
+excluded from release archives, documentation and tool output. No live data,
+image publication or deployment was changed by this check.
+
+## Completion audit closure (2026-09-14)
+
+All three audited implementation gaps are fixed. Template failure/loading state
+survives project selection and appears inside each affected form with Retry team
+list; creation remains guarded and names retained. Team templates, reasoning
+levels and custom fields use accessible plain-English labels. Google callback
+recovery keeps owner configuration inside Technical setup details.
+
+Work-map nodes now show certainty in text and accessible names, with the original
+symbols, borders, source text and links. Long unbroken text wraps without node
+overlap; lenses use one keyboard tab stop and arrow/Home/End navigation. Empty
+and incomplete maps have distinct read-only recovery. Browser testing also caught
+and fixed the select accessible-name mismatch and cramped mobile custom fields.
+
+The full suite now has 15 browser groups. The new group explicitly supplies three
+certainty states and correction flags while linking to real disposable memory
+records. Its eight screenshots were inspected at desktop/mobile sizes and in both
+themes; regenerated existing images were reviewed too. No external requests or
+unhandled browser errors occurred. Published Builder summaries also use both plain-English tier labels while Full change details retains the raw values. The component suite now has 292 passing tests;
+all 433 backend tests and both production audits remain green.

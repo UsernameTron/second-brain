@@ -47,6 +47,31 @@ async function layout(page) {
   for (const button of result.buttons) assert.ok(button.left >= 0 && button.right <= result.width + 1, `Hidden safety control: ${button.text}`);
 }
 async function more(page, name) { await page.locator('.primary-nav summary').filter({ hasText: /^More$/ }).click(); await page.getByRole('button', { name, exact: true }).click(); }
+async function checkEmptyAccountSpending(browser, { local, viewport, size }) {
+  // The first-boot diagnostic keeps its own empty fixture. It must not prepare
+  // any state or visit Advanced on behalf of the four guide journeys.
+  const fixture = launchFixture(local);
+  let context;
+  try {
+    const { url, bootCounts, identity } = await fixture.ready;
+    context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
+    await context.route('**/*', (route) => new URL(route.request().url()).origin === url ? route.continue() : route.abort());
+    const page = await context.newPage();
+    page.on('pageerror', (error) => evidence.browserErrors.push(`${size} empty-account spending: ${error.message}`));
+    await page.goto(url);
+    await page.getByLabel('Development sign-in').fill(identity.email);
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.getByRole('button', { name: 'Spending and daily cap' }).click();
+    await page.getByRole('heading', { name: 'Spending', exact: true }).waitFor();
+    await page.getByText('Advanced spending details', { exact: true }).click();
+    await page.getByText('Select or create a project space to view spending history and agent statistics.', { exact: true }).waitFor();
+    assert.equal(await page.getByLabel('Set daily budget (USD)').count(), identity.role === 'owner' ? 1 : 0);
+    await page.getByRole('button', { name: 'Close panel', exact: true }).click();
+    const saved = await fixture.snapshot();
+    assert.equal(saved.externalAttempts, 0, 'Empty-account spending uses no external services');
+    return { bootCounts, identity, result: 'passed' };
+  } finally { await context?.close(); await fixture.stop(); }
+}
 async function checkBrowserZoom(url, originalContext) {
   // A disposable extension uses Chromium's actual tab zoom API. This is browser
   // zoom (640 CSS px at 200% in a 1280px viewport), not CSS transforms or DPR-only emulation.
@@ -89,16 +114,17 @@ async function checkBrowserZoom(url, originalContext) {
         await context.route('**/*', (route) => new URL(route.request().url()).origin === url ? route.continue() : route.abort());
         const page = await context.newPage();
         page.on('pageerror', (error) => evidence.browserErrors.push(`${size}: ${error.message}`));
+        await page.addInitScript(() => {
+          window.__guideControlVisits = [];
+          document.addEventListener('click', (event) => {
+            const control = event.target.closest?.('button, summary, [role="button"], [role="tab"], [role="radio"]');
+            if (control) window.__guideControlVisits.push((control.getAttribute('aria-label') || control.textContent).trim());
+          }, true);
+        });
         await page.goto(url);
         await page.getByLabel('Development sign-in').fill(identity.email);
         await screenshot(page, `journey-${size}-01-sign-in.png`, 'Development sign-in; Google OAuth is not configured in this isolated fixture.');
         await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-        await page.getByRole('button', { name: 'Spending and daily cap' }).click();
-        await page.getByRole('heading', { name: 'Spending', exact: true }).waitFor();
-        await page.getByText('Advanced spending details', { exact: true }).click();
-        await page.getByText('Select or create a project space to view spending history and agent statistics.', { exact: true }).waitFor();
-        assert.equal(await page.getByLabel('Set daily budget (USD)').count(), identity.role === 'owner' ? 1 : 0);
-        await page.getByRole('button', { name: 'Close panel', exact: true }).click();
         await page.getByRole('button', { name: 'Create a project space', exact: true }).click();
         await page.getByLabel('Project-space name').fill('Renewal review');
         await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -139,6 +165,10 @@ async function checkBrowserZoom(url, originalContext) {
         assert.equal((await accepted).status(), 200);
         await review.waitFor({ state: 'detached' });
         await screenshot(page, `journey-${size}-05-review-saved.png`, 'Accepted response cleared the card; this empty queue follows a successful read.');
+        const guideControls = await page.evaluate(() => window.__guideControlVisits);
+        const restrictedControls = guideControls.filter((label) => /^(Advanced\b|Owner\b|Canvas$|Commands$|Activity$|Practice\b)/i.test(label));
+        assert.deepEqual(restrictedControls, [], 'The four guide journeys never open Advanced or owner settings');
+        assert.ok(guideControls.includes('Act on this') && guideControls.includes('Submit answer'), 'The recorded guide path includes action and accepted review');
         // Local fault injection checks recovery against the real mounted app.
         await page.route('**/api/attention?*', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"test-only temporary failure"}' }));
         await page.getByRole('button', { name: 'Refresh queue', exact: true }).click();
@@ -207,7 +237,8 @@ async function checkBrowserZoom(url, originalContext) {
         assert.equal(saved.identity.role, local ? 'owner' : 'member');
         assert.ok(saved.escalations.some((item) => item.status === 'accepted' && item.owner_email === identity.email));
         assert.ok(saved.decisions.some((item) => item.epistemic === 'verified' && item.content.includes('Yes, prepare a draft checklist for review.')), 'Human decision captured through the existing memory contract');
-        evidence.journeys.push({ size, bootCounts, ...saved, result: 'passed' });
+        const emptyAccountSpending = await checkEmptyAccountSpending(browser, scenario);
+        evidence.journeys.push({ size, bootCounts, ...saved, guideControls, advancedOrOwnerControls: restrictedControls, emptyAccountSpending, result: 'passed' });
         process.stdout.write(`${size}: four ${identity.role} journeys, queue recovery and Home staffing recovery passed\n`);
       } finally { await context?.close(); await fixture.stop(); }
     }

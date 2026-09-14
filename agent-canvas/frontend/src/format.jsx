@@ -464,6 +464,10 @@ export function formatRunEventPreview(ev, variant = 'detail') {
 
 // Storage values remain visible beside their plain-English meaning.
 export const certaintyLabel = (value) => ({ verified: 'Confirmed (verified)', inference: 'Reasoned conclusion (inference)', assumption: 'Unconfirmed (assumption)' }[value] || value);
+export const agentTierLabel = (value) => ({ strong: 'Complex work (strong)', fast: 'Quick work (fast)' }[value] || (value ? `Reasoning level: ${value}` : 'Reasoning level unavailable'));
+export function EpiDot({ epistemic }) {
+  return <span className={`epi-dot ${{ verified: 'filled', inference: 'half', assumption: 'hollow' }[epistemic] || 'hollow'}`} aria-hidden="true" />;
+}
 export const workStatusLabel = (value) => ({ queued: 'Waiting to start', running: 'Working', completed: 'Finished', failed: 'Could not finish', refused: 'Request declined', halted_steps: 'Stopped at step limit', halted_timeout: 'Stopped at time limit', halted_paused: 'Stopped because work was paused', halted_budget: 'Stopped at spending limit', idle: 'Ready for work', waiting: 'Waiting for a response' }[value] || String(value || 'Status unknown').replaceAll('_', ' '));
 
 export function choiceKeys(event, values, current, select) {

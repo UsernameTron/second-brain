@@ -27,6 +27,10 @@ journey; tests alone do not establish it.
 
 ## Current operational documents
 
+- [2026-09-14 completion audit](releases/2026-09-14-simplification-audit.md) — all
+  three reproduced implementation gaps closed locally, with regression evidence.
+- [2026-09-14 release review](releases/2026-09-14-ui.md) — exact local image,
+  verification, live baseline, approval boundaries and rollback; not deployed.
 - [UI-TESTING.md](UI-TESTING.md) — complete local browser test command, coverage,
   screenshot evidence, fixes and explicit live-testing limits.
 - [SIMPLIFICATION.md](SIMPLIFICATION.md) — approved UX/reliability phases,

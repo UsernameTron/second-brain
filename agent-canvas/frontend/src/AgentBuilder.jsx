@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { useDraft } from './Drafts.jsx';
 import { RequestError } from './RequestState.jsx';
-import { SummaryMarkdown, formatContractTail } from './format.jsx';
+import { SummaryMarkdown, formatContractTail, agentTierLabel } from './format.jsx';
 
 // P4 plain-language agent builder: describe the job → review the proposed
 // agent (every permission in plain language) → rehearse it → publish it.
@@ -11,6 +11,7 @@ import { SummaryMarkdown, formatContractTail } from './format.jsx';
 
 const TIER_HINT = { fast: 'routing and light work', strong: 'judgment-heavy work' };
 const PUBLISHED_FIELDS = { name: 'Name', role: 'Job role', model_tier: 'Reasoning level', system_prompt: 'Instructions', tools_json: 'Permissions', step_budget: 'Maximum work steps', wall_ms_budget: 'Time limit (milliseconds)' };
+const publishedValue = (field, value) => field === 'model_tier' && value != null ? agentTierLabel(value) : String(value);
 
 function AuthorityList({ menu, granted, onToggle, disabled }) {
   return (
@@ -144,7 +145,7 @@ export default function AgentBuilder({ canvasId, isOwner, onPublished, toast }) 
         <p><b>{publishResult.agent.name}</b> is now active. What changed:</p>
         <ul className="room-list">
           {Object.entries(publishResult.diff).map(([field, d]) => (
-            <li key={field}><span className="chip">{PUBLISHED_FIELDS[field] || field.replaceAll('_', ' ')}</span> <span className="dim">{String(d.from ?? '(new)').slice(0, 60)} → </span>{String(d.to).slice(0, 80)}</li>
+            <li key={field}><span className="chip">{PUBLISHED_FIELDS[field] || field.replaceAll('_', ' ')}</span> <span className="dim">{d.from == null ? '(new)' : publishedValue(field, d.from).slice(0, 60)} → </span>{publishedValue(field, d.to).slice(0, 80)}</li>
           ))}
         </ul>
         <details><summary>Full change details</summary><pre className="published-change-details">{JSON.stringify(publishResult.diff, null, 2)}</pre></details>
@@ -173,7 +174,7 @@ export default function AgentBuilder({ canvasId, isOwner, onPublished, toast }) 
     <div className="builder-flow">
       {recovery}
       <div className="builder-head">
-        <b>{p.name}</b> <span className="chip">{p.role}</span> <span className={`chip tier-${p.model_tier}`}>{p.model_tier} — {TIER_HINT[p.model_tier]}</span>
+        <b>{p.name}</b> <span className="chip">{p.role}</span> <span className={`chip tier-${p.model_tier}`}>{agentTierLabel(p.model_tier)} — {TIER_HINT[p.model_tier]}</span>
         <button className="btn ghost small" onClick={startOver}>← start over</button>
       </div>
       {warnings.length ? (

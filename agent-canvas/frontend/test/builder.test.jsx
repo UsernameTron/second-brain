@@ -80,7 +80,7 @@ describe('agent builder flow', () => {
       if (path === '/api/agent-drafts/d1/publish') {
         return Promise.resolve({
           agent: { id: 'a1', name: 'Deal Screener', tools_json: JSON.stringify(['hs_search']) },
-          diff: { system_prompt: { from: null, to: 'Screens inbound deals.' } }, versionId: 'v1',
+          diff: { system_prompt: { from: null, to: 'Screens inbound deals.' }, model_tier: { from: 'fast', to: 'strong' } }, versionId: 'v1',
         });
       }
       return Promise.resolve({});
@@ -103,8 +103,10 @@ describe('agent builder flow', () => {
     await screen.findByText('Published');
     expect(screen.getByText(/Screens inbound deals/, { selector: 'li' })).toBeInTheDocument();
     expect(screen.getByText('Instructions', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('Reasoning level', { exact: true }).closest('li')).toHaveTextContent('Quick work (fast) → Complex work (strong)');
     await userEvent.click(screen.getByText('Full change details', { exact: true }));
     expect(screen.getByText(/"system_prompt"/)).toHaveTextContent('Screens inbound deals.');
+    expect(screen.getByText(/"system_prompt"/)).toHaveTextContent('"from": "fast"');
     expect(onPublished).toHaveBeenCalledTimes(1);
     expect(onAdded).not.toHaveBeenCalled();
     if (surface === 'workspace modal') expect(screen.getByRole('dialog', { name: 'Add agent' })).toBeInTheDocument();

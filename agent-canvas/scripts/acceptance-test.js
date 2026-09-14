@@ -295,6 +295,7 @@ async function schedulingAndBuilder({ page, context, url, fault, newPage }) {
   await page.getByRole('button', { name: 'Publish', exact: true }).click();
   await page.getByRole('heading', { name: 'Published', exact: true }).waitFor();
   await page.getByText('is now active. What changed:', { exact: false }).waitFor();
+  assert.ok((await page.locator('.room-list li').filter({ hasText: 'Reasoning level' }).innerText()).includes('Complex work (strong)'));
   await page.getByText('Full change details', { exact: true }).click();
   assert.ok((await page.locator('.published-change-details').innerText()).includes('Keep every checklist as a draft for human review.'));
   await page.getByText('Full change details', { exact: true }).click();
@@ -464,7 +465,8 @@ async function ownerAndDiagnostics({ page, context, url, fault, newPage }) {
       'review-clarity': require('./review-clarity-ui-checks'),
       'notifications': require('./notification-ui-checks'),
       'connections': require('./connection-ui-checks'),
-      'memory-browsing': require('./memory-browsing-ui-checks') }[group];
+      'memory-browsing': require('./memory-browsing-ui-checks'),
+      'completion': require('./completion-ui-checks') }[group];
     assert.ok(run, 'Unknown acceptance group');
     try { await run({ ...owner, url, fault, newPage, call, more, shot, layout, evidence, seedReview: fixture.seedReview }); }
     catch (error) {

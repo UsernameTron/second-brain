@@ -3,6 +3,7 @@ import { api, timeAgo, short } from './api.js';
 import { useDraft } from './Drafts.jsx';
 import { RequestError, useResource } from './RequestState.jsx';
 import { sourceLabel, choiceKeys, certaintyLabel, workStatusLabel, formatRunEventPreview } from './format.jsx';
+import TeamTemplatesStatus from './TeamTemplatesStatus.jsx';
 
 // P3 Evidence Rooms. A Room is a lens over its canvas: Brief (six sections +
 // now/history/risk), Map (the canvas itself), Activity (the existing feed).
@@ -111,7 +112,7 @@ function RoomBrief({ built, onOpenRun }) {
   );
 }
 
-export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, onOpenTeam, onCreated, toast }) {
+export default function RoomsView({ user, roster, templateStatus, onRefreshTemplates, onOpenCanvas, onOpenRun, onOpenTeam, onCreated, toast }) {
   const [roomId, setRoomId] = useState(null);
   const [lens, setLens] = useState('now');
   const [tab, setTab] = useState('brief');
@@ -129,6 +130,7 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, onOpe
   const [staff, setStaff] = useDraft(`room-create:${user.email}:staff`, () => new Set());
   const [members, setMembers] = useDraft(`room-create:${user.email}:members`, () => new Set());
   const isOwner = user.role === 'owner';
+  const templatesUnavailable = templateStatus?.loading || !!templateStatus?.error;
   const active = useRef(roomId);
   active.current = roomId;
   const exportSeq = useRef(0);
@@ -169,7 +171,7 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, onOpe
 
   const create = async (e) => {
     e.preventDefault();
-    if (!name.trim() || busy || error?.unconfirmed || players.loading || players.error) return;
+    if (!name.trim() || busy || error?.unconfirmed || players.loading || players.error || templatesUnavailable) return;
     setBusy(true); setError(null);
     try {
       const d = await api('/api/rooms', { method: 'POST', body: { name: name.trim(), room_type: roomType, external_ref: externalRef.trim(), roster_ids: [...staff], member_emails: [...members] } });
@@ -317,6 +319,7 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, onOpe
       {error?.unconfirmed ? <button className="btn small" onClick={() => setError(null)}>I checked the rooms; keep editing</button> : null}
       {isOwner ? (
         <form className="room-create" onSubmit={create}>
+          <TeamTemplatesStatus status={templateStatus} entries={(roster || []).filter((entry) => entry.enabled)} onRefresh={onRefreshTemplates} />
           <label htmlFor="room-name" className="sr-only-label">Room name</label>
           <input id="room-name" value={name} placeholder="Room name — e.g. Acme renewal" onChange={(e) => setName(e.target.value)} />
           <select aria-label="Room type" value={roomType} onChange={(e) => setRoomType(e.target.value)}>
@@ -327,7 +330,7 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, onOpe
           <div className="room-staff">
             {(roster || []).filter((r) => r.enabled).map((r) => (
               <label key={r.id} className="chip staff-chip">
-                <input type="checkbox" checked={staff.has(r.id)}
+                <input type="checkbox" disabled={templatesUnavailable} checked={staff.has(r.id)}
                   onChange={(e) => setStaff((cur) => { const next = new Set(cur); if (e.target.checked) next.add(r.id); else next.delete(r.id); return next; })} />
                 {r.name}
               </label>
@@ -347,7 +350,7 @@ export default function RoomsView({ user, roster, onOpenCanvas, onOpenRun, onOpe
               ))}
             </div>
           ) : null}
-          <button className="btn primary" type="submit" disabled={busy || !name.trim() || players.loading || !!players.error || error?.unconfirmed}>{busy ? 'Creating…' : 'Create room'}</button>
+          <button className="btn primary" type="submit" disabled={busy || !name.trim() || players.loading || !!players.error || error?.unconfirmed || templatesUnavailable}>{busy ? 'Creating…' : 'Create room'}</button>
         </form>
       ) : null}
       {list.loading ? <div className="empty-hint">Loading rooms…</div> : null}

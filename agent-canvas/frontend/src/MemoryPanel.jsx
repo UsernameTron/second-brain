@@ -1,4 +1,5 @@
-import { certaintyLabel, workStatusLabel } from './format.jsx';
+import { certaintyLabel, workStatusLabel, EpiDot } from './format.jsx';
+export { EpiDot } from './format.jsx';
 import React, { useEffect, useState } from 'react';
 import { api, timeAgo, short } from './api.js';
 import { RequestError, useResource } from './RequestState.jsx';
@@ -26,13 +27,6 @@ async function readHistory(id) {
   if (!Array.isArray(data?.events) || data.events.some((event) => !event || typeof event.entryId !== 'string' || typeof event.event !== 'string'
     || !['byName', 'reason', 'at'].every((key) => optionalText(event[key])))) throw new Error('The memory history response was incomplete.');
   return data;
-}
-
-const DOT_SHAPE = { verified: 'filled', inference: 'half', assumption: 'hollow' };
-
-export function EpiDot({ epistemic }) {
-  // Decorative: the epistemic label always sits next to it in text.
-  return <span className={`epi-dot ${DOT_SHAPE[epistemic] || 'hollow'}`} aria-hidden="true" />;
 }
 
 function Legend() {
