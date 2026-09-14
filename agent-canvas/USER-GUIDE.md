@@ -3,6 +3,15 @@
 A plain-English guide for the CTG team. The steps below describe the simplified
 local build. Production remains unchanged until an owner deploys it.
 
+For a two-page walkthrough, use the [quick guide PDF](output/pdf/Agent-Canvas-Quick-Guide.pdf)
+or its [editable Word copy](output/docx/Agent-Canvas-Quick-Guide.docx). It covers
+everyday requests, approvals, documents, Rooms, memory corrections, evidence,
+recurring work and custom agents, with owner-only steps marked.
+
+The [illustrated HTML guide](output/html/Agent-Canvas-User-Guide.html) adds
+enlargeable screenshots and a checklist. It opens offline as one file and
+includes a two-page print view.
+
 ## 1. Sign in and choose your project space
 
 1. Sign in with your **@cloudtechgurus.com Google account**. If sign-in cannot
@@ -72,6 +81,14 @@ keeps the complete request available without repeating it above the answer.
 For an unrelated action, select **Act** yourself. **Advanced options** retains
 agent selection and **Practice (Rehearse)**, which narrates without performing
 external actions. These are not needed for the four journeys.
+
+**Reading the real HubSpot account:** the existing HubSpot connection reads
+CTG account **243103424**, but is currently available only in **Act**. Ask and
+Practice block this connector; their separate HubSpot tools use the practice
+account. Select Act and say: “Use the HubSpot production connector to read
+account 243103424. Verify the account first. Read only; do not change records.”
+Check the returned sources and account number. The disposable local preview
+still uses examples and does not connect to HubSpot.
 
 ## 4. Answer a Needs You item
 

@@ -3,9 +3,14 @@
 This index prevents plans, historical handoffs, and live claims from being
 treated as interchangeable.
 
-**Non-technical users start elsewhere:** the plain-English product guide is
-[../USER-GUIDE.md](../USER-GUIDE.md) — overview, the agent team, how to ask,
-and the safety promises. Everything below is for builders and operators.
+**Non-technical users start here:** the two-page [quick guide PDF](../output/pdf/Agent-Canvas-Quick-Guide.pdf)
+and [editable Word copy](../output/docx/Agent-Canvas-Quick-Guide.docx) give simple
+steps for everyday requests and the more advanced functions. The
+[illustrated HTML guide](../output/html/Agent-Canvas-User-Guide.html) adds
+enlargeable screenshots, a checklist and a two-page print view in one offline file. The full
+[../USER-GUIDE.md](../USER-GUIDE.md) covers the agent team, recovery and safety
+promises. These guides describe the simplified local build. Everything below
+is for builders and operators.
 
 ## Authority order
 
@@ -26,6 +31,9 @@ states. “Complete” means merged, deployed, and accepted in the real signed-i
 journey; tests alone do not establish it.
 
 ## Current operational documents
+
+- [2026-09-14 finalization](releases/2026-09-14-finalization.md) — fresh gates,
+  scoped PR preparation and authorized deployment tracking.
 
 - [2026-09-14 completion audit](releases/2026-09-14-simplification-audit.md) — all
   three reproduced implementation gaps closed locally, with regression evidence.

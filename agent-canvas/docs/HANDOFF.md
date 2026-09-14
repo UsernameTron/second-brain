@@ -25,7 +25,7 @@ scheduling/Builder edits, recoverable polling and confirmed rehearsal gates. Pha
 adds honest owner tables, retained edits, partial-order recovery, bounded downloads
 and unverified configuration labels. Phase 7 verifies all four member journeys at
 1280/390px, queue recovery, 768px and actual 200% zoom; all 16 images inspected.
-Latest local gate (2026-09-14): 433 backend / 292 frontend tests; both production audits clean. Guide-path clicks now prove no Advanced/owner settings; first-boot spending uses independent fixtures.
+Latest local gate rerun (2026-09-14, [finalization](releases/2026-09-14-finalization.md)): 433 backend / 292 frontend tests; both production audits clean. Guide-path clicks now prove no Advanced/owner settings; first-boot spending uses independent fixtures.
 **Test-proven locally:** all three [completion audit](releases/2026-09-14-simplification-audit.md) gaps are closed: retained team-list recovery, plain-English agent settings and written map certainty. Fifteen new component regressions and a dedicated browser group cover the fixes; unaided human/live acceptance remains separate.
 Pete completed the guided walkthrough. Local acceptance covers Room exports/recovery,
 permissions, memory correction/history, certainty, scheduling, Builder and owner tools;
@@ -39,6 +39,7 @@ Home/Room staffing, mobile menus, published-change review, owner removal, canvas
 Gemini 2.5 Flash/Pro and development sign-in disabled. Scheduler is ENABLED,
 with last attempt at 15:50 UTC. No provider override or service setting changed.
 These checks do not verify Google OAuth, connector success or signed-in journeys.
+**Live-proven separately at 2026-09-14 18:33 UTC:** Pete's signed-in Act request verified `hubspot-crm` account `243103424` and successful one-record contact/company/deal reads. All seven write tools were unticked; no configuration or CRM write was made. Ask blocks every MCP connector and uses the separate sandbox lane; this is a current limitation, not a permission failure. Local preview remains isolated.
 The prior signed-in connector/model acceptance was on 2026-08-20; see history.
 
 **Live-proven:** Cloud Scheduler job `agent-canvas-standing-rules` was

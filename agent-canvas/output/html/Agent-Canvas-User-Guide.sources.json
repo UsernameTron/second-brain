@@ -1,0 +1,79 @@
+{
+  "sourceFile": "/Users/cpconnor/Downloads/Agent Canvas Guide (standalone).html",
+  "sourceSha256": "33c181438642ff4d67c0564dbc5ef17704b70cd98bff83397af3e8d13ed36e6b",
+  "outputFile": "/Users/cpconnor/projects/second-brain/agent-canvas/output/html/Agent-Canvas-User-Guide.html",
+  "screenshots": [
+    {
+      "section": "Sign in and get ready",
+      "source": "docs/screenshots/acceptance-connections-desktop.png",
+      "caption": "Choose Check now beside Answer service. This example shows an unavailable service; it is not a live status report."
+    },
+    {
+      "section": "Ask and check an answer",
+      "source": "docs/screenshots/journey-desktop-02-ask.png",
+      "caption": "Your answer appears below the question box. Sources and details, Act on this and Save stay with it."
+    },
+    {
+      "section": "Use documents and notes",
+      "source": "docs/screenshots/acceptance-workspace-tools-note-recovery.png",
+      "caption": "Include in every agent run pins the note. If saving fails, your words stay in place beside Retry save."
+    },
+    {
+      "section": "Act on an answer",
+      "source": "docs/screenshots/journey-desktop-03-act-context.png",
+      "caption": "Read the attached answer, edit your follow-up, then click Act. Clear answer context removes the attachment."
+    },
+    {
+      "section": "Answer Needs you",
+      "source": "docs/screenshots/journey-desktop-04-needs-you.png",
+      "caption": "The question and its context stay above your answer. Submit answer sends your response back to the agent."
+    },
+    {
+      "section": "Review a Room",
+      "source": "docs/screenshots/acceptance-rooms-memory-room-export.png",
+      "caption": "Now, History and Risk change the view. Owners review what is included and excluded before downloading an export."
+    },
+    {
+      "section": "Correct memory",
+      "source": "docs/screenshots/acceptance-rooms-memory-memory-correction.png",
+      "caption": "Include earlier versions shows the earlier entry alongside its replacement. Certainty remains visible on both."
+    },
+    {
+      "section": "Set up recurring work",
+      "source": "docs/screenshots/acceptance-scheduling-builder-consent.png",
+      "caption": "Check sources, permissions, timing, cost limits and expiry. Only the owner can activate the reviewed schedule."
+    },
+    {
+      "section": "Build an agent",
+      "source": "docs/screenshots/acceptance-scheduling-builder-published.png",
+      "caption": "The new agent is already on the team. Full change details keeps its complete settings available to the owner."
+    }
+  ],
+  "sourcePreserved": true,
+  "steps": 30,
+  "externalDependencies": 0,
+  "scope": "Screenshots are isolated local UI test examples; HubSpot note reflects the separate live read-only verification on 2026-09-14.",
+  "validation": {
+    "date": "2026-09-14",
+    "browser": "Chrome",
+    "viewportWidths": [
+      390,
+      768,
+      1280
+    ],
+    "horizontalOverflow": false,
+    "checklistPersistence": "passed",
+    "resetAndUndo": "passed",
+    "expandCollapseAll": "passed",
+    "sectionNavigationAndFocus": "passed",
+    "nineScreenshotDialogs": "passed",
+    "actualSizeAndFit": "passed",
+    "escapeAndFocusReturn": "passed",
+    "printPreviewPages": 2,
+    "allThirtyStepsInPrint": true,
+    "documentationTests": "5 passed",
+    "diffWhitespaceCheck": "passed",
+    "sourceHashUnchanged": true
+  },
+  "outputSha256": "0c0088e7a28c1bb1e19721c1b2223bf34ae750a0b5376ca52118b4014157fbfb"
+}
