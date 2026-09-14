@@ -29,18 +29,20 @@ milestone/state files. No parent-vault milestone was resumed or rewritten.
 
 ## Release boundary
 
-The existing [release review](2026-09-14-ui.md) identifies the tested image,
-rollback revision and database shutdown/restore procedure. The three archived
-package checksums passed again. The fresh live read-only inspection still shows
-revision agent-canvas-00071-p26, generation 71, Gemini, and an enabled scheduler.
-The prepared image is being restored from its verified local archive.
+PR [#254](https://github.com/UsernameTron/second-brain/pull/254) merged at 20:20:33 UTC as `cd6cdf8dc53416108b59ea3452182b56ff14a5c6`. All final CI, Claude review, CodeQL and secret checks passed. Both Codex findings were fixed and their review threads resolved.
 
-At this commit, PR checks, merge and deployment have not yet completed.
-Record their actual outcomes in HANDOFF and this report after verification.
-Google OAuth and unaided teammate acceptance remain separate from fixture tests.
+The existing [release procedure](2026-09-14-ui.md) was followed with the corrected image below. Work and Scheduler paused; the old revision shut down at 20:22:18 UTC and Monitoring confirmed zero active/idle instances at 20:23 UTC. The fresh private replica restored offline through WAL index 814, passing integrity and required-table checks. No recovery data was published.
+
+Revision `agent-canvas-ui-20260914-review2` serves 100% of traffic. The image-only update preserved environment/secret references, Gemini settings, service account, runtime limits and replica destination. Existing data restored, with no fabricated content or orphaned runs recovered, and replication resumed. Health returned 200, development sign-in remained disabled, and the deployed frontend matches the tested build.
+
+Signed in as Pete, Home retained existing inquiries; Sources and details showed recorded external references; View work opened the requested run. The global Needs you queue showed items from other accessible spaces, and Review memory opened its specific entry and lineage without changing the selected space. Connections showed an unverified service until its actual answer-service probe passed. No real decision was answered and no customer record was changed during these checks. Global pause and Scheduler were restored to their original operating states. The first resumed scheduled tick completed with HTTP 200 at 20:30:09 UTC.
+
+Google OAuth from a fresh signed-out session, unaided teammate acceptance, physical microphone and complete live integration journeys remain unverified by this release. The local fixture suite does not claim those results. The separate earlier live HubSpot read check remains documented in HANDOFF.
 
 ## PR review follow-up
 
 Codex review found two UI issues before merge: humanized labels had replaced CSS status keys, and accepted custom-agent drafts were retained. Both are fixed with seven regressions. All 732 tests and all 15 browser groups pass after the fixes. A mobile layout check now reads both rectangles in the same frame after resize, preserving its original assertion. The earlier 69cf8d9 candidate will not be deployed.
 
 The revised production container passed isolated startup, fresh-empty database, disabled development sign-in and private-route protection checks with networking disabled. All 46 backend/frontend/startup files match the verified source and frontend build. The image is published privately at `ui-20260914-review2`, index `sha256:5d80f91078ed82a74632003ac29c300028dbb717a651fc18c3467dd7441aaaa5`, Linux manifest `sha256:66ba03df9223f55c19082116f0a1cafe4927a1577345a20a9fbe4a853b044a56`. The rollout uses the same shutdown/recovery procedure with this digest and revision suffix `ui-20260914-review2`.
+
+The guides now describe the deployed UI while identifying screenshots as practice examples. The updated Word/PDF guide renders cleanly as two pages; the illustrated HTML retains its verified interactions and embedded assets, with only the edition note updated. Documentation contracts pass 5/5 and HANDOFF remains within 200 lines.

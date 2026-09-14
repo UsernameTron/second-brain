@@ -52,7 +52,7 @@
   "sourcePreserved": true,
   "steps": 30,
   "externalDependencies": 0,
-  "scope": "Screenshots are isolated local UI test examples; HubSpot note reflects the separate live read-only verification on 2026-09-14.",
+  "scope": "The simplified UI is deployed. Screenshots remain isolated local test examples; live account read verification is separate.",
   "validation": {
     "date": "2026-09-14",
     "browser": "Chrome",
@@ -75,5 +75,6 @@
     "diffWhitespaceCheck": "passed",
     "sourceHashUnchanged": true
   },
-  "outputSha256": "0c0088e7a28c1bb1e19721c1b2223bf34ae750a0b5376ca52118b4014157fbfb"
+  "outputSha256": "f4049c38f3ba372cc9bb122e444edbc9442a20831b3532c19633c69cab9f4c32",
+  "liveEditionUpdated": "2026-09-14"
 }
