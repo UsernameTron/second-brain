@@ -1,7 +1,7 @@
 # Agent Canvas simplification
 
-Approved 2026-09-10. This is the control inventory and local implementation
-ledger, not evidence of deployment. Reliability precedes navigation changes.
+Approved 2026-09-10. This is the control inventory and implementation ledger.
+The separately approved deployment completed 2026-09-14; see the [release record](releases/2026-09-14-finalization.md). Reliability precedes navigation changes.
 Backend routes, tools, schema, memory/provenance, safety and provider handling
 stay unchanged. Compatible production dependency fixes are explicitly in scope.
 
@@ -16,7 +16,7 @@ separate this local implementation sign-off from live and human acceptance.
 Every phase is a separate commit and passes `npm run verify`,
 `npm audit --omit=dev`, and `npm audit --omit=dev --prefix frontend` before the
 next begins. Existing tests cannot be deleted or skipped. Behavioral changes
-update USER-GUIDE.md and HANDOFF.md in the same commit. No deployment.
+update USER-GUIDE.md and HANDOFF.md in the same commit. The phase plan excluded deployment; Pete separately authorized the final release.
 
 | Phase | Files / responsibility | Required verification | State |
 |---|---|---|---|
@@ -829,3 +829,5 @@ and physical microphone acceptance remain separate. Nothing is deployed.
 [Capabilities source]: ../frontend/src/CapabilitiesModal.jsx
 [Connectors]: ../test/mcp-connectors.test.js
 [Archive]: ../test/canvas-archive.test.js
+
+PR review follow-up: Canvas node status styling retains its original status keys; Team → Advanced → Custom agent clears accepted drafts and retains failed/cancelled drafts. Verified in nodes.test.jsx and simplification-completion.test.jsx.

@@ -1,7 +1,8 @@
 # Agent Canvas — User Guide
 
-A plain-English guide for the CTG team. The steps below describe the simplified
-local build. Production remains unchanged until an owner deploys it.
+A plain-English guide for the CTG team. The simplified workspace is live as of
+September 14, 2026. [Open Agent Canvas](https://agent-canvas-mqqftm2ora-uc.a.run.app/).
+Guide screenshots use isolated practice examples; your projects and answers will differ.
 
 For a two-page walkthrough, use the [quick guide PDF](output/pdf/Agent-Canvas-Quick-Guide.pdf)
 or its [editable Word copy](output/docx/Agent-Canvas-Quick-Guide.docx). It covers

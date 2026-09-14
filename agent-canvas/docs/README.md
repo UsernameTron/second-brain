@@ -9,7 +9,7 @@ steps for everyday requests and the more advanced functions. The
 [illustrated HTML guide](../output/html/Agent-Canvas-User-Guide.html) adds
 enlargeable screenshots, a checklist and a two-page print view in one offline file. The full
 [../USER-GUIDE.md](../USER-GUIDE.md) covers the agent team, recovery and safety
-promises. These guides describe the simplified local build. Everything below
+promises. These guides describe the deployed simplified workspace; screenshots use practice examples. Everything below
 is for builders and operators.
 
 ## Authority order
@@ -42,7 +42,7 @@ journey; tests alone do not establish it.
 - [UI-TESTING.md](UI-TESTING.md) — complete local browser test command, coverage,
   screenshot evidence, fixes and explicit live-testing limits.
 - [SIMPLIFICATION.md](SIMPLIFICATION.md) — approved UX/reliability phases,
-  complete control destinations and local verification evidence; not a deploy claim.
+  complete control destinations and local verification evidence; release status links to finalization.
 - [HANDOFF.md](HANDOFF.md) — the current-state block, and nothing else. Kept
   short on purpose so the live claim is never buried.
 - [ACTIVATION-RUNBOOK.md](ACTIVATION-RUNBOOK.md) — the enumerated owner
