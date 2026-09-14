@@ -53,7 +53,17 @@ module.exports = async function reviewClarity({ context: ownerContext, url, newP
 
   await page.getByRole('button', { name: /^Needs you/ }).focus();
   await page.setViewportSize({ width: 390, height: 844 });
-  const top = await current.boundingBox(), below = await proposed.boundingBox();
+  // Resize and focus can still reposition the scroll container. Read both
+  // rectangles in one browser frame, and wait for responsive layout to settle.
+  await page.waitForFunction(() => {
+    const [current, proposed] = document.querySelectorAll('.review-change');
+    if (!current || !proposed) return false;
+    const top = current.getBoundingClientRect(), below = proposed.getBoundingClientRect();
+    return below.y >= top.y + top.height;
+  }, undefined, { timeout: 5000 });
+  const [top, below] = await contextArea.locator('.review-change').evaluateAll((elements) => elements.map((element) => {
+    const { y, height } = element.getBoundingClientRect(); return { y, height };
+  }));
   assert.ok(below.y >= top.y + top.height, 'Mobile before/after values stack in reading order');
   await card.evaluate((element) => { const region = element.closest('.needs-you'); region.scrollTop += element.getBoundingClientRect().top - region.getBoundingClientRect().top; }); await shot(page, 'mobile', 'Mobile review values stack in reading order with all decision context available by scrolling, and technical details kept collapsed.');
   const mobileAnswer = card.getByRole('button', { name: 'Answer', exact: true });

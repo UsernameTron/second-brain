@@ -41,4 +41,6 @@ Google OAuth and unaided teammate acceptance remain separate from fixture tests.
 
 ## PR review follow-up
 
-Codex review found two UI issues before merge: humanized labels had replaced CSS status keys, and accepted custom-agent drafts were retained. Both are fixed with seven regressions. The revised source needs a fresh image; the earlier 69cf8d9 candidate will not be deployed.
+Codex review found two UI issues before merge: humanized labels had replaced CSS status keys, and accepted custom-agent drafts were retained. Both are fixed with seven regressions. All 732 tests and all 15 browser groups pass after the fixes. A mobile layout check now reads both rectangles in the same frame after resize, preserving its original assertion. The earlier 69cf8d9 candidate will not be deployed.
+
+The revised production container passed isolated startup, fresh-empty database, disabled development sign-in and private-route protection checks with networking disabled. All 46 backend/frontend/startup files match the verified source and frontend build. The image is published privately at `ui-20260914-review2`, index `sha256:5d80f91078ed82a74632003ac29c300028dbb717a651fc18c3467dd7441aaaa5`, Linux manifest `sha256:66ba03df9223f55c19082116f0a1cafe4927a1577345a20a9fbe4a853b044a56`. The rollout uses the same shutdown/recovery procedure with this digest and revision suffix `ui-20260914-review2`.
