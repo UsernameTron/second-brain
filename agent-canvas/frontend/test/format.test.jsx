@@ -389,7 +389,7 @@ describe('component surfaces', () => {
         onAcknowledgeRuleRun={vi.fn()} onOpenRule={vi.fn()} />,
     );
     expect(screen.getByText('Two deals went quiet.')).toBeInTheDocument();
-    expect(screen.getByText('Standing rule matched 2 item(s)')).toBeInTheDocument();
+    expect(screen.getByText('Scheduled work matched 2 item(s)')).toBeInTheDocument();
     expect(container.textContent).not.toContain('MATCHED: 2');
   });
 });

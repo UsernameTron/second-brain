@@ -3,7 +3,18 @@ import { useEffect, useRef } from 'react';
 // P2.1 shared dialog behavior: on mount, move focus into the dialog (first
 // focusable element, else the dialog itself); trap Tab inside; Escape closes;
 // on unmount, restore focus to whatever opened it.
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+function focusable(dialog) {
+  return Array.from(dialog.querySelectorAll(FOCUSABLE)).filter((element) => {
+    if (element.tabIndex < 0 || element.matches('input[type="hidden"]')) return false;
+    for (let parent = element; parent && parent !== dialog; parent = parent.parentElement) {
+      const style = getComputedStyle(parent);
+      if (parent.hidden || parent.hasAttribute('inert') || style.display === 'none' || style.visibility === 'hidden') return false;
+      if (parent.tagName === 'DETAILS' && !parent.open && !parent.querySelector(':scope > summary')?.contains(element)) return false;
+    }
+    return true;
+  });
+}
 
 export function useDialog(onClose) {
   const ref = useRef(null);
@@ -17,7 +28,7 @@ export function useDialog(onClose) {
     const dialog = ref.current;
     if (!dialog) return undefined;
     const opener = openerRef.current;
-    const first = dialog.querySelector(FOCUSABLE);
+    const first = focusable(dialog)[0];
     (first || dialog).focus();
 
     const onKey = (e) => {
@@ -27,11 +38,11 @@ export function useDialog(onClose) {
         return;
       }
       if (e.key !== 'Tab') return;
-      const items = Array.from(dialog.querySelectorAll(FOCUSABLE));
-      if (!items.length) return;
+      const items = focusable(dialog);
+      if (!items.length) { e.preventDefault(); return; }
       const head = items[0];
       const tail = items[items.length - 1];
-      if (e.shiftKey && document.activeElement === head) { e.preventDefault(); tail.focus(); }
+      if (e.shiftKey && (document.activeElement === head || document.activeElement === dialog)) { e.preventDefault(); tail.focus(); }
       else if (!e.shiftKey && document.activeElement === tail) { e.preventDefault(); head.focus(); }
     };
     dialog.addEventListener('keydown', onKey);

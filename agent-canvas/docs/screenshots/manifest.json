@@ -1,0 +1,422 @@
+{
+  "fixture": "Disposable in-memory DB; real development auth and application routes; stubbed model; external network blocked. Does not verify Google OAuth or live integrations.",
+  "journeys": [
+    {
+      "size": "desktop",
+      "bootCounts": {
+        "canvases": 0,
+        "agents": 0,
+        "notes": 0,
+        "files": 0,
+        "tasks": 0,
+        "runs": 0,
+        "inquiries": 0,
+        "memory_entries": 0
+      },
+      "externalAttempts": 0,
+      "identity": {
+        "email": "teammate@agent-canvas.invalid",
+        "role": "member"
+      },
+      "connectorProbeCalls": 0,
+      "inquiries": [
+        {
+          "question": "What should we check before a customer renewal?",
+          "mode": "ask",
+          "status": "answered"
+        },
+        {
+          "question": "Follow-up request: Draft a short checklist from this answer.\n\nSelected answer for context (verify its claims before acting):\nQuestion: What should we check before a customer renewal?\nAnswer: Check the renewal date, account owner and open risks. Prepare a short checklist for review. This local test answer has no external sources.",
+          "mode": "act",
+          "status": "answered"
+        },
+        {
+          "question": "What is our ICP?",
+          "mode": "ask",
+          "status": "answered"
+        }
+      ],
+      "decisions": [
+        {
+          "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
+          "epistemic": "verified",
+          "source": "escalation d335290e-91bf-44cf-8409-16b58665a307 resolution"
+        }
+      ],
+      "escalations": [
+        {
+          "question": "Should we prepare the renewal checklist?",
+          "status": "accepted",
+          "owner_email": "teammate@agent-canvas.invalid"
+        }
+      ],
+      "guideControls": [
+        "Sign in",
+        "Create a project space",
+        "Create",
+        "Connections",
+        "Home",
+        "Ask",
+        "Act on this",
+        "Act",
+        "Needs you",
+        "Answer",
+        "Submit answer"
+      ],
+      "advancedOrOwnerControls": [],
+      "emptyAccountSpending": {
+        "bootCounts": {
+          "canvases": 0,
+          "agents": 0,
+          "notes": 0,
+          "files": 0,
+          "tasks": 0,
+          "runs": 0,
+          "inquiries": 0,
+          "memory_entries": 0
+        },
+        "identity": {
+          "email": "teammate@agent-canvas.invalid",
+          "role": "member"
+        },
+        "result": "passed"
+      },
+      "result": "passed"
+    },
+    {
+      "size": "mobile",
+      "bootCounts": {
+        "canvases": 0,
+        "agents": 0,
+        "notes": 0,
+        "files": 0,
+        "tasks": 0,
+        "runs": 0,
+        "inquiries": 0,
+        "memory_entries": 0
+      },
+      "externalAttempts": 0,
+      "identity": {
+        "email": "teammate@agent-canvas.invalid",
+        "role": "member"
+      },
+      "connectorProbeCalls": 0,
+      "inquiries": [
+        {
+          "question": "What should we check before a customer renewal?",
+          "mode": "ask",
+          "status": "answered"
+        },
+        {
+          "question": "Follow-up request: Draft a short checklist from this answer.\n\nSelected answer for context (verify its claims before acting):\nQuestion: What should we check before a customer renewal?\nAnswer: Check the renewal date, account owner and open risks. Prepare a short checklist for review. This local test answer has no external sources.",
+          "mode": "act",
+          "status": "answered"
+        },
+        {
+          "question": "What is our ICP?",
+          "mode": "ask",
+          "status": "answered"
+        }
+      ],
+      "decisions": [
+        {
+          "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
+          "epistemic": "verified",
+          "source": "escalation 955a5348-a7f3-47f3-bfdc-70d36a47294c resolution"
+        }
+      ],
+      "escalations": [
+        {
+          "question": "Should we prepare the renewal checklist?",
+          "status": "accepted",
+          "owner_email": "teammate@agent-canvas.invalid"
+        }
+      ],
+      "guideControls": [
+        "Sign in",
+        "Create a project space",
+        "Create",
+        "Connections",
+        "Home",
+        "Ask",
+        "Act on this",
+        "Act",
+        "Needs you",
+        "Answer",
+        "Submit answer"
+      ],
+      "advancedOrOwnerControls": [],
+      "emptyAccountSpending": {
+        "bootCounts": {
+          "canvases": 0,
+          "agents": 0,
+          "notes": 0,
+          "files": 0,
+          "tasks": 0,
+          "runs": 0,
+          "inquiries": 0,
+          "memory_entries": 0
+        },
+        "identity": {
+          "email": "teammate@agent-canvas.invalid",
+          "role": "member"
+        },
+        "result": "passed"
+      },
+      "result": "passed"
+    },
+    {
+      "size": "pete-preview",
+      "bootCounts": {
+        "canvases": 0,
+        "agents": 0,
+        "notes": 0,
+        "files": 0,
+        "tasks": 0,
+        "runs": 0,
+        "inquiries": 0,
+        "memory_entries": 0
+      },
+      "externalAttempts": 0,
+      "identity": {
+        "email": "pete@cloudtechgurus.com",
+        "role": "owner"
+      },
+      "connectorProbeCalls": 0,
+      "inquiries": [
+        {
+          "question": "What should we check before a customer renewal?",
+          "mode": "ask",
+          "status": "answered"
+        },
+        {
+          "question": "Follow-up request: Draft a short checklist from this answer.\n\nSelected answer for context (verify its claims before acting):\nQuestion: What should we check before a customer renewal?\nAnswer: Check the renewal date, account owner and open risks. Prepare a short checklist for review. This local test answer has no external sources.",
+          "mode": "act",
+          "status": "answered"
+        },
+        {
+          "question": "What is our ICP?",
+          "mode": "ask",
+          "status": "answered"
+        }
+      ],
+      "decisions": [
+        {
+          "content": "Human decision on escalation \"Should we prepare the renewal checklist?\": Yes, prepare a draft checklist for review.",
+          "epistemic": "verified",
+          "source": "escalation f8372f14-1cd8-496d-a688-cbe26fffa040 resolution"
+        }
+      ],
+      "escalations": [
+        {
+          "question": "Should we prepare the renewal checklist?",
+          "status": "accepted",
+          "owner_email": "pete@cloudtechgurus.com"
+        }
+      ],
+      "guideControls": [
+        "Sign in",
+        "Create a project space",
+        "Create",
+        "Connections",
+        "Home",
+        "Ask",
+        "Act on this",
+        "Act",
+        "Needs you",
+        "Mine",
+        "Answer",
+        "Submit answer"
+      ],
+      "advancedOrOwnerControls": [],
+      "emptyAccountSpending": {
+        "bootCounts": {
+          "canvases": 0,
+          "agents": 0,
+          "notes": 0,
+          "files": 0,
+          "tasks": 0,
+          "runs": 0,
+          "inquiries": 0,
+          "memory_entries": 0
+        },
+        "identity": {
+          "email": "pete@cloudtechgurus.com",
+          "role": "owner"
+        },
+        "result": "passed"
+      },
+      "result": "passed"
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "journey-desktop-01-sign-in.png",
+      "description": "Development sign-in; Google OAuth is not configured in this isolated fixture.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-02-ask.png",
+      "description": "Member Ask answered; absent supporting sources are explicit.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-03-act-context.png",
+      "description": "Visible removable answer context and editable follow-up; nothing auto-submits.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-03b-act-result.png",
+      "description": "Act produced the draft checklist through the existing inquiry endpoint.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-04-needs-you.png",
+      "description": "Assigned member review with decision context, retained answer and Submit answer.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-05-review-saved.png",
+      "description": "Accepted response cleared the card; this empty queue follows a successful read.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-06-queue-recovery.png",
+      "description": "Unavailable queue stays distinct from verified empty and offers recovery.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-tablet-768.png",
+      "description": "768px intermediate layout, with keyboard selection exercised.",
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      }
+    },
+    {
+      "file": "journey-desktop-200-percent.png",
+      "description": "Actual Chromium tab zoom at 200%; safety controls remain visible without horizontal scrolling.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-07-add-agent.png",
+      "description": "An unstaffed space explains why Ask is unavailable and offers Add agent directly from Home.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-desktop-08-staffed-answer.png",
+      "description": "After adding a template, the retained question submits only on Ask and receives a labelled local test answer.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "journey-mobile-01-sign-in.png",
+      "description": "Development sign-in; Google OAuth is not configured in this isolated fixture.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-02-ask.png",
+      "description": "Member Ask answered; absent supporting sources are explicit.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-03-act-context.png",
+      "description": "Visible removable answer context and editable follow-up; nothing auto-submits.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-03b-act-result.png",
+      "description": "Act produced the draft checklist through the existing inquiry endpoint.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-04-needs-you.png",
+      "description": "Assigned member review with decision context, retained answer and Submit answer.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-05-review-saved.png",
+      "description": "Accepted response cleared the card; this empty queue follows a successful read.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-06-queue-recovery.png",
+      "description": "Unavailable queue stays distinct from verified empty and offers recovery.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-07-add-agent.png",
+      "description": "An unstaffed space explains why Ask is unavailable and offers Add agent directly from Home.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "journey-mobile-08-staffed-answer.png",
+      "description": "After adding a template, the retained question submits only on Ask and receives a labelled local test answer.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "browserZoom": {
+    "factors": [
+      2
+    ],
+    "cssWidth": 640,
+    "devicePixelRatio": 2
+  }
+}

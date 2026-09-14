@@ -1,0 +1,79 @@
+{
+  "group": "connections",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "Pete sees one primary service check, honest Google setup status and collapsed optional details; configuration alone does not earn a green answer status.",
+    "An explicit answer-service check reaches the real probe-recording route with a stubbed model; green appears only after the recorded success, and full result/timing remains in Service details.",
+    "Failed probe request masks older successful evidence across Refresh status; the mobile recovery runs a new explicit check and restores confirmed status.",
+    "Failed health refresh invalidates every green claim, keeps labelled last-known details and recovers through a read without repeating a probe.",
+    "Double-clicking a check produces one request; both primary and Advanced views show the same pending state through disclosure changes.",
+    "All original capability labels/details and service records/check controls remain reachable. At 390/768/1280px the full board wraps, buttons fit and status text exceeds 4.5:1 contrast.",
+    "Shift+Tab wraps to the last visible disclosure; Enter expands it, Tab reaches its real check button, and Escape restores focus to Connections.",
+    "Light and dark mobile views retain 4.5:1 status contrast and complete primary controls.",
+    "The fictional member retains both primary checks and the full Advanced service board; no new owner-only restriction was introduced.",
+    "Malformed connection/service responses fail visibly without invented configuration or green checks; explicit refresh distinguishes a valid empty response from failure.",
+    "A simulated available Google account button receives the real fixture server’s unconfigured response; the user stays on Connections with status recovery, and no OAuth or external call is made."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-connections-desktop.png",
+      "description": "The first view shows the answer service, Google account availability and clear safety limits. Optional service checks, supported functions and Advanced details start closed.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-connections-mobile-recovery.png",
+      "description": "A failed request keeps its recovery beside the answer service. The previous successful probe cannot remain green after this failure, even when a later read returns that older record.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-connections-mobile-advanced.png",
+      "description": "Every original service remains in Advanced details with readable status, complete service reference, full source text and a reachable 44px check control on mobile.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-connections-mobile-dark.png",
+      "description": "The simplified account and answer checks retain readable text and complete controls in dark mode.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-connections-mobile.png",
+      "description": "Mobile Connections starts with readable account access and an answer-service check; all additional functions and diagnostics are available through named disclosures.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-connections-mobile-empty.png",
+      "description": "A complete empty response gets an explicit no-details message and Refresh status. Malformed responses earlier showed separate errors instead of pretending nothing was configured.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}

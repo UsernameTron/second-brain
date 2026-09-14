@@ -1,0 +1,39 @@
+{
+  "group": "home-navigation",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "Pending Home request survives Help/Home navigation, blocks repeated submission, finishes against its originating space and leaves the other project draft untouched.",
+    "A lost response received offscreen remains unconfirmed on return, retains its question, blocks another submission and supports read-only status recovery at 390px.",
+    "A rejected background request reports its failure only in the originating project, preserves the draft and succeeds through one explicit retry."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-home-navigation-pending.png",
+      "description": "After leaving Home and returning, the accepted request still awaits its response and cannot be submitted again.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-home-navigation-unconfirmed-mobile.png",
+      "description": "A response lost while Home is closed remains explicitly unconfirmed on return; Check status recovers the one saved answer without repeating it.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}

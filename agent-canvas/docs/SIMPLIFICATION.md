@@ -1,0 +1,831 @@
+# Agent Canvas simplification
+
+Approved 2026-09-10. This is the control inventory and local implementation
+ledger, not evidence of deployment. Reliability precedes navigation changes.
+Backend routes, tools, schema, memory/provenance, safety and provider handling
+stay unchanged. Compatible production dependency fixes are explicitly in scope.
+
+**Local implementation, 2026-09-14:** all planned UI improvements are implemented.
+The completion audit's three gaps are now closed: team-template recovery survives
+project changes, agent settings have plain-English labels, and work maps show
+written certainty. [Audit and closure evidence](releases/2026-09-14-simplification-audit.md)
+separate this local implementation sign-off from live and human acceptance.
+
+## Phase gates
+
+Every phase is a separate commit and passes `npm run verify`,
+`npm audit --omit=dev`, and `npm audit --omit=dev --prefix frontend` before the
+next begins. Existing tests cannot be deleted or skipped. Behavioral changes
+update USER-GUIDE.md and HANDOFF.md in the same commit. No deployment.
+
+| Phase | Files / responsibility | Required verification | State |
+|---|---|---|---|
+| 1 | Root package manifests; this inventory; documentation index | Compatible XML/request parser fixes; both audits; full gate | Verified locally |
+| 2 | App, api, Workspace, CapabilitiesModal, status helpers, styles | Startup/auth/config/timeout/malformed responses, reconnect, probes, pause/budget, theme/logout recovery | Verified locally |
+| 3 | Home, Panels, MemoryPanel, ExplainMap, Workspace, AddAgentModal, work details | Retained drafts, failed evidence/events/history, old runs, context races | Verified locally |
+| 4 | Workspace, NeedsYouView, Tray, MemoryPanel, work details | Six card types, global scopes, permission/conflict failures, pending guards, source navigation, legacy fallback | Verified locally |
+| 5 | Workspace, Home, CommandBar, AddAgentModal, Nodes, format, header/context presentation, styles | Single Ask composer, Act on this, full control reachability, fresh boot, keyboard and responsive layouts | Verified locally |
+| 6A | RoomsView, helpers, styles, tests | List/detail/lens/activity failures, refresh progress, export lifecycle, permissions | Verified locally |
+| 6B | RulesView, AgentBuilder, helpers, styles, tests | Consent, saves, polling, rehearsal and publication gates, expiry | Verified locally |
+| 6C | AdminModal, ActivityDock, Spending, styles, tests | Failed tables, retained edits, partial reorder, serialized connector edits, permissions | Verified locally |
+| 7 | scripts, package command, guide, handoff, screenshots; browser-found presentation fixes | Reproducible member sign-in → Ask → Act on this → answer Needs You, inspected desktop/mobile images | Verified locally |
+
+## Control map
+
+Permissions below preserve existing server enforcement: “existing access”
+means the original view/edit permission, not a new grant. Advanced is available
+to members. Every destination below exists in the local build. Evidence links
+identify executable tests or explicitly labelled source inspection; source
+inspection does not claim a live service check. No operation is retired.
+
+| Original surface / controls | Disposition | Destination | Permission | Phase | Evidence |
+|---|---|---|---|---|---|
+| App: Google sign-in, dev email/sign-in | Keep-as-is | Sign-in; dev-only controls stay dev-only | Public / dev | 2 | [Startup] + [Journey] (development sign-in); Google OAuth remains unverified live |
+| Header: global Pause; banner owner Resume | Keep-as-is | Persistent header and paused banner | Existing pause / owner resume | 2,5 | [Workspace] (HTTP-confirmed pause) + [Safety] + [Journey] (visible controls) |
+| Header: today's spend / cap | Keep-as-is | Header → Spending, including before a space exists | Existing access | 2,5,7 follow-up | [Owner] + [Workspace] (empty account/recovery) + [Journey] (first-boot spending) + [Safety] |
+| Home: Save/unsave, Saved only/Show all | Keep-as-is | Home answers | Existing edit/read | 3 | [Home] (saved-answer filters) + [Saved work] |
+| Sources: links, privacy/redaction | Keep-as-is | Answers, Sources and details, Rooms | Existing access | 3,6A | [Saved work] (external evidence/retry) + [Room exports] (disclosure) |
+| Dialogs: Close, Cancel, Back, Escape/focus return | Keep-as-is | Every existing dialog/panel | Existing access | 2–6C | [Dialogs] (Escape/trap/return) + [Journey] (Connections Escape) |
+| Account: identity, Sign out | Keep-as-is | Account | Signed in | 2,5 | [Workspace] (sign-out failure) + [Startup] (expiry); [Header source] inspection |
+| Owner: operational ledger download | Keep-as-is | Account → Owner settings | Owner | 6C | [Requests] (bounded download) + [Admin source] inspection: Download operational ledger + [Owner acceptance evidence] |
+| Workspace: canvas selector/name | Simplify | Project-space picker | Existing access | 5 | [Workspace] + [Journey] (active name/create); [Header source] inspection: picker |
+| Workspace: new canvas, name, Create/Cancel | Simplify | Space actions → New project space | Existing create | 5 | [Workspace] (fresh/create/team) + [Journey] (empty boot → creation) |
+| Creation: six teams, agent preview | Simplify | Team selector, all six teams | Existing create | 5 | [Workspace] (stable roster and team choices); [Header source] inspection: all six options |
+| Creation: customize agents checkboxes | Simplify | Customize team | Existing create | 5 | [Workspace] (customization) + [Header source] inspection: Customize team |
+| Home: eight suggested questions | Simplify | Three examples + More examples | Existing access | 5 | [Simplified] + [Home source] inspection: all eight examples retained |
+| Home: answer status, agent, mode, failure | Simplify | Plain-English answer header | Existing access | 3,5 | [Home] + [Saved work] + [Journey] (Ask and Act result) |
+| Home: Full receipt/Hide receipt | Simplify | Sources and details | Existing access | 3 | [Saved work] (receipt failure/recovery) + [Home] |
+| Home: Open run | Simplify | View work / Work details | Existing access | 3 | [Saved work] (old run/events) + [Work source] inspection |
+| Needs You: Mine/Team/All | Simplify | Global queue; each card names project space | Accessible spaces only | 4 | [Workspace] (global server scopes/badge) + [Attention] (restricted exclusion) |
+| Needs You: Resolve, decision, Send decision, Back | Simplify | Answer → response → Submit answer | Existing edit | 4 | [Review] (pending/403/409/unconfirmed) + [Journey] (accepted answer and memory) |
+| Needs You: Context/Hide context, Technical context | Merge / Simplify | Readable decision context; one Full details disclosure retains received context and diagnostics | Existing access | 4, review clarity | [Review] + [Review clarity regressions] + [Review clarity evidence] |
+| Needs You: Redirect, target, instructions | Simplify | Other actions → Ask another agent | Existing edit | 4 | [Review] + [Review source] inspection: redirect form/callback |
+| Needs You: assign person/agent, clear | Simplify | Other actions → Assign | Existing edit | 4 | [Review] (source-space choices) + [Assignment] (person/agent/unassign) |
+| Needs You: source-specific Dismiss | Simplify | Other actions → Dismiss | Existing access | 4 | [Review] (projected and escalation actions) + [Attention] (dismissal) |
+| Failed work: Retry/Open run | Simplify | Try again/View work | Existing edit/read | 4 | [Review] (source run reference) + [Saved work] (run details) |
+| Review: Still true/extend, Open in Memory | Simplify | Confirm still true/Review memory | Existing edit/read | 4 | [Review] (reaffirm/ref) + [Memory lifecycle] (append-only review) |
+| Scheduled result: Acknowledge, Open rule/brief | Simplify | Mark reviewed/View scheduled work/View brief | Existing access | 4,6B | [Review] + [Rules] (acknowledge/deep links) |
+| Note: title, content, pin, Save, remove/keep | Simplify | Documents & notes → Note details | Existing edit/read | 3,5 | [Workspace] (pin/remove) + [Saved work] (retained note/retry) |
+| File: chooser/upload/details/download/remove/cancel | Simplify | Add document + Documents & notes → File details | Existing edit/read | 3,5 | [Workspace] (upload/details/remove/view-only) + [Requests] (download) |
+| Task: details, person/agent assignment, unassign | Simplify | Task panel from Advanced canvas | Existing edit/read | 3,5 | [Assignment] + [Panels source] inspection: TaskPanel assignment and retained error |
+| Memory: search, kind, history toggle | Simplify | More → Memory → Search memory, Memory type, Include earlier versions | Existing access | 3,5; Memory browsing | [Saved work] + [Memory browsing regressions] + [Memory browsing evidence] |
+| Memory: certainty, provenance, review dates, warnings | Simplify | Always beside entry; plain-English label plus stored term | Existing access | 3,5 | [Format] + [Saved work] + [Memory contract] + [Room and memory evidence] |
+| Memory: Correct/cancel, replacement, certainty, reason, submit | Simplify | Entry → Correct | Existing edit | 3 | [Saved work] (rejected correction) + [Memory lifecycle] + [Room and memory evidence] |
+| Memory: certainty reclassification | Simplify | Change certainty (creates correction) | Existing edit | 3 | [Saved work] (Change certainty contract) + [Memory lifecycle] |
+| Memory: lineage, lifecycle, upstream/downstream, run | Simplify | History and sources → Changes over time, Sources this entry uses, Entries that use this information, Work that created this entry | Existing access | 3; Memory browsing | [Memory browsing regressions] + [Memory browsing evidence] + [Lineage] |
+| Rooms: list/open/back, Now/History/Risk, Brief/Activity, Refresh | Simplify | More → Rooms | Existing access | 5,6A | [Rooms] + [Room reliability] (lens/activity/refresh recovery) + [Journey] (destination) + [Room and memory evidence] |
+| Rooms: create/name/type/players/staff/external ref | Simplify | Create room; setup details for staff/reference | Owner | 6A | [Rooms] (owner/view-only) + [Room reliability] (players failure) + [Room and memory evidence] |
+| Rooms: export preview/included/excluded/warnings/download/close | Simplify | Room → Export | Owner | 6A | [Room reliability] (preview invalidation/conflict) + [Room exports] + [Room and memory evidence] |
+| Rules: list/open/back, instruction/template/Interpret | Simplify | More → Scheduled work | Existing access | 5,6B | [Rules] (template/parse) + [Scheduling] (list failure) + [Journey] (destination) + [Scheduled work and Builder evidence] |
+| Rules: edit instruction, full consent card | Simplify | Scheduled-work details | Existing authority | 6B | [Rules] (all consent fields, edits and authority) + [Scheduling] + [Scheduled work and Builder evidence] |
+| Rules: schedule/day/hour/sources/scope/agent/output/expiry | Simplify | Settings with UTC labels | Existing authority | 6B | [Rules] (structured fields) + [Scheduling] (retained save/UTC) + [Scheduled work and Builder evidence] |
+| Rules: Rehearse/Activate/Pause/Resume/Revoke | Simplify | Scheduled-work details | Existing authority | 6B | [Rules] (complete lifecycle) + [Scheduling] (same-account rehearsal) + [Scheduled work and Builder evidence] |
+| Rules: history/brief/matched count/source refs | Simplify | Scheduled-work results | Existing access | 6B | [Rules] (brief/zero/source/history) + [Scheduling] (poll recovery) + [Scheduled work and Builder evidence] |
+| Header: theme | Simplify | Account → Appearance | Signed in | 2,5 | [Startup] + [Header source] inspection: Appearance |
+| Canvas: agents/notes/tasks/files/people, select/open | Move-to-Advanced | More → Advanced → Canvas | Existing access | 5 | [Nodes] (keyboard opening) + [Journey] (Canvas destination) + [Canvas source] inspection |
+| Canvas: drag/pan/zoom/Fit/Tidy/minimap/clusters/handoffs | Move-to-Advanced | Advanced → Canvas | Existing access | 5 | [Journey] (Fit/Tidy reachable) + [Canvas source] inspection: all spatial handlers preserved |
+| Composer: agent override | Move-to-Advanced | Advanced options | Existing edit | 5 | [Simplified] + [Home source] inspection: agent override |
+| Composer: Rehearse | Move-to-Advanced | Advanced options → Practice (Rehearse) | Existing edit | 5 | [Simplified] (practice) + [Modes] (unchanged semantics) |
+| CommandBar: text/voice/parse/preview/confirm/cancel/dismiss/pause/resume | Move-to-Advanced | Advanced → Commands | Existing access | 5 | [Simplified] (parse/practice/cancel/confirm) + [Commands source] inspection: voice/pause/resume |
+| Agent: direct dispatch/recent runs/events | Move-to-Advanced | Canvas → Agent details | Existing edit/read | 3,5 | [Saved work] (dispatch/events) + [Panels source] inspection: recent runs |
+| Agent: versions/configuration/rollback | Move-to-Advanced | Agent details → Advanced | Read / owner rollback | 3,5 | [Authority] + [Panels source] inspection: versions/configuration and owner rollback |
+| Agent: remove/confirmation | Move-to-Advanced | Team → Agent details → Advanced | Existing edit | 5 | [Workspace] (agent removal) + [Agent removal] (retained history) |
+| Builder: brief/propose/re-propose/start over/instructions/escalations/permissions/budgets/rehearse | Move-to-Advanced | Team → Advanced → Build an agent | Existing access | 5,6B | [Builder] + [Scheduling] (save/rehearse/abandon) + [Context source] inspection: Advanced path + [Scheduled work and Builder evidence] |
+| Builder: publish/template/change details | Move-to-Advanced | Same builder | Owner publication | 6B | [Builder] (publish/diff) + [Authority] + [Builder source] inspection: template option + [Scheduled work and Builder evidence] |
+| Custom agent: name/role/tier/color/prompt/Add/Cancel | Move-to-Advanced | Team → Advanced → Custom agent | Existing edit | 5 | [Context source] + [Add agent source] inspection: all manual fields and Add/Cancel retained |
+| Rules: step/time budgets, technical occurrence details | Move-to-Advanced | Advanced settings/details; limits still on consent | Existing authority | 6B | [Rules] + [Scheduling] + [Rules source] inspection: limits and occurrences + [Scheduled work and Builder evidence] |
+| Activity: expand/filter agent/seven categories/handoff highlight | Move-to-Advanced | Advanced → Activity | Existing access | 5,6C | [Owner] (seven filters/no matches/error) + [Activity source] inspection: handoff selection + [Owner acceptance evidence] |
+| Systems: provider/model/queue/segments/live link/board | Move-to-Advanced | Connections → Advanced details → All service checks and technical console | Existing access | 2,5; Connections follow-up | [Startup] + [Connection regressions] + [Connection evidence] |
+| Spending: tokens/monthly/per-agent/analytics | Move-to-Advanced | Spending → Advanced details | Existing access | 6C | [Owner] (unknown history/statistics) + [Panels source] inspection: advanced spending |
+| Allowlist: email/name/role/add/remove | Move-to-Advanced | Owner settings → People and access | Owner | 6C | [Owner] (failed table/invite/draft) + [Admin source] inspection: roles/remove + [Owner acceptance evidence] |
+| Roster: add/edit/name/role/tier/color/prompt/default/enabled/order | Move-to-Advanced | Owner settings → Agent templates | Owner | 6C | [Owner] (retained editor/partial ordering) + [Admin source] inspection: all fields/toggles + [Owner acceptance evidence] |
+| Connector: add/name/URL/access/headers/roles/enabled/probe/tools/refused details | Move-to-Advanced | Owner settings → Connections | Owner | 6C | [Owner] (serialized edits) + [Connectors] + [Admin source] inspection: probe/tools/refusals + [Owner acceptance evidence] |
+| Audit: action/limit/refresh/chain/entries | Move-to-Advanced | Owner settings → Audit history | Owner | 6C | [Owner] (failed chain invalidation) + [Admin source] inspection: action/limit/refresh + [Owner acceptance evidence] |
+| Canvas: archive/list archived/restore | Move-to-Advanced | Space actions → Owner actions | Owner | 5 | [Workspace] (archive/empty) + [Archive] + [Header source] inspection: restore path |
+| Spending: daily budget edit | Move-to-Advanced | Spending → Owner settings, including before a space exists | Owner | 3,6C,7 follow-up | [Saved work] + [Workspace] (role and saved-cap validation) + [Owner] + [Safety] |
+| Home composer + permanent CommandBar | Merge | One Home composer; parser under Advanced | Existing edit | 5 | [Simplified] (one composer) + [Journey] (one textbox) |
+| Ask/Act modes and button labels | Merge | Ask default; explicit Act and matching submit text | Existing edit | 5 | [Simplified] (Ask/Act/context/keyboard) + [Journey] (purpose-matched submissions) |
+| Home/Canvas toggle | Merge | Stable Home + Advanced Canvas | Existing access | 5 | [Simplified] (Home default) + [Journey] (Advanced Canvas reachability) |
+| Header Needs You/tray/HUD count | Merge | One badge/queue; legacy tray when flag off | Existing access | 4,5 | [Workspace] (independent badge) + [Review] (legacy flag path) + [Journey] |
+| Capabilities + Systems | Merge | Connections → account/answer overview; More service checks; Functions and limits; Advanced details | Existing access | 2,5; Connections follow-up | [Connection regressions] + [Connection evidence] + [Journey] |
+| +Note/+Document | Merge | Documents & notes; Add document by composer | Existing edit | 5 | [Workspace] (notes/files) + [Journey] (Documents destination) |
+| +Agent/+Person/team inspection | Merge | More → Team | Existing edit/read | 5 | [Context source] + [Add agent source] inspection + [Journey] (Team destination) |
+
+New controls: Act on this, Clear answer context, persistent Retry/Check status,
+and Help with the four guide journeys. These add no server capability.
+
+## Reliability audit (ranked)
+
+| Impact | Observed gap | Phase / required recovery |
+|---|---|---|
+| High | Attention load errors become zero/empty | 2,4: loading/failed/stale/empty; Retry |
+| High | Note save failures silent | 3: retain edits; inline Retry save |
+| High | Dispatch, correction, roster and budget forms close before success | 3,6C: await acceptance; preserve draft |
+| High | Review actions permit duplicate submissions and swallow failures | 4: per-card pending/error; reconcile conflicts |
+| High | Boot errors look signed out; malformed JSON becomes null; no timeouts | 2: distinguish auth/service; bounded requests |
+| High | Reconnect misses Home completion; pause depends on socket | 2,3: authoritative refresh and stale status |
+| High | Failed health checks retain old greens; probes do not refresh board | 2: unknown/stale status; refetch after checks |
+| High | Receipt/events failures hide evidence; memory writes confused with citations | 3: distinct evidence states and Retry |
+| High | Source links lose entry/run, including old/retired-agent work | 3,4: explicit source references and receipt lookup |
+| High | Late inquiries/rules/rooms/builder responses cross current context | 3,6A,6B: origin guards and obsolete polling cleanup |
+| High | Startup resets Home; two composers disagree; Act button says Ask | 5: stable Home, one purpose-labelled composer |
+| High | Header and review controls overlap/offscreen | 5: responsive primary controls |
+| Medium | Queue local; Mine filtered after All cap | 4: global server-side scope |
+| Medium | Rule/Builder polling silently stalls or overlaps | 6B: pending guards, stop obsolete polls, recovery |
+| Medium | Room lens/refresh/export states misleading | 6A: selection guards and explicit progress |
+| Medium | Owner failures become empty/green; partial order and racing writes | 6C: honest states, serialization, partial-save message |
+| Medium | Missing roster allows accidental unstaffed creation; Builder default | 3,5: roster failure visible; templates first |
+| Medium | View-only controls rejected by server | 3–6C: mirror existing permissions |
+| Medium | Short raw toasts, missing labels/keyboard support | 2–6C: local recovery and accessible controls |
+| Medium | Memory/spend/activity/work empty states ambiguous | 2,3,6A,6C: no fabricated zero; distinguish no matches |
+| Lower | Theme/logout/microphone failures silent; cancelled command loses text | 2,5: explicit failure, preserve text, clean up recognition |
+| Release gate | Root production audit has 1 high/3 moderate | 1: compatible installed dependencies and both audits |
+
+## Implementation contract
+
+- Reads time out after 30 seconds; submissions after 120 seconds. A timed-out
+  mutation is unconfirmed: Check status, never automatically repeat it.
+- Keep last-known data with a stale label. Unknown is neither green nor zero.
+- Bind requests and transient drafts to their originating canvas and record.
+- Global attention uses existing server scope without canvas_id, on entry,
+  action completion, focus, reconnection and a visible 30-second interval.
+  Badge scope stays Mine for members / All for owners independently of filters.
+- Act on this attaches visible/removable answer context to an editable Act
+  request. Submission still uses the inquiry endpoint and existing approval.
+- Preserve feature flags, all consent fields, certainty values/shapes and
+  source text. No framework, state library or persistent memory system.
+- Backend list caps remain; do not promise complete pagination, universal
+  memory propagation, supported answers, live OAuth or working integrations.
+- Final browser fixtures use disposable databases and stub external services;
+  capture 1280px and 390px, check 768px, keyboard and browser zoom.
+
+## Local evidence ledger
+
+- Phase 0: 433 backend and 112 frontend tests passed; production build and
+  deploy preflight passed. Root audit failed (1 high, 3 moderate); frontend
+  audit clean. Member sign-in, Ask, Act and review were exercised with local
+  model stubs. No production probe was performed.
+
+- Phase 1: installed @xmldom/xmldom 0.8.15, body-parser 1.20.8 and qs
+  6.16.0; retained Express 4.22.2 and uuid override. Full verify passed
+  (433 backend / 112 frontend), build/preflight passed; both production audits
+  report zero vulnerabilities. No runtime behavior changed.
+
+- Phase 2: request-reliability and startup-status tests cover timeouts,
+  unconfirmed writes, malformed bodies, expired sessions, failed/recovered boot,
+  context invalidation and failed/recovered health checks. Existing upload tests
+  retain exact raw-body assertions with the added abort signal. Workspace
+  failures remain visible with refresh; control values come from a status read.
+
+  Phase 2 full gate: 433 backend / 124 frontend tests, build and preflight
+  passed; both production audits clean. Workspace tests additionally verify
+  list recovery, HTTP-confirmed pause without sockets, and retained sign-out.
+
+- Phase 3: saved-work-reliability tests cover note retry, transient draft
+  retention, rejected dispatch/budget/correction, unavailable versus empty
+  answers/evidence/events, external citations without memory writes, old runs,
+  and late submissions across spaces. WorkDetails uses the existing receipt
+  endpoint independently of current agent/canvas lists. No server code changed.
+
+  Phase 3 full gate: 433 backend / 133 frontend tests, build and preflight
+  passed; both production audits clean. No existing tests deleted or skipped.
+
+- Phase 4: review-reliability, needsyou, rules and workspace-cleanup tests
+  cover all six card types, global server scopes and independent badge,
+  source-space assignment, 403/409 reconciliation, duplicate guards,
+  unconfirmed answers, exact source refs and honest legacy tray failures.
+  Existing backend attention tests enforce restricted-space exclusion.
+
+  Phase 4 full gate: 433 backend / 142 frontend tests, build and preflight
+  passed; both production audits clean. No deployment.
+
+- Phase 5: simplified-workspace tests verify one default composer, Ask default,
+  visible/removable Act on this context without automatic submission, retained
+  commands/practice/cancel, keyboard purpose selection and reachable navigation.
+  Existing cleanup tests follow Documents & notes, the team dropdown and owner
+  space actions while retaining all mutation and safety assertions. Workspace
+  presentation is split into WorkspaceHeader and ContextViews; state ownership
+  and feature flags remain in Workspace.
+
+  Phase 5 full gate: 433 backend / 148 frontend tests, build and preflight
+  passed; both production audits clean. Desktop and mobile evidence:
+  [desktop](screenshots/phase5-desktop.png), [mobile](screenshots/phase5-mobile.png).
+  The 768px layout was also inspected. A fast-completion regression test verifies
+  that the POST snapshot cannot leave an already completed answer working.
+  Live teammate presence remains reachable in Team. No deployment.
+
+- Phase 6A: rooms-reliability tests cover failed lists/players/details/lenses/activity,
+  pending refresh recovery, obsolete export previews and changed manifests. Binary
+  downloads retain bounded requests and HTTP conflict errors. Existing Room tests
+  retain all six sections and member/view-only permissions.
+  Phase 6A full gate: 433 backend / 155 frontend tests, build and preflight
+  passed; both production audits clean. No deployment.
+
+- Phase 6B: scheduling-reliability tests exercise failed reads/settings, context
+  races, unconfirmed consent changes, same-account rehearsal, stopped polling,
+  retained Builder edits and abandoned proposals. Existing rule and Builder tests
+  preserve every consent field, lifecycle operation, permission and publication
+  diff. Settings retain work limits under Advanced; history retains occurrences
+  under labelled details. Source-specific rules load their own team and access.
+  Phase 6B full gate: 433 backend / 163 frontend tests, build and preflight
+  passed; both production audits clean. No deployment.
+
+- Phase 6C: owner-reliability tests cover all owner table failures, retained access
+  and template drafts, one-at-a-time connection edits, partial-order recovery,
+  audit badge invalidation, all seven activity filters and unknown spending.
+  Systems details now live in Connections; configuration-only storage/search
+  reports are neutral until actual delivery is verified. Adding backend probes
+  remains outside this UX scope. The final control pass also labels sources,
+  exposes Change certainty and gives original-file/ledger downloads bounded
+  recovery through the existing endpoints.
+  Phase 6C full gate: 433 backend / 174 frontend tests, build and preflight
+  passed; both production audits clean. No deployment.
+
+- Phase 7: the real-browser runner uses existing development sign-in, inquiry,
+  receipt and resolution routes. It verifies four member journeys without
+  Advanced/owner controls at both 1280px and 390px; accepted review persists as
+  a verified human memory record. Fresh databases contain zero project content.
+  Queue failure/recovery, keyboard selection, 768px and actual Chromium tab zoom
+  at 200% also pass. All 16 final screenshots were inspected for legibility,
+  overflow and covered controls. Browser-found fixes reserve notification space,
+  remove generated agent identifiers from ordinary review text, and separate the
+  follow-up title from its unchanged full context. Added regression assertions
+  preserve exact authored text and technical details.
+  Phase 7 full gate: 433 backend / 177 frontend tests, build and preflight
+  passed; both production audits clean. Original test files and assertions remain;
+  no existing test is deleted or skipped. Backend implementation is unchanged.
+
+## Journey evidence
+
+Pete completed a **guided local walkthrough on 2026-09-10** using his owner
+account. His screenshots showed the answered Ask request with Act on this,
+then the renewal review item assigned to Pete; he reported completion after
+Submit answer. This was assisted acceptance with test model responses, not
+independent guide-only or live-integration verification. The first pasted result
+was from the unchanged production site; the local preview was then opened and
+the walkthrough repeated there.
+
+The follow-up review fixed Spending being inaccessible before a space existed.
+Daily status and owner cap editing now open independently of project loading;
+history explains that a project must be selected. Incomplete status after a cap
+save remains unconfirmed. Three regression tests and the first-boot browser check
+cover these paths. Follow-up gate: 433 backend / 180 frontend tests, build and
+preflight passed; both production audits clean.
+
+Run `npm run test:journeys` from the application directory. Install Chromium
+once with `npx playwright install chromium` if it is not present. The runner
+builds the frontend, starts isolated test servers and regenerates the images
+below. `npm run preview:journeys` opens the same disposable setup for manual
+reproduction using [the guide](../USER-GUIDE.md#reproduce-the-four-journeys-locally).
+The manual preview uses **pete@cloudtechgurus.com** with the existing owner role
+and assigns its review item to Pete. Automated coverage separately uses the
+fictional **teammate@agent-canvas.invalid** member, plus a complete Pete preview
+journey that checks the signed-in identity, owner role and Mine assignment. The
+member screenshots use the fictional account. No teammate credentials are used.
+
+[Machine-readable results](screenshots/manifest.json) include empty-boot counts,
+accepted review state, verified decision memory, blocked-network counts and the
+measured browser zoom (640 CSS pixels at 200% in a 1280px window). The fixture
+does not share the application's database or inherit integration credentials.
+All results are local: Google OAuth and external service success remain unverified.
+
+| Step / checked result | Desktop, 1280px | Mobile, 390px |
+|---|---|---|
+| Development sign-in; Google unconfigured stated | [Sign in](screenshots/journey-desktop-01-sign-in.png) | [Sign in](screenshots/journey-mobile-01-sign-in.png) |
+| Ask answered; unsupported source state explicit | [Ask](screenshots/journey-desktop-02-ask.png) | [Ask](screenshots/journey-mobile-02-ask.png) |
+| Act on this; editable request and removable context | [Act context](screenshots/journey-desktop-03-act-context.png) | [Act context](screenshots/journey-mobile-03-act-context.png) |
+| Act returns the draft checklist | [Act result](screenshots/journey-desktop-03b-act-result.png) | [Act result](screenshots/journey-mobile-03b-act-result.png) |
+| Assigned review; full decision context and answer form | [Needs You](screenshots/journey-desktop-04-needs-you.png) | [Needs You](screenshots/journey-mobile-04-needs-you.png) |
+| Accepted answer; card clears after confirmed response | [Accepted](screenshots/journey-desktop-05-review-saved.png) | [Accepted](screenshots/journey-mobile-05-review-saved.png) |
+| Unavailable queue has a recovery action and no false empty claim | [Recovery](screenshots/journey-desktop-06-queue-recovery.png) | [Recovery](screenshots/journey-mobile-06-queue-recovery.png) |
+
+Additional inspected images: [768px layout](screenshots/journey-tablet-768.png)
+and [actual 200% browser zoom](screenshots/journey-desktop-200-percent.png).
+The runner asserts no horizontal overflow, visible spending/Connections/Pause,
+notifications outside the work area, and no browser runtime errors. It separately
+opens Documents, Team, Rooms, Scheduled work and Advanced Canvas after the four
+journeys, so that secondary navigation is tested without becoming a prerequisite.
+
+Remaining boundaries are deliberate: bounded backend lists, project/shared memory
+scope, unavailable provider/connector configurations, and production activation.
+No pagination, universal memory propagation, backend probes, permission changes,
+push or deployment was added to this work.
+
+## Secondary browser acceptance (2026-09-11)
+
+`npm run test:acceptance -- rooms-memory` runs a separate disposable fixture with
+Pete as owner and a fictional member. [Acceptance runner] uses real local saves,
+permissions, memory correction and export routes; only the model boundary and
+deliberately injected failed requests are stubbed. See [Room and memory evidence].
+
+- Room creation preserves rejected drafts, updates the project picker on success,
+  and retains type, selected people, staff and reference. All three lenses, failed
+  activity/retry, refresh polling/recovery and work details were exercised.
+- A real append after an export preview causes a conflict; fresh review/download
+  succeeds and excludes assumptions/inferences. Member and view-only controls,
+  plus restricted-Room exclusion after access revocation, were checked.
+- Memory search/no matches/kind/history, rejected correction with retained input,
+  append-only replacement and failed lineage/retry were exercised. Computed border
+  styles and symbols match all three certainty states, including at 390px.
+- Fixed a label-refactor regression affecting Memory symbols/borders and receipt
+  certainty styles; plain-English labels remain alongside stored meanings.
+- The original 14-worker backend gate twice hit PDF/connector deadlines while
+  those suites passed alone. Backend and frontend runners now cap workers at four;
+  every test and all runtime/test deadlines stay unchanged.
+- Faster PDF completion exposed an existing test typo: the parser warning is
+  `source_limit`, while the test checked `source_limit_message`. The assertion
+  now checks the existing output field and the same required recovery wording;
+  no backend implementation or safety limit changed.
+- Full gate: 433 backend / 185 frontend tests; both production audits clean.
+  Three screenshots inspected. These checks do not prove Google or live integrations.
+
+Control rows for Room creation/lenses/refresh/export and Memory filtering,
+certainty/correction/history now have browser evidence in addition to their
+listed component/backend tests. Other rows retain their explicitly listed evidence.
+
+Scheduled work/Builder browser acceptance: `npm run test:acceptance -- scheduling-builder`.
+[Scheduled work and Builder evidence] records rejected instruction/settings saves,
+all consent fields, failed polling with retry, honest zero results, real local
+activation/pause/resume/revoke, and Builder proposal/save/rehearsal/publication.
+Changing authority re-gates publication; a member cannot publish. The owner saves
+an actual fixture template and can inspect the resulting changes before closing.
+Fixed the parent callback that previously closed Builder before its publication
+details could be read. Changed fields have plain-English labels and complete
+original values remain under Full change details. Three screenshots inspected,
+including a member at 390px.
+Full gate: 433 backend / 186 frontend tests; both production audits clean.
+
+Owner tools/diagnostics browser acceptance: `npm run test:acceptance -- owner-diagnostics`.
+[Owner acceptance evidence] records failures/retries for every owner table,
+retained access/template edits, actual access add/remove, a partially saved reorder
+and its remaining write, connector form validation/probe recovery/tool selection,
+serialized access changes, audit verification invalidation/recovery/filtering,
+ledger download recovery, all seven activity filters, and member/owner controls.
+Three screenshots inspected, including 390px owner tools. Connector handshake and
+discovery are stubbed; configuration, authorization, probe recording and audit
+routes remain real and local. No external connection success is claimed.
+Fixed the frontend path allowlist rejecting encoded email addresses, which blocked
+owner access removal. The path guard accepts well-formed percent encoding and
+still rejects traversal, encoded separators, control characters and other origins.
+Screenshot review also found notifications covering the bottom of owner dialogs.
+Dialogs now fit the workspace above notifications; browser checks assert their
+rectangles do not overlap at desktop and mobile sizes.
+Full gate: 433 backend / 193 frontend tests; both production audits clean.
+
+Room staffing follow-up: a Room with no agents now explains the missing team
+and offers Open team. Browser acceptance adds an agent from a template and then
+successfully refreshes that Room without Advanced. The existing empty-team creation
+capability is preserved. The extra screenshot is in [Room and memory evidence].
+Follow-up gate: 433 backend / 194 frontend tests; both production audits clean.
+
+## Local acceptance and deferred release
+
+Global review verification (2026-09-13): `npm run test:acceptance -- needs-you`
+exercises all six card types as a fictional member across two accessible spaces,
+with a third restricted space excluded. [Global review browser evidence] verifies
+Mine/Team/All, the independent badge, retained answers after 503/409/403, duplicate
+submission prevention, assignment/redirect/dismiss, exact memory/work/scheduled
+sources, reaffirmation and retry/acknowledgment recovery, and mobile completion.
+The fixture injects historical scheduled results only after its empty-boot check;
+those schedules stay paused. It does not prove scheduler or external delivery.
+Cross-project agent assignment previously looked unassigned and hid clearing;
+the card now retains the assignment and loads its name from its own project.
+Generated review-card prefixes now explain certainty, stopped work and schedules
+in plain English; quoted content and human questions keep their exact wording.
+Four screenshots inspected. Gate: 433 backend / 204 frontend tests; both audits
+clean. [UI testing](UI-TESTING.md) inventories all coverage and limits;
+`npm run test:ui` repeats the primary journeys and all five secondary groups.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Needs You assign person/agent, clear assignment | Simplify | Card → Other actions → Assign | Existing card-project edit access | Local global-review verification | [Review], [Global review browser evidence]; unrelated active project cannot hide assignment |
+
+Workspace controls (2026-09-13): `npm run test:acceptance -- workspace-tools`
+executes seven groups against real local routes. [Workspace browser evidence]
+records note/upload/download failures and recovery; custom-agent creation,
+dispatch, version rollback and retirement; retained answers and saved filtering;
+command interpretation/cancellation/confirmation; task assignment, dragging,
+pan/zoom/clusters/minimap, Tidy/Fit; note/file removal and archive/restore;
+spending, pause/resume, Help, appearance and sign-out recovery. Four screenshots
+were inspected. Browser testing found canvas background pointer capture stealing
+Fit/Tidy clicks and an unsaved answer remaining in Saved only. Both are fixed;
+regressions cover pointer ownership and filter changes during a pending save.
+Gate: 433 backend / 202 frontend tests; both production audits clean.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Canvas Fit / Tidy up / pan / zoom / drag / minimap / clusters | Keep-as-is | More → Advanced → Canvas | Existing access | Local UI verification | [Canvas controls], [Workspace browser evidence] verifies actual position writes and view changes |
+| Home Save / unsave / Saved only / Show all | Keep-as-is | Home answer list | Existing edit/read | Local UI verification | [Home], [Workspace browser evidence] verifies retained history and confirmed filtering |
+
+Home staffing recovery (2026-09-13): an empty team is a setup prerequisite,
+not an edit conflict. Home explains the missing agent before submission; the
+existing server no-agent response gets the same recovery. Typing stays available,
+examples can fill the draft, and staffing never submits the question automatically.
+The local-preview guide now explicitly identifies its predetermined test answers.
+Mobile browser checks also found Space actions staying open after creation and
+overflowing beside the second-space picker. Actions now close the menu, and
+menus stay inside the screen at 390px. Four additional screenshots inspected.
+Gate: 433 backend / 199 frontend tests; both production audits clean.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Team → Add agent / roster templates | Simplify | Existing Team entry, plus Home → Add agent when unstaffed | Existing project editors; view-only sees owner guidance | Local recovery follow-up | [Home], [Simplified], `journey-*-07-add-agent.png`, `journey-*-08-staffed-answer.png` in [screenshot manifest](screenshots/manifest.json) |
+| New project space → empty Custom team | Keep-as-is | Space actions → New project space → Custom team; explains required Home setup | Existing creation permissions | Local recovery follow-up | [Journey] preserves creation with zero agents and verifies recovery as member and Pete |
+
+
+Agent Canvas remains a folder within the second-brain repository. Pete directed
+continued local work on 2026-09-11. Publishing branches, PRs, merging, deployment
+and live connector activation are deferred until separately requested. The local
+implementation remains split into these independently verified changes:
+
+| Review | Commit(s) | Scope |
+|---|---|---|
+| 1 | `397149b` | Compatible dependency fixes and approved inventory |
+| 2 | `546bf78` | Startup and truthful status |
+| 3 | `4f9459f` | Answers, evidence and retained work |
+| 4 | `af0122f` | Global Needs You and guarded actions |
+| 5 | `84f1505` | Default navigation and composer |
+| 6A | `4cce819` | Rooms |
+| 6B | `484fe4a` | Scheduled work and Builder |
+| 6C | `e57c67e` | Owner tools and diagnostics |
+| 7 | `291292b`, `c8b17d6` | Journey evidence and Pete preview identity |
+| Follow-up | After `c8b17d6` on the simplification branch | First-boot spending and guided acceptance record |
+
+Rooms/Memory, Scheduled work/Builder and owner tools/diagnostics have each
+completed local browser acceptance, recovery checks and a separate full gate.
+The remaining human acceptance is an unaided walkthrough from the current guide;
+Pete's earlier walkthrough was guided. Source inspection and component tests remain
+distinct from browser evidence. Google OAuth and external integration acceptance
+remain unverified; local fixtures do not authorize or prove live access.
+
+## Final recovery acceptance (2026-09-13)
+
+The additional `system-recovery` browser group exercises failed configuration
+and account reads, malformed successful responses, a real socket disconnect
+that misses a finished answer and Pause, a lost submission response after the
+server accepts one inquiry, unavailable spending/connections, and session expiry.
+Each recovery is performed through the built UI. No mutation is automatically
+repeated. [System recovery evidence] records six groups and four inspected images.
+
+Synthetic browser speech exposed duplicated final words, hidden interim text,
+an uncaught recognition-construction failure and interpretation after an error.
+Commands now rebuild cumulative results once, visibly explain microphone failures,
+retain partial text for explicit review, and abort/ignore obsolete recognition.
+Six [Voice recovery] regressions verify these states, listening guards and the
+unchanged confirmation gate. The physical microphone and speech service remain
+outside the automated fixture's claims.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Text/voice command, interpretation, Confirm/Cancel/Dismiss | Move-to-Advanced | More → Advanced → Commands; voice failures retain typing and confirmation | Existing edit | 5, final recovery | [Voice recovery] + [System recovery evidence] + [Workspace browser evidence] |
+
+Full local gate: 433 backend / 210 frontend tests, build and preflight passed;
+both production audits clean. The full UI command includes primary journeys and
+all six secondary groups. [Acceptance checklist](UI-TESTING.md) maps the original
+criteria to evidence and records the live/human boundaries without claiming them.
+
+## Draft safety follow-up (2026-09-13)
+
+Delayed responses could overwrite newer note drafts after reopening, clear the
+next direct instruction or command, erase a newer scheduled-work instruction,
+or remove a different answer attached during an earlier Home submission.
+Cancelling a late command interpretation could also restore older text.
+Success handlers now compare against the submitted draft before updating it;
+the existing transient draft hook reads the latest value for functional updates.
+Cancellation keeps the current text. Backend behavior and storage are unchanged.
+
+Six [Draft race regressions] fail before the fix and pass after it. The browser
+group holds actual successful server responses while editing newer drafts,
+then verifies both the UI and the saved server record. [Draft safety evidence]
+records five acceptance groups and two inspected screenshots. Existing successful
+save/confirmation tests continue to verify that the submitted draft clears normally.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Note title/content/pin/save | Simplify | Documents & notes → Note details | Existing edit | 3, draft safety | [Draft race regressions] + [Draft safety evidence] |
+| Agent direct instruction/dispatch | Move-to-Advanced | Team or Advanced Canvas → Agent details | Existing edit | 3, draft safety | [Draft race regressions] + [Draft safety evidence] |
+| Command text/interpret/confirm/cancel/dismiss | Move-to-Advanced | More → Advanced → Commands | Existing access | 5, draft safety | [Draft race regressions] + [Draft safety evidence] |
+| Home Ask/Act and answer context | Merge | Home composer and Act on this | Existing edit | 5, draft safety | [Draft race regressions] + [Draft safety evidence] |
+| Scheduled-work instruction/Interpret | Simplify | More → Scheduled work | Existing edit | 6B, draft safety | [Draft race regressions] + [Draft safety evidence] |
+
+Full local gate: 433 backend / 216 frontend tests, build/preflight passed, both
+production audits clean; primary journeys and all seven secondary groups passed.
+No tests deleted/skipped, no backend changes, no push or deployment.
+
+## Home navigation recovery follow-up (2026-09-13)
+
+Leaving Home reset its pending state and discarded errors received offscreen.
+Home submissions now keep busy/error state in the mounted workspace, keyed by
+their originating project. Returning retains the submission guard and recovery
+message; a late success clears only the submitted draft in that project.
+Other projects remain usable and keep their drafts. This uses transient React
+state only; reload/sign-out boundaries and all backend contracts are unchanged.
+
+Three [Home navigation regressions] failed before the fix and pass afterward.
+[Home navigation evidence] verifies delayed success, lost confirmation and
+background rejection through real browser navigation and existing routes,
+including two inspected desktop/mobile screenshots. No mutation repeats itself.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Home Ask/Act and project picker | Merge / Simplify | Home composer; header → Project space | Existing access/edit | 3,5, navigation recovery | [Home navigation regressions] + [Home navigation evidence] |
+
+Full local gate: 433 backend / 219 frontend tests, build/preflight passed, both
+production audits clean; primary journeys and all eight secondary groups passed.
+No tests deleted/skipped, no backend changes, no push or deployment.
+
+## Needs You navigation recovery follow-up (2026-09-13)
+
+Hiding a review card reset its pending guard and discarded save errors received
+offscreen. Submission state now stays in the mounted workspace, keyed by project,
+source, card type and conflict counterpart. Filter/view changes preserve pending,
+saved and unconfirmed states without disabling unrelated cards. Answers and
+redirect targets/instructions remain available on return; confirmed assignment
+reopens editing without claiming the question was answered. This is transient
+React state; reload/sign-out boundaries and backend semantics remain unchanged.
+
+Fourteen [Review navigation regressions] cover all six card types, saved state,
+503/403/409 replies, unconfirmed outcomes, assignment, redirect retention and failed team-load recovery and a selected agent that is no longer available.
+[Review navigation evidence] exercises real browser navigation with delayed,
+rejected and lost replies, explicit check/retry and source-specific completion.
+Its desktop/mobile screenshots were inspected. The browser test's lost request
+is stopped before reaching the server; the UI cannot know that and correctly
+keeps it unconfirmed. Earlier Home recovery evidence also covers accepted work
+whose response was lost. Held-response browser helpers also drain active routing
+handlers before cleanup after an intermittent routing error in the full run;
+errors still fail acceptance rather than being ignored.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Needs You filters, Answer/Submit/Back, redirect, assignment, dismiss, retry, confirm still true and mark reviewed | Simplify | Needs You → card; secondary controls → Other actions | Existing source edit access | 4, review navigation recovery | [Review navigation regressions] + [Review navigation evidence] |
+
+Full local gate: 433 backend / 233 frontend tests, build/preflight passed, both
+production audits clean; primary journeys and all nine secondary groups passed.
+No tests deleted/skipped, no backend changes, no push or deployment.
+
+## Review clarity follow-up (2026-09-13)
+
+The default review card repeated answer instructions and exposed a monospaced
+context record beside two competing detail controls. Decision context now uses
+ordinary text and labeled fields. Existing detail-display limits remain explicit. Current/proposed values appear together on
+desktop and stack on mobile; zero, false, null and cleared text stay distinct.
+Nested proposals, unknown fields and related questions remain visible. Known
+routing/model metadata and the received context stay under one native
+Full details disclosure; supporting memory IDs also gain readable source links.
+Opening a source reads its existing record; expanding details submits no decision. The normal editable
+Answer/Submit path and all existing source actions remain unchanged.
+
+Failed-work cards now say work did not finish, rather than asserting no work
+happened. Their technical error and original recovery recommendation remain in
+Full details, with View work and Try again still available. This changes display
+copy only; no backend route, agent behavior or approval contract changed.
+
+Eight [Review clarity regressions] cover context/diagnostic reachability, exact
+nested proposals, embedded previews, memory navigation, unknown/authored text,
+coalesced questions, incomplete work and long received context. [Review clarity
+evidence] verifies a fictional member's real source navigation and submission,
+keyboard details, larger mobile action targets and 390/768/1280px layouts. Three
+new images and all regenerated images were inspected.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Review Context/Hide context and Technical context | Merge / Simplify | Decision context stays visible; one Full details disclosure | Existing read access | 4, review clarity | [Review clarity regressions] + [Review clarity evidence] |
+| Context memory reference IDs | Simplify | Memory item links; exact IDs retained in Full details | Existing source read access | 4, review clarity | [Review clarity regressions] + [Review clarity evidence] |
+| Failed-run error, Retry/Open run | Simplify | Plain-language unfinished-work notice; Full details; Try again/View work | Existing edit/read access | 4, review clarity | [Review clarity regressions] + [Global review browser evidence] |
+
+Full local gate: 433 backend / 241 frontend tests, build/preflight passed, both
+production audits clean; primary journeys and all ten secondary groups passed.
+No tests deleted/skipped, no backend changes, no push or deployment.
+
+## Compact feedback follow-up (2026-09-13)
+
+Several brief confirmations could consume the bottom of a mobile queue, and
+clipped messages could not be scrolled because their container ignored pointers.
+One compact strip now summarizes the current updates. Details exposes every
+complete message, with no default stack; an active problem/notice takes priority
+over a later success. Reading, hovering or focusing pauses expiry. Dismiss updates
+restores focus and clears only the short messages, leaving drafts, confirmed
+records and persistent recovery unchanged. This remains transient React state.
+
+Upload feedback now wraps and uses the current theme's readable foreground and
+background. A rejected upload explicitly keeps its Retry upload action; an
+unconfirmed upload still requires checking Documents & notes. No request,
+authorization, memory or backend behavior changed.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| App transient confirmations, warnings and errors | Merge / Simplify | Compact strip below work; Details opens every recent message; Dismiss updates closes only feedback | Same recipient | Compact feedback | [Feedback regressions] + [Feedback evidence] |
+| Upload progress, ready/failed message and Retry upload | Simplify | Readable, wrapping status beside the same recovery action | Existing file access | Compact feedback | [Feedback evidence] + [Workspace browser evidence] |
+
+Seven new component checks cover bursts, priority, full messages, expiry,
+keyboard/focus and cleanup. Two new startup checks cover retained
+sign-in recovery and clean session changes. Six browser checks cover real local assignments, upload and
+answer rejection/recovery, keyboard use, light/dark text contrast, and mobile
+work/dialog geometry. Six new screenshots and all regenerated images were inspected.
+
+Full local gate: 433 backend / 250 frontend tests; build/preflight and both
+production audits passed. Primary journeys and all eleven secondary groups
+passed. No tests deleted/skipped, backend changes, push or deployment.
+The mobile Connections screenshot exposed clipped checks and dim status text;
+the separate Connections follow-up below closes that gap.
+
+## Connections follow-up (2026-09-13)
+
+The default Connections dialog no longer begins with a dense technical board.
+Account access and the answer-service check come first, with named disclosures
+for other services and supported functions. Advanced details retains every service,
+original diagnostic detail, enabled-tool limit, provider, queue and live indicator.
+All existing operations and permission gates are preserved.
+
+Failed checks have one clear retry action and cannot retain an older green claim.
+Pending guards apply across both presentations of a service. Read errors, malformed
+responses, valid empty lists and unconfirmed checks remain distinct; no mutation
+repeats automatically. The technical console uses fresh health after recovery and
+is unavailable while a check is pending or unresolved. Invalid Google sign-in links
+stay on the dialog with recovery; interrupted account changes show unknown status.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Google connection identity, connect and disconnect | Simplify | Connections → Google Workspace account; Check status beside a failed change | Existing directing account | Connections follow-up | [Connection regressions] + [Connection evidence] |
+| Full subsystem board and every Check now control/result | Simplify / Move-to-Advanced | Answer service first; More service checks for everyday sources; Advanced details → All service checks for every original record | Existing access, including members | Connections follow-up | [Connection regressions] + [Connection evidence] |
+| Capability surface, allowed/unavailable function labels and detail | Simplify | Connections → Functions and limits → named service; additional connector tools under Advanced details | Existing access | Connections follow-up | [Connection regressions] + [Connection evidence] |
+| Model/provider, queue, agent segments, link and system console | Move-to-Advanced | Connections → Advanced details, refreshed after successful checks | Existing access | Connections follow-up | [Connection regressions] + [Connection evidence] |
+| Dialog focus, Tab, Escape and return to opener | Keep-as-is / Simplify | Same dialog; summaries join the focus order and closed/hidden contents stay out of it | Existing access | Connections follow-up | [Dialogs] + [Connection evidence] |
+
+Twelve new component checks and two dialog regressions cover response validation,
+per-service pending/error state, lost responses, stale diagnostics, account recovery
+and preserved functions. Eleven browser checks retain all service/capability records,
+exercise real local probe recording with a stubbed model, and measure readable text
+and complete controls at 390/768/1280px. Six new screenshots were inspected.
+The browser harness now waits for responsive layout to paint before applying
+its unchanged overflow/overlap assertions and captures the actual failing page.
+
+Full local gate: 433 backend / 264 frontend tests; build/preflight and both production
+audits passed. Primary journeys and all twelve secondary groups passed, with no
+browser errors or external calls. No existing test was deleted or skipped. Backend,
+memory and safety contracts remain unchanged. No push or deployment performed.
+
+## Memory browsing follow-up (2026-09-13)
+
+Memory now explains source relationships and recorded changes in plain English.
+The certainty key is optional, while each entry still shows its own certainty,
+shape, border, author, source, review date and correction warnings. Earlier
+versions retain their original content and status, with readable text and
+authorship in both themes, an Earlier version label and struck-through content.
+Generated memory review recommendations explain corrections and review dates;
+custom advice remains unchanged. No linked work record is
+presented as absence of a record, not evidence of human authorship.
+
+The existing resource-state hook now handles source and history reads separately.
+Each section distinguishes loading, failed, stale and confirmed-empty data.
+Malformed responses cannot silently become empty history or crash the panel.
+Requests stay tied to their originating entry and attempt, including A→B→A
+navigation and repeated refreshes. Existing correction, lineage, privacy and
+append-only memory endpoints are unchanged.
+
+| Original control | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Memory history checkbox and kind filter | Simplify | More → Memory → Include earlier versions and Memory type; all six stored types remain available | Existing access | Memory browsing | [Memory browsing regressions] + [Memory browsing evidence] |
+| Three-state certainty legend | Simplify | What certainty means disclosure; each entry always retains its own label, shape and border | Existing access | Memory browsing | [Saved work] + [Memory browsing evidence] |
+| Trace / History and sources, Lineage view and back control | Merge / Simplify | History and sources from every full/linked entry; Back to memory; Refresh details for the selected entry | Existing source access | Memory browsing | [Memory browsing regressions] + [Memory browsing evidence] |
+| Lifecycle event labels, reason and view link | Simplify | Changes over time → View this version; original event reference remains labelled in its detail | Existing access | Memory browsing | [Memory browsing regressions] + [Memory browsing evidence] |
+| Upstream/downstream lists and depth | Simplify | Sources this entry uses / Entries that use this information; Link distance retains the same number | Existing privacy filtering | Memory browsing | [Memory browsing regressions] + [Memory browsing evidence] |
+| Producing run, run-read entries and open-run links | Simplify | Work that created this entry / Memory read during that work / View work; Technical details retains work/agent/status references | Existing work access | Memory browsing | [Memory browsing regressions] + [Room and memory evidence] |
+| Earlier-version content, label and provenance | Simplify | Include earlier versions retains the label and struck-through content with readable text and authorship in both themes | Existing access | Memory browsing | [Memory browsing evidence] |
+| Generated memory conflict/review recommendations | Simplify | Needs You memory cards explain preserved originals and a new review date; custom advice keeps its exact wording | Existing access | Memory browsing | [Review clarity regressions] |
+| Help journey numbering | Keep-as-is | More → Help; ordered markers fit within the mobile content area | Existing access | Memory browsing | [Workspace browser evidence] |
+
+Twelve new Memory component tests cover labels, original status/provenance, independent
+read states, malformed responses, obsolete replies, filters, work/version links
+and privacy placeholders. One new review-copy test preserves custom advice.
+Seven browser checks exercise the same source routes,
+real private-source redaction, a held A→B→A reply, retained earlier versions and
+390/768/1280px layouts, with at least 4.5:1 contrast for original text and authorship
+in both themes after the panel's opening animation. Six new screenshots were inspected.
+
+Full local gate: 433 backend / 277 frontend tests; build/preflight and both production
+audits passed. Primary journeys and all thirteen secondary browser groups passed.
+No original tests deleted/skipped; no backend, memory implementation, safety or
+provider changes; no push or deployment.
+
+## Guide-only acceptance follow-up (2026-09-14)
+
+The four-journey browser path now records its actual control visits and fails
+if it enters Advanced or owner settings before the review response is accepted.
+The original first-boot Advanced spending check runs in a separate disposable
+database, preserving all assertions without preparing state for the guide path.
+Desktop/mobile members and Pete's owner preview each pass both independent paths.
+No product controls or backend behavior changed. The current guide and handoff
+distinguish this automated evidence from the remaining unaided human acceptance.
+The current local gate passes 433 backend / 277 frontend tests, both production
+audits and all 14 browser groups. The restored in-app preview completed the four
+guide journeys as Pete. Original tests and backend contracts remain intact.
+
+| Original control / check | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Four primary guide journeys | Keep-as-is | Sign-in → Home Ask → Act on this → Needs You; no Advanced or owner-settings visits | Member / Pete owner | Final local acceptance | [Journey] + [screenshot manifest](screenshots/manifest.json), `guideControls` and `advancedOrOwnerControls` |
+| First-boot spending diagnostics | Keep-as-is | Spending → Advanced details; tested in a separate empty fixture | Member read / owner budget control | Final local acceptance | [Journey], `emptyAccountSpending` in the screenshot manifest |
+
+## Completion audit fixes (2026-09-14)
+
+The independent completion audit reproduced three cases missed by the earlier
+suite. They are fixed in the frontend, with 15 added component regressions and
+a dedicated browser group. The first 12 regressions failed against the prior
+source; the other three cover map response validation, readable steps and keyboard
+navigation. No original assertions were deleted or skipped. One existing test
+fixture now returns a valid empty template list instead of an incomplete object.
+
+| Original control / state | Disposition | Destination | Permission | Phase | Verification evidence |
+|---|---|---|---|---|---|
+| Team-template loading, failure and empty list | Simplify | Retry team list inside Add agent, New project space and owner Room creation; global failure remains across project changes | Existing access / owner Room creation | Completion S1 | [Completion regressions] + [Completion browser evidence]: both response orders, project switch, malformed response, retained names, explicit retry and confirmed empty |
+| Template choices and agent reasoning tier | Simplify | Team → Add agent → Team templates; Quick work (fast) and Complex work (strong) also appear in agent details, versions, canvas and Builder | Existing access | Completion S2 | [Completion regressions] + [Completion browser evidence]: template creation, accessible labels, unchanged tier values and 390/768/1280px layout |
+| Custom name, role, tier, color and instructions | Keep-as-is / Simplify | Team → Advanced → Custom agent; all fields have visible accessible labels | Existing edit | Completion S2 | [Completion regressions] + [Completion browser evidence]: every input and both stored tier values retained |
+| Google blocked-account callback and setup instructions | Simplify | Connections shows the recovery message; Technical setup details retains complete owner guidance | Existing access; setup still requires owner authority | Completion S2 | [Completion regressions] + [Completion browser evidence]: plain feedback, closed disclosure and keyboard access |
+| Work-map certainty, source links, lenses and steps | Simplify | View work → Why? → Map; certainty words, stored value, symbol and border remain together; Read as steps preserves source text | Existing access | Completion S3 | [Completion regressions] + [Completion browser evidence]: three certainty states/lenses, exact memory navigation, narrow/dark views, long text and correction flags, keyboard operation, failed/empty recovery |
+
+Browser verification also caught a select accessible-name mismatch, narrow custom
+fields, unbroken map text overflow and focus-relative lens navigation. Those fixes
+are included. Recovery never creates a project/Room or repeats a mutation by itself.
+The map fixture links to real disposable memory records while deliberately supplying
+all certainty/legacy flags; it does not claim those records came from a live model.
+
+The full post-fix gate passes 433 backend and 292 frontend tests, both production
+audits and all 15 browser groups. [UI-TESTING.md](UI-TESTING.md) and the
+[machine-readable summary](screenshots/simplification-completion-summary.json)
+record the gate and inspected screenshots. Published Builder summaries retain
+plain-English reasoning labels and complete raw change details. The automated guide journeys require no Advanced
+or owner controls. An unaided teammate walkthrough, live Google/integration checks
+and physical microphone acceptance remain separate. Nothing is deployed.
+
+[Completion regressions]: ../frontend/test/simplification-completion.test.jsx
+[Completion browser evidence]: screenshots/acceptance-completion.json
+[Memory browsing regressions]: ../frontend/test/memory-browsing.test.jsx
+[Memory browsing evidence]: screenshots/acceptance-memory-browsing.json
+
+[Connection regressions]: ../frontend/test/connections-reliability.test.jsx
+[Connection evidence]: screenshots/acceptance-connections.json
+
+[Feedback regressions]: ../frontend/test/notifications.test.jsx
+[Feedback evidence]: screenshots/acceptance-notifications.json
+
+[Review clarity regressions]: ../frontend/test/review-clarity.test.jsx
+[Review clarity evidence]: screenshots/acceptance-review-clarity.json
+[Review navigation regressions]: ../frontend/test/review-navigation-reliability.test.jsx
+[Review navigation evidence]: screenshots/acceptance-review-navigation.json
+[Home navigation regressions]: ../frontend/test/home-navigation-reliability.test.jsx
+[Home navigation evidence]: screenshots/acceptance-home-navigation.json
+[Draft race regressions]: ../frontend/test/draft-races.test.jsx
+[Draft safety evidence]: screenshots/acceptance-draft-safety.json
+[System recovery evidence]: screenshots/acceptance-system-recovery.json
+[Voice recovery]: ../frontend/test/command-voice-recovery.test.jsx
+[Startup]: ../frontend/test/startup-status.test.jsx
+[Journey]: ../scripts/journey-test.js
+[Acceptance runner]: ../scripts/acceptance-test.js
+[Room and memory evidence]: screenshots/acceptance-rooms-memory.json
+[Scheduled work and Builder evidence]: screenshots/acceptance-scheduling-builder.json
+[Owner acceptance evidence]: screenshots/acceptance-owner-diagnostics.json
+[Workspace browser evidence]: screenshots/acceptance-workspace-tools.json
+[Global review browser evidence]: screenshots/acceptance-needs-you.json
+[Canvas controls]: ../frontend/test/canvas-controls.test.jsx
+[Workspace]: ../frontend/test/workspace-cleanup.test.jsx
+[Safety]: ../test/orchestrator-safety.test.js
+[Owner]: ../frontend/test/owner-reliability.test.jsx
+[Home]: ../frontend/test/home.test.jsx
+[Saved work]: ../frontend/test/saved-work-reliability.test.jsx
+[Room exports]: ../test/rooms.test.js
+[Dialogs]: ../frontend/test/dialog.test.jsx
+[Header source]: ../frontend/src/WorkspaceHeader.jsx
+[Requests]: ../frontend/test/request-reliability.test.jsx
+[Admin source]: ../frontend/src/AdminModal.jsx
+[Simplified]: ../frontend/test/simplified-workspace.test.jsx
+[Home source]: ../frontend/src/Home.jsx
+[Work source]: ../frontend/src/WorkDetails.jsx
+[Attention]: ../test/attention.test.js
+[Review]: ../frontend/test/review-reliability.test.jsx
+[Review source]: ../frontend/src/NeedsYouView.jsx
+[Assignment]: ../test/people-assignment.test.js
+[Memory lifecycle]: ../test/memory-lifecycle.test.js
+[Rules]: ../frontend/test/rules.test.jsx
+[Panels source]: ../frontend/src/Panels.jsx
+[Memory source]: ../frontend/src/MemoryPanel.jsx
+[Format]: ../frontend/test/format.test.jsx
+[Memory contract]: ../test/memory-contract.test.js
+[Lineage]: ../test/explain-map.test.js
+[Rooms]: ../frontend/test/rooms.test.jsx
+[Room reliability]: ../frontend/test/rooms-reliability.test.jsx
+[Scheduling]: ../frontend/test/scheduling-reliability.test.jsx
+[Nodes]: ../frontend/test/nodes.test.jsx
+[Canvas source]: ../frontend/src/Workspace.jsx
+[Modes]: ../test/run-modes.test.js
+[Commands source]: ../frontend/src/CommandBar.jsx
+[Authority]: ../test/agent-authority.test.js
+[Agent removal]: ../test/agent-removal.test.js
+[Builder]: ../frontend/test/builder.test.jsx
+[Context source]: ../frontend/src/ContextViews.jsx
+[Builder source]: ../frontend/src/AgentBuilder.jsx
+[Add agent source]: ../frontend/src/AddAgentModal.jsx
+[Rules source]: ../frontend/src/RulesView.jsx
+[Activity source]: ../frontend/src/ActivityDock.jsx
+[Capabilities source]: ../frontend/src/CapabilitiesModal.jsx
+[Connectors]: ../test/mcp-connectors.test.js
+[Archive]: ../test/canvas-archive.test.js

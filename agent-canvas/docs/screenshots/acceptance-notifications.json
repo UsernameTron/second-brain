@@ -1,0 +1,74 @@
+{
+  "group": "notifications",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "Real failed upload plus three successful assignments produce one notice; every complete message remains readable beyond normal expiry, and the problem retains headline priority.",
+    "At 390/768/1280px a four-message burst stays in one strip under 65px; the failed answer recovery is wholly above it and receives its pointer.",
+    "Keyboard Details/Dismiss restores focus to the answer; dismissal retains both durable recoveries and the draft, which succeeds only through an explicit subsequent submission.",
+    "Upload failure and success text exceed 4.5:1 contrast and wrap without clipping in light and dark themes; explicit Retry upload saves exactly one document.",
+    "Confirmed sign-out clears expanded feedback so messages do not carry into another session.",
+    "A mobile Connections dialog and global Pause/Resume remain usable with expanded feedback; no notification covers the dialog."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-notifications-mobile-details.png",
+      "description": "All four updates remain in a scrollable details list after the normal expiry; the original upload problem stays in the compact headline despite later successful assignments.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-notifications-mobile-answer.png",
+      "description": "One compact update strip leaves the answer draft and its recovery controls usable; dismissed notifications cannot clear the failed answer or upload.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-notifications-desktop.png",
+      "description": "One compact update strip leaves the answer draft and its recovery controls usable; dismissed notifications cannot clear the failed answer or upload.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-notifications-mobile-upload-light.png",
+      "description": "The saved document has a readable, wrapping confirmation in light mode; its original download remains available.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-notifications-mobile-upload-dark.png",
+      "description": "The same confirmed document and feedback retain readable text in dark mode.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-notifications-mobile-dialog.png",
+      "description": "The Connections dialog stays above expanded updates; its close and recovery controls remain in the reserved work area. Global Pause was exercised only in this disposable fixture.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}

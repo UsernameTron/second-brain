@@ -4,3 +4,6 @@ frontend/dist/
 data/
 *.log
 .env
+
+# Local, content-hashed release packages; review records live in docs/releases/.
+/.release/

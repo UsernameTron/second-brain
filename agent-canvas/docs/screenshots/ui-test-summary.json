@@ -1,0 +1,66 @@
+{
+  "checkedAt": "2026-09-14T20:16:07.168Z",
+  "results": [
+    {
+      "group": "primary-journeys",
+      "status": "passed"
+    },
+    {
+      "group": "rooms-memory",
+      "status": "passed"
+    },
+    {
+      "group": "scheduling-builder",
+      "status": "passed"
+    },
+    {
+      "group": "owner-diagnostics",
+      "status": "passed"
+    },
+    {
+      "group": "workspace-tools",
+      "status": "passed"
+    },
+    {
+      "group": "needs-you",
+      "status": "passed"
+    },
+    {
+      "group": "system-recovery",
+      "status": "passed"
+    },
+    {
+      "group": "draft-safety",
+      "status": "passed"
+    },
+    {
+      "group": "home-navigation",
+      "status": "passed"
+    },
+    {
+      "group": "review-navigation",
+      "status": "passed"
+    },
+    {
+      "group": "review-clarity",
+      "status": "passed"
+    },
+    {
+      "group": "notifications",
+      "status": "passed"
+    },
+    {
+      "group": "connections",
+      "status": "passed"
+    },
+    {
+      "group": "memory-browsing",
+      "status": "passed"
+    },
+    {
+      "group": "completion",
+      "status": "passed"
+    }
+  ],
+  "scope": "Local Chromium, disposable databases and test-only external boundaries. Live Google OAuth, integrations and physical microphone are not verified."
+}

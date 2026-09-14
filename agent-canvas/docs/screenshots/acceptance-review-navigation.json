@@ -1,0 +1,41 @@
+{
+  "group": "review-navigation",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "Pending answer survives Team/Mine and Home navigation, cannot repeat, saves to its source once and preserves another project’s answer draft.",
+    "A rejected answer arriving under a different filter retains its exact draft and error only on the originating card; one explicit retry succeeds.",
+    "A lost answer remains guarded after leaving the queue and checking status; mobile recovery preserves the draft and requires explicit confirmation before retrying.",
+    "Pending assignment stays guarded across filters and returns to editable review after confirmed success; assignment does not mark the question answered.",
+    "A redirect rejected while the queue is closed preserves the original target, exact instructions and failure; the same redirect succeeds on explicit retry."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-review-navigation-pending.png",
+      "description": "A pending answer remains disabled after filter and Home navigation; another project’s answer can still be edited.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-review-navigation-unconfirmed-mobile.png",
+      "description": "A lost answer reply remains unconfirmed across Home and filter navigation, with its draft and Check status recovery at 390px.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}
