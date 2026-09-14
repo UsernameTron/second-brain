@@ -755,7 +755,10 @@ audits and all 15 browser groups. [UI-TESTING.md](UI-TESTING.md) and the
 record the gate and inspected screenshots. Published Builder summaries retain
 plain-English reasoning labels and complete raw change details. The automated guide journeys require no Advanced
 or owner controls. An unaided teammate walkthrough, live Google/integration checks
-and physical microphone acceptance remain separate. Nothing is deployed.
+and physical microphone acceptance remain separate. The separately approved release
+was deployed on 2026-09-14; see the [finalization record](releases/2026-09-14-finalization.md)
+for live evidence and its limits. Earlier phase notes record local-only
+verification at the time, before that release.
 
 [Completion regressions]: ../frontend/test/simplification-completion.test.jsx
 [Completion browser evidence]: screenshots/acceptance-completion.json

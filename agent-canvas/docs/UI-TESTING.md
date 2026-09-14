@@ -1,5 +1,10 @@
 # Local UI verification — 2026-09-14
 
+This records local fixture testing, not live integration acceptance. Statements about
+no deployment below describe those earlier test sessions. The separately approved
+2026-09-14 deployment is recorded in [finalization](releases/2026-09-14-finalization.md).
+
+
 Local gate: **433 backend and 292 frontend tests passed**, no tests skipped;
 frontend build and deployment preflight passed, both production dependency audits
 clean. Primary journeys and all fourteen secondary browser groups passed.
