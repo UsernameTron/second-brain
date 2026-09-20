@@ -135,11 +135,15 @@ test('executeTool: unconfigured refuses, wrong role refuses, success wraps as ex
 
 // ---------- the service "Needs You" count lane ----------
 
-async function countHttp(bearer) {
+// The lane sits in the 10/min auth bucket, keyed by client IP. `ip` rides
+// X-Forwarded-For (the app trusts one proxy hop) so a test with many requests
+// draws from its own bucket instead of 429ing.
+async function countHttp(bearer, query = '', ip = '') {
   const headers = bearer ? { Authorization: `Bearer ${bearer}` } : {};
-  const res = await fetch(`${base}/api/service/attention-count`, { headers });
+  if (ip) headers['X-Forwarded-For'] = ip;
+  const res = await fetch(`${base}/api/service/attention-count${query}`, { headers });
   const text = await res.text();
-  return { status: res.status, data: text ? JSON.parse(text) : null };
+  return { status: res.status, data: text ? JSON.parse(text) : null, text };
 }
 
 test('lane disabled (503) while TICK_AUDIENCE / STATUS_INVOKER_SA are unset', async () => {
@@ -177,6 +181,58 @@ test('missing token 401, bad token 401, wrong SA 403, unverified email 403, righ
       assert.ok(ok.data.generatedAt, 'stamps generatedAt');
     } finally { restore(); }
   } finally {
+    delete process.env.TICK_AUDIENCE;
+    delete process.env.STATUS_INVOKER_SA;
+  }
+});
+
+test('?email= narrows to that person: mine count, 5 capped items, address never echoed; invalid is 400', async () => {
+  process.env.TICK_AUDIENCE = `${base}/api/standing-rules/tick`;
+  process.env.STATUS_INVOKER_SA = STATUS_SA;
+  const OWNER = 'mine-test@cloudtechgurus.com';
+  const q = (email) => `?email=${encodeURIComponent(email)}`;
+  let restore = standingRules._internal.setTickVerifier(async () => ({ email: STATUS_SA, email_verified: true }));
+  try {
+    for (let i = 0; i < 6; i += 1) {
+      db.prepare(`INSERT INTO escalations (id, canvas_id, kind, question, owner_email, created_at) VALUES (?, 'c-estate-1', 'question', ?, ?, ?)`)
+        .run(crypto.randomUUID(), `Q${i} ${'x'.repeat(300)}`, OWNER, nowIso());
+    }
+    const mine = await countHttp('valid-oidc', q(OWNER), '10.0.0.1');
+    assert.equal(mine.status, 200);
+    assert.equal(mine.data.count, 6, 'only the cards this person owns - the unowned escalation above is excluded');
+    assert.equal(mine.data.mine, true);
+    assert.equal(mine.data.needsYou, undefined, 'a mine count is never labelled as the workspace count');
+    assert.ok(mine.data.generatedAt);
+    assert.equal(mine.data.items.length, 5, 'at most 5 items');
+    for (const item of mine.data.items) {
+      assert.deepEqual(Object.keys(item).sort(), ['created_at', 'kind', 'title']);
+      assert.equal(item.kind, 'escalation');
+      assert.equal(item.title.length, 120, 'titles are truncated to 120 chars');
+    }
+    assert.ok(!mine.text.toLowerCase().includes('mine-test'), 'the address is never echoed');
+
+    const upper = await countHttp('valid-oidc', q('Mine-Test@CloudTechGurus.com'), '10.0.0.1');
+    assert.equal(upper.data.count, 6, 'case-insensitive');
+
+    const nobody = await countHttp('valid-oidc', q('nobody@cloudtechgurus.com'), '10.0.0.1');
+    assert.deepEqual([nobody.status, nobody.data.count, nobody.data.items], [200, 0, []]);
+
+    for (const bad of ['', 'pete@evil.com', 'pete@cloudtechgurus.com.evil.com', 'a@b@cloudtechgurus.com',
+      '@cloudtechgurus.com', 'pe te@cloudtechgurus.com', 'cloudtechgurus.com', `${'x'.repeat(250)}@cloudtechgurus.com`]) {
+      const res = await countHttp('valid-oidc', q(bad), '10.0.0.2');
+      assert.equal(res.status, 400, `rejects ${JSON.stringify(bad.slice(0, 40))}`);
+      assert.deepEqual(res.data, { error: 'invalid email' }, 'no fall back to the workspace count, no echo');
+    }
+
+    const plain = await countHttp('valid-oidc', '', '10.0.0.1');
+    assert.ok(Number.isInteger(plain.data.needsYou) && plain.data.needsYou >= 7, 'without email the workspace-wide response is unchanged');
+    assert.deepEqual(Object.keys(plain.data).sort(), ['generatedAt', 'needsYou']);
+
+    restore();
+    restore = standingRules._internal.setTickVerifier(async () => ({ email: 'evil@attacker.com', email_verified: true }));
+    assert.equal((await countHttp('wrong-sa', q(OWNER), '10.0.0.1')).status, 403, 'the SA check still gates the email view');
+  } finally {
+    restore();
     delete process.env.TICK_AUDIENCE;
     delete process.env.STATUS_INVOKER_SA;
   }

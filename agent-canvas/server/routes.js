@@ -159,6 +159,10 @@ router.post('/standing-rules/tick', rateLimit('auth'), asyncRoute(async (req, re
 // SA. Either env var unset → 503, never open by default. Read-only: the count
 // is the same projection /api/attention serves signed-in users, at owner
 // scope (every non-archived canvas, scope 'all').
+// Optional ?email=<addr> narrows it to the cards that person owns (scope
+// 'mine') and adds up to 5 short items. The address is validated strictly and
+// never echoed; a present-but-invalid one is a 400, never a silent fall back
+// to the workspace-wide count. Without ?email the response is unchanged.
 router.get('/service/attention-count', rateLimit('auth'), asyncRoute(async (req, res) => {
   const audience = process.env.TICK_AUDIENCE;
   const invoker = process.env.STATUS_INVOKER_SA;
@@ -176,7 +180,22 @@ router.get('/service/attention-count', rateLimit('auth'), asyncRoute(async (req,
   if (!payload || payload.email !== invoker || !payload.email_verified) {
     return res.status(403).json({ error: 'caller is not the status invoker service account' });
   }
+  const rawEmail = qstr(req.query.email);
+  let email;
+  if (rawEmail !== undefined) {
+    email = rawEmail.toLowerCase();
+    const [local, domain, ...extra] = email.split('@');
+    if (email.length > 254 || extra.length || domain !== auth.ALLOWED_DOMAIN || !/^[a-z0-9._%+-]{1,64}$/.test(local)) {
+      return res.status(400).json({ error: 'invalid email' });
+    }
+  }
   const canvasIds = db.prepare('SELECT id FROM canvases WHERE archived = 0').all().map((c) => c.id);
+  if (email) {
+    const mine = attention.listAttention({ email, scope: 'mine', canvasIds });
+    // Titles are user content headed for another service's UI: cap them.
+    const items = mine.slice(0, 5).map((c) => ({ title: String(c.decision || '').slice(0, 120), kind: c.type, created_at: c.created_at }));
+    return res.json({ count: mine.length, mine: true, items, generatedAt: nowIso() });
+  }
   const needsYou = attention.listAttention({ email: '', scope: 'all', canvasIds }).length;
   res.json({ needsYou, generatedAt: nowIso() });
 }));
