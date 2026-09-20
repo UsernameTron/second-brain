@@ -159,10 +159,10 @@ router.post('/standing-rules/tick', rateLimit('auth'), asyncRoute(async (req, re
 // SA. Either env var unset → 503, never open by default. Read-only: the count
 // is the same projection /api/attention serves signed-in users, at owner
 // scope (every non-archived canvas, scope 'all').
-// Optional ?email=<addr> narrows it to the cards that person owns (scope
+// Optional X-Actor-Email: <addr> header narrows it to the cards that person owns (scope
 // 'mine') and adds up to 5 short items. The address is validated strictly and
 // never echoed; a present-but-invalid one is a 400, never a silent fall back
-// to the workspace-wide count. Without ?email the response is unchanged.
+// to the workspace-wide count. Without the header the response is unchanged.
 router.get('/service/attention-count', rateLimit('auth'), asyncRoute(async (req, res) => {
   const audience = process.env.TICK_AUDIENCE;
   const invoker = process.env.STATUS_INVOKER_SA;
@@ -180,7 +180,8 @@ router.get('/service/attention-count', rateLimit('auth'), asyncRoute(async (req,
   if (!payload || payload.email !== invoker || !payload.email_verified) {
     return res.status(403).json({ error: 'caller is not the status invoker service account' });
   }
-  const rawEmail = qstr(req.query.email);
+  // A header, not a query string: request URLs are logged, and a person's address must not be.
+  const rawEmail = req.get('x-actor-email');
   let email;
   if (rawEmail !== undefined) {
     email = rawEmail.toLowerCase();

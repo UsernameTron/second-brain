@@ -138,10 +138,11 @@ test('executeTool: unconfigured refuses, wrong role refuses, success wraps as ex
 // The lane sits in the 10/min auth bucket, keyed by client IP. `ip` rides
 // X-Forwarded-For (the app trusts one proxy hop) so a test with many requests
 // draws from its own bucket instead of 429ing.
-async function countHttp(bearer, query = '', ip = '') {
+async function countHttp(bearer, actorEmail, ip = '') {
   const headers = bearer ? { Authorization: `Bearer ${bearer}` } : {};
+  if (actorEmail !== undefined) headers['X-Actor-Email'] = actorEmail;
   if (ip) headers['X-Forwarded-For'] = ip;
-  const res = await fetch(`${base}/api/service/attention-count${query}`, { headers });
+  const res = await fetch(`${base}/api/service/attention-count`, { headers });
   const text = await res.text();
   return { status: res.status, data: text ? JSON.parse(text) : null, text };
 }
@@ -186,11 +187,11 @@ test('missing token 401, bad token 401, wrong SA 403, unverified email 403, righ
   }
 });
 
-test('?email= narrows to that person: mine count, 5 capped items, address never echoed; invalid is 400', async () => {
+test('X-Actor-Email narrows to that person: mine count, 5 capped items, address never echoed; invalid is 400', async () => {
   process.env.TICK_AUDIENCE = `${base}/api/standing-rules/tick`;
   process.env.STATUS_INVOKER_SA = STATUS_SA;
   const OWNER = 'mine-test@cloudtechgurus.com';
-  const q = (email) => `?email=${encodeURIComponent(email)}`;
+  const q = (email) => email;
   let restore = standingRules._internal.setTickVerifier(async () => ({ email: STATUS_SA, email_verified: true }));
   try {
     for (let i = 0; i < 6; i += 1) {
@@ -224,7 +225,7 @@ test('?email= narrows to that person: mine count, 5 capped items, address never 
       assert.deepEqual(res.data, { error: 'invalid email' }, 'no fall back to the workspace count, no echo');
     }
 
-    const plain = await countHttp('valid-oidc', '', '10.0.0.1');
+    const plain = await countHttp('valid-oidc', undefined, '10.0.0.1');
     assert.ok(Number.isInteger(plain.data.needsYou) && plain.data.needsYou >= 7, 'without email the workspace-wide response is unchanged');
     assert.deepEqual(Object.keys(plain.data).sort(), ['generatedAt', 'needsYou']);
 
