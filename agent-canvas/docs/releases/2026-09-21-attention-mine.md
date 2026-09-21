@@ -1,9 +1,33 @@
 # Agent Canvas release — "mine" attention summary, 2026-09-21
 
-**Status: prepared locally. Not yet published or deployed.** The registry push
-and the service update are blocked on an expired `gcloud` login
-(`pete@cloudtechgurus.com`, reauthentication required). This record is updated
-with the observed live results once the rollout runs.
+**Status: image published to the private registry. Not yet deployed.** The
+maintenance-window commands (Scheduler pause, scale to zero, image update) are
+refused to the agent session by a permission check, so Pete runs them one at a
+time. This record is updated with the observed live results once the rollout
+runs.
+
+## Live baseline, read 2026-09-21 18:38 UTC (before any change)
+
+- Revision `agent-canvas-ui-20260914-review2` serves 100% of traffic, service
+  generation 75, no tagged revisions.
+- Live image — **the rollback image** —
+  `us-central1-docker.pkg.dev/agent-canvas-ctg-0811/app/agent-canvas@sha256:5d80f91078ed82a74632003ac29c300028dbb717a651fc18c3467dd7441aaaa5`.
+- 18 environment/secret bindings (4 secret references), `MODEL_PROVIDER=gemini`,
+  service account `agent-canvas-run@`, 1 CPU / 1 GiB, concurrency 80, timeout
+  300 s, revision maximum one instance, scaling mode automatic. Fingerprint of
+  everything except image and revision name:
+  `8f0c95d85b1cff419908b5d8ce7ddc6e8d424961caa840e201355a56f61ee134`.
+- Scheduler `agent-canvas-standing-rules` ENABLED, `*/10 * * * *`.
+- 18:00–18:45 UTC the only requests were Scheduler ticks (HTTP 200): no signed-in
+  users, no runs. Litestream replication current, generation `3d7d55ace9544fcf`.
+  The in-app Pause step was therefore skipped: nothing was in flight and no
+  signed-in browser session was available to the agent.
+- Shipped-code difference from the live release commit `cd6cdf8`: 20 added lines
+  in `server/routes.js`. No schema, dependency, frontend or start-script change.
+
+Pushed 18:40 UTC; the registry returns index digest
+`sha256:05739e588cbcd71a88d2cb061d965d9de419fde0ed4ce81911a2d3bdbf9bc8b5` for
+tag `mine-20260921-17fbd4e`, matching the local build.
 
 ## What ships
 
@@ -41,8 +65,8 @@ response is unchanged (`{ needsYou, generatedAt }`).
 The rollback image is the currently live one, revision
 `agent-canvas-ui-20260914-review2`:
 `us-central1-docker.pkg.dev/agent-canvas-ctg-0811/app/agent-canvas@sha256:5d80f91078ed82a74632003ac29c300028dbb717a651fc18c3467dd7441aaaa5`.
-That digest matches the locally cached registry tag `ui-20260914-review2`; the
-re-read from the live service is pending the login above.
+That digest was re-read from the live service before any change (baseline
+above) and matches the locally cached registry tag `ui-20260914-review2`.
 
 The rollout follows the image-only procedure in
 [2026-09-14-ui.md](2026-09-14-ui.md): only the image and the revision name
