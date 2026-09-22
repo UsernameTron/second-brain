@@ -1,0 +1,75 @@
+{
+  "group": "memory-browsing",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "Original/replacement entries, all certainty labels and their symbols stay visible; type values and the earlier-version filter retain their original behavior while the legend starts closed.",
+    "Changes over time retains each version and reason; source links open the exact referenced record. Missing work records are labelled as absent, without inventing human authorship.",
+    "Independent history failure retains labelled prior data and source content; a valid empty timeline has its own read-only recovery, which returns to the real recorded history.",
+    "A real browser visits A, B and A again while the first A source reply is held; that obsolete response cannot overwrite the current entry when released.",
+    "Memory header actions remain within the panel at 390/768/1280px; inspected mobile and desktop images preserve readable source and history sections.",
+    "A member sees the real server privacy placeholder for a linked restricted source; private content is never supplied to the simplified view.",
+    "Earlier-version content and provenance exceed 4.5:1 contrast in both themes; the retained original keeps its certainty, earlier-version label and struck-through content."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-memory-browsing-mobile-list.png",
+      "description": "Memory uses a collapsed certainty explanation, a clear type filter and Include earlier versions. Every entry still shows certainty, author, source and correction warnings.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-memory-browsing-mobile-history.png",
+      "description": "Changes over time opens the original corrected entry without hiding its original certainty; links, review date, correction warning and source remain readable.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-memory-browsing-mobile-recovery.png",
+      "description": "A failed history refresh keeps the selected source and last-known changes visible, with its own recovery. Empty history is never inferred from the failed request.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-memory-browsing-mobile-empty-history.png",
+      "description": "A complete empty timeline gets an explicit message and Refresh history while the selected memory entry remains available.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-memory-browsing-desktop-sources.png",
+      "description": "Plain-English history, source and dependent-entry sections keep complete provenance and certainty, with the same exact source navigation.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-memory-browsing-mobile-earlier-dark.png",
+      "description": "Earlier versions stay readable in dark mode: the original content remains struck through and clearly labelled, while text and authorship exceed 4.5:1 contrast.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}

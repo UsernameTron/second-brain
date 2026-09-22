@@ -136,6 +136,9 @@ function scalarLabel(v) {
   return short(String(v), 80);
 }
 function fieldLabel(key) {
+  if (key === 'detail') return 'Decision context';
+  if (key === 'entry_ids') return 'Related memory references';
+  if (key === 'item_key') return 'Work reference';
   return String(key).replace(/_/g, ' ');
 }
 function boundedDesc(v) {
@@ -457,4 +460,30 @@ export function formatRunEventPreview(ev, variant = 'detail') {
     default:
       return `${variant === 'dock' ? `${ev.type} ` : ''}${short(humanizePayload(p).join(' · '), L.def)}`;
   }
+}
+
+// Storage values remain visible beside their plain-English meaning.
+export const certaintyLabel = (value) => ({ verified: 'Confirmed (verified)', inference: 'Reasoned conclusion (inference)', assumption: 'Unconfirmed (assumption)' }[value] || value);
+export const agentTierLabel = (value) => ({ strong: 'Complex work (strong)', fast: 'Quick work (fast)' }[value] || (value ? `Reasoning level: ${value}` : 'Reasoning level unavailable'));
+export function EpiDot({ epistemic }) {
+  return <span className={`epi-dot ${{ verified: 'filled', inference: 'half', assumption: 'hollow' }[epistemic] || 'hollow'}`} aria-hidden="true" />;
+}
+export const workStatusLabel = (value) => ({ queued: 'Waiting to start', running: 'Working', completed: 'Finished', failed: 'Could not finish', refused: 'Request declined', halted_steps: 'Stopped at step limit', halted_timeout: 'Stopped at time limit', halted_paused: 'Stopped because work was paused', halted_budget: 'Stopped at spending limit', idle: 'Ready for work', waiting: 'Waiting for a response' }[value] || String(value || 'Status unknown').replaceAll('_', ' '));
+
+export function choiceKeys(event, values, current, select) {
+  const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+  if (!delta && !['Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const index = event.key === 'Home' ? 0 : event.key === 'End' ? values.length - 1 : (values.indexOf(current) + delta + values.length) % values.length;
+  select(values[index]);
+  event.currentTarget.parentElement.querySelectorAll('[role="radio"], [role="tab"]')[index]?.focus();
+}
+
+export const sourceLabel = (value) => ({ gmail: 'Gmail', drive: 'Google Drive', sheets: 'Google Sheets', calendar: 'Google Calendar', hubspot: 'HubSpot', enrichment: 'Contact information', memory: 'Recorded memory', web: 'Web sources' }[value] || `Source: ${value}`);
+// The existing backend reports configuration as ready for these two surfaces.
+// Configuration does not verify search delivery or database replication.
+export const integrationStatus = (item) => ['db', 'websearch'].includes(item.id) && item.status === 'ready' ? 'planned' : item.status;
+export function systemStatus(health) {
+  const states = (health?.integrations || []).map(integrationStatus);
+  return states.includes('down') ? 'down' : states.includes('attention') ? 'attention' : states.length && states.every((s) => s === 'ready') ? 'ready' : 'planned';
 }

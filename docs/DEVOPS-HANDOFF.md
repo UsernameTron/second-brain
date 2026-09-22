@@ -216,10 +216,13 @@ UAT tests (`test/uat/`) are guarded by `CI=true` skip logic and run on a separat
   ```bash
   for j in today daily-sweep promote pulse dream; do
     cp "config/com.secondbrain.$j.plist" ~/Library/LaunchAgents/
+    launchctl bootout gui/$(id -u)/com.secondbrain.$j 2>/dev/null
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.secondbrain.$j.plist
   done
   ```
-- [ ] `npm test` passes (1568 tests; 1530 passing + 38 skipped under CI)
+
+  The `bootout` is what makes this safe to re-run after a plist changes. launchd keeps the definition it loaded, not the file on disk: a bare `bootstrap` against an already-registered label fails with the unhelpful `Bootstrap failed: 5: Input/output error` and leaves the stale definition running. Confirm the reload took by printing the live environment — `launchctl print gui/$(id -u)/com.secondbrain.promote | grep LLM_PROVIDER` should show `anthropic`.
+- [ ] `npm test` passes (1626 tests; 1588 passing + 38 skipped under CI)
 - [ ] `npm run lint` exits 0
 - [ ] `~/.cache/second-brain/` writable (auto-created on first `/recall --semantic`)
 

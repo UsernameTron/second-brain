@@ -222,7 +222,7 @@ test('pathological PDF expansion is isolated behind decoded-text and parser reso
     const chunk = parseChunk(out);
     assert.equal(chunk.meta.source_complete, false);
     assert.ok(chunk.meta.source_limits.includes('character_limit'));
-    assert.match(chunk.meta.source_limit_message, /smaller or split document/);
+    assert.match(chunk.meta.source_limit, /smaller or split document/);
     assert.equal(runnerInternal.capToolResult(out.content), out.content);
   }
   assert.ok(Date.now() - started < 5000, 'pathological parse returns within the configured worker timeout');

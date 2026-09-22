@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { RequestError } from './RequestState.jsx';
+import { useDraft } from './Drafts.jsx';
 import { timeAgo } from './api.js';
 import { humanizeDetail } from './format.jsx';
 
@@ -7,9 +9,18 @@ const KIND_COLORS = {
   conflict: 'k-conflict', steps: 'k-steps', refusal: 'k-refusal', error: 'k-refusal',
 };
 
-function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign }) {
+function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign, onRefresh }) {
   const [mode, setMode] = useState(null); // null | 'accept' | 'redirect'
-  const [answer, setAnswer] = useState('');
+  const [answer, setAnswer] = useDraft(`legacy-review:${esc.id}`, '');
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState(null);
+  const guard = useRef(false);
+  const action = async (fn) => {
+    if (guard.current || error?.unconfirmed) return;
+    guard.current = true; setPending(true); setError(null);
+    try { await fn(); } catch (e) { setError(e); }
+    finally { guard.current = false; setPending(false); }
+  };
   const [target, setTarget] = useState('');
   const [showCtx, setShowCtx] = useState(false);
   const agent = esc.agent_id ? agentsById[esc.agent_id] : null;
@@ -38,11 +49,13 @@ function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign })
       ) : null}
       {showCtx ? <pre className="tray-context mono">{contextStr}</pre> : null}
 
+      <RequestError error={error} subject="Saving your response" onRetry={onRefresh} retryLabel="Check status" />
+      <fieldset disabled={pending || error?.unconfirmed} className="review-controls">
       {mode === null ? (
         <div className="tray-actions">
           <button className="btn ok small" onClick={() => setMode('accept')}>Accept</button>
           <button className="btn ghost small" onClick={() => setMode('redirect')}>Redirect</button>
-          <button className="btn ghost small dim-btn" onClick={() => onResolve(esc.id, { action: 'dismiss' })}>Dismiss</button>
+          <button className="btn ghost small dim-btn" onClick={() => action(() => onResolve(esc.id, { action: 'dismiss' }))}>Dismiss</button>
           {onAssign ? (
             <select
               className="tray-assign"
@@ -51,9 +64,9 @@ function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign })
               onChange={(e) => {
                 const v = e.target.value;
                 if (!v) return;
-                if (v.startsWith('p:')) onAssign(esc.id, { owner_email: v.slice(2) });
-                else if (v.startsWith('a:')) onAssign(esc.id, { owner_agent_id: v.slice(2) });
-                else if (v === 'clear') onAssign(esc.id, { owner_email: null, owner_agent_id: null });
+                if (v.startsWith('p:')) action(() => onAssign(esc.id, { owner_email: v.slice(2) }));
+                else if (v.startsWith('a:')) action(() => onAssign(esc.id, { owner_agent_id: v.slice(2) }));
+                else if (v === 'clear') action(() => onAssign(esc.id, { owner_email: null, owner_agent_id: null }));
               }}
             >
               <option value="">assign…</option>
@@ -68,8 +81,8 @@ function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign })
           className="tray-form"
           onSubmit={(e) => {
             e.preventDefault();
-            if (mode === 'accept') onResolve(esc.id, { action: 'accept', answer });
-            else onResolve(esc.id, { action: 'redirect', target_agent_id: target, answer });
+            if (mode === 'accept') action(() => onResolve(esc.id, { action: 'accept', answer }));
+            else action(() => onResolve(esc.id, { action: 'redirect', target_agent_id: target, answer }));
           }}
         >
           {mode === 'redirect' ? (
@@ -95,6 +108,7 @@ function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign })
           </div>
         </form>
       )}
+      </fieldset>
     </div>
   );
 }
@@ -102,7 +116,7 @@ function TrayItem({ esc, agentsById, agents, people = [], onResolve, onAssign })
 // Pinned to the top of the viewport, always visible, never inside the canvas layout.
 // P2: with the needs_you flag on, the tray collapses to its badge (count =
 // the full attention projection) and clicking opens the NEEDS YOU view.
-export default function Tray({ escalations, agentsById, agents, people = [], onResolve, onAssign, badgeOnly = false, badgeCount = null, onOpen }) {
+export default function Tray({ escalations, agentsById, agents, people = [], onResolve, onAssign, badgeOnly = false, badgeCount = null, onOpen, loadStatus, onRefresh }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mascotOk, setMascotOk] = useState(true);
   const n = badgeOnly && badgeCount !== null ? badgeCount : escalations.length;
@@ -115,7 +129,7 @@ export default function Tray({ escalations, agentsById, agents, people = [], onR
         aria-expanded={badgeOnly ? undefined : !collapsed}
         title={badgeOnly ? 'Open the Needs you view' : (collapsed ? 'Expand' : 'Collapse')}
       >
-        {n > 0 ? (
+        {loadStatus?.error || loadStatus?.loading || n === '—' ? <>Needs you · status unavailable</> : n > 0 ? (
           <>
             <span className="tray-badge">{n}</span>
             Needs you
@@ -132,10 +146,11 @@ export default function Tray({ escalations, agentsById, agents, people = [], onR
           </>
         )}
       </button>
+      <RequestError error={loadStatus?.error} subject="Loading review items" onRetry={onRefresh} />
       {!badgeOnly && !collapsed && n > 0 ? (
         <div className="tray-list">
           {escalations.map((e) => (
-            <TrayItem key={e.id} esc={e} agentsById={agentsById} agents={agents} people={people} onResolve={onResolve} onAssign={onAssign} />
+            <TrayItem key={e.id} esc={e} agentsById={agentsById} agents={agents} people={people} onResolve={onResolve} onAssign={onAssign} onRefresh={onRefresh} />
           ))}
         </div>
       ) : null}

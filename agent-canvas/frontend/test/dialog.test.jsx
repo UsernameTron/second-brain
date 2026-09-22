@@ -64,3 +64,35 @@ describe('useDialog', () => {
     expect(closes).toEqual([1]);
   });
 });
+
+it('traps focus through disclosures without visiting hidden, disabled or inert controls', async () => {
+  function DisclosureDialog() {
+    const ref = useDialog(vi.fn());
+    return <div role="dialog" ref={ref} tabIndex={-1}>
+      <button hidden>hidden</button><button disabled>disabled</button>
+      <div inert=""><button>inert</button></div>
+      <div style={{ display: 'none' }}><button>not displayed</button></div>
+      <details><summary>More details</summary><button>inside</button><details><summary>Nested details</summary><button>nested hidden</button></details></details>
+    </div>;
+  }
+  render(<DisclosureDialog />);
+  const summary = screen.getByText('More details');
+  expect(summary).toHaveFocus();
+  await userEvent.tab(); expect(summary).toHaveFocus();
+  await userEvent.tab({ shift: true }); expect(summary).toHaveFocus();
+  // jsdom does not implement native Enter-to-toggle; the browser suite checks it.
+  await userEvent.click(summary);
+  await userEvent.tab(); expect(screen.getByRole('button', { name: 'inside' })).toHaveFocus();
+  await userEvent.tab(); expect(screen.getByText('Nested details')).toHaveFocus();
+  await userEvent.tab(); expect(summary).toHaveFocus();
+  await userEvent.tab({ shift: true }); expect(screen.getByText('Nested details')).toHaveFocus();
+});
+
+it('keeps Tab in an informational dialog with no interactive controls', async () => {
+  const close = vi.fn();
+  function Information() { const ref = useDialog(close); return <div role="dialog" ref={ref} tabIndex={-1}>Loading details…</div>; }
+  render(<><button>outside</button><Information /></>);
+  expect(screen.getByRole('dialog')).toHaveFocus();
+  await userEvent.tab(); expect(screen.getByRole('dialog')).toHaveFocus();
+  await userEvent.keyboard('{Escape}'); expect(close).toHaveBeenCalledTimes(1);
+});

@@ -1,4 +1,4 @@
-# Agent Canvas — Current Handoff (2026-08-19, close-out sync)
+# Agent Canvas — Current Handoff (2026-09-14, simplified UI deployed)
 
 This file is the concise current-state authority. Historical implementation and
 incident detail lives in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md); phase intent
@@ -10,24 +10,43 @@ Every claim below is labeled **git-proven**, **test-proven**,
 **live-proven**, **historical acceptance evidence**, or **unverified**. Live
 evidence is an observation at one instant, not a permanent property.
 
+## Simplification (implemented locally, deployed 2026-09-14)
+
+**Test-proven locally:** Phase 1 installed compatible XML/request parser security
+updates; both production audits are clean. Phase 2 adds bounded requests,
+recoverable boot/session/status failures, explicit stale live updates, refreshed
+pause/spend state and honest connection checks. Phase 3 retains failed drafts,
+opens old work directly and exposes source/history/upload recovery. Phase 4
+adds global scoped review, guarded answers and source-specific navigation.
+Phase 5 simplifies Home/navigation, keeps all controls reachable and adds
+editable Act on this context. Phase 6A adds recoverable Room reads, confirmed
+refresh progress and guarded export previews/downloads. Phase 6B adds retained
+scheduling/Builder edits, recoverable polling and confirmed rehearsal gates. Phase 6C
+adds honest owner tables, retained edits, partial-order recovery, bounded downloads
+and unverified configuration labels. Phase 7 verifies all four member journeys at
+1280/390px, queue recovery, 768px and actual 200% zoom; all 16 images inspected.
+Latest local gate rerun (2026-09-14, [finalization](releases/2026-09-14-finalization.md)): 433 backend / 299 frontend tests; both production audits clean. Guide-path clicks now prove no Advanced/owner settings; first-boot spending uses independent fixtures.
+**Review follow-up:** agent status styles keep their original status keys; confirmed custom-agent adds clear submitted drafts. Regression checks cover styling and retained failed/cancelled forms.
+**Test-proven locally:** all three [completion audit](releases/2026-09-14-simplification-audit.md) gaps are closed: retained team-list recovery, plain-English agent settings and written map certainty. Fifteen new component regressions and a dedicated browser group cover the fixes; unaided human/live acceptance remains separate.
+Pete completed the guided walkthrough. Local acceptance covers Room exports/recovery,
+permissions, memory correction/history, certainty, scheduling, Builder and owner tools;
+Home/Room staffing, mobile menus, published-change review, owner removal, canvas Fit/Tidy, saved filters, cross-project assignment, voice recovery, late replies erasing newer drafts and navigation losing Home/Needs You submission status are fixed. Browser checks cover every main surface, all six review types, connection/session/voice recovery, draft preservation and pending requests across views/projects and review filters. Review cards now show readable decision context and proposed values, with one Full details control for diagnostics; `npm run test:ui` repeats the checks. See [UI-TESTING.md](UI-TESTING.md) for evidence and limits, [SIMPLIFICATION.md](SIMPLIFICATION.md) for the control map. Feedback is compact with readable details, retained recovery and themed upload messages. Connections now puts account access and the answer check first, keeps every service under named disclosures, retains failed-check recovery and passes mobile/keyboard/contrast checks. Memory history now uses plain-English sections, retains certainty and originals, separates failed/empty history and ignores obsolete replies. All 15 local browser groups pass. The refreshed release container matches the tested frontend and observed live backend; offline production startup/authentication checks pass. The shared Git lock was preserved in a timestamped backup under Pete's explicit approval. [Release review](releases/2026-09-14-ui.md) records the read-only live preflight, exact image and rollback. Pete approved the private restore test; integrity and required-table checks passed offline at 16:14 UTC. The corrected release was subsequently merged and deployed under Pete’s explicit approval; see finalization for the exact image and live checks.
 ## Current production state
 
-**Live-proven at 2026-08-20 (~15:40Z):** Cloud Run revision
-`agent-canvas-00068-lzs` serves 100% of traffic (superseding `00064-nq9`
-after the 2026-08-20 schema/grant fixes and the reverted vertex experiment); `/api/healthz` 200
-`{"ok":true,"paused":false}`; zero ERROR logs post-deploy. Provider is
-`MODEL_PROVIDER=gemini` (Gemini on Vertex, keyless ADC) — `/api/config`
-reports `gemini-2.5-flash` (fast) / `gemini-2.5-pro` (strong). The systems
-board read fully green in a signed-in session: MODEL probe OK, all four
-Workspace surfaces probe OK, HubSpot ops-runner and enrichment-dispatch
-wired, all six MCP connector rows enabled with owner-ticked tools.
+**Live-proven 2026-09-14 20:25–20:30 UTC:** PR [#254](https://github.com/UsernameTron/second-brain/pull/254) merged after green checks; revision
+`agent-canvas-ui-20260914-review2` serves 100% of traffic. Health is 200, global
+pause is restored to false; the resumed Scheduler tick returned 200 at 20:30:09 UTC. Gemini, secrets, runtime
+limits, service account and replica configuration are unchanged. Pete’s existing
+session loaded Home, the global queue, source receipts, work details and linked
+memory; the answer-service probe passed. Startup restored existing data, reported
+no orphaned runs and replicated successfully; no error-severity startup logs.
+The old instance reached zero before rollout; a fresh private backup restored with
+integrity and required tables verified. [Finalization](releases/2026-09-14-finalization.md)
+records the digest and remaining live/unaided acceptance limits.
+**Live-proven separately at 2026-09-14 18:33 UTC:** Pete's signed-in Act request verified `hubspot-crm` account `243103424` and successful one-record contact/company/deal reads. All seven write tools were unticked; no configuration or CRM write was made. Ask blocks every MCP connector and uses the separate sandbox lane; this is a current limitation, not a permission failure. Local preview remains isolated.
+The prior signed-in connector/model acceptance was on 2026-08-20; see history.
 
-**Live-proven:** Cloud Scheduler job `agent-canvas-standing-rules` was
-RESUMED by operator approval on 2026-08-19; its first tick after resume
-returned HTTP 200 at `2026-08-19T18:10:01Z` and the STANDING RULES lamp
-earned green. `sr-icp-connector.fly.dev` pings `sr-icp-v7`; estate-sentinel's
-ICP pins agree across signal-radar (canonical), the connector, and
-enrichment-dispatch.
+Earlier Scheduler/connector observations are retained in [HANDOFF-HISTORY.md](HANDOFF-HISTORY.md).
 
 **Vertex Claude is quota-blocked (2026-08-20):** `STRONG_PROVIDER=vertex` was
 deployed and immediately 429'd —

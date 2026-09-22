@@ -1,0 +1,41 @@
+{
+  "group": "draft-safety",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "A note save accepted before navigation cannot overwrite a newer reopened draft; only a second explicit Save note updates the server again.",
+    "A late direct dispatch clears only the submitted instruction; a newer draft survives reopening and is never automatically dispatched.",
+    "Late command confirmation and cancellation both preserve newer typed text, including a view change; no next command is automatically interpreted or confirmed.",
+    "Home sends the originally selected answer and preserves a different context attached during that submission for the next request.",
+    "Scheduled-work interpretation preserves the next typed instruction; only the first draft exists on the server and no schedule is activated."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-draft-safety-note.png",
+      "description": "A late note-save response preserves the newer unsaved draft after closing and reopening. The server still holds only the first submitted version.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-draft-safety-answer-context.png",
+      "description": "The submitted follow-up retains its original answer; selecting a different answer while waiting keeps that newer context for the next request.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}

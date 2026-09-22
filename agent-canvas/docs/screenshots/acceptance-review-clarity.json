@@ -1,0 +1,47 @@
+{
+  "group": "review-clarity",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "Decision-critical current/proposed values, zero/false/null/cleared text, unknown policy fields and related questions remain visible before Answer; work/model IDs are in Full details.",
+    "Full details opens/closes with the keyboard and retains exact routing/source IDs; the second memory link opens the referenced entry without changing the active project.",
+    "390/768/1280px layout checks pass; a fictional member answers the reviewed card through the normal route without Advanced, leaving the other review items untouched."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-review-clarity-desktop.png",
+      "description": "The main review card shows current/proposed terms, exact nested values, related questions and readable memory links; technical context starts collapsed.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-review-clarity-mobile.png",
+      "description": "Mobile review values stack in reading order with all decision context available by scrolling, and technical details kept collapsed.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-review-clarity-mobile-answer.png",
+      "description": "After reading the mobile context, Answer is a clear touch target beside Other actions; supporting memory and Full details remain available.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}

@@ -1,0 +1,47 @@
+{
+  "group": "scheduling-builder",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "Scheduled instruction and settings failures retain drafts; all consent fields; failed rehearsal polling recovers without duplicate dispatch; zero matches; owner activation/pause/resume/revoke through real local routes.",
+    "Builder proposal/save failures retain drafts; failed rehearsal polling recovers; changed authority resets publication gate; actual local owner publication and saved template; published diff remains reviewable.",
+    "Fictional member can propose an agent; publication remains owner-only; Builder has no page overflow at 390px."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-scheduling-builder-consent.png",
+      "description": "Every consent field remains visible; successful rehearsal identifies Pete and preserves the zero-result meaning.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-scheduling-builder-published.png",
+      "description": "Owner can inspect the actual published-change details before closing the Builder.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-scheduling-builder-member-builder-mobile.png",
+      "description": "A member can review a proposal and its permissions on mobile; publishing requires the owner.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}

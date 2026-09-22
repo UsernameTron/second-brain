@@ -48,7 +48,7 @@ function renderRules(props = {}) {
 }
 
 async function parseFlow() {
-  await userEvent.type(screen.getByLabelText('Describe the standing rule'), 'watch inbound deals');
+  await userEvent.type(await screen.findByLabelText('Describe the standing rule'), 'watch inbound deals');
   await userEvent.click(screen.getByRole('button', { name: 'Interpret' }));
   await screen.findByText('What this rule means');
 }
@@ -76,7 +76,7 @@ describe('Rules & Briefs view', () => {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(screen.getByText('inbound deals')).toBeInTheDocument();
-    expect(screen.getByText('hubspot')).toBeInTheDocument();
+    expect(screen.getByText('HubSpot')).toBeInTheDocument();
     expect(screen.getByText('deals over $25k')).toBeInTheDocument();
     expect(screen.getAllByText('daily at 08:00 UTC').length).toBeGreaterThan(0);
     // owner_email is the CREATOR (db.js says so verbatim); the identity whose
@@ -191,11 +191,11 @@ describe('Rules & Briefs view', () => {
     expect(api.mock.calls.some(([, o]) => o && o.method === 'PATCH')).toBe(false);
     // Every field re-derived: no HubSpot scope, no daily cadence, left over.
     expect(await screen.findByText('Gmail inbox digest')).toBeInTheDocument();
-    expect(screen.getByText('gmail')).toBeInTheDocument();
+    expect(screen.getByText('Gmail')).toBeInTheDocument();
     expect(screen.getByText('unread mail from the last day')).toBeInTheDocument();
     expect(screen.getAllByText('every hour').length).toBeGreaterThan(0);
     expect(screen.queryByText('deals over $25k')).toBeNull();
-    expect(screen.queryByText('hubspot')).toBeNull();
+    expect(screen.queryByText('HubSpot')).toBeNull();
     expect(screen.getByText('a written brief with sources')).toBeInTheDocument();
   });
 
@@ -238,6 +238,7 @@ describe('Rules & Briefs view', () => {
     // and a closed panel renders no controls at all.
     expect(screen.queryByLabelText('Step budget')).toBeNull();
     await userEvent.click(screen.getByText('Settings — cadence, sources, budget, expiry'));
+    await userEvent.click(screen.getByText('Advanced settings: work limits'));
 
     await userEvent.selectOptions(await screen.findByLabelText('Day'), '5');
     await userEvent.clear(screen.getByLabelText('Step budget'));
@@ -452,7 +453,7 @@ describe('Rules & Briefs view', () => {
     expect(screen.queryByText(/NOTHING MATCHED/)).toBeNull();
     expect(screen.getByText('Evidence: Acme renewal note · https://acme.example/renewal')).toBeInTheDocument();
     expect(screen.getByText(/Authorized by/)).toBeInTheDocument();
-    expect(screen.getByText('2026-W33')).toBeInTheDocument();
+    expect(screen.getByText('Scheduled occurrence: 2026-W33')).toBeInTheDocument();
   });
 
   it('a clean-zero rehearsal shows "Nothing matched.", never an empty box', async () => {
@@ -549,7 +550,7 @@ describe('Rules & Briefs view', () => {
 
     // And the same honesty on the consent card.
     await userEvent.click(screen.getByText('overdue rule'));
-    expect(await screen.findByText(/Check STANDING RULES · TICK/)).toBeInTheDocument();
+    expect(await screen.findByText(/Check scheduled work delivery.*STANDING RULES · TICK/)).toBeInTheDocument();
   });
 
   // The server now NULLs next_run_at on pause/revoke/expire, but rows written
@@ -808,9 +809,9 @@ describe('NEEDS YOU standing-rule cards', () => {
   it('labels rule_alert and brief_ready cards and acknowledges through the source run', async () => {
     const ack = vi.fn();
     renderNeedsYou({ onAcknowledgeRuleRun: ack });
-    expect(screen.getByText('rule alert')).toBeInTheDocument();
-    expect(screen.getByText('brief ready')).toBeInTheDocument();
-    const buttons = screen.getAllByRole('button', { name: 'Acknowledge' });
+    expect(screen.getByText('Scheduled alert')).toBeInTheDocument();
+    expect(screen.getByText('Brief ready')).toBeInTheDocument();
+    const buttons = screen.getAllByRole('button', { name: 'Mark reviewed' });
     expect(buttons.length).toBe(2);
     await userEvent.click(buttons[0]);
     expect(ack).toHaveBeenCalledWith({ kind: 'standing_rule_run', id: 'rr1', ruleId: 'sr1', canvasId: 'c1' });
@@ -821,16 +822,16 @@ describe('NEEDS YOU standing-rule cards', () => {
   it('offers Open rule / Open brief and deep-links on the rule id', async () => {
     const openRule = vi.fn();
     renderNeedsYou({ onOpenRule: openRule });
-    await userEvent.click(screen.getByRole('button', { name: 'Open rule' }));
+    await userEvent.click(screen.getByRole('button', { name: 'View scheduled work' }));
     expect(openRule).toHaveBeenCalledWith(expect.objectContaining({ ruleId: 'sr1' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Open brief' }));
+    await userEvent.click(screen.getByRole('button', { name: 'View brief' }));
     expect(openRule).toHaveBeenLastCalledWith(expect.objectContaining({ ruleId: 'sr2' }));
   });
 
   it('hides the control when Rules is flagged off, rather than dead-ending', () => {
     renderNeedsYou({ onOpenRule: null });
-    expect(screen.queryByRole('button', { name: 'Open rule' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Open brief' })).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Acknowledge' }).length).toBe(2);
+    expect(screen.queryByRole('button', { name: 'View scheduled work' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'View brief' })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Mark reviewed' }).length).toBe(2);
   });
 });

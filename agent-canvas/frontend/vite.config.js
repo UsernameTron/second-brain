@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [react()],
   build: { outDir: 'dist' },
   test: {
+    maxWorkers: 4, // Keep the full local gate from starving timing-sensitive checks.
     globals: true, // lets @testing-library/react auto-clean the DOM between tests
     environment: 'jsdom',
     setupFiles: ['./test/setup.js'],
