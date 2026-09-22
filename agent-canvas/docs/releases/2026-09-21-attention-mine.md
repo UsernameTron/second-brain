@@ -174,12 +174,17 @@ before any query runs. The headerless response is unchanged.
    `functions/src/getCanvasStatus.ts` nor the compiled `functions/lib/getCanvasStatus.js`
    contains `X-Actor-Email`. Until L10 ships that, production traffic exercises
    only the headerless branch; the `mine` branch is live but dormant.
-2. Pete's own count came back 0 while three items need attention overall, so
-   the ≤5 item cap and the 120-character title truncation were not exercised
-   against real rows — `scope: 'mine'` matches `owner.email` exactly
-   (`server/attention.js:249`), and none of the three open items is owned by
-   that address. Whether any current card carries an owner address at all is
-   unconfirmed.
+2. Pete's own count came back 0 while three items needed attention overall.
+   That is the designed contract, not a defect: of the five attention sources
+   (`server/attention.js:231`), escalations are the only one that carries a
+   human owner — conflict, overdue-review, failed-run and standing-rule cards
+   are agent-owned or unowned, and `scope: 'mine'` matches `owner.email`
+   exactly (`server/attention.js:249`). So `mine` shows a person only their
+   assigned open escalations, and 0 is a normal reading. The consequence for
+   L10: the tile will read 0 unless escalations are actually being assigned to
+   that address. The ≤5 item cap and the 120-character title truncation
+   therefore remain unexercised against real rows, covered only by
+   `test/estate-integration.test.js:190`.
 
 **Two things to carry into the next window.** Re-running the image-update
 command is not idempotent: the image and traffic flags no-op, `--scaling=0` does
