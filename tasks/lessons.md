@@ -193,3 +193,6 @@ Triggered by: 2026-07-26 enrichment-dispatch git-state sweep.
 - **[Verification]**: "All CI gates green" is not the same as "the feature works". Gates prove the code lints and passes its own tests; they do not prove the entry point runs.
   How to apply: for a scheduled or unattended job, execute its real invocation once against a temp `VAULT_ROOT` before claiming it works, and quote the exit code — `node scripts/<job>.js <exact plist args>`, the same argv the plist passes.
   Triggered by: 2026-09-08 — I merged #246 and wrote a confidence report saying the code "passes every executable gate this repo owns". True, and the headline feature had never run once.
+- **[Communication]**: Quote times on the operator's clock, not the log's. Logs and `gcloud` are UTC; Pete is on `America/Chicago`.
+  How to apply: read the local zone once (`date`, `date -u`), then report every time in local time, adding UTC in parentheses only inside artifacts that must match a log (release records, incident tables). Never hand back a raw UTC timestamp as "now" or as a deadline.
+  Triggered by: 2026-09-22 — I told Pete a scheduler tick was due at "16:50" and that it was "about a minute out" while his clock read 11:45. He replied "it's literally 1145 today so maybe you need to change that".
