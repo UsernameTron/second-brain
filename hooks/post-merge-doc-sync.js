@@ -148,6 +148,12 @@ function getLiveStats(projectRoot) {
   const tmpOut = path.join(os.tmpdir(), `jest-output-${Date.now()}.json`);
 
   try {
+    // Hook-local Git handles must not redirect fixture repositories into the
+    // checkout that invoked this hook. Keep the caller's environment intact.
+    const env = { ...process.env, CI: 'true' };
+    const localGitVars = execFileSync('git', ['rev-parse', '--local-env-vars'],
+      { cwd: projectRoot, encoding: 'utf8' }).trim().split('\n');
+    for (const name of localGitVars) delete env[name];
     execFileSync(
       'npx',
       ['jest', '--coverage', '--json', `--outputFile=${tmpOut}`, '--silent', '--forceExit'],
@@ -155,7 +161,7 @@ function getLiveStats(projectRoot) {
         cwd: projectRoot,
         timeout: 60000,
         stdio: ['ignore', 'ignore', 'ignore'],
-        env: { ...process.env, CI: 'true' },
+        env,
       }
     );
   } catch (_) {

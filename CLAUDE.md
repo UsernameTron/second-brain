@@ -1,3 +1,5 @@
+> **Live memory runtime — September 13, 2026:** Run capture, recall, promotion and pulse from `/Users/cpconnor/.local/share/second-brain/runtime`. Its README and command definitions describe the current application. This checkout hosts Agent Canvas development; its legacy second-brain source does not run the memory jobs. The two memory session hooks and four retained commands forward to the verified runtime. Do not run retired routing, today, dream or semantic-index code from this checkout against the live vault.
+
 # Second Brain — Claude Code Project
 
 ## Project Overview
