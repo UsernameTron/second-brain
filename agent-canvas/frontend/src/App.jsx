@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import Workspace from './Workspace.jsx';
+import { RequestError, WorkspaceBoundary } from './RequestState.jsx';
+import Notifications from './Notifications.jsx';
 
 export const AppCtx = createContext(null);
 
@@ -8,58 +10,78 @@ let toastSeq = 0;
 
 export default function App() {
   const [config, setConfig] = useState(null);
-  const [user, setUser] = useState(undefined); // undefined = booting, null = signed out
+  const [user, setUserState] = useState(undefined); // undefined = booting, null = signed out
   // Theme is applied to <html data-theme> so CSS drives everything. Read the
   // last-known value synchronously at module scope (see bootTheme in main.jsx)
   // so there is no flash, then reconcile with the account preference on load.
+  const [bootError, setBootError] = useState(null);
+  const [bootTick, setBootTick] = useState(0);
+  const [preferenceError, setPreferenceError] = useState(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const themeSeq = useRef(0);
   const [theme, setThemeState] = useState(() => document.documentElement.dataset.theme || 'light');
   const setTheme = useCallback((next) => {
     setThemeState(next);
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem('ac_theme', next); } catch { /* private mode */ }
     document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', next);
-    api('/api/me/theme', { method: 'PATCH', body: { theme: next } }).catch(() => {});
+    const request = ++themeSeq.current;
+    setPreferenceError(null);
+    api('/api/me/theme', { method: 'PATCH', body: { theme: next } }).catch((e) => {
+      if (themeSeq.current === request) setPreferenceError(e);
+    });
   }, []);
   const [toasts, setToasts] = useState([]);
+  const clearToasts = useCallback(() => setToasts([]), []);
+  const setUser = useCallback((next) => {
+    // Expanded updates belong to the session that received them.
+    setToasts([]);
+    setUserState(next);
+  }, []);
 
   const toast = useCallback((msg, kind = 'error') => {
     const id = ++toastSeq;
     setToasts((t) => [...t, { id, msg: String(msg), kind }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4500);
   }, []);
 
   useEffect(() => {
-    api('/api/config')
-      .then(setConfig)
-      .catch((e) => { setConfig({}); toast(`config: ${e.message}`); });
-    api('/api/me')
-      .then((d) => {
-        setUser(d.user);
-        // The account is the source of truth; adopt it if it differs from the
-        // value this browser remembered.
-        if (d.user?.theme && d.user.theme !== document.documentElement.dataset.theme) {
-          setThemeState(d.user.theme);
-          document.documentElement.dataset.theme = d.user.theme;
-          try { localStorage.setItem('ac_theme', d.user.theme); } catch { /* private mode */ }
-        }
-      })
-      .catch(() => setUser(null));
-  }, [toast]);
+    let current = true;
+    setBootError(null);
+    Promise.all([
+      api('/api/config'),
+      api('/api/me').catch((e) => { if (e.status === 401) return { user: null }; throw e; }),
+    ]).then(([settings, account]) => {
+      if (!settings || !account || !Object.hasOwn(account, 'user')) throw new Error('Incomplete startup response');
+      if (!current) return;
+      setConfig(settings);
+      setUser(account.user);
+      if (account.user?.theme) {
+        setThemeState(account.user.theme);
+        document.documentElement.dataset.theme = account.user.theme;
+        try { localStorage.setItem('ac_theme', account.user.theme); } catch { /* private mode */ }
+      }
+    }).catch((e) => { if (current) setBootError(e); });
+    return () => { current = false; };
+  }, [bootTick]);
+
+  useEffect(() => {
+    const expired = () => setSessionExpired(true);
+    window.addEventListener('ac-session-expired', expired);
+    return () => window.removeEventListener('ac-session-expired', expired);
+  }, []);
 
   return (
     <AppCtx.Provider value={{ config, user, setUser, toast, theme, setTheme }}>
-      {user === undefined || config === null ? (
+      {sessionExpired ? <div className="session-banner" role="alert">Your session has expired. Keep a copy of any unsaved text, then <button className="btn small" onClick={() => { setSessionExpired(false); setUser(null); }}>Sign in again</button></div> : null}
+      {preferenceError ? <RequestError error={preferenceError} subject="Saving your appearance preference" onRetry={() => { api('/api/me').then((d) => { if (d.user?.theme === theme) setPreferenceError(null); else setPreferenceError(new Error('Your preference was not saved. Try saving it again.')); }).catch(setPreferenceError); }} retryLabel="Check saved preference"><button className="btn small" onClick={() => setTheme(theme)}>Save preference again</button></RequestError> : null}
+      {bootError ? <div className="boot-screen"><RequestError error={bootError} subject="Opening the workspace" onRetry={() => setBootTick((n) => n + 1)} /></div> : user === undefined || config === null ? (
         <div className="boot-screen"><div className="boot-glyph" /><div>Waking the canvas…</div></div>
       ) : user ? (
-        <Workspace />
+        <WorkspaceBoundary><Workspace /></WorkspaceBoundary>
       ) : (
         <SignIn />
       )}
-      <div className="toasts" role="status" aria-live="polite">
-        {toasts.map((t) => (
-          <div key={t.id} className={`toast toast-${t.kind}`}>{t.msg}</div>
-        ))}
-      </div>
+      <Notifications items={toasts} onClear={clearToasts} />
     </AppCtx.Provider>
   );
 }
@@ -71,6 +93,7 @@ function SignIn() {
   const [mascotOk, setMascotOk] = useState(true);
   const [busy, setBusy] = useState(false);
   const gsiRef = useRef(null);
+  const [googleAttempt, setGoogleAttempt] = useState(0);
 
   useEffect(() => {
     if (!config || !config.googleClientId) return;
@@ -99,7 +122,7 @@ function SignIn() {
     s.onerror = () => { if (!cancelled) setErr('could not load Google sign-in'); };
     document.head.appendChild(s);
     return () => { cancelled = true; };
-  }, [config, setUser, toast]);
+  }, [config, setUser, toast, googleAttempt]);
 
   const devSignIn = async (e) => {
     e.preventDefault();
@@ -163,7 +186,7 @@ function SignIn() {
             </div>
           </form>
         ) : null}
-        {err ? <div className="signin-error">{err}</div> : null}
+        {err ? <div className="signin-error" role="alert">Sign-in could not be completed. {err}<button className="btn small" onClick={() => { setErr(null); setGoogleAttempt((n) => n + 1); }}>Try sign-in again</button></div> : null}
       </div>
     </div>
   );

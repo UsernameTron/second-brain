@@ -10,6 +10,13 @@ const shell = (onClick) => ({ z: 1, onMoveLive: vi.fn(), onMoveEnd: vi.fn(), onC
 const AGENT = { id: 'a1', name: 'Scout', role: 'research', status: 'idle', model_tier: 'fast', color: '#0af', x: 0, y: 0 };
 
 describe('canvas node keyboard access', () => {
+  it.each([['running', 'Working'], ['idle', 'Ready for work'], ['waiting', 'Waiting for a response'], ['error', 'error']])('retains %s styling while displaying plain English', (status, label) => {
+    const { container } = render(<AgentNode agent={{ ...AGENT, status }} {...shell(vi.fn())} />);
+    expect(screen.getByRole('button', { name: 'Scout, research agent' })).toHaveClass(`st-${status}`);
+    expect(container.querySelector('.agent-status')).toHaveClass(`as-${status}`);
+    expect(container.querySelector('.agent-status')).toHaveTextContent(label);
+  });
+
   it('agent node is a focusable labeled button', () => {
     render(<AgentNode agent={AGENT} spend={null} {...shell(vi.fn())} />);
     const node = screen.getByRole('button', { name: 'Scout, research agent' });

@@ -12,6 +12,10 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 
+// Batch-cap bounds come from the live config, not a literal — the cap moves
+// (10 -> 100 when nightly auto-promotion landed) and pinned numbers went stale.
+const { batchCapMin, batchCapMax } = require('../config/pipeline.json').promotion;
+
 // 34-04: default-mock contradiction-check so the bulk of this suite (which
 // doesn't care about CONTRADICT-CHECK-01) never makes a real hybridSearch/Haiku
 // call per promoted candidate. Tests that DO care re-mock it after
@@ -155,23 +159,27 @@ describe('promoteMemories - batch cap validation', () => {
     expect(result.error).toBeUndefined();
   });
 
-  test('--max 7 is accepted (within range 5-10)', async () => {
+  test('--max batchCapMin is accepted (within range)', async () => {
     const candidates = makeCandidates(3);
     const proposalsFile = path.join(proposalsDir, 'memory-proposals.md');
     fs.writeFileSync(proposalsFile, buildProposalsFile(candidates), 'utf8');
 
-    const result = await promoteMemories.promoteMemories({ max: 7 });
+    const result = await promoteMemories.promoteMemories({ max: batchCapMin });
     expect(result.error).toBeUndefined();
   });
 
-  test('--max 15 returns error (above range)', async () => {
-    const result = await promoteMemories.promoteMemories({ max: 15 });
-    expect(result.error).toMatch(/batch cap.*between 5 and 10/i);
+  test('--max above batchCapMax returns error', async () => {
+    const result = await promoteMemories.promoteMemories({ max: batchCapMax + 1 });
+    expect(result.error).toMatch(
+      new RegExp(`batch cap.*between ${batchCapMin} and ${batchCapMax}`, 'i')
+    );
   });
 
-  test('--max 3 returns error (below range)', async () => {
-    const result = await promoteMemories.promoteMemories({ max: 3 });
-    expect(result.error).toMatch(/batch cap.*between 5 and 10/i);
+  test('--max below batchCapMin returns error', async () => {
+    const result = await promoteMemories.promoteMemories({ max: batchCapMin - 1 });
+    expect(result.error).toMatch(
+      new RegExp(`batch cap.*between ${batchCapMin} and ${batchCapMax}`, 'i')
+    );
   });
 
   test('no --all flag — passing max: "all" is treated as error', async () => {

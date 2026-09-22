@@ -1,43 +1,75 @@
+---
+verdict: FIX-FIRST
+score: n/a
+generated: 2026-09-08
+---
 # Confidence Report
 
-- Date: 2026-08-19 (evening close-out sweep — supersedes the morning report)
-- Branch at sweep: docs/canvas-user-guide-and-close (master at defa7f8 + docs commit)
-- Verdict: **SHIP-READY**
+Run context: master at `41b9326` (PR #246 squash-merged), v1.8 Measured Memory in progress.
 
-## Leg results
+| Leg | Surface | Result | Detail |
+|-----|---------|--------|--------|
+| 1 | Planning health | PASS | `gsd-tools validate health` → healthy; 0 errors, 0 warnings, 0 repairable |
+| 2 | Quality audits | WARN | Deps: 0 production vulns, 1 high dev-only (`fast-uri` 3.1.5 via ajv — dependabot #243 open). Licenses PASS. Agent-roster and validate-phase legs skipped (no `agents/gsd-*.md`, no `.planning/phases/`) |
+| 3 | Build/test/lint | PASS | No build step (plain CJS, by design). ESLint clean. Jest CI: 1583 passing / 38 skipped / 1621 total, 0 failing. Coverage branches 80.41% (gate 80), statements 92.04%, functions 95.52%, lines 93.08%. `verify:baseline` 27/27. pre-commit schema + vault-boundary + archive-integrity gates pass |
+| 4 | Codebase map | WARN | `.planning/codebase/*.md` last written 2026-08-19; `src/` and `scripts/` changed 2026-09-08. 20 days stale, 7 docs |
+| 5 | Docs | PASS | Drift found and fixed in 2 files: `/pulse` had a command file but no row in the CLAUDE.md command table, and README documented neither `/pulse` nor the fact that promotion is now unattended. Stats gate (`hooks/pre-push`) reports current |
+| 6 | Repo cleanliness | WARN | Untracked 0, `[gone]` branches 0, tracked files >5MB 0, orphaned `_absorbed/` 0. 1 unresolved debug file (`status: diagnosed`, not closed). 7 TODO/FIXME hits are all false positives — test fixtures and prompt strings, no real markers |
 
-| Leg | Result | Evidence |
-|---|---|---|
-| 1 Planning health | PASS | STATE/ROADMAP/PROJECT/CONFIDENCE all present; milestone v1.8; no orphan phase dirs |
-| 2 Quality audits | PASS | `npm audit --omit=dev` = 0 vulnerabilities in all three package roots (root, agent-canvas, agent-canvas/frontend); license-check allowlist clean |
-| 3 Build/test/lint | PASS | Root Jest: 1568 tests / 82 files (1530 pass, 38 CI-skip), 16s. agent-canvas `npm run verify`: 420 backend + 112 frontend + production build + deploy preflight, all green. Root ESLint: 0 warnings. CodeQL clean on master (last scan of #228). |
-| 4 Codebase map | CURRENT | `.planning/codebase/` refreshed this morning (PR #218, files dated 2026-08-19 01:00). Today's canvas deltas (v7 registry, 16-agent roster, web_fetch, escalation coalescing) are documented in `agent-canvas/docs/HANDOFF.md`, the authority for that subtree. |
-| 5 Doc sync | PASS | This session: USER-GUIDE.md added + linked; agent-canvas HANDOFF rewritten to current state (00064-nq9, defa7f8) with superseded blocks moved to HANDOFF-HISTORY; root CLAUDE.md counts verified against a live jest run — zero drift. |
-| 6 Repo cleanliness | PASS w/ note | Working tree clean; 3 merged local branches pruned; remote branches auto-deleted at merge. NOTE: ~80 stale pre-squash local branches remain (squash-merge hides merged-ness); bulk removal needs force-delete, deferred to operator: `git branch \| grep -vE 'master' \| xargs git branch -D` after eyeballing. |
-| 7 Scorecard | This file | — |
+No leg FAILED. Three WARNs, none of which block correctness of what is on master.
 
-## What shipped today (all merged, deployed, live-verified)
+## Ranked fixes
 
-Seven PRs on the canvas subtree: #221 (WS3 UI fixes) → #223 (Gemini default,
-parallel session) → #224 (ICP v7) → #225 (revenue-squad roster) → #226
-(handoff truth) → #227 (plain-English lamps + probe-gated MODEL) → #228
-(escalation coalescing, web_fetch with SSRF hardening, member-scope default).
-Plus the four-repo ICP v7 ship (signal-radar #129, Fly connector redeploy,
-enrichment-dispatch #44, estate-sentinel pins agree) and the operator-approved
-scheduler resume (post-resume tick HTTP 200 observed).
+1. **Codebase maps 20 days stale** (leg 4) — this session changed the promotion and pulse
+   surfaces; `ARCHITECTURE.md` / `STRUCTURE.md` / `TESTING.md` still describe the pre-merge tree.
+   Fix: `/gsd:map-codebase` (spawns mapper subagents — not run here, subagent dispatch was off
+   for this session).
 
-Production: revision `agent-canvas-00064-nq9`, healthz 200, zero ERROR logs,
-systems board fully green in a signed-in session.
+2. **`fast-uri` high advisory, dev-only** (leg 2) — reached only through `ajv@8.20.0` in the dev
+   tree; production audit is clean, so nothing shipped is exposed.
+   Fix: merge [dependabot #243](https://github.com/UsernameTron/second-brain/pull/243).
 
-## Outstanding (documented, not blocking)
+3. **`.planning/debug/memory-pipeline-audit.md` left at `status: diagnosed`** (leg 6) — opened
+   2026-07-19, confirmed a dotenv gate that made promotions embed zero vectors. The finding was
+   acted on, but the file was never closed out, so the sweep keeps counting it as open work.
+   Fix: confirm the fix landed, then set `status: resolved` or move it under a phase summary.
 
-1. Signed-in acceptance of the new agent lanes (Dossier/Qualifier/Wedge/
-   web_fetch live runs) — listed as release gates in agent-canvas HANDOFF.
-2. P5 standing-rule expiry proof (pre-existing gate).
-3. Six pre-hygiene NEEDS YOU cards await the owner's 30-second triage.
-4. Stale local branch pile (note in Leg 6).
+## Correction — the verdict above did not survive contact
 
-## Ship gate
+Written before the merged code was checked against the PR's own review findings.
+Doing that check found a defect every green gate missed: `skipStats` was added to
+promoteMemories' options but never to `ALLOWED_OPTIONS`, so `PROMOTE-FLAGS-01`
+rejected it, `promote-scheduled.js` exited 1 on round 1, and the nightly
+`com.secondbrain.promote` job promoted nothing from merge until `264cd81` fixed it
+in [#247](https://github.com/UsernameTron/second-brain/pull/247).
 
-Verdict SHIP-READY. Remaining ship step: PR this docs branch
-(USER-GUIDE + HANDOFF sync + this scorecard) to master and merge on green.
+The seven promote-scheduled tests all passed because they mocked `promoteMemories`.
+Lint, coverage, CodeQL, the baseline hashes and the schema gates were all green the
+whole time. The headline feature of the release had never run once.
+
+Both lessons are recorded in `tasks/lessons.md`: a mocked collaborator cannot verify
+that collaborator's contract, and "every gate green" is not "the feature works" —
+for an unattended job, run its real plist argv against a temp `VAULT_ROOT` and quote
+the exit code.
+
+Post-fix, verified on merged master (`264cd81`):
+
+```
+$ VAULT_ROOT=$TMP node scripts/promote-scheduled.js --drain
+{"round":1,"promoted":0,"deferred":0,...}
+{"done":true,"promoted":0,"rounds":1}
+EXIT=0
+```
+
+## What this run actually proves
+
+The merged code passes every executable gate this repo owns: lint, the full Jest suite under CI
+skip-logic, the coverage thresholds, the 27-hash memory baseline, config-schema validation, and
+the LEFT/RIGHT vault-boundary check. As the correction above shows, that is a narrower claim than
+it sounds — it was true while the nightly job was exiting 1 every run. Gates bound what is
+checked, not what works.
+
+Not proven here: the two new launchd jobs have never fired on this machine. `com.secondbrain.promote`
+(00:45) and `com.secondbrain.pulse` (Monday 07:00) are versioned and now in the deploy checklist,
+but installing and bootstrapping them is a manual step, and neither has produced a real run yet.
+First real evidence will be the 00:45 log and Monday's brief.

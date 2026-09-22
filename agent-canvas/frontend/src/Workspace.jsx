@@ -1,7 +1,11 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { integrationStatus, systemStatus } from './format.jsx';
 import { AppCtx } from './App.jsx';
-import { api, rulesApi, wsUrl, normEsc, normHandoff, fmtUSD, fmtBytes, initials } from './api.js';
+import { api, downloadFile, rulesApi, wsUrl, normEsc, normHandoff, fmtUSD, fmtBytes, initials } from './api.js';
 import Canvas from './Canvas.jsx';
+import { DraftsContext } from './Drafts.jsx';
+import WorkDetails from './WorkDetails.jsx';
+import { RequestError, useResource } from './RequestState.jsx';
 import Tray from './Tray.jsx';
 import ActivityDock from './ActivityDock.jsx';
 import CommandBar from './CommandBar.jsx';
@@ -11,7 +15,9 @@ import RulesView from './RulesView.jsx';
 import { AgentPanel, NotePanel, SpendPanel } from './Panels.jsx';
 import { useDialog } from './useDialog.js';
 import Home from './Home.jsx';
-import NeedsYouView from './NeedsYouView.jsx';
+import WorkspaceHeader from './WorkspaceHeader.jsx';
+import { DocumentsView, TeamView, HelpView } from './ContextViews.jsx';
+import NeedsYouView, { useAttentionSubmissions } from './NeedsYouView.jsx';
 import AdminModal from './AdminModal.jsx';
 import AddAgentModal from './AddAgentModal.jsx';
 import CapabilitiesModal from './CapabilitiesModal.jsx';
@@ -46,12 +52,25 @@ function encodeFileName(name) {
 export default function Workspace() {
   const { user, setUser, toast, theme, setTheme } = useContext(AppCtx);
   const isOwner = user.role === 'owner';
+  const drafts = useRef(new Map());
+  const [attentionSubmissions, updateAttentionSubmission] = useAttentionSubmissions();
+  // Submission outcomes belong to their project, even while Home is closed.
+  // Like drafts, this state lasts only for this mounted workspace session.
+  const [inquirySubmissions, setInquirySubmissions] = useState({});
+  const updateInquirySubmission = useCallback((cid, update) => {
+    setInquirySubmissions((previous) => {
+      const current = previous[cid] || { busy: false, error: null };
+      const next = update(current);
+      return next === current ? previous : { ...previous, [cid]: next };
+    });
+  }, []);
 
   const [canvases, setCanvases] = useState([]);
   const [canvasesLoaded, setCanvasesLoaded] = useState(false);
   const [archivedCanvases, setArchivedCanvases] = useState([]);
   const [newCanvasOpen, setNewCanvasOpen] = useState(false);
   const [newCanvasName, setNewCanvasName] = useState('');
+  const [creating, setCreating] = useState(false);
   const [roster, setRoster] = useState([]);
   const [rosterChecked, setRosterChecked] = useState(null); // null until roster loads
   const enabledRoster = useMemo(() => roster.filter((entry) => entry.enabled), [roster]);
@@ -69,6 +88,7 @@ export default function Workspace() {
     [enabledRoster, rosterChecked],
   );
   const [addAgentOpen, setAddAgentOpen] = useState(false);
+  const [addAgentTab, setAddAgentTab] = useState('roster');
   const [addPersonOpen, setAddPersonOpen] = useState(false);
   const [newPersonEmail, setNewPersonEmail] = useState('');
   const fileInputRef = useRef(null);
@@ -79,11 +99,19 @@ export default function Workspace() {
   const [showSuperseded, setShowSuperseded] = useState(false);
   const [activity, setActivity] = useState([]);
   const [escalations, setEscalations] = useState([]);
-  const [attention, setAttention] = useState(null); // P2 NEEDS YOU projection (current canvas)
+  const [attention, setAttention] = useState(null); // Global, server-scoped queue
+  const [attentionScope, setAttentionScope] = useState(isOwner ? 'all' : 'mine');
+  const attentionScopeRef = useRef(attentionScope);
+  attentionScopeRef.current = attentionScope;
+  const [badgeAttention, setBadgeAttention] = useState(null);
   const [spend, setSpend] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [budget, setBudget] = useState(null);
-  const [pause, setPause] = useState({ paused: false, by: null });
+  const [pause, setPause] = useState({ paused: null, by: null });
+  const [requests, setRequests] = useState({});
+  const [controlBusy, setControlBusy] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [presence, setPresence] = useState([]);
   const [cursors, setCursors] = useState({});
   const [selections, setSelections] = useState({});
@@ -109,13 +137,14 @@ export default function Workspace() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [capsOpen, setCapsOpen] = useState(false);
+  const [connectionNotice, setConnectionNotice] = useState(null);
   const [wsConnected, setWsConnected] = useState(null); // null = unknown yet
   const [health, setHealth] = useState(null);
   const [healthDown, setHealthDown] = useState(false);
   const refreshHealth = useCallback(() => {
     api('/api/health/integrations')
       .then((d) => { setHealth(d); setHealthDown(false); })
-      .catch(() => setHealthDown(true));
+      .catch(() => { setHealthDown(true); setHealth(null); });
   }, []);
   useEffect(() => {
     refreshHealth();
@@ -123,7 +152,7 @@ export default function Workspace() {
     return () => clearInterval(t);
   }, [refreshHealth]);
   const refreshCaps = useCallback(() => {
-    api('/api/capabilities').then((d) => setWsConnected(!!d.connected)).catch(() => {});
+    api('/api/capabilities').then((d) => setWsConnected(!!d.connected)).catch(() => setWsConnected(null));
   }, []);
   useEffect(() => { refreshCaps(); }, [refreshCaps]);
   useEffect(() => {
@@ -132,7 +161,9 @@ export default function Workspace() {
     window.history.replaceState({}, '', window.location.pathname);
     if (ws === 'connected') { toast('Google Workspace connected — agents you direct can now use it', 'ok'); refreshCaps(); setCapsOpen(true); }
     else if (ws === 'blocked') {
-      toast('Google blocked the connection: this account is not on the app\'s test-user list. Owner: Google Auth Platform → Audience → add the account as a test user (as the project-owner Google identity), wait ~2 minutes, retry. Or deploy with GOOGLE_WORKSPACE_SCOPES=standard to skip the tester gate (no Gmail).');
+      const message = 'Google did not allow this account to connect. Ask the workspace owner to enable access, then try connecting again.';
+      setConnectionNotice({ message, details: 'Owner setup: Google Auth Platform → Audience → add the account as a test user using the project-owner Google identity, wait about two minutes, then retry. The existing GOOGLE_WORKSPACE_SCOPES=standard configuration skips the test-user requirement but does not include Gmail. Configuration changes require a separate deployment decision.' });
+      toast(message, 'warn');
       setCapsOpen(true);
     }
     else if (ws === 'denied') { toast('Workspace connection was cancelled before granting access'); }
@@ -159,58 +190,93 @@ export default function Workspace() {
   }, []);
 
   // ---------- loaders ----------
-  const loadState = useCallback(async (cid) => {
-    const d = await api(`/api/canvases/${cid}`);
-    if (canvasIdRef.current !== cid) return;
-    setState(d);
-    if (d.budget) {
-      setBudget(d.budget);
-      setPause((p) => ({ ...p, paused: !!d.budget.paused }));
+  const readSeq = useRef({});
+  const readResource = useCallback(async (key, cid, read, apply) => {
+    const request = (readSeq.current[key] || 0) + 1;
+    readSeq.current[key] = request;
+    setRequests((r) => ({ ...r, [key]: { loading: true, error: null } }));
+    const current = () => readSeq.current[key] === request && (!cid || canvasIdRef.current === cid);
+    try {
+      const data = await read();
+      if (current()) { apply(data); setRequests((r) => ({ ...r, [key]: { loading: false, error: null } })); }
+      return data;
+    } catch (error) {
+      if (current()) setRequests((r) => ({ ...r, [key]: { loading: false, error } }));
+      throw error;
     }
   }, []);
+  const loadControl = useCallback(() => readResource('control', null,
+    () => api('/api/control/status'), (d) => {
+      if (typeof d?.paused !== 'boolean' || !Number.isFinite(d.budget_usd) || !Number.isFinite(d.cost_usd)) throw new Error('Incomplete control status');
+      setBudget(d); setPause((p) => ({ ...p, paused: d.paused }));
+    }), [readResource]);
+  const loadState = useCallback(async (cid) => {
+    return readResource('workspace', cid, () => api(`/api/canvases/${cid}`), (d) => {
+    if (canvasIdRef.current !== cid) return;
+    setState(d);
+    });
+  }, [readResource]);
 
   const loadMemory = useCallback(async (cid, incl) => {
-    const d = await api(`/api/canvases/${cid}/memory${incl ? '?include_superseded=1' : ''}`);
+    return readResource('memory', cid, () => api(`/api/canvases/${cid}/memory${incl ? '?include_superseded=1' : ''}`), (d) => {
     if (canvasIdRef.current !== cid) return;
     setMemory(d.entries || []);
-  }, []);
+    });
+  }, [readResource]);
 
   const loadActivity = useCallback(async (cid) => {
-    const d = await api(`/api/canvases/${cid}/activity?limit=300`);
+    return readResource('activity', cid, () => api(`/api/canvases/${cid}/activity?limit=300`), (d) => {
     if (canvasIdRef.current !== cid) return;
     setActivity(d.events || []);
-  }, []);
+    });
+  }, [readResource]);
 
   const loadSpend = useCallback(async (cid) => {
-    const d = await api(`/api/canvases/${cid}/spend`);
-    if (canvasIdRef.current !== cid) return;
-    setSpend(d);
-    if (d.daily) setBudget(d.daily);
-    // Analytics rides the same refresh cadence; failure never blocks spend.
-    api(`/api/canvases/${cid}/analytics`)
-      .then((a) => { if (canvasIdRef.current === cid) setAnalytics(a); })
-      .catch(() => {});
-  }, []);
+    readResource('analytics', cid, () => api(`/api/canvases/${cid}/analytics`), (data) => {
+      if (canvasIdRef.current === cid) setAnalytics(data);
+    }).catch(() => {});
+    return readResource('spending', cid, () => api(`/api/canvases/${cid}/spend`), (data) => {
+      if (canvasIdRef.current === cid) setSpend(data);
+    });
+  }, [readResource]);
 
   const loadEscalations = useCallback(async () => {
     const cid = canvasIdRef.current;
-    const d = await api('/api/escalations');
+    return readResource('review', cid, () => api('/api/escalations'), (d) => {
     if (!cid || canvasIdRef.current !== cid) return;
     setEscalations((d.escalations || []).map(normEsc).filter((e) => e.status === 'open'));
-  }, []);
+    });
+  }, [readResource]);
 
-  // P2: the attention projection for the current canvas (badge + NEEDS YOU
-  // view share this one fetch). Failure never blocks the escalation tray.
-  const loadAttention = useCallback(async () => {
-    const cid = canvasIdRef.current;
-    if (!cid) return;
-    try {
-      const d = await api(`/api/attention?canvas_id=${encodeURIComponent(cid)}`);
-      if (canvasIdRef.current === cid) setAttention(d.attention || []);
-    } catch { /* projection only — tray still works */ }
-  }, []);
+  const loadAttention = useCallback(async (scope = attentionScopeRef.current) => {
+    const badgeScope = isOwner ? 'all' : 'mine';
+    const queueRead = api(`/api/attention?scope=${scope}`);
+    const badgeRead = scope === badgeScope ? queueRead : api(`/api/attention?scope=${badgeScope}`);
+    await Promise.allSettled([
+      readResource('attention', null, () => queueRead, (d) => setAttention(d.attention || [])),
+      readResource('attention badge', null, () => badgeRead, (d) => setBadgeAttention(d.attention || [])),
+    ]);
+  }, [isOwner, readResource]);
+  const changeAttentionScope = useCallback((scope) => {
+    attentionScopeRef.current = scope;
+    setAttentionScope(scope); setAttention(null); loadAttention(scope);
+  }, [loadAttention]);
+  const loadAttentionContext = useCallback((cid) => api(`/api/canvases/${cid}`), []);
+  useEffect(() => {
+    loadAttention();
+    const tick = () => { if (document.visibilityState !== 'hidden') loadAttention(); };
+    const timer = setInterval(tick, 30_000);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(timer); window.removeEventListener('focus', tick); document.removeEventListener('visibilitychange', tick); };
+  }, [loadAttention]);
+  useEffect(() => { if (view === 'needsyou') loadAttention(); }, [view, loadAttention]);
 
   const refreshAll = useCallback(() => {
+    setRunTick((n) => n + 1);
+    loadControl().catch(() => {});
+    refreshHealth();
+    loadAttention();
     const cid = canvasIdRef.current;
     if (!cid) return;
     Promise.allSettled([
@@ -224,7 +290,7 @@ export default function Workspace() {
       const failed = results.find((r) => r.status === 'rejected');
       if (failed) toast(failed.reason?.message || 'refresh failed');
     });
-  }, [loadState, loadMemory, loadActivity, loadSpend, loadEscalations, loadAttention, toast]);
+  }, [loadState, loadMemory, loadActivity, loadSpend, loadEscalations, loadAttention, loadControl, refreshHealth, toast]);
 
   const scheduleRefetch = useCallback(() => {
     clearTimeout(refetchTimerRef.current);
@@ -253,16 +319,17 @@ export default function Workspace() {
   // ---------- canvas lifecycle: create + archive/restore ----------
   // Archive is reversible by design (destroy-never): no confirm dialog needed.
   const refreshCanvases = useCallback(async () => {
-    const d = await api('/api/canvases');
+    return readResource('spaces', null, () => api('/api/canvases'), (d) => {
     setCanvases(d.canvases || []);
     setArchivedCanvases(d.archived || []);
     setCanvasesLoaded(true);
-    return d;
-  }, []);
+    });
+  }, [readResource]);
 
   const createCanvas = useCallback(async () => {
     const name = newCanvasName.trim();
-    if (!name) { setNewCanvasOpen(false); setNewCanvasName(''); return; }
+    if (!name || creating || rosterChecked === null || requests['team templates']?.loading || requests['team templates']?.error) return;
+    setCreating(true); setActionError(null);
     try {
       const rosterIds = [...(rosterChecked || [])].filter((id) => roster.some((r) => r.id === id && r.enabled));
       const d = await api('/api/canvases', { method: 'POST', body: { name, roster_ids: rosterIds } });
@@ -270,8 +337,8 @@ export default function Workspace() {
       setCanvasId(d.canvas.id);
       setNewCanvasOpen(false);
       setNewCanvasName('');
-    } catch (e) { toast(e.message); }
-  }, [newCanvasName, roster, rosterChecked, refreshCanvases, toast]);
+    } catch (e) { setActionError(e); } finally { setCreating(false); }
+  }, [creating, newCanvasName, roster, rosterChecked, requests, refreshCanvases, toast]);
 
   const archiveCanvas = useCallback(async () => {
     if (!canvasId) return;
@@ -283,7 +350,7 @@ export default function Workspace() {
       // Archived canvases list in the user menu.
       const next = (d.canvases || [])[0];
       setCanvasId(next ? next.id : null);
-    } catch (e) { toast(e.message); }
+    } catch (e) { setActionError(e); }
   }, [canvasId, refreshCanvases, toast]);
 
   const restoreCanvas = useCallback(async (id) => {
@@ -293,34 +360,33 @@ export default function Workspace() {
       setCanvasId(id);
       setArchivedOpen(false);
       toast('Canvas restored', 'ok');
-    } catch (e) { toast(e.message); }
+    } catch (e) { setActionError(e); }
   }, [refreshCanvases, toast]);
 
   // ---------- roster (workspace template library) ----------
   const refreshRoster = useCallback(async () => {
     try {
-      const d = await api('/api/roster');
-      const entries = d.roster || [];
-      setRoster(entries);
-      setRosterChecked((prev) => prev ?? new Set(entries.filter((r) => r.default_on).map((r) => r.id)));
-    } catch { /* roster endpoint unavailable - creation still works, unstaffed */ }
-  }, []);
+      return await readResource('team templates', null, () => api('/api/roster'), (data) => {
+        if (!Array.isArray(data?.roster)) throw new Error('The team template response was incomplete.');
+        setRoster(data.roster);
+        setRosterChecked((prev) => prev ?? new Set(data.roster.filter((r) => r.default_on).map((r) => r.id)));
+      });
+    } catch { /* persistent retry below */ }
+  }, [readResource]);
   useEffect(() => { refreshRoster(); }, [refreshRoster]);
 
   // ---------- boot: canvases + control status ----------
   useEffect(() => {
-    api('/api/canvases')
-      .then((d) => {
-        setCanvases(d.canvases || []);
-        setArchivedCanvases(d.archived || []);
-        if (d.canvases && d.canvases.length) setCanvasId(d.canvases[0].id);
-      })
-      .catch((e) => toast(e.message))
-      .finally(() => setCanvasesLoaded(true));
-    api('/api/control/status')
-      .then((d) => { setBudget(d); setPause((p) => ({ ...p, paused: !!d.paused })); })
-      .catch(() => {});
-  }, [toast]);
+    refreshCanvases().then((d) => {
+      if (d.canvases?.length) setCanvasId((current) => current || d.canvases[0].id);
+    }).catch(() => {});
+    loadControl().catch(() => {});
+  }, [refreshCanvases, loadControl]);
+  useEffect(() => {
+    const focus = () => { if (document.visibilityState !== 'hidden') refreshAll(); };
+    window.addEventListener('focus', focus);
+    return () => window.removeEventListener('focus', focus);
+  }, [refreshAll]);
 
   // ---------- canvas switch ----------
   useEffect(() => {
@@ -334,7 +400,6 @@ export default function Workspace() {
       setShowSuperseded(false);
       setActivity([]);
       setEscalations([]);
-      setAttention(null);
       setSpend(null);
       setAnalytics(null);
       setPresence([]);
@@ -348,14 +413,14 @@ export default function Workspace() {
       setAmberAgents(new Set());
       setHoverHandoffId(null);
       setFileUpload({ kind: 'idle', message: '' });
-      setView((current) => (['home', 'needsyou', 'rules'].includes(current) ? 'canvas' : current));
+      // Keep the default Home destination through the initial empty selection.
       return;
     }
     canvasIdRef.current = canvasId;
+    setRequests((r) => ({ control: r.control, spaces: r.spaces, attention: r.attention, 'attention badge': r['attention badge'], 'team templates': r['team templates'] }));
     setState(null); setMemory([]); setActivity([]); setSpend(null); setAnalytics(null);
     setEscalations([]); setPresence([]); setRunTick(0);
     setFileUpload({ kind: 'idle', message: '' });
-    setAttention(null); // stale cards carry old-canvas sourceRefs — never keep them across a switch
     setCursors({}); setSelections({}); setPanel(null); setMySelection(null);
     setRuleFocusId(null); setRipple(null); setAmberAgents(new Set()); setHoverHandoffId(null);
     refreshAll();
@@ -574,8 +639,9 @@ export default function Workspace() {
   // ---------- actions ----------
   const dispatchToAgent = useCallback(async (agentId, instruction, mode) => {
     const body = mode && mode !== 'act' ? { instruction, mode } : { instruction };
-    const d = await api(`/api/canvases/${canvasIdRef.current}/agents/${agentId}/dispatch`, { method: 'POST', body });
-    setState((s) => s && ({ ...s, runs: [d.run, ...s.runs] }));
+    const cid = canvasIdRef.current;
+    const d = await api(`/api/canvases/${cid}/agents/${agentId}/dispatch`, { method: 'POST', body });
+    setState((s) => s?.canvas?.id === cid ? { ...s, runs: [d.run, ...s.runs] } : s);
     return d.run;
   }, []);
 
@@ -584,10 +650,10 @@ export default function Workspace() {
     try {
       await api(`/api/escalations/${id}/assign`, { method: 'POST', body });
       loadEscalations().catch(() => {});
-      loadAttention();
+      await loadAttention();
       toast('Assigned', 'ok');
     } catch (e) {
-      toast(e.message);
+      throw e;
     }
   }, [loadEscalations, loadAttention, toast]);
 
@@ -597,7 +663,7 @@ export default function Workspace() {
       scheduleRefetch();
       toast('Assigned', 'ok');
     } catch (e) {
-      toast(e.message);
+      throw e;
     }
   }, [scheduleRefetch, toast]);
 
@@ -608,7 +674,7 @@ export default function Workspace() {
       toast('Person added to the canvas', 'ok');
       return true;
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
       return false;
     }
   }, [scheduleRefetch, toast]);
@@ -618,9 +684,9 @@ export default function Workspace() {
     try {
       await api(`/api/canvases/${sourceRef.canvasId}/runs/${sourceRef.id}/retry`, { method: 'POST', body: {} });
       toast('Retry dispatched', 'ok');
-      loadAttention();
+      await loadAttention();
     } catch (e) {
-      toast(e.message);
+      throw e;
     }
   }, [loadAttention, toast]);
 
@@ -629,9 +695,9 @@ export default function Workspace() {
     try {
       await rulesApi.acknowledge(sourceRef.id);
       toast('Acknowledged', 'ok');
-      loadAttention();
+      await loadAttention();
     } catch (e) {
-      toast(e.message);
+      throw e;
     }
   }, [loadAttention, toast]);
 
@@ -642,9 +708,9 @@ export default function Workspace() {
     try {
       await api(`/api/canvases/${sourceRef.canvasId}/memory/${sourceRef.id}/reaffirm`, { method: 'POST', body: { review_at: reviewAt } });
       toast('Re-affirmed — review pushed 30 days', 'ok');
-      loadAttention();
+      await loadAttention();
     } catch (e) {
-      toast(e.message);
+      throw e;
     }
   }, [loadAttention, toast]);
 
@@ -654,9 +720,9 @@ export default function Workspace() {
     try {
       await api('/api/attention/dismiss', { method: 'POST', body: { canvas_id: row.sourceRef.canvasId, key: row.dismissKey } });
       toast('Dismissed', 'ok');
-      loadAttention();
+      await loadAttention();
     } catch (e) {
-      toast(e.message);
+      throw e;
     }
   }, [loadAttention, toast]);
 
@@ -664,14 +730,16 @@ export default function Workspace() {
     try {
       await api(`/api/escalations/${id}/resolve`, { method: 'POST', body });
       markEscalationLeaving(id);
+      await loadAttention();
       toast(body.action === 'dismiss' ? 'Dismissed' : 'Decision sent back to the agent', 'ok');
     } catch (e) {
-      toast(e.message);
+      throw e;
     }
-  }, [markEscalationLeaving, toast]);
+  }, [markEscalationLeaving, loadAttention, toast]);
 
   const saveNote = useCallback(async (note, draft) => {
-    const d = await api(`/api/canvases/${canvasIdRef.current}/notes/${note.id}`, {
+    const cid = canvasIdRef.current;
+    const d = await api(`/api/canvases/${cid}/notes/${note.id}`, {
       method: 'PUT',
       body: {
         title: draft.title,
@@ -681,7 +749,7 @@ export default function Workspace() {
         base_content: note.content,
       },
     });
-    setState((s) => s && ({ ...s, notes: s.notes.map((n) => (n.id === d.note.id ? d.note : n)) }));
+    setState((s) => s?.canvas?.id === cid ? { ...s, notes: s.notes.map((n) => (n.id === d.note.id ? d.note : n)) } : s);
     if (d.merged) toast('Someone edited this note at the same time — both edits were merged.', 'warn');
     return d;
   }, [toast]);
@@ -705,12 +773,12 @@ export default function Workspace() {
         ...s, notes: [...(s.notes || []).filter((n) => n.id !== d.note.id), d.note],
       } : s));
       if (canvasIdRef.current === cid) {
-        setView('canvas');
+        setView('documents');
         setPanel({ type: 'note', id: d.note.id });
       }
       toast('Note created', 'ok');
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
     }
   }, [state, toast]);
 
@@ -726,7 +794,7 @@ export default function Workspace() {
       toast(note.pinned ? 'Pinned note removed from future agent context' : 'Note removed', 'ok');
       return true;
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
       return false;
     }
   }, [state?.access, toast]);
@@ -741,7 +809,7 @@ export default function Workspace() {
       toast(`${agent.name} removed from this canvas. History was retained.`, 'ok');
       return true;
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
       return false;
     }
   }, [state?.access, toast]);
@@ -797,7 +865,7 @@ export default function Workspace() {
         ...s, files: [...(s.files || []).filter((f) => f.id !== uploaded.id), uploaded],
       } : s));
       if (canvasIdRef.current === cid) {
-        setView('canvas');
+        setView('documents');
         setPanel({ type: 'file', id: uploaded.id });
         setFileUpload({ kind: 'success', message: `${file.name} is ready for agents.` });
         toast('Document ready for agents', 'ok');
@@ -811,7 +879,7 @@ export default function Workspace() {
         method: 'POST', body: { kind: 'file', id: uploaded.id, x, y },
       }).catch(() => toast('Document added, but its canvas position could not be saved.', 'warn'));
     } catch (e) {
-      setFileUpload({ kind: 'error', message: e.message || 'Document upload failed.' });
+      if (canvasIdRef.current === cid) setFileUpload({ kind: 'error', message: e.unconfirmed ? 'Upload is not confirmed. Check Documents & notes before choosing the file again.' : 'Upload failed. Your file is ready for Retry upload.', file, error: e });
       toast(e.message || 'Document upload failed');
     } finally {
       input.value = '';
@@ -831,20 +899,21 @@ export default function Workspace() {
       toast('Document removed', 'ok');
       return true;
     } catch (e) {
-      toast(e.message);
+      setActionError(e);
       return false;
     }
   }, [state?.access, toast]);
 
   const correctEntry = useCallback(async (entryId, body) => {
+    const cid = canvasIdRef.current;
     try {
-      await api(`/api/canvases/${canvasIdRef.current}/memory/${entryId}/correct`, { method: 'POST', body });
-      toast('Correction recorded — ripple incoming', 'ok');
+      await api(`/api/canvases/${cid}/memory/${entryId}/correct`, { method: 'POST', body });
+      await loadMemory(cid, showSupersededRef.current).catch(() => {});
+      toast('Correction recorded', 'ok');
     } catch (e) {
-      if (e.status === 409) toast('Correction conflict — escalated to a human decision', 'warn');
-      else toast(e.message);
+      throw e;
     }
-  }, [toast]);
+  }, [toast, loadMemory]);
 
   const moveLive = useCallback((kind, id, x, y) => applyMove(kind, id, x, y), []);
 
@@ -875,7 +944,7 @@ export default function Workspace() {
     setFitSignal((n) => n + 1);
     try {
       await Promise.all(moves.map((m) => api(`/api/canvases/${canvasIdRef.current}/positions`, { method: 'POST', body: m })));
-    } catch (e) { toast(e.message); }
+    } catch (e) { setActionError(e); }
   }, [state, toast]);
   const moveEnd = useCallback((kind, id, x, y) => {
     applyMove(kind, id, x, y);
@@ -905,15 +974,18 @@ export default function Workspace() {
     });
   }, [loadMemory, toast]);
 
-  const pauseAll = useCallback(async () => {
-    try { await api('/api/control/pause', { method: 'POST', body: {} }); toast('Workspace paused', 'warn'); }
-    catch (e) { toast(e.message); }
-  }, [toast]);
-
-  const resumeAll = useCallback(async () => {
-    try { await api('/api/control/resume', { method: 'POST', body: {} }); toast('Workspace resumed', 'ok'); }
-    catch (e) { toast(e.message); }
-  }, [toast]);
+  const changePause = useCallback(async (paused) => {
+    if (controlBusy) return;
+    setControlBusy(true); setActionError(null);
+    try {
+      await api(`/api/control/${paused ? 'pause' : 'resume'}`, { method: 'POST', body: {} });
+      await loadControl();
+      toast(paused ? 'Workspace paused' : 'Workspace resumed', paused ? 'warn' : 'ok');
+    } catch (e) { setActionError(e); throw e; }
+    finally { setControlBusy(false); }
+  }, [controlBusy, loadControl, toast]);
+  const pauseAll = useCallback(() => changePause(true), [changePause]);
+  const resumeAll = useCallback(() => changePause(false), [changePause]);
 
   const parseIntent = useCallback(
     // Mode rides client-side on the parsed intent — the parse itself is
@@ -935,32 +1007,33 @@ export default function Workspace() {
   }, [dispatchToAgent, pauseAll, resumeAll, toast]);
 
   const signOut = useCallback(async () => {
-    try { await api('/api/auth/logout', { method: 'POST', body: {} }); } catch { /* noop */ }
-    setUser(null);
-  }, [setUser]);
+    if (signingOut) return;
+    setSigningOut(true); setActionError(null);
+    try { await api('/api/auth/logout', { method: 'POST', body: {} }); setUser(null); }
+    catch (e) { setActionError(e); }
+    finally { setSigningOut(false); }
+  }, [setUser, signingOut]);
 
   const fetchRunEvents = useCallback(
-    (runId) => api(`/api/canvases/${canvasIdRef.current}/runs/${runId}/events`).then((d) => d.events || []),
-    []
+    (runId) => api(`/api/canvases/${canvasId}/runs/${runId}/events`).then((d) => d.events || []),
+    [canvasId]
   );
 
   const fetchRunReceipt = useCallback(
-    (runId) => api(`/api/canvases/${canvasIdRef.current}/runs/${runId}/receipt`),
-    []
+    (runId) => api(`/api/canvases/${canvasId}/runs/${runId}/receipt`),
+    [canvasId]
   );
 
   const sendRunFeedback = useCallback(
-    (runId, verdict, note) => api(`/api/canvases/${canvasIdRef.current}/runs/${runId}/feedback`, {
+    (runId, verdict, note) => api(`/api/canvases/${canvasId}/runs/${runId}/feedback`, {
       method: 'POST', body: { verdict, note },
     }),
-    []
+    [canvasId]
   );
 
-  const openRun = useCallback((runId) => {
-    const run = (state?.runs || []).find((r) => r.id === runId);
-    if (run) setPanel({ type: 'agent', id: run.agent_id, runId });
-    else toast('That run is not in the recent runs list', 'warn');
-  }, [state, toast]);
+  const openRun = useCallback((runId, cid = canvasIdRef.current) => {
+    if (runId && cid) setPanel({ type: 'work', runId, canvasId: cid });
+  }, []);
 
   // ---------- derived ----------
   const agentsById = useMemo(() => {
@@ -993,46 +1066,48 @@ export default function Workspace() {
   const setBudgetUsd = useCallback(async (usd) => {
     try {
       await api('/api/control/budget', { method: 'POST', body: { daily_budget_usd: usd } });
-      const d = await api('/api/control/status');
-      setBudget(d);
+      await loadControl().catch((e) => { throw Object.assign(e, { unconfirmed: true }); });
       toast('Daily budget updated', 'ok');
-    } catch (e) { toast(e.message); }
-  }, [toast]);
+    } catch (e) { throw e; }
+  }, [loadControl, toast]);
 
   // ---------- render ----------
   const visiblePresence = canvasId ? presence : [];
   const visibleAgents = canvasId ? (state?.agents || []) : [];
-  // Members see only what is theirs by default — unowned technical
-  // escalations are the owner's noise, not the team's. Same predicate as the
-  // Mine scope in NeedsYouView and server/attention.js.
-  const badgeRows = isOwner
-    ? (attention || [])
-    : (attention || []).filter((r) => r.owner.email && r.owner.email.toLowerCase() === String(user.email).toLowerCase());
-  const visibleAttentionCount = canvasId
-    ? (needsYouOn ? badgeRows.length : openEscalations.length)
-    : 0;
+  const badgeRows = badgeAttention || [];
+  const visibleAttentionCount = needsYouOn
+    ? (badgeAttention === null || requests['attention badge']?.error ? '—' : badgeRows.length)
+    : (requests.review?.error ? '—' : openEscalations.length);
+  const globalRows = attention?.map((row) => {
+    const space = canvases.find((c) => c.id === row.sourceRef.canvasId);
+    return { ...row, canvasName: space?.name || 'Project space', access: space?.access || 'view' };
+  }) ?? null;
   let sidePanel = null;
   if (canvasId && panel && state) {
     if (panel.type === 'agent' && agentsById[panel.id]) {
       sidePanel = (
         <AgentPanel
+          key={`${canvasId}:${panel.id}`}
           agent={agentsById[panel.id]}
           runs={(state.runs || []).filter((r) => r.agent_id === panel.id)}
           spendRow={spendByAgent[panel.id]}
           initialRunId={panel.runId || null}
           paused={pause.paused}
           canvasId={canvasId}
-          onSelectEntry={() => setPanel({ type: 'memory' })}
+          onSelectEntry={(id) => setPanel({ type: 'memory', entryId: id })}
           onDispatch={async (instruction) => {
             try { await dispatchToAgent(panel.id, instruction); toast(`Sent to ${agentsById[panel.id].name}`, 'ok'); }
-            catch (e) { toast(e.message); }
+            catch (e) { throw e; }
           }}
+          isOwner={isOwner}
+          editable={state.access !== 'view'}
+          onCheckStatus={() => loadState(canvasId)}
           onRemove={state.access !== 'view' ? removeAgent : null}
           fetchRunEvents={fetchRunEvents}
           fetchRunReceipt={fetchRunReceipt}
           onFeedback={async (runId, verdict, note) => {
             try { return await sendRunFeedback(runId, verdict, note); }
-            catch (e) { toast(e.message); return null; }
+            catch (e) { throw e; }
           }}
           onClose={() => setPanel(null)}
         />
@@ -1042,6 +1117,8 @@ export default function Workspace() {
       const task = panel.taskId ? (state.tasks || []).find((t) => t.id === panel.taskId) : null;
       sidePanel = (
         <NotePanel
+          key={`${canvasId}:${panel.id || panel.taskId}`}
+          onCheckStatus={() => loadState(canvasId)}
           note={note}
           task={task}
           people={state.people || []}
@@ -1076,436 +1153,43 @@ export default function Workspace() {
           onToggleSuperseded={toggleSuperseded}
           ripple={ripple}
           onOpenRun={openRun}
-          onCorrect={correctEntry}
+          onCorrect={state.access !== 'view' ? correctEntry : null}
+          loadStatus={requests.memory}
+          onRefresh={() => loadMemory(canvasId, showSuperseded).catch(() => {})}
+          initialEntryId={panel.entryId}
           onClose={() => setPanel(null)}
           toast={toast}
         />
       );
-    } else if (panel.type === 'spend') {
-      sidePanel = (
-        <SpendPanel
-          spend={spend}
-          analytics={analytics}
-          budget={budget}
-          isOwner={isOwner}
-          onSetBudget={setBudgetUsd}
-          onClose={() => setPanel(null)}
-        />
-      );
     }
   }
+  // The daily limit is workspace-wide and remains useful before a space exists
+  // or when its contents cannot be loaded.
+  if (panel?.type === 'spend') {
+    sidePanel = (
+      <SpendPanel
+        spend={spend}
+        analytics={analytics}
+        hasProject={!!canvasId}
+        statuses={requests}
+        onRefresh={async () => { await loadControl(); if (canvasId) await loadSpend(canvasId).catch(() => {}); }}
+        budget={requests.control?.error ? null : budget}
+        isOwner={isOwner}
+        onSetBudget={setBudgetUsd}
+        onClose={() => setPanel(null)}
+      />
+    );
+  }
 
-  return (
-    <div className="workspace">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-glyph" />
-          Agent&nbsp;Canvas
-        </div>
-        {canvases.length > 1 ? (
-          <label className="canvas-switch-wrap">
-            <span>Canvas</span>
-            <select
-              className="canvas-switch"
-              value={canvasId || ''}
-              onChange={(e) => setCanvasId(e.target.value)}
-              aria-label="Switch canvas"
-            >
-              {canvases.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
-        ) : canvases.length === 1 ? (
-          <span className="canvas-current" aria-label={`Current canvas: ${canvases[0].name}`}>
-            <span>Canvas</span>
-            <strong>{canvases[0].name}</strong>
-          </span>
-        ) : null}
-        {newCanvasOpen ? (
-          <div className="canvas-new-pop">
-            <input
-              className="canvas-new-input"
-              autoFocus
-              placeholder="New canvas name…"
-              value={newCanvasName}
-              onChange={(e) => setNewCanvasName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') createCanvas();
-                if (e.key === 'Escape') { setNewCanvasOpen(false); setNewCanvasName(''); }
-              }}
-            />
-            {enabledRoster.length ? (
-              <fieldset className="canvas-team-picker">
-                <legend className="canvas-team-label">Choose a starting team</legend>
-                <div className="canvas-team-options">
-                  {availableTeams.map((team) => (
-                    <button
-                      key={team.id}
-                      type="button"
-                      className={`canvas-team-option ${selectedTeamId === team.id ? 'selected' : ''}`}
-                      aria-pressed={selectedTeamId === team.id}
-                      onClick={() => setRosterChecked(new Set(rosterIdsForTeam(team.id, roster)))}
-                    >
-                      <strong>{team.name}</strong>
-                      <span>{team.description}</span>
-                    </button>
-                  ))}
-                </div>
-                {!selectedTeam ? <p className="canvas-team-description">Custom team selected.</p> : null}
-                <div className="canvas-team-members" aria-live="polite">
-                  {selectedRosterMembers.map((entry) => (
-                    <span className="canvas-team-member" key={entry.id}>
-                      <span className="roster-dot" style={{ background: entry.color }} />
-                      {entry.name}
-                    </span>
-                  ))}
-                  {selectedRosterMembers.length === 0 ? <span className="dim">No agents selected</span> : null}
-                </div>
-                <details className="canvas-team-customize">
-                  <summary>Customize agents ({selectedRosterMembers.length})</summary>
-                  <div className="canvas-new-roster">
-                    {enabledRoster.map((r) => (
-                      <label key={r.id} className="roster-check">
-                        <input
-                          type="checkbox"
-                          checked={rosterChecked ? rosterChecked.has(r.id) : false}
-                          onChange={() => setRosterChecked((prev) => {
-                            const next = new Set(prev || []);
-                            if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
-                            return next;
-                          })}
-                        />
-                        <span className="roster-dot" style={{ background: r.color }} />
-                        {r.name} <span className="dim">{r.role === 'enrichment' ? 'lead information' : r.role}</span>
-                      </label>
-                    ))}
-                  </div>
-                </details>
-              </fieldset>
-            ) : null}
-            <div className="canvas-new-actions">
-              <button className="btn ghost small" onClick={() => { setNewCanvasOpen(false); setNewCanvasName(''); }}>Cancel</button>
-              <button className="btn primary small" disabled={!newCanvasName.trim()} onClick={createCanvas}>Create</button>
-            </div>
-          </div>
-        ) : null}
-        <button
-          className="btn ghost small new-canvas-btn"
-          aria-expanded={newCanvasOpen}
-          onClick={() => setNewCanvasOpen(true)}
-        >New canvas</button>
-        {canvasId && state && state.access !== 'view' ? (
-          <button className="icon-btn agent-add-btn" title="Add an agent to this canvas" onClick={() => setAddAgentOpen(true)}>+ Agent</button>
-        ) : null}
-        {canvasId && state && state.access !== 'view' ? (
-          addPersonOpen ? (
-            <div className="canvas-new-pop">
-              <input
-                className="canvas-new-input"
-                autoFocus
-                placeholder="person@cloudtechgurus.com"
-                value={newPersonEmail}
-                onChange={(e) => setNewPersonEmail(e.target.value)}
-                onKeyDown={async (e) => {
-                  if (e.key === 'Enter' && newPersonEmail.trim()) {
-                    if (await addPerson(newPersonEmail.trim())) { setAddPersonOpen(false); setNewPersonEmail(''); }
-                  }
-                  if (e.key === 'Escape') { setAddPersonOpen(false); setNewPersonEmail(''); }
-                }}
-              />
-              <div className="canvas-new-actions">
-                <button className="btn ghost small" onClick={() => { setAddPersonOpen(false); setNewPersonEmail(''); }}>Cancel</button>
-                <button
-                  className="btn primary small"
-                  disabled={!newPersonEmail.trim()}
-                  onClick={async () => { if (await addPerson(newPersonEmail.trim())) { setAddPersonOpen(false); setNewPersonEmail(''); } }}
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button className="icon-btn" title="Add a person card — the email must be on the workspace allowlist" onClick={() => setAddPersonOpen(true)}>+ Person</button>
-          )
-        ) : null}
-        {canvasId && state && state.access !== 'view' ? (
-          <button className="icon-btn" title="Add a note to this canvas" onClick={createNote}>+ Note</button>
-        ) : null}
-        {canvasId && state && state.access !== 'view' ? (
-          <>
-            <input
-              ref={fileInputRef}
-              className="file-input-hidden"
-              type="file"
-              accept={FILE_ACCEPT}
-              aria-label="Choose a document to add to this canvas"
-              disabled={fileUpload.kind === 'busy'}
-              onChange={uploadFile}
-            />
-            <button
-              className="icon-btn"
-              aria-label="Upload document"
-              title="Upload a PDF, Word (.docx), TXT, Markdown, CSV, JSON, or XLSX document for agents to read (5 MB maximum)"
-              disabled={fileUpload.kind === 'busy'}
-              aria-describedby={fileUpload.message ? 'file-upload-status' : undefined}
-              onClick={() => {
-                setFileUpload({ kind: 'idle', message: '' });
-                fileInputRef.current?.click();
-              }}
-            >
-              {fileUpload.kind === 'busy' ? 'Uploading…' : '+ Document'}
-            </button>
-          </>
-        ) : null}
-        {canvasId && fileUpload.message ? (
-          <span
-            id="file-upload-status"
-            className={`file-upload-status is-${fileUpload.kind}`}
-            role={fileUpload.kind === 'error' ? 'alert' : 'status'}
-            aria-live={fileUpload.kind === 'error' ? 'assertive' : 'polite'}
-            aria-atomic="true"
-          >
-            {fileUpload.kind === 'busy' ? <progress aria-label="Document upload in progress" /> : null}
-            <span>{fileUpload.message}</span>
-          </span>
-        ) : null}
-        {isOwner && canvasId ? (
-          <button
-            className="icon-btn"
-            title="Archive this canvas — reversible, nothing is deleted"
-            onClick={archiveCanvas}
-          >
-            Archive
-          </button>
-        ) : null}
-        <div className="topbar-spacer" />
-        {!wsOk ? <span className="ws-pip" title="Live connection lost — reconnecting"><span className="ws-dot" />reconnecting</span> : null}
-        <button
-          className={`budget-meter ${budgetPct > 0.9 ? 'over' : ''}`}
-          onClick={() => setPanel({ type: 'spend' })}
-          title="Today's spend vs daily budget — click for the spend panel"
-        >
-          <span className="budget-bar"><span className="budget-fill" style={{ width: `${budgetPct * 100}%` }} /></span>
-          <span className="mono budget-label">
-            {budget ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '$ — / —'}
-          </span>
-        </button>
-        {canvasId && state ? (
-          <button className={`btn ghost ${view === 'home' ? 'active' : ''}`} onClick={() => setView(view === 'home' ? 'canvas' : 'home')}>
-            {view === 'home' ? 'Canvas' : 'Home'}
-          </button>
-        ) : null}
-        {canvasId && state && needsYouOn ? (
-          <button
-            className={`btn ghost ny-btn ${view === 'needsyou' ? 'active' : ''}`}
-            onClick={() => setView(view === 'needsyou' ? 'canvas' : 'needsyou')}
-            title="Everything waiting on a human — escalations, conflicts, overdue reviews, failed runs, alerts, and briefs"
-          >
-            Needs you{badgeRows.length ? <span className="tray-badge">{badgeRows.length}</span> : null}
-          </button>
-        ) : null}
-        {roomsOn ? (
-          <button className={`btn ghost ${view === 'rooms' ? 'active' : ''}`}
-            onClick={() => setView(view === 'rooms' ? 'canvas' : 'rooms')}
-            title="Evidence Rooms — one room per deal, client, initiative, or decision">
-            Rooms
-          </button>
-        ) : null}
-        {canvasId && state && rulesOn ? (
-          <button className={`btn ghost ${view === 'rules' ? 'active' : ''}`}
-            onClick={() => { setRuleFocusId(null); setView(view === 'rules' ? 'canvas' : 'rules'); }}
-            title="Rules & Briefs — standing instructions that watch, alert, and brief on a cadence">
-            Rules
-          </button>
-        ) : null}
-        {canvasId && state ? (
-          <button className={`btn ghost ${panel?.type === 'memory' ? 'active' : ''}`} onClick={() => setPanel(panel?.type === 'memory' ? null : { type: 'memory' })}>Memory</button>
-        ) : null}
-        <button
-          className="btn ghost theme-btn"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          title={theme === 'dark' ? 'Switch to the light CTG theme' : 'Switch to the dark bridge console'}
-          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-        >
-          <span className="theme-glyph" aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
-          {theme === 'dark' ? 'Light' : 'Dark'}
-        </button>
-        <button className="btn ghost caps-btn" onClick={() => setCapsOpen(true)} title={wsConnected ? 'Google Workspace connected — see what agents can and cannot do' : 'Google Workspace not connected — click to see what agents can do and connect'}>
-          <span className={`caps-state-dot ${wsConnected ? 'on' : 'off'}`} />
-          Capabilities
-        </button>
-        {pause.paused
-          ? (isOwner ? <button className="btn ok" onClick={resumeAll}>Resume</button> : <span className="chip paused-chip">paused</span>)
-          : <button className="btn danger" onClick={pauseAll} title="Emergency stop — halts every agent">Pause</button>}
-        <div className="presence-stack" title={visiblePresence.filter((p) => p.email !== user.email).map((p) => p.name).join(', ') || 'No one else is here'}>
-          {visiblePresence.filter((p) => p.email !== user.email).slice(0, 6).map((p) => (
-            <span key={p.email} className="avatar" style={{ background: p.color }} title={`${p.name} (${p.email})`}>
-              {initials(p.name)}
-            </span>
-          ))}
-          {visiblePresence.filter((p) => p.email !== user.email).length > 6 ? <span className="avatar more">+{visiblePresence.filter((p) => p.email !== user.email).length - 6}</span> : null}
-        </div>
-        <div className="user-menu-wrap">
-          <button className="avatar me" ref={avatarRef} onClick={() => setMenuOpen((v) => !v)} title={user.email}>
-            {user.picture ? <img src={user.picture} alt="" referrerPolicy="no-referrer" /> : initials(user.name || user.email)}
-          </button>
-          {menuOpen ? (
-            <div className="user-menu" onMouseLeave={() => setMenuOpen(false)}>
-              <div className="user-menu-id">
-                <b>{user.name || user.email}</b>
-                <span className="mono">{user.email}</span>
-                <span className={`chip role-${user.role}`}>{user.role}</span>
-              </div>
-              {isOwner ? (
-                <>
-                  <button onClick={() => { setAdminOpen(true); setMenuOpen(false); }}>Admin — allowlist &amp; audit</button>
-                  <button onClick={() => { setArchivedOpen(true); setMenuOpen(false); }}>
-                    Archived canvases{archivedCanvases.length ? ` (${archivedCanvases.length})` : ''}
-                  </button>
-                  <a href="/api/export" download>Export operational ledger (JSON)</a>
-                </>
-              ) : null}
-              <button onClick={signOut}>Sign out</button>
-            </div>
-          ) : null}
-        </div>
-      </header>
-
-      {pause.paused ? (
-        <div className="pause-banner">
-          <span className="pause-glyph">■</span>
-          WORKSPACE PAUSED{pause.by ? ` by ${pause.by}` : ''} — all agents are frozen
-          {isOwner ? <button className="btn ok small" onClick={resumeAll}>Resume</button> : null}
-        </div>
-      ) : null}
-
-      <div className="stage">
-        <div className="canvas-wrap">
-          {canvasId && state && view === 'home' ? (
-            <Home
-              canvasId={canvasId}
-              agents={state.agents || []}
-              agentsById={agentsById}
-              paused={pause.paused}
-              runTick={runTick}
-              onOpenRun={(agentId, runId) => { setView('canvas'); openRun(runId); }}
-              toast={toast}
-            />
-          ) : null}
-          {canvasId && state && view === 'needsyou' ? (
-            <NeedsYouView
-              rows={attention}
-              userEmail={user.email}
-              defaultScope={isOwner ? 'all' : 'mine'}
-              agentsById={agentsById}
-              people={state.people || []}
-              agents={state.agents || []}
-              onResolveEscalation={(id, body) => resolveEscalation(id, body).then(() => loadAttention())}
-              onAssign={assignEscalation}
-              onOpenMemory={() => setPanel({ type: 'memory' })}
-              onOpenRun={(ref) => { setView('canvas'); openRun(ref.id); }}
-              onRetryRun={retryRun}
-              onExtendReview={extendReview}
-              onAcknowledgeRuleRun={acknowledgeRuleRun}
-              onDismiss={dismissAttention}
-              onOpenRule={rulesOn ? (ref) => { setRuleFocusId(ref.ruleId); setView('rules'); } : null}
-            />
-          ) : null}
-          {view === 'rooms' ? (
-            <RoomsView
-              user={user}
-              roster={roster}
-              onOpenCanvas={(id) => { setCanvasId(id); setView('canvas'); }}
-              onOpenRun={({ canvasId: cid, agentId, runId }) => {
-                // The room's canvas may not be the selected one — switch first;
-                // the agent panel renders as soon as that canvas state loads.
-                if (cid && cid !== canvasId) setCanvasId(cid);
-                setView('canvas');
-                setPanel({ type: 'agent', id: agentId, runId });
-              }}
-              toast={toast}
-            />
-          ) : null}
-          {canvasId && state && view === 'rules' ? (
-            <RulesView user={user} canvasId={canvasId} agents={state.agents || []} toast={toast} focusRuleId={ruleFocusId} />
-          ) : null}
-          {canvasId && state && view !== 'home' && view !== 'needsyou' && view !== 'rooms' && view !== 'rules' ? (
-            <Canvas
-              agents={state.agents || []}
-              notes={state.notes || []}
-              tasks={state.tasks || []}
-              files={state.files || []}
-              people={state.people || []}
-              canvasId={canvasId}
-              handoffs={handoffs}
-              memoryMap={memoryMap}
-              agentsById={agentsById}
-              cursors={cursors}
-              selections={selections}
-              mySelection={mySelection}
-              spendByAgent={spendByAgent}
-              amberAgents={amberAgents}
-              paused={pause.paused}
-              hoverHandoffId={hoverHandoffId}
-              onOpen={openNode}
-              onMoveLive={moveLive}
-              onMoveEnd={moveEnd}
-              fitSignal={fitSignal}
-              onArrange={arrangeCanvas}
-              onCursor={sendCursor}
-              onSelect={selectNode}
-            />
-          ) : null}
-          {!canvasId && canvasesLoaded && canvases.length === 0 ? (
-            <div className="empty-canvas-cta no-canvases">
-              <h2>Start with a canvas</h2>
-              <p>Create a focused space for the agents, people, notes, and work that belong together.</p>
-              <button className="btn primary" onClick={() => setNewCanvasOpen(true)}>Create a canvas</button>
-            </div>
-          ) : null}
-          {!canvasesLoaded || (canvasId && !state) ? (
-            <div className="stage-loading">
-              <div className="boot-glyph" />
-              Loading canvas…
-            </div>
-          ) : null}
-
-          {canvasId && state && state.access !== 'view' && (state.agents || []).length === 0 ? (
-            <div className="empty-canvas-cta">
-              <p>This canvas has no agents yet.</p>
-              <button className="btn primary" onClick={() => setAddAgentOpen(true)}>Add your first agent</button>
-            </div>
-          ) : null}
-
-          {canvasId && state ? (
-            <Tray
-              escalations={openEscalations}
-              agentsById={agentsById}
-              agents={state.agents || []}
-              people={state.people || []}
-              onResolve={resolveEscalation}
-              onAssign={assignEscalation}
-              badgeOnly={needsYouOn}
-              badgeCount={needsYouOn ? badgeRows.length : null}
-              onOpen={() => setView('needsyou')}
-            />
-          ) : null}
-
-          {sidePanel}
-
-          {canvasId && state ? (
-            <CommandBar paused={pause.paused} onParse={parseIntent} onConfirm={confirmIntent} toast={toast} />
-          ) : null}
-        </div>
-
-        <div className="hud" role="status" aria-label="Systems console">
+  const diagnostics = ({ health, healthDown = false }) => (<div className="hud" role="status" aria-label="Systems console">
           <button className="hud-cell hud-btn" onClick={() => setCapsOpen(true)}
-            title={healthDown ? 'TELEMETRY OFFLINE — the server predates this console or is unreachable. Restart the app (Ctrl+C, npm run dev).' : 'Open the systems board'}>
-            <span className={`lamp hexlamp lamp-${healthDown ? 'down' : (health?.aggregate || 'planned')}`} />
+            title={healthDown ? 'Status unavailable. Open Connections and check again.' : 'Open the systems board'}>
+            <span className={`lamp hexlamp lamp-${healthDown ? 'down' : systemStatus(health)}`} />
             <span className="hud-label">Systems</span>
-            {healthDown ? <span className="hud-val mono hud-hot">TELEMETRY OFFLINE — RESTART SERVER</span> : null}
+            {healthDown ? <span className="hud-val mono hud-hot">Status unavailable</span> : null}
           </button>
           <span className={`hud-cell`} title={health?.integrations?.find((i) => i.id === 'model')?.detail || ''}>
-            <span className={`lamp lamp-${health?.integrations?.find((i) => i.id === 'model')?.status || 'planned'}`} />
+            <span className={`lamp lamp-${integrationStatus(health?.integrations?.find((i) => i.id === 'model') || {}) || 'planned'}`} />
             <span className="hud-label">Model</span>
             <span className="hud-val mono">{(health?.provider || '—').toUpperCase()}</span>
           </span>
@@ -1530,7 +1214,7 @@ export default function Workspace() {
           <span className="hud-cell">
             <span className="hud-label">Runs</span>
             <span className="hud-val mono">
-              {visibleAgents.filter((a) => a.status === 'running').length} act · {health?.queue?.queued ?? '—'} q
+              {requests.workspace?.error ? 'Unknown' : visibleAgents.filter((a) => a.status === 'running').length} working · {health?.queue?.queued ?? '—'} waiting
             </span>
           </span>
           <span className="hud-cell">
@@ -1542,12 +1226,210 @@ export default function Workspace() {
           <span className="hud-cell hud-gauge-cell" title="Daily spend against budget">
             <span className="hud-label">Spend</span>
             <span className="hud-gauge"><span className="hud-gauge-fill" style={{ width: `${Math.min(100, budget?.budget_usd ? (100 * (budget.cost_usd || 0)) / budget.budget_usd : 0)}%` }} /></span>
-            <span className="hud-val mono">{budget ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '—'}</span>
+            <span className="hud-val mono">{budget && !requests.control?.error ? `${fmtUSD(budget.cost_usd)} / ${fmtUSD(budget.budget_usd)}` : '—'}</span>
           </span>
+        </div>);
+
+  return (
+    <DraftsContext.Provider value={drafts}><div className="workspace">
+      <WorkspaceHeader user={user} theme={theme} setTheme={setTheme}
+        spaces={{ list: canvases, id: canvasId, select: setCanvasId, archive: archiveCanvas, archived: () => setArchivedOpen(true) }}
+        navigation={{ view, go: (next) => { setPanel(null); setView(next); }, needsYou: needsYouOn, count: visibleAttentionCount,
+          hasSpace: !!state, rooms: roomsOn, rules: rulesOn, memory: () => setPanel({ type: 'memory' }) }}
+        creation={{ open: newCanvasOpen, name: newCanvasName, setName: setNewCanvasName, show: () => setNewCanvasOpen(true),
+          close: () => setNewCanvasOpen(false), create: createCanvas, roster, selected: rosterChecked, setSelected: setRosterChecked, teamId: selectedTeamId, busy: creating, error: actionError, checkStatus: refreshCanvases,
+          templateStatus: requests['team templates'] || { loading: rosterChecked === null }, onRefreshTemplates: refreshRoster }}
+        account={{ avatarRef, open: menuOpen, toggle: () => setMenuOpen((open) => !open), signingOut, signOut,
+          admin: () => { setAdminOpen(true); setMenuOpen(false); } }}
+        controls={{ budget: requests.control?.error ? null : budget, paused: pause.paused, busy: controlBusy,
+          pause: () => pauseAll().catch(() => {}), resume: () => resumeAll().catch(() => {}),
+          spending: () => setPanel({ type: 'spend' }), connections: () => setCapsOpen(true) }} />
+      {state?.access !== 'view' && canvasId && state ? <input ref={fileInputRef} className="file-input-hidden" tabIndex={-1} type="file" accept={FILE_ACCEPT}
+        aria-label="Choose a document to add to this canvas" disabled={fileUpload.kind === 'busy'} onChange={uploadFile} /> : null}
+      {canvasId && fileUpload.message ? <div className={`file-upload-status is-${fileUpload.kind}`} role={fileUpload.kind === 'error' ? 'alert' : 'status'}>
+        {fileUpload.kind === 'busy' ? <progress aria-label="Document upload in progress" /> : null}<span>{fileUpload.message}</span>
+        {fileUpload.kind === 'error' ? <button className="btn small" onClick={() => {
+          if (fileUpload.error?.unconfirmed) { setView('documents'); loadState(canvasId).catch(() => {}); }
+          else if (fileUpload.file) uploadFile({ currentTarget: { files: [fileUpload.file], value: '' } });
+          else fileInputRef.current?.click();
+        }}>{fileUpload.error?.unconfirmed ? 'Check documents' : fileUpload.file ? 'Retry upload' : 'Choose document'}</button> : null}
+      </div> : null}
+
+      {pause.paused ? (
+        <div className="pause-banner">
+          <span className="pause-glyph">■</span>
+          WORKSPACE PAUSED{pause.by ? ` by ${pause.by}` : ''} — all agents are frozen
+          {isOwner ? <button className="btn ok small" disabled={controlBusy} onClick={() => resumeAll().catch(() => {})}>Resume</button> : null}
         </div>
-        {canvasId ? (
+      ) : null}
+
+      <div className="workspace-notices">
+        {!wsOk ? <div className="stale-notice" role="status">Live updates are reconnecting. Displayed work may be out of date. <button className="btn small" onClick={refreshAll}>Refresh status</button></div> : null}
+        {Object.entries(requests).filter(([key, r]) => r?.error && !(key === 'attention badge' && requests.attention?.error) && !(key === 'attention' && view === 'needsyou') && !(key === 'team templates' && (addAgentOpen || newCanvasOpen || (view === 'rooms' && isOwner)))).map(([key, r]) => <RequestError key={key} error={r.error} retryLabel={key === 'team templates' ? 'Retry team list' : undefined} subject={`Loading ${{ attention: 'Needs You', 'attention badge': 'the Needs You count', control: 'pause and spending status', spaces: 'project spaces' }[key] || key}`} onRetry={() => {
+          if (key === 'team templates') refreshRoster();
+          else if (key === 'spaces') refreshCanvases().then((d) => { if (!canvasId && d.canvases?.length) setCanvasId(d.canvases[0].id); }).catch(() => {});
+          else refreshAll();
+        }} />)}
+        <RequestError error={actionError} subject="Updating your workspace" onRetry={() => { refreshAll(); setActionError(null); }} retryLabel="Check status" />
+        {pause.paused === null && !requests.control?.error ? <p role="status">Checking pause and spending limits…</p> : null}
+      </div>
+      <div className="stage">
+        <div className="canvas-wrap">
+          {canvasId && state && view === 'home' ? (
+            <Home
+              key={canvasId}
+              editable={state.access !== 'view'}
+              canvasId={canvasId}
+              submission={inquirySubmissions[canvasId]}
+              onSubmissionChange={updateInquirySubmission}
+              agents={state?.agents || []}
+              agentsById={agentsById}
+              paused={pause.paused}
+              runTick={runTick}
+              onOpenRun={(agentId, runId) => openRun(runId)}
+              onUpload={() => fileInputRef.current?.click()}
+              onAddAgent={() => { setAddAgentTab('roster'); setAddAgentOpen(true); }}
+              uploadBusy={fileUpload.kind === 'busy'}
+              toast={toast}
+            />
+          ) : null}
+          {view === 'needsyou' && needsYouOn ? (
+            <NeedsYouView
+              rows={globalRows}
+              submissions={attentionSubmissions}
+              onSubmissionChange={updateAttentionSubmission}
+              scope={attentionScope}
+              onScopeChange={changeAttentionScope}
+              loadStatus={requests.attention}
+              onRefresh={() => loadAttention()}
+              loadContext={loadAttentionContext}
+              userEmail={user.email}
+              defaultScope={isOwner ? 'all' : 'mine'}
+              agentsById={agentsById}
+              people={state?.people || []}
+              agents={state?.agents || []}
+              onResolveEscalation={resolveEscalation}
+              onAssign={assignEscalation}
+              onOpenMemory={(ref) => setPanel({ type: 'memory-source', canvasId: ref.canvasId, entryId: ref.id, secondId: ref.secondId })}
+              onOpenRun={(ref) => openRun(ref.id, ref.canvasId)}
+              onRetryRun={retryRun}
+              onExtendReview={extendReview}
+              onAcknowledgeRuleRun={acknowledgeRuleRun}
+              onDismiss={dismissAttention}
+              onOpenRule={rulesOn ? (ref) => { setPanel({ type: 'rule-source', canvasId: ref.canvasId, ruleId: ref.ruleId }); } : null}
+            />
+          ) : null}
+          {view === 'help' ? <HelpView /> : null}
+          {state && view === 'documents' ? <DocumentsView notes={state.notes || []} files={state.files || []} editable={state.access !== 'view'}
+            onNote={createNote} onUpload={() => fileInputRef.current?.click()} uploadBusy={fileUpload.kind === 'busy'} onOpen={openNode} /> : null}
+          {state && view === 'team' ? <TeamView presence={visiblePresence} connected={wsOk} agents={state.agents || []} people={state.people || []} editable={state.access !== 'view'} onOpen={openNode}
+            builderOn={!!config?.agentBuilder}
+            onAddAgent={() => { setAddAgentTab('roster'); setAddAgentOpen(true); }}
+            onBuild={() => { setAddAgentTab('builder'); setAddAgentOpen(true); }}
+            onCustom={() => { setAddAgentTab('custom'); setAddAgentOpen(true); }}
+            personForm={addPersonOpen ? <form onSubmit={async (e) => { e.preventDefault(); if (await addPerson(newPersonEmail.trim())) { setAddPersonOpen(false); setNewPersonEmail(''); } }}>
+              <label htmlFor="person-email">Teammate email</label><input id="person-email" type="email" required value={newPersonEmail} onChange={(e) => setNewPersonEmail(e.target.value)} />
+              <button className="btn small">Add teammate</button><button type="button" className="btn ghost small" onClick={() => setAddPersonOpen(false)}>Cancel</button>
+            </form> : <button className="btn" onClick={() => setAddPersonOpen(true)}>Add teammate</button>} /> : null}
+          {view === 'commands' ? <section className="context-view"><h1>Advanced commands</h1><p>Describe a command, review the interpretation, then confirm it.</p></section> : null}
+          {view === 'activity' ? <section className="context-view"><h1>Activity</h1><p>Detailed work events for the selected project space.</p></section> : null}
+          {view === 'rooms' ? (
+            <RoomsView
+              user={user}
+              roster={roster}
+              templateStatus={requests['team templates'] || { loading: rosterChecked === null }}
+              onRefreshTemplates={refreshRoster}
+              onOpenCanvas={(id) => { setCanvasId(id); setView('canvas'); }}
+              onCreated={(room) => { setCanvasId(room.canvasId); refreshCanvases().catch(() => {}); }}
+              onOpenTeam={(id) => { setCanvasId(id); setView('team'); }}
+              onOpenRun={({ canvasId: cid, runId }) => openRun(runId, cid)}
+              toast={toast}
+            />
+          ) : null}
+          {canvasId && state && view === 'rules' ? (
+            <RulesView user={user} canvasId={canvasId} agents={state.agents || []} toast={toast} focusRuleId={ruleFocusId} />
+          ) : null}
+          {canvasId && state && view === 'canvas' ? (
+            <Canvas
+              agents={state?.agents || []}
+              notes={state.notes || []}
+              tasks={state.tasks || []}
+              files={state.files || []}
+              people={state?.people || []}
+              canvasId={canvasId}
+              handoffs={handoffs}
+              memoryMap={memoryMap}
+              agentsById={agentsById}
+              cursors={cursors}
+              selections={selections}
+              mySelection={mySelection}
+              spendByAgent={spendByAgent}
+              amberAgents={amberAgents}
+              paused={pause.paused}
+              hoverHandoffId={hoverHandoffId}
+              onOpen={openNode}
+              onMoveLive={moveLive}
+              onMoveEnd={moveEnd}
+              fitSignal={fitSignal}
+              onArrange={arrangeCanvas}
+              onCursor={sendCursor}
+              onSelect={selectNode}
+            />
+          ) : null}
+          {!canvasId && !['help', 'needsyou', 'rooms'].includes(view) && canvasesLoaded && !requests.spaces?.error && canvases.length === 0 ? (
+            <div className="empty-canvas-cta no-canvases">
+              <h2>Start with a project space</h2>
+              <p>Create a focused space for the agents, people, notes, and work that belong together.</p>
+              <button className="btn primary" onClick={() => setNewCanvasOpen(true)}>Create a project space</button>
+            </div>
+          ) : null}
+          {(!canvasesLoaded && !requests.spaces?.error) || (canvasId && !state && !requests.workspace?.error) ? (
+            <div className="stage-loading">
+              <div className="boot-glyph" />
+              Loading canvas…
+            </div>
+          ) : null}
+
+          {canvasId && state && state.access !== 'view' && view === 'canvas' && (state.agents || []).length === 0 ? (
+            <div className="empty-canvas-cta">
+              <p>This canvas has no agents yet.</p>
+              <button className="btn primary" onClick={() => setAddAgentOpen(true)}>Add your first agent</button>
+            </div>
+          ) : null}
+
+          {canvasId && state && !needsYouOn ? (
+            <Tray
+              escalations={openEscalations}
+              agentsById={agentsById}
+              agents={state?.agents || []}
+              people={state?.people || []}
+              onResolve={resolveEscalation}
+              onAssign={assignEscalation}
+              loadStatus={needsYouOn ? requests.attention : requests.review}
+              onRefresh={needsYouOn ? () => loadAttention() : () => loadEscalations().catch(() => {})}
+              badgeOnly={needsYouOn}
+              badgeCount={needsYouOn ? visibleAttentionCount : null}
+              onOpen={() => setView('needsyou')}
+            />
+          ) : null}
+
+          {panel?.type === 'work' ? <WorkDetails key={`${panel.canvasId}:${panel.runId}`} canvasId={panel.canvasId} runId={panel.runId} runTick={runTick}
+            onClose={() => setPanel(null)} onSelectRun={(id) => openRun(id, panel.canvasId)}
+            onSelectEntry={(id) => setPanel({ type: 'memory-source', canvasId: panel.canvasId, entryId: id })} />
+            : panel?.type === 'memory-source' ? <MemorySource key={`${panel.canvasId}:${panel.entryId}`} source={panel} onOpenRun={openRun} onClose={() => setPanel(null)} toast={toast} />
+            : panel?.type === 'rule-source' ? <div className="source-rule-panel"><button className="btn small" onClick={() => setPanel(null)}>Close scheduled work</button><RulesView user={user} canvasId={panel.canvasId} agents={[]} toast={toast} focusRuleId={panel.ruleId} /></div>
+            : sidePanel}
+
+          {canvasId && state && view === 'commands' ? (
+            <CommandBar key={canvasId} canvasId={canvasId} paused={pause.paused} onCheckStatus={refreshAll} onParse={parseIntent} onConfirm={confirmIntent} toast={toast} />
+          ) : null}
+        </div>
+
+        {canvasId && view === 'activity' ? (
           <ActivityDock
             activity={activity}
+            loadStatus={requests.activity}
+            onRefresh={() => loadActivity(canvasId).catch(() => {})}
             handoffs={handoffs}
             agents={state?.agents || []}
             agentsById={agentsById}
@@ -1560,29 +1442,44 @@ export default function Workspace() {
       {addAgentOpen && canvasId ? (
         <AddAgentModal
           canvasId={canvasId}
+          initialTab={addAgentTab}
           builderOn={!!(config && config.agentBuilder)}
           isOwner={isOwner}
           roster={roster.filter((r) => r.enabled)}
+          templateStatus={requests['team templates'] || { loading: rosterChecked === null }}
+          onRefreshTemplates={refreshRoster}
           onClose={() => setAddAgentOpen(false)}
-          onAdded={() => { setAddAgentOpen(false); loadState(canvasId); }}
+          onAdded={() => { setAddAgentOpen(false); loadState(canvasId).catch(() => {}); }}
+          onPublished={() => { loadState(canvasId).catch(() => {}); }}
           toast={toast}
         />
       ) : null}
       {archivedOpen ? (
         <ArchivedModal
           archivedCanvases={archivedCanvases}
+          loadStatus={requests.spaces}
+          onRefresh={refreshCanvases}
           restoreCanvas={restoreCanvas}
           onClose={() => { setArchivedOpen(false); if (avatarRef.current) avatarRef.current.focus(); }}
         />
       ) : null}
-      {capsOpen ? <CapabilitiesModal onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}
-    </div>
+      {capsOpen ? <CapabilitiesModal diagnostics={diagnostics} connectionNotice={connectionNotice} onClose={() => { setCapsOpen(false); refreshCaps(); refreshHealth(); }} toast={toast} /> : null}
+    </div></DraftsContext.Provider>
   );
 }
 
 function FilePanel({ file, canvasId, editable, onRemove, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [downloadError, setDownloadError] = useState(null);
+  const [downloading, setDownloading] = useState(false);
+  const download = async () => {
+    if (downloading) return;
+    setDownloading(true); setDownloadError(null);
+    try { await downloadFile(`/api/canvases/${canvasId}/files/${file.id}`, file.name); }
+    catch (e) { setDownloadError(e); }
+    finally { setDownloading(false); }
+  };
 
   const confirmRemove = async () => {
     setRemoving(true);
@@ -1607,9 +1504,12 @@ function FilePanel({ file, canvasId, editable, onRemove, onClose }) {
           className="btn primary file-download-btn"
           href={`/api/canvases/${encodeURIComponent(canvasId)}/files/${encodeURIComponent(file.id)}`}
           download={file.name}
+          aria-disabled={downloading}
+          onClick={(e) => { e.preventDefault(); download(); }}
         >
-          Download original
+          {downloading ? 'Preparing download…' : 'Download original'}
         </a>
+        <RequestError error={downloadError} subject="Downloading the original document" onRetry={download} retryLabel="Try download again" />
 
         {editable && !confirming ? (
           <button className="link-btn danger-link file-remove-link" onClick={() => setConfirming(true)}>Remove document</button>
@@ -1634,7 +1534,7 @@ function FilePanel({ file, canvasId, editable, onRemove, onClose }) {
 
 // Archived-canvas list in its own component so the shared dialog behavior
 // (focus trap, Escape, focus restore) mounts with it.
-function ArchivedModal({ archivedCanvases, restoreCanvas, onClose }) {
+function ArchivedModal({ archivedCanvases, restoreCanvas, onClose, loadStatus, onRefresh }) {
   const dialogRef = useDialog(onClose);
   return (
     <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -1644,7 +1544,9 @@ function ArchivedModal({ archivedCanvases, restoreCanvas, onClose }) {
           <button className="icon-btn" onClick={onClose} title="Close" aria-label="Close">×</button>
         </header>
         <div className="modal-body">
-          {archivedCanvases.length === 0 ? (
+          <RequestError error={loadStatus?.error} subject="Loading archived spaces" onRetry={onRefresh} />
+          {loadStatus?.loading ? <p role="status">Loading archived spaces…</p> : null}
+          {archivedCanvases.length === 0 && !loadStatus?.error && !loadStatus?.loading ? (
             <p className="dim">Nothing here — archived canvases will show up in this list.</p>
           ) : (
             <ul className="archived-list">
@@ -1660,4 +1562,21 @@ function ArchivedModal({ archivedCanvases, restoreCanvas, onClose }) {
       </div>
     </div>
   );
+}
+
+// Source navigation does not change the active project or borrow its edit rights.
+function MemorySource({ source, onOpenRun, onClose, toast }) {
+  const resource = useResource(async () => {
+    const [space, memory] = await Promise.all([api(`/api/canvases/${source.canvasId}`), api(`/api/canvases/${source.canvasId}/memory?include_superseded=1`)]);
+    return { space, entries: memory.entries };
+  }, source.canvasId);
+  const [showHistory, setShowHistory] = useState(true);
+  return <MemoryPanel entries={(resource.data?.entries || []).filter((e) => showHistory || !e.supersededBy)}
+    agentsById={Object.fromEntries((resource.data?.space.agents || []).map((a) => [a.id, a]))}
+    initialEntryId={source.entryId} secondEntryId={source.secondId} showSuperseded={showHistory} onToggleSuperseded={() => setShowHistory((s) => !s)}
+    loadStatus={resource} onRefresh={resource.refresh} onOpenRun={(id) => onOpenRun(id, source.canvasId)}
+    onCorrect={resource.data?.space.access !== 'view' && resource.data ? async (id, body) => {
+      await api(`/api/canvases/${source.canvasId}/memory/${id}/correct`, { method: 'POST', body });
+      await resource.refresh();
+    } : null} onClose={onClose} toast={toast} />;
 }

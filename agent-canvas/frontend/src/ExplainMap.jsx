@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { RequestError } from './RequestState.jsx';
 import { api } from './api.js';
+import { certaintyLabel, sourceLabel, choiceKeys, EpiDot } from './format.jsx';
 
 // P1 Explain Map. Deterministic columns (question → agent → actions →
 // evidence/entries → outputs), plain-language edge verbs, three lenses, and a
@@ -8,9 +10,12 @@ import { api } from './api.js';
 
 const COL_X = 16;
 const COL_W = 210;
-const ROW_H = 84;
+const ROW_H = 224;
 const NODE_W = 190;
-const NODE_H = 64;
+const NODE_H = 200;
+const TYPE_LABELS = { question: 'Question', agent: 'Agent', action: 'Action', entry: 'Memory', evidence: 'Source', output: 'Result', impact: 'Follow-up work', more: 'More records' };
+const typeLabel = (type) => TYPE_LABELS[type] || `Record type: ${type}`;
+const stepLabel = (text) => text.replace(/^Wrote to memory \((verified|inference|assumption)\):/, (_, value) => `Recorded memory — ${certaintyLabel(value)}:`);
 
 const LENSES = [
   { key: 'flow', label: 'Flow', hint: 'what happened' },
@@ -35,15 +40,19 @@ export default function ExplainMap({ canvasId, runId, onSelectEntry, onSelectRun
   const [asSteps, setAsSteps] = useState(false);
   const [map, setMap] = useState(null);
   const [error, setError] = useState(null);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let alive = true;
     setMap(null); setError(null);
     api(`/api/canvases/${canvasId}/runs/${runId}/explain-map?lens=${lens}`)
-      .then((m) => { if (alive) setMap(m); })
-      .catch((e) => { if (alive) setError(e.message); });
+      .then((m) => {
+        if (!m || !['nodes', 'edges', 'steps'].every((key) => Array.isArray(m[key])) || m.steps.some((step) => typeof step !== 'string')) throw new Error('The work map response was incomplete.');
+        if (alive) setMap(m);
+      })
+      .catch((e) => { if (alive) setError(e); });
     return () => { alive = false; };
-  }, [canvasId, runId, lens]);
+  }, [canvasId, runId, lens, retry]);
 
   const select = (n) => {
     if (n.meta && n.meta.entryId && onSelectEntry) onSelectEntry(n.meta.entryId);
@@ -60,9 +69,9 @@ export default function ExplainMap({ canvasId, runId, onSelectEntry, onSelectRun
       <div className="explain-controls">
         <div className="lens-switch" role="tablist" aria-label="Explain Map lens">
           {LENSES.map((l) => (
-            <button key={l.key} role="tab" aria-selected={lens === l.key}
+            <button key={l.key} role="tab" aria-selected={lens === l.key} tabIndex={lens === l.key ? 0 : -1}
               className={`btn ghost small ${lens === l.key ? 'lens-on' : ''}`}
-              title={l.hint} onClick={() => setLens(l.key)}>{l.label}</button>
+              title={l.hint} onKeyDown={(event) => choiceKeys(event, LENSES.map((item) => item.key), l.key, setLens)} onClick={() => setLens(l.key)}>{l.label}</button>
           ))}
         </div>
         <button className="btn ghost small" aria-pressed={asSteps} onClick={() => setAsSteps(!asSteps)}>
@@ -70,12 +79,13 @@ export default function ExplainMap({ canvasId, runId, onSelectEntry, onSelectRun
         </button>
       </div>
 
-      {error ? <div className="run-error">⚠ {error}</div> : null}
+      <RequestError error={error} subject="Loading the work map" onRetry={() => setRetry((n) => n + 1)} />
       {!map && !error ? <div className="empty-hint">building the map…</div> : null}
+      {map && !map.nodes.length && !map.steps.length ? <p>No work map details were returned. <button className="btn small" onClick={() => setRetry((n) => n + 1)}>Refresh map</button></p> : null}
 
       {map && asSteps ? (
         <ol className="explain-steps" aria-label="Run explained as ordered steps">
-          {map.steps.map((s, i) => <li key={i}>{s}</li>)}
+          {map.steps.map((s, i) => <li key={i}>{stepLabel(s)}</li>)}
         </ol>
       ) : null}
 
@@ -99,16 +109,18 @@ export default function ExplainMap({ canvasId, runId, onSelectEntry, onSelectRun
             {map.nodes.map((n) => {
               const { x, y } = nodeXY(n);
               const epi = n.meta && n.meta.epistemic ? ` epi-${n.meta.epistemic}` : '';
+              const certainty = n.meta?.epistemic ? certaintyLabel(n.meta.epistemic) : null;
               return (
                 <button key={n.id}
                   className={`explain-node en-${n.type}${epi}${n.redacted ? ' en-redacted' : ''}`}
                   style={{ position: 'absolute', left: x, top: y, width: NODE_W, minHeight: NODE_H }}
                   onClick={() => select(n)}
-                  aria-label={`${n.type}: ${n.label}`}>
-                  <span className="en-type">{n.type}{n.meta && n.meta.sourceKind ? ` · ${n.meta.sourceKind}` : ''}</span>
+                  aria-label={`${typeLabel(n.type)}: ${n.label}${certainty ? ` · ${certainty}` : ''}${n.meta?.tainted ? ' · Uses corrected information' : ''}${n.meta?.superseded ? ' · Earlier version' : ''}`}>
+                  <span className="en-type">{typeLabel(n.type)}{n.meta && n.meta.sourceKind ? ` · ${sourceLabel(n.meta.sourceKind)}` : ''}</span>
                   <span className="en-label">{n.label}</span>
-                  {n.meta && n.meta.tainted ? <span className="tainted-flag">⚠</span> : null}
-                  {n.meta && n.meta.superseded ? <span className="chip">superseded</span> : null}
+                  {certainty ? <span className="en-certainty"><EpiDot epistemic={n.meta.epistemic} />{certainty}</span> : null}
+                  {n.meta && n.meta.tainted ? <span className="tainted-flag" title="Uses corrected information">⚠</span> : null}
+                  {n.meta && n.meta.superseded ? <span className="chip">Earlier version</span> : null}
                 </button>
               );
             })}

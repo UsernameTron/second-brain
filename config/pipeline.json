@@ -27,7 +27,7 @@
     "candidatePoolSize": 20
   },
   "promotion": {
-    "batchCapMax": 10,
+    "batchCapMax": 100,
     "batchCapMin": 5,
     "archiveEntriesThreshold": 500,
     "archiveSizeThresholdKB": 200,

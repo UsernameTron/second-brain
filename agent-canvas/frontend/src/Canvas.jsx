@@ -109,7 +109,8 @@ export default function Canvas({
   // ---------- background pan + cursor broadcast ----------
   const onPointerDown = (e) => {
     if (e.button !== 0) return;
-    if (e.target.closest('.node, .minimap, .edge-tip, .cluster-chip')) return;
+    // Capturing a button's pointer here retargets its click to the background.
+    if (e.target.closest('.node, .minimap, .edge-tip, .cluster-chip, .canvas-controls, button, a, input, textarea, select, summary')) return;
     panRef.current = { sx: e.clientX, sy: e.clientY, ox: viewRef.current.x, oy: viewRef.current.y, moved: false };
     try { rootRef.current.setPointerCapture(e.pointerId); } catch { /* noop */ }
   };

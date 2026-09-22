@@ -530,6 +530,14 @@ module.exports = {
   flushPendingBuffer,
   parseCheckboxState,
   resolvedVaultRoot,
+  // Published (was _testOnly) so every automated writer in the memory pipeline
+  // can serialize on the same file lock, not just writeCandidate. Nightly
+  // auto-promotion made an unlocked read-modify-write of memory-proposals.md a
+  // routine overlap with a late /wrap, and a candidate appended mid-promotion
+  // was silently dropped.
+  // ponytail: one coarse pipeline-wide mutex; split per-file if contention shows up.
+  acquireLock,
+  releaseLock,
 };
 
 // Test-only surface: tests that need to exercise lock primitives directly

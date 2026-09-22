@@ -10,6 +10,19 @@
 > file had reached 1666 lines and the current-state block was buried under its
 > own history.
 
+## Scheduler and connector observations from August 2026
+
+Moved from HANDOFF on 2026-09-14 after the simplified UI deployment. These are
+historical observations; current release evidence remains in HANDOFF.
+
+**Live-proven:** Cloud Scheduler job `agent-canvas-standing-rules` was
+RESUMED by operator approval on 2026-08-19; its first tick after resume
+returned HTTP 200 at `2026-08-19T18:10:01Z` and the STANDING RULES lamp
+earned green. `sr-icp-connector.fly.dev` pings `sr-icp-v7`; estate-sentinel's
+ICP pins agree across signal-radar (canonical), the connector, and
+enrichment-dispatch.
+
+
 ## DEPLOY PROVENANCE FOR `00051-94w` (2026-08-16, superseded by the `00052-nbf` deploy)
 
 > Moved from the current-state block when the #199 deploy superseded it.

@@ -1,0 +1,58 @@
+{
+  "group": "needs-you",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "Member Mine/Team/All across two spaces, independent Mine badge, all six source types, private-space exclusion and a real denied source read.",
+    "Cross-space person/agent/clear assignment, redirection to that space’s agent and escalation dismissal retain original source semantics.",
+    "503/409/403 answer failures keep the exact draft and support status checks; double-click accepts only one real resolution.",
+    "Conflict links open both exact entries without changing the active space; dismissal keeps both records. Overdue review opens its source and failure/retry appends a linked reaffirmation.",
+    "Failed work source/retry and scheduled alert/brief source/acknowledgment each survive a rejected action; paused fixture schedules are never activated.",
+    "390px member answer and verified-empty Mine queue after completion."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-needs-you-all-types.png",
+      "description": "Member global queue contains all six card types across two accessible spaces; private-space records are excluded.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-needs-you-memory-source.png",
+      "description": "A conflicting-memory card opens its exact source and alternate entry while keeping the original active project.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-needs-you-brief-source.png",
+      "description": "The complete historical fixture brief opens from its card; the schedule stays paused and claims no future execution.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-needs-you-mobile-mine.png",
+      "description": "Mobile member queue retains source labels, full decision context and accessible answer controls.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}

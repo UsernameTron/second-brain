@@ -1,0 +1,59 @@
+{
+  "group": "workspace-tools",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "Documents and notes: empty state, creation, pinned note save failure/retry, retained edits, reopen, upload retry, original download retry and cancelled removal.",
+    "Team: teammate cards, custom-agent fields, failed creation retaining settings, direct dispatch failure/retry, recent work, source/event details and provenance map.",
+    "Advanced Commands: failed interpretation, retained/cancelled input, practice selection, preview/confirm dispatch and unknown-command dismissal. Speech recognition is not verified.",
+    "Canvas: note/file/person/task/agent nodes, keyboard task opening, assignment failure/retry, person/agent/unassigned choices, persisted dragging, tidy, fit, background pan, wheel zoom, cluster zoom and minimap.",
+    "Home agent override, receipt failure/retry, save failure/status check, saved/unsaved filtering; owner version read recovery and rollback; confirmed retirement retains accessible answer work.",
+    "Confirmed note/file removal and owner archive/restore preserve the task, retired-agent work and project history.",
+    "Spending owner save failure/draft/retry, pause/resume retaining the Home draft, Help, dark/mobile layout, preference retry and failed/successful sign-out."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-workspace-tools-note-recovery.png",
+      "description": "A failed note save keeps the title, contents and pin choice with Retry save.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-workspace-tools-work-details.png",
+      "description": "Agent work retains sources, technical events, provenance map and refresh.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-workspace-tools-canvas.png",
+      "description": "Canvas nodes, task assignment, drag/save, tidy, fit and minimap remain reachable under Advanced.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-workspace-tools-mobile-help-dark.png",
+      "description": "Mobile Help and dark appearance remain readable after preference-save recovery.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}

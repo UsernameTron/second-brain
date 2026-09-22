@@ -136,9 +136,11 @@ describe('config/pipeline.json', () => {
     expect(pipeline.wikilink.relevanceThreshold).toBe(0.6);
   });
 
-  test('has promotion section with batchCapMax = 10', () => {
+  test('has promotion section with a valid batch cap range', () => {
     expect(pipeline.promotion).toBeDefined();
-    expect(pipeline.promotion.batchCapMax).toBe(10);
+    expect(typeof pipeline.promotion.batchCapMin).toBe('number');
+    expect(typeof pipeline.promotion.batchCapMax).toBe('number');
+    expect(pipeline.promotion.batchCapMax).toBeGreaterThanOrEqual(pipeline.promotion.batchCapMin);
   });
 
   test('has retry section with maxAttempts = 3', () => {

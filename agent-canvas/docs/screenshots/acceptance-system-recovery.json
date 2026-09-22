@@ -1,0 +1,58 @@
+{
+  "group": "system-recovery",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "Configuration/service failures and malformed successful startup responses retain an explicit retry screen; recovery uses the existing signed-in account.",
+    "A real socket drop misses a completed inquiry and pause; reconnect reconciles both, labels stale work, and preserves the pause safeguard.",
+    "A server-accepted inquiry with a lost response remains unconfirmed, retains text, blocks repeated submission and recovers exactly one saved answer through Check status.",
+    "Failed control and connection reads show unknown spending and unavailable status, with no substitute zero, false configuration state or green lamp; retry recovers.",
+    "Expired read authentication warns before leaving the editable draft; Pete can sign in again and retrieve the saved result.",
+    "Synthetic voice start failure keeps typed input; cumulative final transcripts are not duplicated, errors retain partial text without interpretation, confirmation remains required, Cancel keeps text and leaving Commands aborts recognition. Physical speech recognition is not verified."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-system-recovery-startup.png",
+      "description": "Malformed startup response shows a durable failure and Try again; it does not pretend the account signed out.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-system-recovery-disconnected.png",
+      "description": "Disconnected work is explicitly stale while a real server-side result and pause await reconnection.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-system-recovery-unconfirmed.png",
+      "description": "A lost submission response keeps the draft, disables repeat submission and recovers the one saved answer through Check status.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-system-recovery-voice-recovery.png",
+      "description": "Synthetic recognition failure keeps the partial transcript for typing and review; no automatic interpretation or action follows the error.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}

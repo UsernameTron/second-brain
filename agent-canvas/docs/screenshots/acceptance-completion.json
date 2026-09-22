@@ -1,0 +1,89 @@
+{
+  "group": "completion",
+  "fixture": "Disposable database; real local routes and development sign-in; stubbed model; no external network. Does not verify Google OAuth or external integrations.",
+  "checks": [
+    "Both response orders: team read failure survives initial and later project selection; Add agent offers one successful retry without page reload or a false empty state.",
+    "Failed and malformed template reads block project/Room creation while retaining names; retry recovers both forms. A successful empty team list has a distinct owner-settings explanation.",
+    "Both tier labels, every custom input, and unchanged option values are accessible at 390/768/1280px; adding a real template opens an agent with the same plain-English tier.",
+    "Explicit three-certainty map payload: all lenses, symbols, accessible names, long source text, correction flags, mobile geometry, keyboard switching, ordered steps, exact real memory navigation, malformed/empty recovery and both themes pass.",
+    "Blocked-Google callback uses a plain recovery message; complete technical setup instructions remain behind labelled details, reachable by keyboard. No OAuth or external call is attempted."
+  ],
+  "screenshots": [
+    {
+      "file": "acceptance-completion-mobile-team-recovery.png",
+      "description": "A failed team list survives project selection and remains recoverable inside Add agent; it never claims the team list is empty.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-completion-mobile-project-recovered.png",
+      "description": "New project space retains the name after failed and incomplete team replies. Its own retry restores the starting teams and enables creation.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "file": "acceptance-completion-desktop-team-labels.png",
+      "description": "Team templates explains both reasoning levels while preserving every template choice.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-completion-mobile-custom-labels.png",
+      "description": "Custom agent creation retains every field and exact tier values, with accessible visible labels at narrow widths.",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-completion-mobile-map-certainty.png",
+      "description": "Every memory node has written and accessible certainty plus its original symbol and border. Long source text and correction flags remain inside distinct nodes.",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-completion-mobile-map-unconfirmed.png",
+      "description": "The unconfirmed memory node keeps its complete certainty label and hollow symbol, matching the independently recorded memory value.",
+      "viewport": {
+        "width": 390,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-completion-desktop-map-dark.png",
+      "description": "The work map preserves certainty, source wording and correction flags in dark mode; Read as steps and all three lenses remain reachable.",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    },
+    {
+      "file": "acceptance-completion-mobile-connection-recovery.png",
+      "description": "The blocked-account callback explains how to recover in plain English. Owner setup details remain available under a collapsed keyboard-operable disclosure.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "browserErrors": [],
+  "bootCounts": {
+    "canvases": 0,
+    "agents": 0,
+    "notes": 0,
+    "files": 0,
+    "tasks": 0,
+    "runs": 0,
+    "inquiries": 0,
+    "memory_entries": 0
+  },
+  "externalAttempts": 0
+}
