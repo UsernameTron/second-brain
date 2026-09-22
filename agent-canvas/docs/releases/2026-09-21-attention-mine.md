@@ -117,10 +117,9 @@ diff /tmp/agent-canvas-ui-20260914-review2.spec.json \
 **Traffic after cutover.** Requests on the new revision through to the next
 morning, all HTTP 200, no ERROR-severity log in the window: `/` at 18:51:21,
 then `/api/service/attention-count` at 18:55:33, 22:41:28, and 2026-09-22
-03:52:49 and 04:03:01. The request log does not record headers, so whether any
-of those calls carried `X-Actor-Email` is not visible — **the new `mine:true`
-header path is not yet confirmed exercised in production**; only the unchanged
-headerless response is proven live.
+03:52:49 and 04:03:01. The request log does not record headers, and none of
+those calls came from a caller that sends one — see *Status lane verified
+live* below.
 
 Instances started and stopped on demand across that period, each restoring the
 replica the previous one left behind — generation chain `3d7d55ace9544fcf` →
@@ -149,6 +148,38 @@ Recovery, same day:
 The scheduler had stayed PAUSED from the maintenance window until 16:43 — about
 22 hours in which no standing-rules tick ran. Nothing in the rollout depends on
 it, but it was not part of the plan.
+
+## Status lane verified live — 2026-09-22 17:02 UTC
+
+Four probes against the live service, run from Pete's terminal with an OIDC
+token minted by impersonating `553976212013-compute@developer.gserviceaccount.com`
+(the `STATUS_INVOKER_SA`). Impersonation needed a temporary
+`roles/iam.serviceAccountTokenCreator` grant on that account in project
+`l10ctg`, revoked immediately after.
+
+| Probe | Response | Status |
+|---|---|---|
+| No token | `{"error":"missing bearer token"}` | 401 |
+| Token, no header | `{"needsYou":3,"generatedAt":"…"}` | 200 |
+| Token + `X-Actor-Email: pete@cloudtechgurus.com` | `{"count":0,"mine":true,"items":[],"generatedAt":"…"}` | 200 |
+| Token + `X-Actor-Email: pete@example.com` | `{"error":"invalid email"}` | 400 |
+
+The header is honoured, the response switches to the `mine:true` shape, the
+address is not echoed in the body, and an out-of-domain address is rejected
+before any query runs. The headerless response is unchanged.
+
+**Two caveats.**
+
+1. `ctg-l10-eos` does not send the header yet — neither
+   `functions/src/getCanvasStatus.ts` nor the compiled `functions/lib/getCanvasStatus.js`
+   contains `X-Actor-Email`. Until L10 ships that, production traffic exercises
+   only the headerless branch; the `mine` branch is live but dormant.
+2. Pete's own count came back 0 while three items need attention overall, so
+   the ≤5 item cap and the 120-character title truncation were not exercised
+   against real rows — `scope: 'mine'` matches `owner.email` exactly
+   (`server/attention.js:249`), and none of the three open items is owned by
+   that address. Whether any current card carries an owner address at all is
+   unconfirmed.
 
 **Two things to carry into the next window.** Re-running the image-update
 command is not idempotent: the image and traffic flags no-op, `--scaling=0` does
