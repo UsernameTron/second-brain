@@ -1,10 +1,12 @@
 # Agent Canvas release — "mine" attention summary, 2026-09-21
 
-**Status: image published to the private registry. Not yet deployed.** The
-maintenance-window commands (Scheduler pause, scale to zero, image update) are
-refused to the agent session by a permission check, so Pete runs them one at a
-time. This record is updated with the observed live results once the rollout
-runs.
+**Status: deployed and verified live.** The rollout ran 2026-09-21 18:44–18:51
+UTC; see [Observed rollout](#observed-rollout--2026-09-21). A follow-on incident
+on 2026-09-22 took the service to zero instances for 14 minutes and is recorded
+in [2026-09-22 — service scaled to zero again](#2026-09-22--service-scaled-to-zero-again).
+The maintenance-window commands (Scheduler pause, scale to zero, image update)
+are refused to the agent session by a permission check, so Pete ran them one at
+a time.
 
 ## Live baseline, read 2026-09-21 18:38 UTC (before any change)
 
@@ -72,3 +74,84 @@ The rollout follows the image-only procedure in
 [2026-09-14-ui.md](2026-09-14-ui.md): only the image and the revision name
 change; every environment variable, secret binding and `MODEL_PROVIDER` stay as
 they are. `deploy/deploy.sh` is not used.
+
+## Observed rollout — 2026-09-21
+
+All times UTC, read from the Cloud Run admin activity log and the revision's
+own logs. Every service change was made by `pete@cloudtechgurus.com`.
+
+| Step | Time | Observed result |
+|---|---|---|
+| Scheduler paused | before 18:44 | `agent-canvas-standing-rules` PAUSED |
+| Scale to zero | 18:44:14 | old instance logged `litestream shut down` at 18:44:20 |
+| Image update | 18:47:45 | revision `agent-canvas-mine-20260921-17fbd4e` created with `--no-traffic --scaling=0`; traffic still pinned to `ui-20260914-review2` |
+| Traffic cutover | 18:48:58 | 100% to `agent-canvas-mine-20260921-17fbd4e` |
+| Scaling restored | 18:51:14 | scaling mode automatic; instance up at 18:51:28, restored replica generation `3d7d55ace9544fcf` index 301 |
+
+Two further service replaces at 18:51:02 and 18:51:21 repeated the traffic and
+scaling state already in force and changed nothing.
+
+**Image.** Cloud Run resolved the index digest `05739e58…` to its linux/amd64
+manifest `sha256:0a6fabcebd2e94b9db6347350ce5fe19e91bd666e85d67d5cf212f257b1ce9f5`
+— the manifest recorded in *Exact candidate* above, so the running container is
+the built and tested image.
+
+**Configuration.** A field-by-field comparison of the new revision's spec
+against the baseline revision's, with only the image removed, is empty: 18
+environment/secret bindings (4 secret references), `MODEL_PROVIDER=gemini`,
+service account `agent-canvas-run@`, 1 CPU / 1 GiB, concurrency 80, timeout
+300 s, revision maximum one instance. The `8f0c95d8…` fingerprint quoted in the
+baseline has no recorded recipe, so this diff replaces it as the reproducible
+check:
+
+```bash
+for r in agent-canvas-ui-20260914-review2 agent-canvas-mine-20260921-17fbd4e; do
+  gcloud run revisions describe "$r" --project agent-canvas-ctg-0811 --region us-central1 \
+    --format=json | jq -S '.spec | del(.containers[].image) | .containers[].env |= sort_by(.name)' \
+    > "/tmp/$r.spec.json"
+done
+diff /tmp/agent-canvas-ui-20260914-review2.spec.json \
+     /tmp/agent-canvas-mine-20260921-17fbd4e.spec.json   # exits 0, no output
+```
+
+**Traffic after cutover.** Requests on the new revision through to the next
+morning, all HTTP 200, no ERROR-severity log in the window: `/` at 18:51:21,
+then `/api/service/attention-count` at 18:55:33, 22:41:28, and 2026-09-22
+03:52:49 and 04:03:01. The request log does not record headers, so whether any
+of those calls carried `X-Actor-Email` is not visible — **the new `mine:true`
+header path is not yet confirmed exercised in production**; only the unchanged
+headerless response is proven live.
+
+Instances started and stopped on demand across that period, each restoring the
+replica the previous one left behind — generation chain `3d7d55ace9544fcf` →
+`09da4d7052aa185b` → `5fbaa4407b5f8e0f` → `251261bdac178897` →
+`d8ea9f4c098d1e2d`, no gap.
+
+## 2026-09-22 — service scaled to zero again
+
+At 16:27:14 the image-update command above was run a second time from the
+terminal. Because the revision already existed with the same image, no revision
+was created and traffic was untouched, but `--scaling=0` returned the service to
+manual scaling with zero instances. `/api/healthz` returned 503 until the fix.
+No instance was running at the time — the last one shut down cleanly at 04:18:04
+(`litestream shut down`) — so no request was interrupted and no write was lost.
+
+Recovery, same day:
+
+| Time | Action | Result |
+|---|---|---|
+| 16:41 | `gcloud run services update agent-canvas --scaling=auto` | generation 81, scaling mode automatic, traffic unchanged at 100% to `mine-20260921-17fbd4e` |
+| 16:42:00 | instance started (AUTOSCALING) | restored replica generation `d8ea9f4c098d1e2d`, new generation `929e073e207c4c57` |
+| 16:41:55–16:42:08 | `/api/healthz` ×3 | 200 `{"ok":true,"paused":false}` |
+| 16:43 | `gcloud scheduler jobs resume agent-canvas-standing-rules` | ENABLED |
+| 16:50:01 | first scheduler tick | `/api/standing-rules/tick` 200, no errors |
+
+The scheduler had stayed PAUSED from the maintenance window until 16:43 — about
+22 hours in which no standing-rules tick ran. Nothing in the rollout depends on
+it, but it was not part of the plan.
+
+**Two things to carry into the next window.** Re-running the image-update
+command is not idempotent: the image and traffic flags no-op, `--scaling=0` does
+not. And a rollout is not finished when traffic moves — close it only after
+scaling mode, the scheduler and a live health check are each re-read and
+recorded here.
